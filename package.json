@@ -1,0 +1,27 @@
+{
+  "name": "loopwithai",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "vendor/cordis/*",
+    "vendor/dsh/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @loopwithai/web",
+    "build": "npm run build --workspace @loopwithai/web",
+    "build:vendor": "tsx scripts/check-vendor.ts",
+    "test": "npm run test --workspace @loopwithai/core && npm run test --workspace @loopwithai/web",
+    "typecheck": "npm run typecheck --workspace @loopwithai/core && npm run typecheck --workspace @loopwithai/web",
+    "check": "npm run build:vendor && npm run test && npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

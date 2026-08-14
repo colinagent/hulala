@@ -1,0 +1,57 @@
+{
+  "name": "@loopwithai/cordis-plugin-hmr",
+  "description": "Hot Module Replacement Plugin for Cordis",
+  "version": "1.0.16",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "vendor/hmr"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "src"
+  ],
+  "author": "Shigma <shigma10826@gmail.com>",
+  "license": "MIT",
+  "@loopwithai/cordis": {
+    "services": {
+      "required": [
+        "timer"
+      ]
+    },
+    "description": {
+      "en": "Hot Module Replacement",
+      "zh": "\u6a21\u5757\u70ed\u66ff\u6362"
+    }
+  },
+  "peerDependencies": {
+    "@loopwithai/cordis-plugin-timer": "*",
+    "@loopwithai/cordis": "*"
+  },
+  "dependencies": {
+    "@babel/code-frame": "^7.29.0",
+    "chokidar": "^4.0.3",
+    "@loopwithai/cosmokit": "*",
+    "picomatch": "^4.0.3",
+    "@loopwithai/schemastery": "*"
+  },
+  "devDependencies": {
+    "@types/babel__code-frame": "^7.27.0",
+    "@types/picomatch": "^3.0.2",
+    "esbuild": "^0.28.1"
+  },
+  "private": true
+}

@@ -1,0 +1,21 @@
+# Loop advice composition. This is the seed roster for a single structured
+# AgentAdvice turn. Shell, sandbox, and subagent plugins stay out.
+plugins:
+  - id: cosmokit
+    name: "@loopwithai/cosmokit"
+  - id: cordis
+    name: "@loopwithai/cordis"
+  - id: session
+    name: "@loopwithai/dsh-session"
+  - id: system-prompt
+    name: "@loopwithai/dsh-system-prompt"
+  - id: llm
+    name: "@loopwithai/dsh-llm"
+  - id: llm-deepseek
+    name: "@loopwithai/dsh-llm-deepseek"
+  - id: tools
+    name: "@loopwithai/dsh-tools"
+  - id: agent
+    name: "@loopwithai/dsh-agent"
+  - id: agent-loop
+    name: "@loopwithai/dsh-agent-loop"

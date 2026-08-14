@@ -1,0 +1,49 @@
+{
+  "name": "@loopwithai/cordis",
+  "description": "Meta-Framework for Modern JavaScript Applications",
+  "version": "4.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "vendor/cordis"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./loop-shim.d.ts",
+  "bin": "bin.js",
+  "exports": {
+    ".": {
+      "types": "./loop-shim.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts",
+    "lib/types/**/*.d.ts.map",
+    "bin.js",
+    "src"
+  ],
+  "author": "Shigma <shigma10826@gmail.com>",
+  "license": "MIT",
+  "peerDependencies": {
+    "@loopwithai/cordis-plugin-include": "*",
+    "@loopwithai/cordis-plugin-loader": "*"
+  },
+  "peerDependenciesMeta": {
+    "@loopwithai/cordis-plugin-include": {
+      "optional": true
+    },
+    "@loopwithai/cordis-plugin-loader": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.1.0",
+    "@loopwithai/cosmokit": "*"
+  },
+  "private": true
+}
