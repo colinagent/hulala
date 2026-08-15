@@ -3,29 +3,29 @@
 ## Read First
 
 - This file is the source of truth for the public/private product boundary.
-- **Current phase scope is exactly two deliverables: Loop Core and Loop Local
-  Web.** This is a hard product constraint, not a suggested sequence.
+- **Current phase scope is the local DeepSeek Harness workbench and its local
+  Agent Loop plugins.** The older Loop Core/Local Web prototype is parked and
+  must not be expanded unless the product owner reopens that work.
 - Do not design or implement Desktop, OpenBrain integration, Cloud, sync,
   accounts, billing, multi-tenancy, hosted runtimes, Telegram/channel gateways,
   teams, marketplace, or enterprise features in the current phase.
 - Do not add speculative interfaces, packages, configuration, feature flags, or
   abstractions for those excluded products. Build only what Core and Local Web
   need now.
-- Before adding or moving code, classify it using the table below.
+- Before adding or moving code, classify it using the public/private boundary below.
 - If ownership is unclear, keep the work private and ask the product owner. Never
   publish first and clean it up later.
 - Do not copy code, configuration, documentation, prompts, schemas, or operational
   details from a private repository into this repository without explicit approval.
 
-## Repository Dictionary
+## Repository Boundary
 
-| Repository | Local path | Visibility | Purpose |
-| --- | --- | --- | --- |
-| `loopwithai/loopwithai` | `/Users/colin/code/loopwithai` | **Public / open source** | Loop Core and the local Web application |
-| `loopwithai/loopwithai-mono` | `/Users/colin/code/loopwithai-mono` | **Private / out of current scope** | Internal product documents and any possible future commercial work; do not build it in this phase |
-| `colinagent/openbrain-dev` | `/Users/colin/code/openbrain-dev` | **Private / out of current scope** | Existing OpenBrain project; do not add Loop integration in this phase |
+This public repository contains the local Harness workbench, its Agent Loop
+plugins, and the parked Loop prototype. Private product repositories, internal
+documents, unrelated applications, and machine-specific source trees are out
+of scope. Do not name, import, or depend on them here.
 
-The public GitHub URL is <https://github.com/loopwithai/loopwithai>.
+The public GitHub URL is <https://github.com/loopwithai/LoopWithAI>.
 
 ## License Status
 
@@ -41,7 +41,17 @@ The public GitHub URL is <https://github.com/loopwithai/loopwithai>.
 
 ## What Is Open Source
 
-Only the following Loop product surfaces belong in this repository:
+Only the following local product surfaces belong in this repository:
+
+### Harness Workbench
+
+- DeepSeek Harness Web as the default local interface.
+- Agent Loop plugins built on Harness `AgentFactory` and Cordis Loader entry
+  replacement.
+- Direct local SDK integrations for Pi, Codex and Claude Code, with their
+  native tools, approvals, settings, skills/extensions and MCP configuration.
+- Local runtime/model selection. Do not route these through a hosted gateway
+  or use ACP as the primary integration.
 
 ### Loop Core
 
@@ -49,11 +59,8 @@ Only the following Loop product surfaces belong in this repository:
   budget bandwidth, contracts, cycles, evidence, decisions, revisions, and events.
 - Local-first state machines, schemas, migrations, validation, and import/export.
 - Local execution interfaces needed to run a Loop on the user's own machine.
-- AgentDriver and provider interfaces required by the local product. The only
-  production Agent engine is the vendored dsh cone under `vendor/`. Do not add
-  Hermes, another gateway, or a second Agent runtime. A concrete adapter may be
-  public only when it is required for local execution and contains no
-  hosted-service or commercial logic.
+- The old AgentDriver path is legacy prototype code. Do not extend it for the
+  Harness workbench; new runtimes belong in Agent Loop plugins.
 - Tests and public documentation for the above behavior.
 
 ### Local Web
@@ -102,13 +109,11 @@ abstractions are also out of scope.
 - Do not build a separate Loop Desktop application.
 - Loop's standalone public interface is the local Web application in this
   repository.
-- Do not implement a Loop integration inside OpenBrain Desktop during the
+- Do not implement an integration inside another desktop product during the
   current phase.
-- OpenBrain Desktop, its renderer/main-process code, private server, packaging,
+- Another product's renderer/main-process code, private server, packaging,
   signing, update, and release infrastructure are proprietary. Never copy them
   into this repository.
-- Do not modify `/Users/colin/code/openbrain-dev` for Loop work unless the
-  product owner explicitly opens a later integration phase.
 
 ## Naming
 
@@ -124,8 +129,7 @@ Do not introduce product names for excluded surfaces in implementation code.
    multi-tenant, or remote-runner code, including speculative abstractions.
 3. Search for secrets, private URLs, tenant identifiers, pricing logic, internal
    model/provider details, and deployment information.
-4. Confirm the change does not import or depend on `loopwithai-mono` or
-   `openbrain-dev` source code.
+4. Confirm the change does not import or depend on private repository source.
 5. Keep all local data formats documented and exportable.
 6. Run relevant tests and review `git diff` before committing.
 7. Do not push, publish packages, create releases, or deploy unless the user asks

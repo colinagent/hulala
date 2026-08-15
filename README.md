@@ -1,108 +1,204 @@
-# Loop with AI
+<div align="center">
+  <img src="assets/brand/otter-logo-transparent.png" alt="LoopWithAI otter logo" width="128" />
+  <h1>LoopWithAI</h1>
+  <p><strong>A multi-agent workbench for DeepSeek Harness.</strong></p>
+  <p>Run Pi, OpenAI Codex, Claude Code, or the native DeepSeek Agent Loop in one local Web UI.</p>
+  <p>
+    <a href="README.zh-CN.md">简体中文</a>
+    ·
+    <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>
+    ·
+    <a href="#quick-start">Quick start</a>
+  </p>
+  <p>
+    <img alt="DeepSeek Harness" src="https://img.shields.io/badge/DeepSeek-Harness-4D6BFE" />
+    <img alt="Node.js 24+" src="https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white" />
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5B5BD6?logo=typescript&logoColor=white" />
+    <img alt="Local first" src="https://img.shields.io/badge/Local--first-111827" />
+  </p>
+</div>
 
-Loop with AI is a local-first system for running evidence-based human–Agent feedback loops. It turns a small, uncertain goal into an explicit contract and guides one complete cycle:
+LoopWithAI turns [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) into a local multi-agent coding workbench. It keeps Harness's native Cordis plugin architecture and makes its Agent Loop replaceable, so you can switch between **Pi Coding Agent**, **OpenAI Codex**, **Claude Code**, and the original **DeepSeek Agent Loop** without adding an ACP gateway or a separate driver layer.
 
-> Human prior → Agent advice → human decision → real-world evidence → model revision
+Pi is the default Agent. Every runtime keeps its native model access, tools, approvals, MCP configuration, skills/extensions, and local authentication.
 
-The current product is intentionally limited to two open-source parts:
+> DeepSeek Harness is currently a developer preview. LoopWithAI follows its plugin APIs closely, so breaking upstream changes may require an update.
 
-- **Loop Core** — TypeScript domain model, state machine, append-only events, budget checks, prompts, and export.
-- **Loop Local Web** — a TypeScript/Next.js interface and local API backed by SQLite.
+## Why LoopWithAI
 
-There is no account, cloud service, sync, billing, multi-tenancy, desktop app, remote runner, or messaging gateway in this phase.
+- **One DeepSeek Harness, multiple Agents** — change the active Agent Loop from the composer instead of moving between separate terminal apps.
+- **Native integrations** — Pi uses its TypeScript SDK, Codex uses `codex app-server`, Claude Code uses the Agent SDK, and DeepSeek uses Harness's original Agent Loop.
+- **Models and Thinking controls** — choose the provider/model and supported reasoning level directly beside the prompt.
+- **Full coding tools** — read, bash, edit, write, project instructions, skills, extensions, MCP servers, and approval flows remain available where the selected Agent supports them.
+- **Local-first credentials and sessions** — tokens remain in the native Pi, Codex, Claude Code, or environment stores. LoopWithAI does not run a hosted credential gateway.
+- **Workspace continuity** — reopen the last Workspace automatically; a fresh install starts at `~/.lwa/workspace`.
+- **Proxy support** — use terminal environment variables, the macOS system proxy/Clash, a manual HTTP proxy, or force direct connections.
+- **Vite development workflow** — client-side workbench controls update with HMR while Harness remains running.
 
-## Why vendored dsh
+## Supported Agents
 
-The MVP uses a **source-vendored DeepSeek Harness (dsh) cone** as its only production Agent engine. Loop owns the contract, state transitions, budgets, decisions, and evidence; dsh performs a single Agent analysis when the user explicitly requests it.
+| Agent | Integration | Authentication | Native capabilities retained |
+| --- | --- | --- | --- |
+| **Pi** (default) | `@earendil-works/pi-coding-agent` SDK | Accounts panel, `pi /login`, or `~/.pi/agent` | models/providers, tools, skills, extensions, sessions, Thinking levels |
+| **DeepSeek** | original `@deepseek-ai/dsh-agent-loop` | `DEEPSEEK_API_KEY` and normal Harness settings | original Harness Agent Loop and DeepSeek models |
+| **OpenAI Codex** | `codex app-server --stdio` | existing `codex login` session | tools, MCP, sandbox, approvals, threads, models, reasoning effort |
+| **Claude Code** | `@anthropic-ai/claude-agent-sdk` | existing Claude Code login or Anthropic environment | Claude Code tool preset, settings, skills, plugins, MCP, permissions |
 
-The driver starts an in-process Cordis `Context`, calls DeepSeek chat-completions, then disposes the context. Browsing, editing, reviewing, and exporting a Loop never calls the model. The browser never sees the API key.
+LoopWithAI replaces the single process-wide Agent Loop transactionally through Cordis Loader. A blank conversation switches immediately. If the current conversation already has history, the UI asks for confirmation and opens a new conversation in the same Workspace, preventing a silent mid-session runtime change.
 
-## Architecture
-
-```text
-Browser on localhost
-        │
-        ▼
-Loop Local Web (Next.js + TypeScript)
-        │
-        ├── Loop Core (pure TypeScript state machine)
-        ├── SQLite event store (~/.loopwithai/loop.db)
-        └── DshAgentDriver ── in-process Cordis Context ──> DeepSeek API
-```
-
-SQLite stores append-only events. The current Loop state is rebuilt from those events, and every Loop can be exported as versioned JSON.
-
-## Run locally
+## Quick start
 
 Requirements:
 
 - Node.js 24 or newer
-- npm
-- a DeepSeek API key only when you want Agent advice
+- npm and Git
+- credentials for whichever Agent you want to use
 
-Install and start Loop:
+Clone, install, and start:
 
 ```bash
+git clone https://github.com/loopwithai/LoopWithAI.git
+cd LoopWithAI
 npm install
 npm run dev
 ```
 
-Open <http://127.0.0.1:3210>. You can create and inspect Loops before a model key is configured.
+Or use one shell command:
 
-To enable Agent advice, create `apps/web/.env.local`:
-
-```dotenv
-DEEPSEEK_API_KEY=replace-with-your-deepseek-api-key
-# Optional. Defaults to https://api.deepseek.com
-# DEEPSEEK_API_URL=https://api.deepseek.com
-# Optional. Defaults to deepseek-chat
-# DEEPSEEK_MODEL=deepseek-chat
+```bash
+git clone https://github.com/loopwithai/LoopWithAI.git && cd LoopWithAI && npm install && npm run dev
 ```
 
-Restart Loop after changing `.env.local`. The browser never receives this key; the Local Web server calls DeepSeek from the Node process.
+Open [http://127.0.0.1:3210](http://127.0.0.1:3210). `npm run dev` also starts the Vite HMR server on port `5174`.
 
-To keep data somewhere other than `~/.loopwithai`, set an absolute local directory:
+For a production-style local start without the Vite development server:
 
-```dotenv
-LOOP_DATA_DIR=/absolute/path/to/loop-data
+```bash
+npm start
 ```
+
+## Sign in to an Agent
+
+### Pi
+
+Select **Pi**, then open **Accounts** beside the composer. The Web flow supports the OAuth providers exposed by Pi, including ChatGPT/OpenAI Codex and Anthropic. You can also authenticate in the terminal:
+
+```bash
+pi
+# then run /login
+```
+
+Pi continues to own its configuration and credentials under `~/.pi/agent`. LoopWithAI never returns raw tokens to the browser.
+
+### OpenAI Codex
+
+Install and sign in with the official [OpenAI Codex CLI](https://github.com/openai/codex), then select **Codex** in LoopWithAI:
+
+```bash
+npm install -g @openai/codex
+codex login
+```
+
+LoopWithAI starts `codex app-server --stdio` when needed and reuses the CLI's existing local login. Set `CODEX_BINARY` only if your `codex` executable is not on `PATH`.
+
+### Claude Code
+
+Authenticate with [Claude Code](https://docs.anthropic.com/en/docs/claude-code/getting-started) normally, then select **Claude Code**:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+claude
+```
+
+The runtime uses the Claude Agent SDK and your normal Claude Code settings. Standard Anthropic environment credentials also continue to work.
+
+### Native DeepSeek Agent Loop
+
+Export your DeepSeek key before starting LoopWithAI:
+
+```bash
+export DEEPSEEK_API_KEY="your-api-key"
+npm run dev
+```
+
+Harness also supports its normal credential/settings layers. `DEEPSEEK_BASE_URL` can override the public DeepSeek endpoint when required.
+
+## Using the workbench
+
+1. Choose or add a Workspace. On startup, LoopWithAI restores the last valid Workspace; otherwise it creates `~/.lwa/workspace` using the operating system's home directory.
+2. Select **Pi**, **DeepSeek**, **Codex**, or **Claude Code** in the composer.
+3. Select an available model and provider.
+4. Select a Thinking level when the model exposes one.
+5. Choose the Workspace access/approval mode and send your prompt.
+6. Answer tool or permission requests in the Harness UI when the Agent asks.
+
+Runtime, provider, model, and reasoning provenance are kept separately in assistant records so the source remains clear when work is replayed.
+
+## Network proxy and Clash
+
+Open **Settings → Proxy**:
+
+- **Auto** (default) checks `LOOPWITHAI_PROXY`, then `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and their lowercase variants. On macOS, it also detects the current system HTTP/HTTPS proxy, including a Clash system proxy.
+- **Manual** uses the `http://` or `https://` proxy URL entered in the UI and overrides automatic detection. Example: `http://127.0.0.1:7897`.
+- **Off** forces direct connections and removes inherited proxy variables from Agent child processes.
+
+Changes apply to subsequent requests without restarting Harness. `NO_PROXY`/`no_proxy` is preserved. Proxy passwords are treated as write-only secrets and are never returned to the browser. SOCKS and PAC URLs are not supported yet; use the HTTP or mixed port exposed by Clash.
 
 ## Development
 
 ```bash
-npm run build:vendor  # typecheck the vendored Cordis / dsh cone
-npm run test          # Core and Web tests
-npm run typecheck     # strict TypeScript checks for Loop packages
-npm run build         # production Web build
-npm run check         # all of the above
+npm run dev        # DeepSeek Harness + Vite HMR; Pi is the default Agent
+npm start          # build plugins and run Harness without Vite
+npm run build      # build all Agent plugins and validate the Harness profile
+npm test           # run unit and integration tests with fake/local providers
+npm run typecheck  # strict TypeScript checks
+npm run check      # vendor checks + tests + typecheck + production build
 ```
 
-Workspace layout:
+The generated Harness patch uses checkout-relative file URLs, so the repository can be cloned into any directory, including paths containing spaces. Host-side TypeScript changes require restarting Harness; changes to `packages/agent-loop-selector/src/client.ts` are hot-replaced by Vite.
+
+## Architecture
 
 ```text
-packages/core/   Framework-independent Loop domain and application service
-apps/web/        Local Web UI, HTTP routes, SQLite store, DshAgentDriver
-vendor/cordis/   Vendored Cordis stack, rescoped to @loopwithai
-vendor/dsh/      Closed peer cone of dsh used for one advice turn
+DeepSeek Harness Web + Cordis
+└── agent-loop-runtime (transactional Loader entry)
+    ├── Pi Agent Loop          — direct Pi TypeScript SDK
+    ├── DeepSeek Agent Loop    — original Harness plugin
+    ├── Codex Agent Loop       — codex app-server protocol
+    └── Claude Code Agent Loop — Claude Agent SDK
 ```
 
-The Web layer may display state and collect input, but all Loop transitions belong in Core. See [AGENTS.md](./AGENTS.md) for the hard public/private and product-scope boundaries. Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md). Vendor update steps live in [vendor/README.md](./vendor/README.md).
+```text
+apps/harness-web/              portable Harness profile and local launcher
+packages/agent-loop-selector/  runtime/model/Thinking controls and Loader switch
+packages/agent-loop-pi/        Pi SDK AgentFactory and Harness event bridge
+packages/agent-loop-codex/     Codex app-server AgentFactory
+packages/agent-loop-claude/    Claude Agent SDK AgentFactory
+packages/network-proxy/        process-wide proxy service and Settings UI
+```
 
-## Current vertical slice
+The older event-sourced Loop prototype remains parked under `apps/web` and `packages/core`; it is not the default product surface and is not part of the current development focus.
 
-The current implementation supports:
+## Security and privacy
 
-- opening an in-memory quantitative-strategy prototype in Local Web to experience the complete human prior → independent Agent challenge → signed experiment → simulated evidence → model revision flow;
-- creating a weighted objective function, falsifiable world model, bandwidth budget, and guardrails;
-- recording the human's prediction before revealing Agent advice;
-- requesting structured independent analysis from in-process dsh without exposing the human prior;
-- requiring a human-signed decision before an experiment starts;
-- recording externally observed outcomes and costs;
-- revising the model and strategy, then optionally starting the next cycle;
-- replaying state from SQLite events and exporting the full event stream as JSON.
+- The workbench runs locally and does not proxy Agent traffic through a LoopWithAI cloud service.
+- Runtime credentials remain in their native local stores or environment variables.
+- Credential APIs expose status and safe model metadata, never raw secret values.
+- Tool execution and network access still depend on the selected Agent and the approval mode you choose.
 
-Not yet included are editable contracts, evidence file attachments, import/restore, migrations, pause/resume controls, asynchronous Agent runs, independent evaluators, and calibration dashboards.
+## Built on
+
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — the plugin-first Agent harness and Web workbench foundation
+- [Pi Coding Agent](https://github.com/earendil-works/pi) — the default multi-provider coding Agent runtime
+- [OpenAI Codex](https://github.com/openai/codex) — Codex CLI and app-server protocol
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) — Claude Code and the Claude Agent SDK
+
+## Contributing
+
+Issues and pull requests are welcome. Please run `npm run check` before opening a pull request and keep new Agent integrations inside the native DeepSeek Harness/Cordis Agent Loop plugin boundary.
 
 ## License status
 
-The repository is intended to be open source, but the project owner has not selected a license yet. Until a `LICENSE` file is added, do not assume permission beyond copyright law or redistribute the code as if a license had already been chosen.
+The project owner has not selected a license for LoopWithAI yet. Until a `LICENSE` file is added, do not assume reuse or redistribution rights beyond applicable copyright law. Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+LoopWithAI is an independent project and is not affiliated with DeepSeek, OpenAI, Anthropic, or the Pi maintainers.

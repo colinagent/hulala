@@ -1,0 +1,32 @@
+{
+  "name": "@loopwithai/harness-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:plugins": "npm run build --workspace @loopwithai/dsh-network-proxy && npm run build --workspace @loopwithai/dsh-agent-loop-selector && npm run build --workspace @loopwithai/dsh-agent-loop-pi && npm run build --workspace @loopwithai/dsh-agent-loop-codex && npm run build --workspace @loopwithai/dsh-agent-loop-claude",
+    "dev": "npm run build:plugins && tsx ./scripts/dev.ts",
+    "dev:ui": "cd ../../packages/agent-loop-selector && vite",
+    "dev:server": "tsx ./scripts/run-harness.ts --port 3210",
+    "build": "npm run build:plugins && tsx ./scripts/run-harness.ts --dump-config > /dev/null",
+    "start": "npm run build:plugins && tsx ./scripts/run-harness.ts --port 3210",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-agent-loop": "0.1.0-rc.6",
+    "@loopwithai/dsh-network-proxy": "*",
+    "@loopwithai/dsh-agent-loop-claude": "*",
+    "@loopwithai/dsh-agent-loop-codex": "*",
+    "@loopwithai/dsh-agent-loop-selector": "*",
+    "@loopwithai/dsh-agent-loop-pi": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "concurrently": "^9.2.0",
+    "tsx": "^4.20.0",
+    "typescript": "^7.0.0"
+  }
+}

@@ -1,6 +1,8 @@
 node_modules/
 .next/
 dist/
+packages/agent-loop-*/lib/
+packages/network-proxy/lib/
 coverage/
 .DS_Store
 .env
