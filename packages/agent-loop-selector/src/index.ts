@@ -52,6 +52,22 @@ export interface RuntimeControl {
 
 const selectionKey = Symbol.for('loopwithai.agent-runtime-selection')
 const controlsKey = Symbol.for('loopwithai.agent-runtime-controls')
+const processStartedAt = new Date().toISOString()
+
+export interface LoopWithAIHealth {
+  name: 'loopwithai'
+  version: string
+  pid: number
+  startedAt: string
+}
+
+export function healthPayload(
+  version = process.env.LOOPWITHAI_VERSION ?? '0.1.0',
+  pid = process.pid,
+  startedAt = processStartedAt,
+): LoopWithAIHealth {
+  return { name: 'loopwithai', version, pid, startedAt }
+}
 
 export function defaultWorkspacePath(userHome = homedir()): string {
   return join(userHome, '.lwa', 'workspace')
@@ -188,6 +204,14 @@ export class AgentLoopSelector extends Service {
       res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
       res.end(JSON.stringify(value))
     }
+    this.ctx.effect(() => this.ctx.webServer.register({
+      kind: 'exact', path: '/api/loopwithai/health', handler: (req, res) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') { send(res, 405, { error: 'method not allowed' }); return }
+        const payload = JSON.stringify(healthPayload())
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+        res.end(req.method === 'HEAD' ? undefined : payload)
+      },
+    }), 'agentLoopSelector.health()')
     this.ctx.effect(() => this.ctx.webServer.register({
       kind: 'exact', path: '/api/loopwithai/runtimes', handler: async (req, res) => {
         try {

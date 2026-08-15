@@ -1,5 +1,5 @@
 {
-  "name": "loopwithai",
+  "name": "@loopwithai/monorepo",
   "version": "0.1.0",
   "description": "A multi-agent workbench for DeepSeek Harness with Pi, OpenAI Codex, Claude Code, and the native DeepSeek Agent Loop.",
   "private": true,
@@ -29,15 +29,16 @@
     "dev": "npm run dev --workspace @loopwithai/harness-web",
     "start": "npm run start --workspace @loopwithai/harness-web",
     "dev:loop": "npm run dev --workspace @loopwithai/web",
-    "build": "npm run build --workspace @loopwithai/harness-web",
+    "build": "npm run build --workspace @loopwithai/harness-web && npm run build --workspace loopwithai",
     "build:loop": "npm run build --workspace @loopwithai/web",
     "build:vendor": "tsx scripts/check-vendor.ts",
-    "test": "npm run test --workspace @loopwithai/harness-web && npm run test --workspace @loopwithai/core && npm run test --workspace @loopwithai/web && npm run test --workspace @loopwithai/dsh-network-proxy && npm run test --workspace @loopwithai/dsh-agent-loop-selector && npm run test --workspace @loopwithai/dsh-agent-loop-pi && npm run test --workspace @loopwithai/dsh-agent-loop-codex",
-    "typecheck": "npm run typecheck --workspace @loopwithai/harness-web && npm run typecheck --workspace @loopwithai/core && npm run typecheck --workspace @loopwithai/web && npm run typecheck --workspace @loopwithai/dsh-network-proxy && npm run typecheck --workspace @loopwithai/dsh-agent-loop-selector && npm run typecheck --workspace @loopwithai/dsh-agent-loop-pi && npm run typecheck --workspace @loopwithai/dsh-agent-loop-codex && npm run typecheck --workspace @loopwithai/dsh-agent-loop-claude",
+    "test": "npm run test --workspace @loopwithai/harness-web && npm run test --workspace @loopwithai/core && npm run test --workspace @loopwithai/web && npm run test --workspace @loopwithai/dsh-network-proxy && npm run test --workspace @loopwithai/dsh-agent-loop-selector && npm run test --workspace @loopwithai/dsh-agent-loop-pi && npm run test --workspace @loopwithai/dsh-agent-loop-codex && npm run test --workspace loopwithai",
+    "typecheck": "npm run typecheck --workspace @loopwithai/harness-web && npm run typecheck --workspace @loopwithai/core && npm run typecheck --workspace @loopwithai/web && npm run typecheck --workspace @loopwithai/dsh-network-proxy && npm run typecheck --workspace @loopwithai/dsh-agent-loop-selector && npm run typecheck --workspace @loopwithai/dsh-agent-loop-pi && npm run typecheck --workspace @loopwithai/dsh-agent-loop-codex && npm run typecheck --workspace @loopwithai/dsh-agent-loop-claude && npm run typecheck --workspace loopwithai",
     "check": "npm run build:vendor && npm run test && npm run typecheck && npm run build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "esbuild": "0.28.2",
     "tsx": "^4.20.0",
     "typescript": "^7.0.0"
   },

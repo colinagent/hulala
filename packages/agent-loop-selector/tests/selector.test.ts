@@ -2,7 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 
-import AgentLoopSelector, { defaultWorkspacePath, ensureDefaultWorkspace, runtimeSelection } from '../src/index.ts'
+import AgentLoopSelector, { defaultWorkspacePath, ensureDefaultWorkspace, healthPayload, runtimeSelection } from '../src/index.ts'
+
+test('reports a stable local health identity', () => {
+  assert.deepEqual(healthPayload('1.2.3', 42, '2026-08-15T00:00:00.000Z'), {
+    name: 'loopwithai', version: '1.2.3', pid: 42, startedAt: '2026-08-15T00:00:00.000Z',
+  })
+})
 
 test('uses a cross-platform default workspace below the supplied home directory', () => {
   assert.equal(defaultWorkspacePath('/home/colin'), '/home/colin/.lwa/workspace')

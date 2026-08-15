@@ -2,11 +2,13 @@
 
 const UI_STYLE_ID = 'loopwithai-runtime-ui-style'
 const UI_ROOT_ID = 'loopwithai-runtime'
+const SERVICE_ROOT_ID = 'loopwithai-service'
 const PROXY_ROOT_ID = 'loopwithai-proxy-settings'
 const RUNTIME_CONFIRM_ID = 'loopwithai-runtime-confirm'
 
 document.getElementById(UI_STYLE_ID)?.remove()
 document.getElementById(UI_ROOT_ID)?.remove()
+document.getElementById(SERVICE_ROOT_ID)?.remove()
 document.getElementById(PROXY_ROOT_ID)?.remove()
 document.getElementById(RUNTIME_CONFIRM_ID)?.remove()
 document.querySelectorAll<HTMLElement>('[data-loopwithai-trailing]').forEach(element => delete element.dataset.loopwithaiTrailing)
@@ -33,6 +35,27 @@ style.textContent = `
 #loopwithai-runtime .account{display:flex;align-items:center;gap:7px;justify-content:space-between}
 #loopwithai-runtime .flow{display:grid;gap:5px;padding:6px;border-radius:6px;background:color-mix(in srgb,currentColor 6%,transparent)}
 #loopwithai-runtime a{color:LinkText}
+[data-loopwithai-service]{position:fixed;z-index:2147483600;top:12px;left:12px;color:CanvasText;font:13px system-ui}
+[data-loopwithai-service] [hidden]{display:none!important}
+[data-loopwithai-service] button,[data-loopwithai-service] a{box-sizing:border-box;border:0;border-radius:9px;background:transparent;color:inherit;padding:7px 10px;font:inherit;text-decoration:none;cursor:pointer}
+[data-loopwithai-service] button:hover,[data-loopwithai-service] a:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
+[data-loopwithai-service] .environment{display:flex;align-items:center;gap:5px;padding:4px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:12px;background:Canvas;box-shadow:0 7px 28px #0002}
+[data-loopwithai-service] .environment>[aria-current="page"]{background:#246bfd;color:white}
+[data-loopwithai-service] .status-dot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#d49b00}
+[data-loopwithai-service] .status-dot.running{background:#24a35a}
+[data-loopwithai-service] .status-dot.crashed{background:#d33}
+[data-loopwithai-service] .service-panel{position:absolute;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 24px));padding:16px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:14px;background:Canvas;box-shadow:0 12px 38px #0003}
+[data-loopwithai-service] .service-title{font-weight:650;margin-bottom:4px}
+[data-loopwithai-service] .service-detail{color:color-mix(in srgb,CanvasText 62%,transparent);font:12px/1.6 ui-monospace,SFMono-Regular,monospace}
+[data-loopwithai-service] .service-actions{display:flex;gap:7px;margin-top:13px}
+[data-loopwithai-service] .service-actions button{border:1px solid color-mix(in srgb,CanvasText 16%,transparent)}
+[data-loopwithai-service] .service-actions button:disabled{opacity:.55;cursor:wait}
+[data-loopwithai-service] .autostart-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px;padding-top:13px;border-top:1px solid color-mix(in srgb,CanvasText 12%,transparent)}
+[data-loopwithai-service] .autostart-row input{width:18px;height:18px}
+[data-loopwithai-service] .autostart-reminder{position:absolute;top:calc(100% + 8px);left:0;width:min(380px,calc(100vw - 24px));padding:14px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:14px;background:Canvas;box-shadow:0 12px 38px #0003}
+[data-loopwithai-service] .autostart-reminder p{margin:0 0 10px;color:color-mix(in srgb,CanvasText 66%,transparent);line-height:1.45}
+[data-loopwithai-service] .autostart-reminder div{display:flex;gap:7px}
+[data-loopwithai-service] .autostart-reminder [data-autostart-enable]{background:#246bfd;color:#fff}
 [data-loopwithai-busy="true"]{cursor:progress}
 #loopwithai-runtime-confirm{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,#000 32%,transparent);font:14px system-ui}
 #loopwithai-runtime-confirm[hidden]{display:none!important}
@@ -62,6 +85,16 @@ style.textContent = `
 document.head.append(style)
 
 document.body.insertAdjacentHTML('beforeend', `
+<aside id="loopwithai-service" data-loopwithai-service>
+  <div class="environment"><button data-local-toggle aria-current="page" aria-expanded="false"><i class="status-dot" data-service-dot></i>Local</button><a href="https://loopwith.ai/" target="_blank" rel="noreferrer">Cloud ↗</a></div>
+  <section class="service-panel" data-service-panel hidden>
+    <div class="service-title" data-service-status>Connecting to local service…</div>
+    <div class="service-detail" data-service-detail></div>
+    <div class="service-actions"><button data-service-restart>Restart</button><button data-service-stop>Stop workbench</button><button data-service-update hidden>Update</button></div>
+    <label class="autostart-row"><span>Start after login</span><input data-autostart-toggle type="checkbox"></label>
+  </section>
+  <section class="autostart-reminder" data-autostart-reminder hidden><p>Keep Local available after you sign in. This installs a current-user startup item and never asks for administrator access.</p><div><button data-autostart-enable>Enable</button><button data-autostart-dismiss>Not now</button></div></section>
+</aside>
 <div id="loopwithai-runtime">
   <select data-runtime aria-label="Agent runtime"></select>
   <select data-model aria-label="Agent model" hidden></select>
@@ -95,6 +128,19 @@ function required<T extends Element>(selector: string, parent: ParentNode = docu
 }
 
 const root = required<HTMLDivElement>(`#${UI_ROOT_ID}`)
+const serviceRoot = required<HTMLElement>(`#${SERVICE_ROOT_ID}`)
+const localToggle = required<HTMLButtonElement>('[data-local-toggle]', serviceRoot)
+const servicePanel = required<HTMLElement>('[data-service-panel]', serviceRoot)
+const serviceDot = required<HTMLElement>('[data-service-dot]', serviceRoot)
+const serviceStatus = required<HTMLElement>('[data-service-status]', serviceRoot)
+const serviceDetail = required<HTMLElement>('[data-service-detail]', serviceRoot)
+const serviceRestart = required<HTMLButtonElement>('[data-service-restart]', serviceRoot)
+const serviceStop = required<HTMLButtonElement>('[data-service-stop]', serviceRoot)
+const serviceUpdate = required<HTMLButtonElement>('[data-service-update]', serviceRoot)
+const autostartToggle = required<HTMLInputElement>('[data-autostart-toggle]', serviceRoot)
+const autostartReminder = required<HTMLElement>('[data-autostart-reminder]', serviceRoot)
+const autostartEnable = required<HTMLButtonElement>('[data-autostart-enable]', serviceRoot)
+const autostartDismiss = required<HTMLButtonElement>('[data-autostart-dismiss]', serviceRoot)
 const runtimeSelect = required<HTMLSelectElement>('[data-runtime]', root)
 const modelSelect = required<HTMLSelectElement>('[data-model]', root)
 const thinkingSelect = required<HTMLSelectElement>('[data-thinking]', root)
@@ -116,6 +162,8 @@ const runtimeConfirmButton = required<HTMLButtonElement>('[data-runtime-confirm]
 const runtimeCancelButton = required<HTMLButtonElement>('[data-runtime-cancel]', runtimeConfirm)
 
 let authTimer: ReturnType<typeof setTimeout> | undefined
+let serviceTimer: ReturnType<typeof setTimeout> | undefined
+let serviceToken = ''
 let proxyRevision = 0
 let currentRuntime = 'pi'
 let pendingRuntime: string | undefined
@@ -173,6 +221,68 @@ async function jsonRequest(path: string, init?: RequestInit): Promise<any> {
   const value = await response.json()
   if (!response.ok) throw new Error(value.error ?? `Request failed (${response.status})`)
   return value
+}
+
+function uptimeLabel(value: number | undefined): string {
+  if (typeof value !== 'number') return '—'
+  const seconds = Math.max(0, Math.floor(value / 1000))
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m ${seconds % 60}s`
+}
+
+function renderService(value: any): void {
+  serviceToken = value.actionToken ?? ''
+  const workbench = value.workbench ?? {}
+  const label: Record<string, string> = {
+    running: 'Local workbench is running', starting: 'Starting local workbench…', stopping: 'Stopping local workbench…',
+    restarting: 'Restarting local workbench…', stopped: 'Local workbench is stopped', crashed: 'Local workbench needs attention',
+  }
+  serviceStatus.textContent = label[workbench.state] ?? 'Connecting to local service…'
+  serviceDetail.textContent = `Workbench ${workbench.pid ? `PID ${workbench.pid} · ` : ''}v${workbench.version ?? value.launcher?.version ?? '—'} · Up ${uptimeLabel(workbench.uptimeMs)}\nLauncher PID ${value.launcher?.pid ?? '—'}`
+  serviceDot.className = `status-dot ${workbench.state ?? ''}`
+  serviceStop.disabled = workbench.state !== 'running'
+  serviceRestart.disabled = workbench.state === 'starting' || workbench.state === 'stopping' || workbench.state === 'restarting'
+  autostartToggle.checked = value.autostart?.installed === true
+  autostartToggle.disabled = value.autostart?.supported !== true
+  autostartReminder.hidden = value.autostart?.installed === true || localStorage.getItem('loopwithai.autostart-reminder-dismissed') === '1'
+  serviceUpdate.hidden = value.update?.available !== true || value.autostart?.installed !== true
+  serviceUpdate.textContent = value.update?.latestVersion ? `Update to v${value.update.latestVersion}` : 'Update'
+}
+
+async function loadService(): Promise<void> {
+  try {
+    renderService(await jsonRequest('/api/loopwithai/service', { cache: 'no-store' }))
+  } catch {
+    serviceStatus.textContent = 'Local launcher connection interrupted'
+    serviceDetail.textContent = 'Run npx loopwithai in a terminal to recover.'
+    serviceDot.className = 'status-dot crashed'
+  } finally {
+    serviceTimer = setTimeout(() => { void loadService() }, 2_000)
+  }
+}
+
+async function serviceAction(action: 'stop' | 'restart' | 'autostart-install' | 'autostart-uninstall' | 'update'): Promise<void> {
+  serviceRestart.disabled = serviceStop.disabled = serviceUpdate.disabled = autostartToggle.disabled = true
+  try {
+    const value = await jsonRequest('/api/loopwithai/service', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-loopwithai-token': serviceToken },
+      body: JSON.stringify({ action }),
+    })
+    if (action === 'stop' || action === 'restart') location.reload()
+    else if (action === 'update') {
+      serviceStatus.textContent = 'Update installed. Restarting Local…'
+      setTimeout(() => location.reload(), 1_500)
+    }
+    else renderService(value)
+  } catch (error) {
+    serviceStatus.textContent = error instanceof Error ? error.message : String(error)
+    serviceRestart.disabled = serviceStop.disabled = false
+    serviceUpdate.disabled = false
+    autostartToggle.checked = action === 'autostart-uninstall'
+    autostartToggle.disabled = false
+  }
 }
 
 async function post(body: Record<string, unknown>, reload = false): Promise<boolean> {
@@ -419,6 +529,18 @@ async function load(): Promise<void> {
 }
 
 accountsToggle.onclick = () => { accounts.hidden = !accounts.hidden }
+localToggle.onclick = () => {
+  servicePanel.hidden = !servicePanel.hidden
+  localToggle.setAttribute('aria-expanded', String(!servicePanel.hidden))
+}
+serviceRestart.onclick = () => { void serviceAction('restart') }
+serviceStop.onclick = () => { void serviceAction('stop') }
+serviceUpdate.onclick = () => {
+  if (confirm(`Update LoopWithAI to ${serviceUpdate.textContent?.replace('Update to ', '') ?? 'the latest version'} and restart Local?`)) void serviceAction('update')
+}
+autostartToggle.onchange = () => { void serviceAction(autostartToggle.checked ? 'autostart-install' : 'autostart-uninstall') }
+autostartEnable.onclick = () => { autostartReminder.hidden = true; autostartToggle.checked = true; void serviceAction('autostart-install') }
+autostartDismiss.onclick = () => { localStorage.setItem('loopwithai.autostart-reminder-dismissed', '1'); autostartReminder.hidden = true }
 proxyMode.onchange = () => { proxyUrl.hidden = proxyMode.value !== 'manual' }
 proxySave.onclick = () => { void proxyPost({ action: 'update', mode: proxyMode.value, proxyUrl: proxyUrl.value || undefined, expectedRevision: proxyRevision }) }
 proxyTest.onclick = () => { void proxyPost({ action: 'test' }) }
@@ -456,11 +578,14 @@ void load().catch(error => {
   errorBox.textContent = error instanceof Error ? error.message : String(error)
   errorBox.hidden = false
 })
+void loadService()
 
 function dispose(): void {
   observer.disconnect()
   if (authTimer !== undefined) clearTimeout(authTimer)
+  if (serviceTimer !== undefined) clearTimeout(serviceTimer)
   root.remove()
+  serviceRoot.remove()
   proxyRoot.remove()
   runtimeConfirm.remove()
   delete document.body.dataset.loopwithaiBusy

@@ -1,8 +1,8 @@
 # Third-party notices
 
 This repository vendors third-party source. Each copied package keeps its
-upstream `LICENSE`. The project owner has not yet chosen a license for Loop
-itself.
+upstream `LICENSE`. LoopWithAI itself is licensed under Apache-2.0; see the
+root `LICENSE` file.
 
 ## DeepSeek Harness
 
