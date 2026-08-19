@@ -58,7 +58,7 @@ Clone, install, and start:
 
 ```bash
 git clone https://github.com/colinagent/hulala.git
-cd LoopWithAI
+cd hulala
 npm install
 npm run dev
 ```

@@ -58,7 +58,7 @@ LoopWithAI 通过 Cordis Loader 事务性替换进程内唯一的 Agent Loop。�
 
 ```bash
 git clone https://github.com/colinagent/hulala.git
-cd LoopWithAI
+cd hulala
 npm install
 npm run dev
 ```
