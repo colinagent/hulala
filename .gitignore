@@ -3,6 +3,7 @@ node_modules/
 dist/
 packages/agent-loop-*/lib/
 packages/network-proxy/lib/
+packages/runtime/lib/
 coverage/
 .DS_Store
 .env

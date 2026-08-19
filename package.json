@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "description": "A multi-agent workbench for DeepSeek Harness with Pi, OpenAI Codex, Claude Code, and the native DeepSeek Agent Loop.",
   "private": true,
-  "homepage": "https://github.com/loopwithai/LoopWithAI#readme",
+  "homepage": "https://github.com/colinagent/hulala#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loopwithai/LoopWithAI.git"
+    "url": "git+https://github.com/colinagent/hulala.git"
   },
   "keywords": [
     "deepseek-harness",
@@ -26,14 +26,14 @@
     "vendor/dsh/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @loopwithai/harness-web",
-    "start": "npm run start --workspace @loopwithai/harness-web",
-    "dev:loop": "npm run dev --workspace @loopwithai/web",
-    "build": "npm run build --workspace @loopwithai/harness-web && npm run build --workspace loopwithai",
-    "build:loop": "npm run build --workspace @loopwithai/web",
+    "dev": "bun run --cwd apps/harness-web dev",
+    "start": "bun run --cwd apps/harness-web start",
+    "dev:loop": "bun run --cwd apps/web dev",
+    "build": "bun run --cwd packages/runtime build && bun run --cwd apps/harness-web build && bun run --cwd apps/cli build",
+    "build:loop": "bun run --cwd apps/web build",
     "build:vendor": "tsx scripts/check-vendor.ts",
-    "test": "npm run test --workspace @loopwithai/harness-web && npm run test --workspace @loopwithai/core && npm run test --workspace @loopwithai/web && npm run test --workspace @loopwithai/dsh-network-proxy && npm run test --workspace @loopwithai/dsh-agent-loop-selector && npm run test --workspace @loopwithai/dsh-agent-loop-pi && npm run test --workspace @loopwithai/dsh-agent-loop-codex && npm run test --workspace loopwithai",
-    "typecheck": "npm run typecheck --workspace @loopwithai/harness-web && npm run typecheck --workspace @loopwithai/core && npm run typecheck --workspace @loopwithai/web && npm run typecheck --workspace @loopwithai/dsh-network-proxy && npm run typecheck --workspace @loopwithai/dsh-agent-loop-selector && npm run typecheck --workspace @loopwithai/dsh-agent-loop-pi && npm run typecheck --workspace @loopwithai/dsh-agent-loop-codex && npm run typecheck --workspace @loopwithai/dsh-agent-loop-claude && npm run typecheck --workspace loopwithai",
+    "test": "bun run --cwd packages/runtime test && bun run --cwd apps/harness-web test && bun run --cwd packages/core test && bun run --cwd apps/web test && bun run --cwd packages/network-proxy test && bun run --cwd packages/agent-loop-selector test && bun run --cwd packages/agent-loop-pi test && bun run --cwd packages/agent-loop-codex test && bun run --cwd apps/cli test",
+    "typecheck": "bun run --cwd packages/runtime typecheck && bun run --cwd apps/harness-web typecheck && bun run --cwd packages/core typecheck && bun run --cwd apps/web typecheck && bun run --cwd packages/network-proxy typecheck && bun run --cwd packages/agent-loop-selector typecheck && bun run --cwd packages/agent-loop-pi typecheck && bun run --cwd packages/agent-loop-codex typecheck && bun run --cwd packages/agent-loop-claude typecheck && bun run --cwd apps/cli typecheck",
     "check": "npm run build:vendor && npm run test && npm run typecheck && npm run build"
   },
   "devDependencies": {

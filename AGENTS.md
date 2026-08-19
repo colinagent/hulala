@@ -25,7 +25,7 @@ plugins, and the parked Loop prototype. Private product repositories, internal
 documents, unrelated applications, and machine-specific source trees are out
 of scope. Do not name, import, or depend on them here.
 
-The public GitHub URL is <https://github.com/loopwithai/LoopWithAI>.
+The public GitHub URL is <https://github.com/colinagent/hulala>.
 
 ## License Status
 

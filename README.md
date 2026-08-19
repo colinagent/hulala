@@ -31,7 +31,7 @@ Pi is the default Agent. Every runtime keeps its native model access, tools, app
 - **Models and Thinking controls** — choose the provider/model and supported reasoning level directly beside the prompt.
 - **Full coding tools** — read, bash, edit, write, project instructions, skills, extensions, MCP servers, and approval flows remain available where the selected Agent supports them.
 - **Local-first credentials and sessions** — tokens remain in the native Pi, Codex, Claude Code, or environment stores. LoopWithAI does not run a hosted credential gateway.
-- **Workspace continuity** — reopen the last Workspace automatically; a fresh install starts at `~/.lwa/workspace`.
+- **Workspace continuity** — reopen the last Workspace automatically; a fresh install starts at `~/.config/lwa/workspace`.
 - **Proxy support** — use terminal environment variables, the macOS system proxy/Clash, a manual HTTP proxy, or force direct connections.
 - **Vite development workflow** — client-side workbench controls update with HMR while Harness remains running.
 
@@ -57,7 +57,7 @@ Requirements:
 Clone, install, and start:
 
 ```bash
-git clone https://github.com/loopwithai/LoopWithAI.git
+git clone https://github.com/colinagent/hulala.git
 cd LoopWithAI
 npm install
 npm run dev
@@ -66,7 +66,7 @@ npm run dev
 Or use one shell command:
 
 ```bash
-git clone https://github.com/loopwithai/LoopWithAI.git && cd LoopWithAI && npm install && npm run dev
+git clone https://github.com/colinagent/hulala.git && cd hulala && npm install && npm run dev
 ```
 
 Open [http://127.0.0.1:3210](http://127.0.0.1:3210). `npm run dev` also starts the Vite HMR server on port `5174`.
@@ -125,7 +125,7 @@ Harness also supports its normal credential/settings layers. `DEEPSEEK_BASE_URL`
 
 ## Using the workbench
 
-1. Choose or add a Workspace. On startup, LoopWithAI restores the last valid Workspace; otherwise it creates `~/.lwa/workspace` using the operating system's home directory.
+1. Choose or add a Workspace. On startup, LoopWithAI restores the last valid Workspace; otherwise it creates `~/.config/lwa/workspace` using the operating system's home directory.
 2. Select **Pi**, **DeepSeek**, **Codex**, or **Claude Code** in the composer.
 3. Select an available model and provider.
 4. Select a Thinking level when the model exposes one.
@@ -170,6 +170,7 @@ DeepSeek Harness Web + Cordis
 
 ```text
 apps/harness-web/              portable Harness profile and local launcher
+packages/runtime/              Bun lifecycle wrapper and portable Runtime bundles
 packages/agent-loop-selector/  runtime/model/Thinking controls and Loader switch
 packages/agent-loop-pi/        Pi SDK AgentFactory and Harness event bridge
 packages/agent-loop-codex/     Codex app-server AgentFactory

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:plugins": "npm run build --workspace @loopwithai/dsh-network-proxy && npm run build --workspace @loopwithai/dsh-agent-loop-selector && npm run build --workspace @loopwithai/dsh-agent-loop-pi && npm run build --workspace @loopwithai/dsh-agent-loop-codex && npm run build --workspace @loopwithai/dsh-agent-loop-claude",
+    "build:plugins": "bun run --filter @loopwithai/dsh-network-proxy build && bun run --filter @loopwithai/dsh-agent-loop-selector build && bun run --filter @loopwithai/dsh-agent-loop-pi build && bun run --filter @loopwithai/dsh-agent-loop-codex build && bun run --filter @loopwithai/dsh-agent-loop-claude build",
     "dev": "npm run build:plugins && tsx ./scripts/dev.ts",
     "dev:ui": "cd ../../packages/agent-loop-selector && vite",
     "dev:server": "tsx ./scripts/run-harness.ts --port 3210",
@@ -18,12 +18,14 @@
     "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
     "@deepseek-ai/dsh-agent-loop": "0.1.0-rc.6",
     "@loopwithai/dsh-network-proxy": "*",
+    "@loopwithai/runtime": "*",
     "@loopwithai/dsh-agent-loop-claude": "*",
     "@loopwithai/dsh-agent-loop-codex": "*",
     "@loopwithai/dsh-agent-loop-selector": "*",
     "@loopwithai/dsh-agent-loop-pi": "*"
   },
   "devDependencies": {
+    "@types/bun": "^1.3.0",
     "@types/node": "^24.0.0",
     "concurrently": "^9.2.0",
     "tsx": "^4.20.0",

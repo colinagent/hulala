@@ -52,7 +52,7 @@
   "homepage": "https://loopwith.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/loopwithai/LoopWithAI.git",
+    "url": "git+https://github.com/colinagent/hulala.git",
     "directory": "apps/cli"
   },
   "publishConfig": {

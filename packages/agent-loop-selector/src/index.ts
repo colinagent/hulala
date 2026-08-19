@@ -69,13 +69,15 @@ export function healthPayload(
   return { name: 'loopwithai', version, pid, startedAt }
 }
 
-export function defaultWorkspacePath(userHome = homedir()): string {
-  return join(userHome, '.lwa', 'workspace')
+export function defaultWorkspacePath(userHome?: string): string {
+  return userHome
+    ? join(userHome, '.config', 'lwa', 'workspace')
+    : join(process.env.LWA_HOME ?? join(homedir(), '.config', 'lwa'), 'workspace')
 }
 
 export async function ensureDefaultWorkspace(
   registry: Pick<Context['workspaceRegistry'], 'list' | 'create'>,
-  userHome = homedir(),
+  userHome?: string,
   createDirectory: (path: string, options: { recursive: true }) => Promise<unknown> = mkdir,
 ): Promise<string | undefined> {
   if (registry.list().length > 0) return undefined

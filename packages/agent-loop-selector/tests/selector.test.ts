@@ -11,7 +11,7 @@ test('reports a stable local health identity', () => {
 })
 
 test('uses a cross-platform default workspace below the supplied home directory', () => {
-  assert.equal(defaultWorkspacePath('/home/colin'), '/home/colin/.lwa/workspace')
+  assert.equal(defaultWorkspacePath('/home/colin'), '/home/colin/.config/lwa/workspace')
 })
 
 test('creates and registers the default workspace when the registry is empty', async () => {
@@ -24,9 +24,9 @@ test('creates and registers the default workspace when the registry is empty', a
   const result = await ensureDefaultWorkspace(registry as never, '/test/home', async (path, options) => {
     directories.push({ path, recursive: options.recursive })
   })
-  assert.equal(result, '/test/home/.lwa/workspace')
-  assert.deepEqual(directories, [{ path: '/test/home/.lwa/workspace', recursive: true }])
-  assert.deepEqual(created, ['/test/home/.lwa/workspace'])
+  assert.equal(result, '/test/home/.config/lwa/workspace')
+  assert.deepEqual(directories, [{ path: '/test/home/.config/lwa/workspace', recursive: true }])
+  assert.deepEqual(created, ['/test/home/.config/lwa/workspace'])
 })
 
 test('preserves an existing workspace without touching the filesystem', async () => {

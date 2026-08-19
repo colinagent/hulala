@@ -31,7 +31,7 @@ LoopWithAI 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 - **模型与 Thinking 控制**：每次对话都能在输入区选择 Provider、模型和模型支持的思考级别。
 - **不阉割工具**：保留各 Agent 支持的 read、bash、edit、write、项目指令、Skills、Extensions、MCP 和审批能力。
 - **本地认证与会话**：凭据仍由 Pi、Codex、Claude Code 或系统环境管理，不经过 LoopWithAI 托管网关。
-- **工作区自动恢复**：启动时自动打开上一次工作区；首次使用默认创建 `~/.lwa/workspace`。
+- **工作区自动恢复**：启动时自动打开上一次工作区；首次使用默认创建 `~/.config/lwa/workspace`。
 - **Clash/代理支持**：支持终端环境变量、macOS 系统代理、手动 HTTP 代理和强制直连。
 - **Vite HMR**：开发输入区控件时可以热更新，无需反复重启 Harness。
 
@@ -57,7 +57,7 @@ LoopWithAI 通过 Cordis Loader 事务性替换进程内唯一的 Agent Loop。�
 克隆、安装、启动：
 
 ```bash
-git clone https://github.com/loopwithai/LoopWithAI.git
+git clone https://github.com/colinagent/hulala.git
 cd LoopWithAI
 npm install
 npm run dev
@@ -66,7 +66,7 @@ npm run dev
 也可以一条命令完成：
 
 ```bash
-git clone https://github.com/loopwithai/LoopWithAI.git && cd LoopWithAI && npm install && npm run dev
+git clone https://github.com/colinagent/hulala.git && cd hulala && npm install && npm run dev
 ```
 
 浏览器打开 [http://127.0.0.1:3210](http://127.0.0.1:3210)。开发模式还会在 `5174` 端口启动 Vite HMR。
@@ -125,7 +125,7 @@ npm run dev
 
 ## 使用方法
 
-1. 选择或添加 Workspace。启动时优先恢复上次有效工作区，否则使用操作系统用户目录下的 `~/.lwa/workspace`。
+1. 选择或添加 Workspace。启动时优先恢复上次有效工作区，否则使用操作系统用户目录下的 `~/.config/lwa/workspace`。
 2. 在输入框下方选择 **Pi**、**DeepSeek**、**Codex** 或 **Claude Code**。
 3. 选择可用的模型与 Provider。
 4. 如果模型支持，选择 Thinking Level。

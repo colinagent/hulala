@@ -39,4 +39,4 @@ versioned staging directory, checked against npm integrity metadata, started on
 isolated ports, and activated only after the health check passes. The previous
 version remains available for rollback.
 
-Source and documentation: <https://github.com/loopwithai/LoopWithAI>
+Source and documentation: <https://github.com/colinagent/hulala>
