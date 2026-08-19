@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-launch-environment`.
- * @module @loopwithai/dsh-launch-environment/invariant
+ * Package-owned invariant companion for `@hulala/dsh-launch-environment`.
+ * @module @hulala/dsh-launch-environment/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-launch-environment'
+const PACKAGE_NAME = '@hulala/dsh-launch-environment'
 
 /** Cordis companion plugin name. */
 export const name = 'launch-environment-invariant'

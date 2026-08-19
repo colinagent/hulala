@@ -63,7 +63,7 @@ if (target === currentTarget()) {
 await chmod(join(output, 'bin', bunName), 0o700).catch(() => undefined)
 
 await writeFile(join(output, 'package.json'), `${JSON.stringify({
-  name: '@loopwithai/runtime-bundle',
+  name: '@hulala/runtime-bundle',
   version: '0.1.0',
   private: true,
   type: 'module',

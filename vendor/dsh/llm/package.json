@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-llm",
+  "name": "@hulala/dsh-llm",
   "description": "Provider-neutral LLM service interface for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -42,21 +42,21 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-attachment": "*",
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-timeout": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-attachment": "*",
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-timeout": "*",
+    "@hulala/cordis": "*"
   },
   "dependencies": {
-    "@loopwithai/schemastery": "*"
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-attachment": "*",
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-timeout": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-attachment": "*",
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-timeout": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

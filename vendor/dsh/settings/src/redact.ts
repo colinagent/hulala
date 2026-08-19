@@ -4,10 +4,10 @@
  * each schema-declared secret position and whether it currently holds a value,
  * so a configuration surface can render a write-only input without ever
  * receiving the secret itself.
- * @module @loopwithai/dsh-settings/redact
+ * @module @hulala/dsh-settings/redact
  */
 
-import type z from '@loopwithai/schemastery'
+import type z from '@hulala/schemastery'
 
 /**
  * Minimal structural view of a live schemastery node. Only the relations the

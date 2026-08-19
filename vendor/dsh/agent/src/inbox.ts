@@ -1,11 +1,11 @@
 /**
  * Incremental projection of durable agent inbox events.
  *
- * @module @loopwithai/dsh-agent/inbox
+ * @module @hulala/dsh-agent/inbox
  */
 
-import type { MessageId } from '@loopwithai/dsh-llm'
-import type { Session, SessionEventMap, UserMessage } from '@loopwithai/dsh-session'
+import type { MessageId } from '@hulala/dsh-llm'
+import type { Session, SessionEventMap, UserMessage } from '@hulala/dsh-session'
 import type { InboxTarget } from './types.ts'
 
 /** Mutable state privately owned by an {@link Inbox}. */

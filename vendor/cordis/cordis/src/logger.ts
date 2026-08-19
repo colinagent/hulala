@@ -1,4 +1,4 @@
-import { defineProperty, hyphenate } from '@loopwithai/cosmokit'
+import { defineProperty, hyphenate } from '@hulala/cosmokit'
 import { Context } from './context.ts'
 import { Fiber } from './fiber.ts'
 import { createCallable, joinPrototype, symbols, type Tracker } from './utils.ts'

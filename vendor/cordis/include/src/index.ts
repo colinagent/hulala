@@ -1,5 +1,5 @@
-import { EntryGroup, EntryTree, isJsExpr, type EntryOptions } from '@loopwithai/cordis-plugin-loader'
-import { Context, Service } from '@loopwithai/cordis'
+import { EntryGroup, EntryTree, isJsExpr, type EntryOptions } from '@hulala/cordis-plugin-loader'
+import { Context, Service } from '@hulala/cordis'
 import { extname } from 'node:path'
 import { access, constants, readFile, rename, writeFile } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'

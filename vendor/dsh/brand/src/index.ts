@@ -18,7 +18,7 @@
  * package can brand its ids without depending on an unrelated capability
  * package.
  *
- * @module @loopwithai/dsh-brand
+ * @module @hulala/dsh-brand
  */
 
 declare const BRAND: unique symbol

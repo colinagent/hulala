@@ -45,8 +45,8 @@ import {
 } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { registerRuntimeControl, runtimeSelection, type RuntimeSelection } from '@loopwithai/dsh-agent-loop-selector'
-import type {} from '@loopwithai/dsh-network-proxy'
+import { registerRuntimeControl, runtimeSelection, type RuntimeSelection } from '@hulala/dsh-agent-loop-selector'
+import type {} from '@hulala/dsh-network-proxy'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface AssistantProvenance {
@@ -533,7 +533,7 @@ export class PiAgentLoop extends Service implements AgentFactory {
       res.end(JSON.stringify(value))
     }
     this.ctx.effect(() => this.ctx.webServer.register({
-      kind: 'exact', path: '/api/loopwithai/pi', handler: async (req, res) => {
+      kind: 'exact', path: '/api/hulala/pi', handler: async (req, res) => {
         try {
           if (req.method === 'GET') {
             send(res, 200, { models: await this.models(), auth: await this.authState() })

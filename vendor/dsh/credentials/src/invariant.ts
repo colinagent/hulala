@@ -1,12 +1,12 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-credentials`.
- * @module @loopwithai/dsh-credentials/invariant
+ * Package-owned invariant companion for `@hulala/dsh-credentials`.
+ * @module @hulala/dsh-credentials/invariant
  */
 
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-credentials'
+const PACKAGE_NAME = '@hulala/dsh-credentials'
 
 /** Cordis companion plugin name. */
 export const name = 'credentials-invariant'

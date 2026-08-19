@@ -1,11 +1,11 @@
-/** Package-owned tool-pipeline invariants. @module @loopwithai/dsh-tools/invariant */
+/** Package-owned tool-pipeline invariants. @module @hulala/dsh-tools/invariant */
 
-import type { Context } from '@loopwithai/cordis'
-import type { Session, SessionEvent } from '@loopwithai/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { Session, SessionEvent } from '@hulala/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
 import type { ToolExecution, ToolExecutionResult } from './index.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-tools'
+const PACKAGE_NAME = '@hulala/dsh-tools'
 
 /** Cordis companion plugin name. */
 export const name = 'tools-invariant'

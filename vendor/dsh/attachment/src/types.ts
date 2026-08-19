@@ -1,4 +1,4 @@
-/** Durable attachment vocabulary. @module @loopwithai/dsh-attachment/types */
+/** Durable attachment vocabulary. @module @hulala/dsh-attachment/types */
 
 import type { AttachmentId } from './brand.ts'
 

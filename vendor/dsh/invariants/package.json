@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-invariants",
+  "name": "@hulala/dsh-invariants",
   "description": "Registry service for package-owned DeepSeek Harness runtime invariants",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,13 +29,13 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/cordis": "*"
+    "@hulala/cordis": "*"
   },
   "dependencies": {
-    "@loopwithai/schemastery": "*"
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/cordis": "*"
+    "@hulala/cordis": "*"
   },
   "private": true
 }

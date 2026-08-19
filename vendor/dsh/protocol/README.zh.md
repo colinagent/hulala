@@ -1,4 +1,4 @@
-# @loopwithai/dsh-typert-protocol
+# @hulala/dsh-typert-protocol
 
 [English](README.md) | 中文
 

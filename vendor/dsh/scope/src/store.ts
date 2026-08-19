@@ -1,10 +1,10 @@
 /**
  * Shared insertion-ordered storage and effect ownership for scope-aware registries.
  *
- * @module @loopwithai/dsh-scope
+ * @module @hulala/dsh-scope
  */
 
-import type { Context } from '@loopwithai/cordis'
+import type { Context } from '@hulala/cordis'
 import { scopeChainOf, scopeOf } from './index.ts'
 import type { ScopeKey } from './index.ts'
 

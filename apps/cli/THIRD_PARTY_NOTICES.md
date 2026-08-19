@@ -1,6 +1,6 @@
 # Third-party notices
 
-LoopWithAI includes and integrates the following third-party software. Each
+Hulala includes and integrates the following third-party software. Each
 dependency retains its upstream license.
 
 ## DeepSeek Harness

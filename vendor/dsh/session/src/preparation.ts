@@ -1,6 +1,6 @@
 /**
  * Ownership of one unpublished Session before registry publication.
- * @module @loopwithai/dsh-session/preparation
+ * @module @hulala/dsh-session/preparation
  */
 
 import type { Session } from './index.ts'

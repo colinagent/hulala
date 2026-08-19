@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-llm-deepseek`.
- * @module @loopwithai/dsh-llm-deepseek/invariant
+ * Package-owned invariant companion for `@hulala/dsh-llm-deepseek`.
+ * @module @hulala/dsh-llm-deepseek/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-llm-deepseek'
+const PACKAGE_NAME = '@hulala/dsh-llm-deepseek'
 
 /** Cordis companion plugin name. */
 export const name = 'llm-deepseek-invariant'

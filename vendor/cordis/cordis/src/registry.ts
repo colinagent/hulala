@@ -1,5 +1,5 @@
-import { defineProperty } from '@loopwithai/cosmokit'
-import type { Dict } from '@loopwithai/cosmokit'
+import { defineProperty } from '@hulala/cosmokit'
+import type { Dict } from '@hulala/cosmokit'
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { Context } from './context.ts'
 import { Fiber } from './fiber.ts'

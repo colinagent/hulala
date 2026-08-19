@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-import { Context } from '@loopwithai/cordis'
+import { Context } from '@hulala/cordis'
 import { pathToFileURL } from 'node:url'
-import Loader from '@loopwithai/cordis-plugin-loader'
+import Loader from '@hulala/cordis-plugin-loader'
 
 const ctx = new Context()
 ctx.baseUrl = pathToFileURL(process.cwd()).href + '/'
 
 await ctx.plugin(Loader)
 await ctx.loader.create({
-  name: '@loopwithai/cordis-plugin-include',
+  name: '@hulala/cordis-plugin-include',
   config: {
     path: './cordis.yml',
   },

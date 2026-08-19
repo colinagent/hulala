@@ -1,4 +1,4 @@
-# @loopwithai/dsh-session-persistence
+# @hulala/dsh-session-persistence
 
 [English](README.md) | 中文
 

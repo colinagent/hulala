@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import { createHarnessPatch, resolveRuntimePaths } from '../src/index'
 
-test('resolves every runtime path below an injected LWA root', () => {
-  const paths = resolveRuntimePaths({ root: '/tmp/lwa-runtime-test' })
-  expect(paths.workspaceDir).toBe('/tmp/lwa-runtime-test/workspace')
-  expect(Object.values(paths).every(path => path.startsWith('/tmp/lwa-runtime-test'))).toBeTrue()
+test('resolves every runtime path below an injected HULALA root', () => {
+  const paths = resolveRuntimePaths({ root: '/tmp/hulala-runtime-test' })
+  expect(paths.workspaceDir).toBe('/tmp/hulala-runtime-test/workspace')
+  expect(Object.values(paths).every(path => path.startsWith('/tmp/hulala-runtime-test'))).toBeTrue()
 })
 
 test('builds a Harness patch from reusable runtime descriptors', () => {

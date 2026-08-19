@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-anonymous-user-id",
+  "name": "@hulala/dsh-anonymous-user-id",
   "description": "Shared anonymous user identity for DeepSeek Harness telemetry and feedback correlation",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,16 +29,16 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-home-paths": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-home-paths": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-home-paths": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-home-paths": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

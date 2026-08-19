@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-attachment",
+  "name": "@hulala/dsh-attachment",
   "description": "Durable immutable attachment storage seam for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,14 +29,14 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

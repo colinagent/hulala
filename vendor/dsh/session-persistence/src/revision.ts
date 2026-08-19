@@ -1,6 +1,6 @@
 /** Opaque revision identity for lightweight persistence observations. */
 
-import type { Branded } from '@loopwithai/dsh-brand'
+import type { Branded } from '@hulala/dsh-brand'
 
 /**
  * Backend-owned token that identifies both one storage source and one revision

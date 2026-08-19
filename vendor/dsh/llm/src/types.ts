@@ -4,12 +4,12 @@
  * mapped interfaces make the content, source, and finish unions extensible.
  */
 
-import type { Branded } from '@loopwithai/dsh-brand'
-import type { ImageAttachmentRef } from '@loopwithai/dsh-attachment'
+import type { Branded } from '@hulala/dsh-brand'
+import type { ImageAttachmentRef } from '@hulala/dsh-attachment'
 import type { CallId, ProviderRequestId, ReasoningEffortId } from './brand.ts'
 import type { Message } from './message.ts'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Events {
     /**
      * The provider topology changed: an adapter registered or unregistered

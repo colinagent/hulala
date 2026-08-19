@@ -2,11 +2,11 @@
  * Crash-recovery repair for an interrupted session log. It preserves a fully
  * written final turn and supplies the missing tool, step, and turn boundaries
  * needed to resume with a provider-valid transcript.
- * @module @loopwithai/dsh-session/repair
+ * @module @hulala/dsh-session/repair
  */
 
-import { MessageId, freezeMessage, type CallId } from '@loopwithai/dsh-llm'
-import type { ToolResultMessage } from '@loopwithai/dsh-llm'
+import { MessageId, freezeMessage, type CallId } from '@hulala/dsh-llm'
+import type { ToolResultMessage } from '@hulala/dsh-llm'
 import type { SessionEvent } from './types.ts'
 
 /** Recovery code for an assistant tool request that never reached a recorded call start. */

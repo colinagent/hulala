@@ -1,4 +1,4 @@
-import type { CreateLoopInput } from "@loopwithai/core";
+import type { CreateLoopInput } from "@hulala/core";
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/http";
 import { getRuntime } from "@/lib/runtime";

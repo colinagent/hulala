@@ -1,10 +1,10 @@
-/** Package-owned LLM stream-protocol invariants. @module @loopwithai/dsh-llm/invariant */
+/** Package-owned LLM stream-protocol invariants. @module @hulala/dsh-llm/invariant */
 
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
 import type { ContentBlockType, StreamChunk } from './types.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-llm'
+const PACKAGE_NAME = '@hulala/dsh-llm'
 
 /** Cordis companion plugin name. */
 export const name = 'llm-invariant'

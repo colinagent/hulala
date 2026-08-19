@@ -1,4 +1,4 @@
-# @loopwithai/dsh-user-approval
+# @hulala/dsh-user-approval
 
 [English](README.md) | 中文
 

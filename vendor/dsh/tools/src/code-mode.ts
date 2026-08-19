@@ -3,14 +3,14 @@
  * tools through nested executions scheduled under the native concurrency
  * contract; each sub-dispatch is logged for reconstruction, while only the
  * outer curated result enters model history.
- * @module @loopwithai/dsh-tools/src/code-mode
+ * @module @hulala/dsh-tools/src/code-mode
  */
 
-import { CallId, HarnessError } from '@loopwithai/dsh-llm'
-import type { ContentBlock } from '@loopwithai/dsh-llm'
-import type { CodeBindingFunction, CodeRunResult, CodeRuntime } from '@loopwithai/dsh-code-runtime'
-import { snapshotJsonValue } from '@loopwithai/dsh-session'
-import type { JsonValue } from '@loopwithai/dsh-session'
+import { CallId, HarnessError } from '@hulala/dsh-llm'
+import type { ContentBlock } from '@hulala/dsh-llm'
+import type { CodeBindingFunction, CodeRunResult, CodeRuntime } from '@hulala/dsh-code-runtime'
+import { snapshotJsonValue } from '@hulala/dsh-session'
+import type { JsonValue } from '@hulala/dsh-session'
 import { defineTool, parameterSchemaSpecToJsonSchema } from './schema.ts'
 import { TOOL_RUNTIME_SCHEDULER } from './index.ts'
 import type { CodeDispatchLog, ToolDefinition, ToolExecutionResult, ToolRuntime, ToolRunContext } from './index.ts'

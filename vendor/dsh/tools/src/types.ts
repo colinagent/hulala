@@ -1,11 +1,11 @@
 /**
  * Durable Tool event vocabulary shared with type-only consumers.
  *
- * @module @loopwithai/dsh-tools/types
+ * @module @hulala/dsh-tools/types
  */
 
-import type { CallId } from '@loopwithai/dsh-llm/brand'
-import type { ContentBlock } from '@loopwithai/dsh-llm/types'
+import type { CallId } from '@hulala/dsh-llm/brand'
+import type { ContentBlock } from '@hulala/dsh-llm/types'
 
 /** Payload recorded when one nested Code Mode Tool dispatch starts. */
 export interface CodeDispatchStartEventData {
@@ -22,7 +22,7 @@ export interface CodeDispatchEventData extends CodeDispatchStartEventData {
   content: ContentBlock[]
 }
 
-declare module '@loopwithai/dsh-session/types' {
+declare module '@hulala/dsh-session/types' {
   interface SessionEventMap {
     /**
      * One sub-dispatch STARTING inside a `run_code` program: the parent

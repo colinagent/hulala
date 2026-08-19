@@ -2,20 +2,20 @@
 # AgentAdvice turn. Shell, sandbox, and subagent plugins stay out.
 plugins:
   - id: cosmokit
-    name: "@loopwithai/cosmokit"
+    name: "@hulala/cosmokit"
   - id: cordis
-    name: "@loopwithai/cordis"
+    name: "@hulala/cordis"
   - id: session
-    name: "@loopwithai/dsh-session"
+    name: "@hulala/dsh-session"
   - id: system-prompt
-    name: "@loopwithai/dsh-system-prompt"
+    name: "@hulala/dsh-system-prompt"
   - id: llm
-    name: "@loopwithai/dsh-llm"
+    name: "@hulala/dsh-llm"
   - id: llm-deepseek
-    name: "@loopwithai/dsh-llm-deepseek"
+    name: "@hulala/dsh-llm-deepseek"
   - id: tools
-    name: "@loopwithai/dsh-tools"
+    name: "@hulala/dsh-tools"
   - id: agent
-    name: "@loopwithai/dsh-agent"
+    name: "@hulala/dsh-agent"
   - id: agent-loop
-    name: "@loopwithai/dsh-agent-loop"
+    name: "@hulala/dsh-agent-loop"

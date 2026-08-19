@@ -1,10 +1,10 @@
-/** Package-owned invariant companion for `@loopwithai/dsh-attachment`. @module @loopwithai/dsh-attachment/invariant */
+/** Package-owned invariant companion for `@hulala/dsh-attachment`. @module @hulala/dsh-attachment/invariant */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-attachment'
+const PACKAGE_NAME = '@hulala/dsh-attachment'
 /** Cordis companion plugin name. */
 export const name = 'attachment-invariant'
 /** Service required before package ownership can be reserved. */

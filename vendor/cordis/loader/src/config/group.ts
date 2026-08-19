@@ -1,4 +1,4 @@
-import { Context, Service } from '@loopwithai/cordis'
+import { Context, Service } from '@hulala/cordis'
 import { Entry, type EntryOptions } from './entry.ts'
 import { EntryTree } from './tree.ts'
 

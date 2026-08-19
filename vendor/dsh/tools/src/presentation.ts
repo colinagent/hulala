@@ -2,10 +2,10 @@
  * Tool render-intent vocabulary: the provider-neutral types a tool declares via
  * `ToolDefinition.presentCall`/`ToolDefinition.presentResult` to say how one of its calls
  * renders in a UI (an editor's tool-call card, a CLI log line).
- * @module @loopwithai/dsh-tools/src/presentation
+ * @module @hulala/dsh-tools/src/presentation
  */
 
-import type { ContentBlock } from '@loopwithai/dsh-llm'
+import type { ContentBlock } from '@hulala/dsh-llm'
 
 /**
  * Category of a tool call, used by a UI to pick an icon or treatment. The

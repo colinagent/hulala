@@ -1,20 +1,20 @@
 /**
  * Service Definition for the approval capability seam, covering requests, cancellation, audit, and per-session policy. Missing
  * answerers fail closed; grants apply only to the requested action.
- * @module @loopwithai/dsh-user-approval
+ * @module @hulala/dsh-user-approval
  */
 
 import { randomUUID } from 'node:crypto'
-import { Context, Service } from '@loopwithai/cordis'
-import z from '@loopwithai/schemastery'
-import type { Agent } from '@loopwithai/dsh-agent'
-import { createUserMessage, type CallId } from '@loopwithai/dsh-llm'
-import { scopeTarget } from '@loopwithai/dsh-scope'
-import type { Scoped } from '@loopwithai/dsh-scope'
-import type { Session, SessionEvent } from '@loopwithai/dsh-session'
-import type {} from '@loopwithai/dsh-system-prompt'
+import { Context, Service } from '@hulala/cordis'
+import z from '@hulala/schemastery'
+import type { Agent } from '@hulala/dsh-agent'
+import { createUserMessage, type CallId } from '@hulala/dsh-llm'
+import { scopeTarget } from '@hulala/dsh-scope'
+import type { Scoped } from '@hulala/dsh-scope'
+import type { Session, SessionEvent } from '@hulala/dsh-session'
+import type {} from '@hulala/dsh-system-prompt'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     approval: ApprovalService
   }
@@ -23,7 +23,7 @@ declare module '@loopwithai/cordis' {
     /**
      * Ask composed answerers for one decision. Return an outcome to claim the
      * request or call `next()`; failure yields the fail-closed default.
-     * Scope-filtered dispatch (`@loopwithai/dsh-scope`): agent-scoped listeners receive only that agent.
+     * Scope-filtered dispatch (`@hulala/dsh-scope`): agent-scoped listeners receive only that agent.
      * @param req - the pending decision (agent, tool identity, reason, signal).
      * @mode waterfall
      */
@@ -31,7 +31,7 @@ declare module '@loopwithai/cordis' {
   }
 }
 
-declare module '@loopwithai/dsh-session/types' {
+declare module '@hulala/dsh-session/types' {
   interface SessionEventMap {
     /**
      * An approval question was put to the answerer chain — log-only audit

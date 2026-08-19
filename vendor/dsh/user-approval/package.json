@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-user-approval",
+  "name": "@hulala/dsh-user-approval",
   "description": "User-approval seam (ctx.approval) for the DeepSeek Harness: one-shot permission decisions dispatched to composed answerers over the approval/request waterfall, fail-closed by default",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -34,27 +34,27 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-agent": "*",
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-agent": "*",
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/cordis": "*"
   },
   "dependencies": {
-    "@loopwithai/schemastery": "*"
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-agent": "*",
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-agent": "*",
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

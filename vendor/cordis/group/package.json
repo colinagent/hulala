@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/cordis-plugin-group",
+  "name": "@hulala/cordis-plugin-group",
   "description": "Nested plugin group for cordis",
   "version": "1.0.1",
   "repository": {
@@ -27,8 +27,8 @@
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/cordis-plugin-loader": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/cordis-plugin-loader": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

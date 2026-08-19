@@ -1,6 +1,6 @@
-import { Context, Exporter, Formatter, Logger, Message } from '@loopwithai/cordis'
-import { Time } from '@loopwithai/cosmokit'
-import z from '@loopwithai/schemastery'
+import { Context, Exporter, Formatter, Logger, Message } from '@hulala/cordis'
+import { Time } from '@hulala/cosmokit'
+import z from '@hulala/schemastery'
 
 /** Terminal color support level compatible with supports-color. */
 export type ColorSupportLevel = 0 | 1 | 2 | 3

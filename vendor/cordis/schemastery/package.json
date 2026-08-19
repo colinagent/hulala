@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/schemastery",
+  "name": "@hulala/schemastery",
   "description": "Type driven schema validator",
   "version": "3.18.1",
   "repository": {
@@ -30,7 +30,7 @@
   "license": "MIT",
   "dependencies": {
     "@standard-schema/spec": "^1.1.0",
-    "@loopwithai/cosmokit": "*"
+    "@hulala/cosmokit": "*"
   },
   "private": true
 }

@@ -1,5 +1,5 @@
-import { Context, Fiber, Inject } from '@loopwithai/cordis'
-import { deepEqual, isNullable } from '@loopwithai/cosmokit'
+import { Context, Fiber, Inject } from '@hulala/cordis'
+import { deepEqual, isNullable } from '@hulala/cosmokit'
 import { Loader } from '../index.ts'
 import { EntryGroup } from './group.ts'
 import { EntryTree } from './tree.ts'

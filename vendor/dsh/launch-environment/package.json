@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-launch-environment",
+  "name": "@hulala/dsh-launch-environment",
   "description": "Immutable DeepSeek Harness launch environment that records which layer supplied each value",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,12 +29,12 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

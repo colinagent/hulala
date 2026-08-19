@@ -21,7 +21,7 @@ export interface ProxySettings {
 
 export interface ProxyState {
   mode: ProxyMode
-  source: 'manual' | 'loopwithai-env' | 'environment' | 'macos-system' | 'direct'
+  source: 'manual' | 'hulala-env' | 'environment' | 'macos-system' | 'direct'
   httpProxy?: string
   httpsProxy?: string
   noProxy?: string
@@ -46,7 +46,7 @@ interface MacProxyConfig {
   warning?: string
 }
 
-const NS = settingsNamespace('loopwithai-network')
+const NS = settingsNamespace('hulala-network')
 const TEST_URL = 'https://api.deepseek.com/models'
 const PROXY_KEYS = [
   'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
@@ -141,13 +141,13 @@ export function resolveProxy(settings: ProxySettings, env: NodeJS.ProcessEnv = p
     const proxy = validateProxyUrl(settings.proxyUrl)
     return { mode: 'manual', source: 'manual', httpProxy: proxy, httpsProxy: proxy, ...(noProxy ? { noProxy } : {}) }
   }
-  const loopProxy = first(env, 'LOOPWITHAI_PROXY')
+  const loopProxy = first(env, 'HULALA_PROXY')
   if (loopProxy) {
     try {
       const proxy = validateProxyUrl(loopProxy)
-      return { mode: 'auto', source: 'loopwithai-env', httpProxy: proxy, httpsProxy: proxy, ...(noProxy ? { noProxy } : {}) }
+      return { mode: 'auto', source: 'hulala-env', httpProxy: proxy, httpsProxy: proxy, ...(noProxy ? { noProxy } : {}) }
     } catch {
-      system = { ...system, warning: 'Ignoring unsupported LOOPWITHAI_PROXY; only HTTP/HTTPS proxy URLs are supported.' }
+      system = { ...system, warning: 'Ignoring unsupported HULALA_PROXY; only HTTP/HTTPS proxy URLs are supported.' }
     }
   }
   const allProxy = first(env, 'ALL_PROXY', 'all_proxy')
@@ -301,7 +301,7 @@ export class NetworkProxy extends Service {
       res.end(JSON.stringify(value))
     }
     this.ctx.effect(() => this.ctx.webServer.register({
-      kind: 'exact', path: '/api/loopwithai/proxy', handler: async (req, res) => {
+      kind: 'exact', path: '/api/hulala/proxy', handler: async (req, res) => {
         try {
           if (req.method === 'GET') { send(res, 200, this.getState()); return }
           if (req.method !== 'POST') { send(res, 405, { error: 'method not allowed' }); return }

@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="assets/brand/otter-logo-transparent.png" alt="LoopWithAI 水獭 Logo" width="128" />
-  <h1>LoopWithAI</h1>
+  <img src="assets/brand/hulala-logo.svg" alt="Hulala 纸风车 Logo" width="128" />
+  <h1>Hulala</h1>
   <p><strong>基于 DeepSeek Harness 的本地多 Agent 工作台。</strong></p>
   <p>在同一个 Web UI 中使用 Pi、OpenAI Codex、Claude Code 或 DeepSeek 原生 Agent Loop。</p>
   <p>
@@ -18,11 +18,11 @@
   </p>
 </div>
 
-LoopWithAI 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 扩展成一个本地多 Agent 编程工作台。它保留 Harness 原生的 Cordis 插件体系，把 Agent Loop 做成可替换插件，因此可以在 **Pi Coding Agent**、**OpenAI Codex**、**Claude Code** 和 **DeepSeek 原生 Agent Loop** 之间切换，不需要额外的 ACP 网关或另一套 Driver。
+Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 扩展成一个本地多 Agent 编程工作台。它保留 Harness 原生的 Cordis 插件体系，把 Agent Loop 做成可替换插件，因此可以在 **Pi Coding Agent**、**OpenAI Codex**、**Claude Code** 和 **DeepSeek 原生 Agent Loop** 之间切换，不需要额外的 ACP 网关或另一套 Driver。
 
 默认 Agent 是 Pi。每套运行时仍然使用自己的模型、工具、审批、MCP、Skills/Extensions 和本地认证。
 
-> DeepSeek Harness 目前仍处于 Developer Preview。LoopWithAI 紧贴其插件 API，上游出现不兼容更新时可能需要同步升级。
+> DeepSeek Harness 目前仍处于 Developer Preview。Hulala 紧贴其插件 API，上游出现不兼容更新时可能需要同步升级。
 
 ## 主要能力
 
@@ -30,8 +30,8 @@ LoopWithAI 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 - **原生接入**：Pi 直连 TypeScript SDK，Codex 使用 `codex app-server`，Claude Code 使用 Agent SDK，DeepSeek 保留原始 Harness Agent Loop。
 - **模型与 Thinking 控制**：每次对话都能在输入区选择 Provider、模型和模型支持的思考级别。
 - **不阉割工具**：保留各 Agent 支持的 read、bash、edit、write、项目指令、Skills、Extensions、MCP 和审批能力。
-- **本地认证与会话**：凭据仍由 Pi、Codex、Claude Code 或系统环境管理，不经过 LoopWithAI 托管网关。
-- **工作区自动恢复**：启动时自动打开上一次工作区；首次使用默认创建 `~/.config/lwa/workspace`。
+- **本地认证与会话**：凭据仍由 Pi、Codex、Claude Code 或系统环境管理，不经过 Hulala 托管网关。
+- **工作区自动恢复**：启动时自动打开上一次工作区；首次使用默认创建 `~/.config/hulala/workspace`。
 - **Clash/代理支持**：支持终端环境变量、macOS 系统代理、手动 HTTP 代理和强制直连。
 - **Vite HMR**：开发输入区控件时可以热更新，无需反复重启 Harness。
 
@@ -44,7 +44,7 @@ LoopWithAI 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harnes
 | **OpenAI Codex** | `codex app-server --stdio` | 已有的 `codex login` 会话 | 工具、MCP、Sandbox、审批、线程、模型、Reasoning Effort |
 | **Claude Code** | `@anthropic-ai/claude-agent-sdk` | 已有 Claude Code 登录或 Anthropic 环境变量 | Claude Code 工具预设、Settings、Skills、Plugins、MCP、权限审批 |
 
-LoopWithAI 通过 Cordis Loader 事务性替换进程内唯一的 Agent Loop。空白会话可以直接切换；会话已有历史时，界面会先确认，再在同一 Workspace 中新建会话，避免用户误以为历史会话中途更换了 Agent。
+Hulala 通过 Cordis Loader 事务性替换进程内唯一的 Agent Loop。空白会话可以直接切换；会话已有历史时，界面会先确认，再在同一 Workspace 中新建会话，避免用户误以为历史会话中途更换了 Agent。
 
 ## 快速开始
 
@@ -88,18 +88,18 @@ pi
 # 然后输入 /login
 ```
 
-Pi 的配置与凭据仍由 Pi 保存在 `~/.pi/agent`；LoopWithAI 不会把原始 Token 返回浏览器。
+Pi 的配置与凭据仍由 Pi 保存在 `~/.pi/agent`；Hulala 不会把原始 Token 返回浏览器。
 
 ### OpenAI Codex
 
-安装并登录官方 [OpenAI Codex CLI](https://github.com/openai/codex)，然后在 LoopWithAI 中选择 **Codex**：
+安装并登录官方 [OpenAI Codex CLI](https://github.com/openai/codex)，然后在 Hulala 中选择 **Codex**：
 
 ```bash
 npm install -g @openai/codex
 codex login
 ```
 
-需要时 LoopWithAI 会启动 `codex app-server --stdio`，并复用 Codex CLI 已有的本地登录。只有当 `codex` 不在 `PATH` 中时才需要设置 `CODEX_BINARY`。
+需要时 Hulala 会启动 `codex app-server --stdio`，并复用 Codex CLI 已有的本地登录。只有当 `codex` 不在 `PATH` 中时才需要设置 `CODEX_BINARY`。
 
 ### Claude Code
 
@@ -125,7 +125,7 @@ npm run dev
 
 ## 使用方法
 
-1. 选择或添加 Workspace。启动时优先恢复上次有效工作区，否则使用操作系统用户目录下的 `~/.config/lwa/workspace`。
+1. 选择或添加 Workspace。启动时优先恢复上次有效工作区，否则使用操作系统用户目录下的 `~/.config/hulala/workspace`。
 2. 在输入框下方选择 **Pi**、**DeepSeek**、**Codex** 或 **Claude Code**。
 3. 选择可用的模型与 Provider。
 4. 如果模型支持，选择 Thinking Level。
@@ -138,7 +138,7 @@ npm run dev
 
 打开 **Settings → Proxy**：
 
-- **Auto**（默认）：依次读取 `LOOPWITHAI_PROXY`、`HTTPS_PROXY`、`HTTP_PROXY`、`ALL_PROXY` 及其小写形式；macOS 下还会读取当前系统 HTTP/HTTPS 代理，因此 Clash 开启系统代理后可以自动生效。
+- **Auto**（默认）：依次读取 `HULALA_PROXY`、`HTTPS_PROXY`、`HTTP_PROXY`、`ALL_PROXY` 及其小写形式；macOS 下还会读取当前系统 HTTP/HTTPS 代理，因此 Clash 开启系统代理后可以自动生效。
 - **Manual**：使用页面填写的 `http://` 或 `https://` 地址，并覆盖自动检测。例如 `http://127.0.0.1:7897`。
 - **Off**：强制直连，并从 Agent 子进程环境中移除继承的代理变量。
 
@@ -181,7 +181,7 @@ packages/network-proxy/        进程级代理服务与 Settings UI
 
 ## 安全与隐私
 
-- 工作台在本机运行，不会通过 LoopWithAI 云服务转发 Agent 请求。
+- 工作台在本机运行，不会通过 Hulala 云服务转发 Agent 请求。
 - 凭据继续保存在各 Agent 的原生本地存储或环境变量中。
 - 凭据接口只提供登录状态和安全模型元数据，不返回 Secret。
 - 工具执行和网络权限仍取决于所选 Agent 以及用户选择的审批模式。
@@ -199,6 +199,6 @@ packages/network-proxy/        进程级代理服务与 Settings UI
 
 ## License 状态
 
-项目所有者尚未为 LoopWithAI 选择 License。在仓库加入 `LICENSE` 之前，请勿推定拥有适用版权法以外的复用或再分发权利。第三方组件继续保留各自 License，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+项目所有者尚未为 Hulala 选择 License。在仓库加入 `LICENSE` 之前，请勿推定拥有适用版权法以外的复用或再分发权利。第三方组件继续保留各自 License，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-LoopWithAI 是独立项目，与 DeepSeek、OpenAI、Anthropic 及 Pi 维护者不存在隶属关系。
+Hulala 是独立项目，与 DeepSeek、OpenAI、Anthropic 及 Pi 维护者不存在隶属关系。

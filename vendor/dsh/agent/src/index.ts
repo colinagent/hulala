@@ -2,17 +2,17 @@
  * Agent service: live registry, factory delegation, and process-local
  * initiator scope. Concrete creation and driving belong to the loop.
  *
- * @module @loopwithai/dsh-agent
+ * @module @hulala/dsh-agent
  */
 
-import { Context, FiberState, getTraceable, Service, symbols } from '@loopwithai/cordis'
-import type { Fiber } from '@loopwithai/cordis'
+import { Context, FiberState, getTraceable, Service, symbols } from '@hulala/cordis'
+import type { Fiber } from '@hulala/cordis'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
-import { scopeTarget } from '@loopwithai/dsh-scope'
-import type { Scoped } from '@loopwithai/dsh-scope'
-import type { SessionEvent, SessionId } from '@loopwithai/dsh-session'
-import type { TypertContext, TypertLookup } from '@loopwithai/dsh-typert-protocol'
+import { scopeTarget } from '@hulala/dsh-scope'
+import type { Scoped } from '@hulala/dsh-scope'
+import type { SessionEvent, SessionId } from '@hulala/dsh-session'
+import type { TypertContext, TypertLookup } from '@hulala/dsh-typert-protocol'
 import type { Agent, AgentOptions } from './runtime-types.ts'
 
 export * from './runtime-types.ts'
@@ -23,7 +23,7 @@ export * from './model-selection.ts'
 export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
 export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
 
-declare module '@loopwithai/dsh-typert-protocol' {
+declare module '@hulala/dsh-typert-protocol' {
   interface TypertLookupMap {
     agent: TypertLookup<Agent, SessionId>
   }
@@ -33,7 +33,7 @@ declare module '@loopwithai/dsh-typert-protocol' {
   }
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     agents: AgentRegistry
     /**
@@ -245,7 +245,7 @@ interface FactorySlot {
  * Agent service (`ctx.agents`): tracks live agents and carries the initiating
  * Agent through one process-local asynchronous driver chain. Agent *creation*
  * is provided by whichever plugin implements the {@link AgentFactory}
- * (`@loopwithai/dsh-agent-loop`), registered via {@link setFactory}.
+ * (`@hulala/dsh-agent-loop`), registered via {@link setFactory}.
  *
  * Initiator methods provide same-process causal attribution only. Ambient
  * presence is neither liveness proof nor authorization; subjects and owners
@@ -269,13 +269,13 @@ export class AgentRegistry extends Service {
       typeCtx.typert.lookups.register('agent', {
         parameter: 'agent',
         wire: 'agentId',
-        hostTypeSymbol: '@loopwithai/dsh-agent#Agent',
-        wireTypeSymbol: '@loopwithai/dsh-session/types#SessionId',
+        hostTypeSymbol: '@hulala/dsh-agent#Agent',
+        wireTypeSymbol: '@hulala/dsh-session/types#SessionId',
         resolve: sessionId => this.get(sessionId),
       })
       typeCtx.typert.contexts.registerHost('agent', {
         wire: 'agentId',
-        wireTypeSymbol: '@loopwithai/dsh-session/types#SessionId',
+        wireTypeSymbol: '@hulala/dsh-session/types#SessionId',
         resolve: sessionId => this.get(sessionId)?.ctx,
       })
     })

@@ -17,8 +17,8 @@
     "allowImportingTsExtensions": true,
     "types": ["node"],
     "paths": {
-      "@loopwithai/cosmokit": ["./vendor/cordis/cosmokit/src/index.ts"],
-      "@loopwithai/cordis": ["./vendor/cordis/cordis/src/index.ts"]
+      "@hulala/cosmokit": ["./vendor/cordis/cosmokit/src/index.ts"],
+      "@hulala/cordis": ["./vendor/cordis/cordis/src/index.ts"]
     }
   },
   "include": [

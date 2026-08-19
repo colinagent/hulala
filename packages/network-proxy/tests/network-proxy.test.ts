@@ -18,8 +18,8 @@ test('off mode strips proxy variables from child processes', () => {
   assert.deepEqual(proxyChildEnv(resolved, { HTTPS_PROXY: 'http://proxy', https_proxy: 'http://proxy', PATH: '/bin' }), { PATH: '/bin' })
 })
 
-test('auto mode prefers LoopWithAI, environment, then macOS system proxy', () => {
-  assert.equal(resolveProxy({ mode: 'auto' }, { LOOPWITHAI_PROXY: 'http://127.0.0.1:1' }, {}).source, 'loopwithai-env')
+test('auto mode prefers Hulala, environment, then macOS system proxy', () => {
+  assert.equal(resolveProxy({ mode: 'auto' }, { HULALA_PROXY: 'http://127.0.0.1:1' }, {}).source, 'hulala-env')
   assert.equal(resolveProxy({ mode: 'auto' }, { HTTPS_PROXY: 'http://127.0.0.1:2' }, {}).source, 'environment')
   assert.equal(resolveProxy({ mode: 'auto' }, {}, { httpsProxy: 'http://127.0.0.1:3' }).source, 'macos-system')
 })

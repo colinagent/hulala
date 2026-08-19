@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-timeout`.
- * @module @loopwithai/dsh-timeout/invariant
+ * Package-owned invariant companion for `@hulala/dsh-timeout`.
+ * @module @hulala/dsh-timeout/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-timeout'
+const PACKAGE_NAME = '@hulala/dsh-timeout'
 
 /** Cordis companion plugin name. */
 export const name = 'timeout-invariant'

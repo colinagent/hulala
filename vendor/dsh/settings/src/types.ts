@@ -4,10 +4,10 @@
  * no runtime code, and nothing here reaches a Host-only symbol, so a Client
  * compilation face reads exactly the signatures the Host emits.
  *
- * @module @loopwithai/dsh-settings/types
+ * @module @hulala/dsh-settings/types
  */
 
-import type { Branded } from '@loopwithai/dsh-brand'
+import type { Branded } from '@hulala/dsh-brand'
 
 /** Nominal id of one registered settings namespace. */
 export type SettingsNamespace = Branded<'SettingsNamespace'>
@@ -15,7 +15,7 @@ export type SettingsNamespace = Branded<'SettingsNamespace'>
 /** Origin of one committed settings change. */
 export type SettingsUpdateSource = 'update' | 'provider'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Events {
     /**
      * Committed change to one registered namespace's resolved value. Emitted

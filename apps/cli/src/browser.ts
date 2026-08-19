@@ -14,6 +14,6 @@ export function browserLaunch(url: string, platform: NodeJS.Platform = process.p
 export function openBrowser(url: string, platform: NodeJS.Platform = process.platform): void {
   const launch = browserLaunch(url, platform)
   const child = spawn(launch.command, launch.args, { detached: true, stdio: 'ignore' })
-  child.on('error', error => console.warn(`LoopWithAI could not open the browser automatically: ${error.message}`))
+  child.on('error', error => console.warn(`Hulala could not open the browser automatically: ${error.message}`))
   child.unref()
 }

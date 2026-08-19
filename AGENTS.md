@@ -1,4 +1,4 @@
-# Loop with AI Repository Rules
+# Hulala Repository Rules
 
 ## Read First
 

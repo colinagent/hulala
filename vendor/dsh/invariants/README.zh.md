@@ -52,16 +52,16 @@ interface Config {
 ## 组合
 
 ```ts
-import type { Context } from '@loopwithai/cordis'
-import InvariantRegistry from '@loopwithai/dsh-invariants'
-import * as SessionInvariant from '@loopwithai/dsh-session/invariant'
+import type { Context } from '@hulala/cordis'
+import InvariantRegistry from '@hulala/dsh-invariants'
+import * as SessionInvariant from '@hulala/dsh-session/invariant'
 
 declare const ctx: Context
 
 ctx.plugin(InvariantRegistry, {
   enabled: true,
   package_allowlist: ['^@deepseek-ai/dsh-'],
-  package_blocklist: ['^@loopwithai/dsh-agent-loop$'],
+  package_blocklist: ['^@hulala/dsh-agent-loop$'],
 })
 ctx.plugin(SessionInvariant)
 ```

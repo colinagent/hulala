@@ -5,10 +5,10 @@
  * operation, so a changed credential reaches the next operation without any
  * plugin restart, and configuration surfaces describe a reference without
  * ever seeing its value.
- * @module @loopwithai/dsh-credentials
+ * @module @hulala/dsh-credentials
  */
 
-import { Context, Service } from '@loopwithai/cordis'
+import { Context, Service } from '@hulala/cordis'
 import type { CredentialRef } from './types.ts'
 
 export type { CredentialRef } from './types.ts'
@@ -45,7 +45,7 @@ export interface CredentialInfo {
   writable: boolean
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     credentials: CredentialProvider
   }

@@ -1,4 +1,4 @@
-/** Content-block structure helpers. @module @loopwithai/dsh-llm/content */
+/** Content-block structure helpers. @module @hulala/dsh-llm/content */
 
 import type { ContentBlock } from './types.ts'
 

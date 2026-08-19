@@ -12,7 +12,7 @@ import {
   type CommandRunner,
   type ManagedVersion,
 } from './managed-runtime.js'
-import { resolvePaths, type LoopWithAIPaths } from './paths.js'
+import { resolvePaths, type HulalaPaths } from './paths.js'
 
 export interface UpdateStatus {
   currentVersion: string
@@ -42,7 +42,7 @@ export function isNewerVersion(candidate: string, current = VERSION): boolean {
 
 export async function checkForUpdate(fetchImpl: typeof fetch = fetch): Promise<UpdateStatus> {
   try {
-    const endpoint = process.env.LOOPWITHAI_UPDATE_URL ?? 'https://registry.npmjs.org/loopwithai/latest'
+    const endpoint = process.env.HULALA_UPDATE_URL ?? 'https://registry.npmjs.org/hulala/latest'
     const response = await fetchImpl(endpoint, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(5_000) })
     if (!response.ok) throw new Error(`registry returned HTTP ${response.status}`)
     const value = await response.json() as { version?: unknown }
@@ -71,9 +71,9 @@ export async function validateManagedVersionStartup(version: ManagedVersion, tim
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
-      LOOPWITHAI_NO_OPEN: '1',
-      LOOPWITHAI_PORT: String(launcherPort),
-      LOOPWITHAI_WORKBENCH_PORT: String(workbenchPort),
+      HULALA_NO_OPEN: '1',
+      HULALA_PORT: String(launcherPort),
+      HULALA_WORKBENCH_PORT: String(workbenchPort),
     },
   })
   let output = ''
@@ -89,10 +89,10 @@ export async function validateManagedVersionStartup(version: ManagedVersion, tim
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline && !exited) {
       try {
-        const response = await fetch(`http://127.0.0.1:${launcherPort}/api/loopwithai/health`, { signal: AbortSignal.timeout(700) })
+        const response = await fetch(`http://127.0.0.1:${launcherPort}/api/hulala/health`, { signal: AbortSignal.timeout(700) })
         if (response.ok) {
           const health = await response.json() as { name?: unknown; version?: unknown; workbench?: { state?: unknown } }
-          if (health.name === 'loopwithai' && health.version === version.version && health.workbench?.state === 'running') return
+          if (health.name === 'hulala' && health.version === version.version && health.workbench?.state === 'running') return
         }
       } catch {}
       await new Promise(resolve => setTimeout(resolve, 250))
@@ -109,8 +109,8 @@ export async function validateManagedVersionStartup(version: ManagedVersion, tim
 
 export async function applyManagedUpdate(
   targetVersion: string,
-  packageSpec = `loopwithai@${targetVersion}`,
-  paths: LoopWithAIPaths = resolvePaths(),
+  packageSpec = `hulala@${targetVersion}`,
+  paths: HulalaPaths = resolvePaths(),
   runner: CommandRunner = runCommand,
   validator: (version: ManagedVersion) => Promise<void> = validateManagedVersionStartup,
 ): Promise<ActiveManifest> {

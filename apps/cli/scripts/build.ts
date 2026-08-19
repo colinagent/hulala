@@ -21,7 +21,7 @@ await build({
   target: 'node24',
   sourcemap: true,
   banner: { js: '#!/usr/bin/env node' },
-  define: { __LOOPWITHAI_VERSION__: JSON.stringify(packageJson.default.version) },
+  define: { __HULALA_VERSION__: JSON.stringify(packageJson.default.version) },
   external,
 })
 await chmod(`${dist}cli.js`, 0o755)

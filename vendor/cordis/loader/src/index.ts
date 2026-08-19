@@ -1,5 +1,5 @@
-import { Context, FiberState, Inject, Service, type Fiber } from '@loopwithai/cordis'
-import { defineProperty, isNullable, type Dict } from '@loopwithai/cosmokit'
+import { Context, FiberState, Inject, Service, type Fiber } from '@hulala/cordis'
+import { defineProperty, isNullable, type Dict } from '@hulala/cosmokit'
 import { ModuleLoader } from './internal.ts'
 import { Entry, type EntryOptions } from './config/entry.ts'
 import { EntryGroup } from './config/group.ts'
@@ -20,7 +20,7 @@ export * from './config/utils.ts'
 /** Re-export Node internal module loader compatibility types. */
 export * from './internal.ts'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Events {
     'exit'(signal: NodeJS.Signals): Promise<void>
     'loader/config-update'(): void

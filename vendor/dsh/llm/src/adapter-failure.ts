@@ -1,7 +1,7 @@
 /**
  * Normalization for values thrown by a final LLM adapter boundary.
  *
- * @module @loopwithai/dsh-llm/adapter-failure
+ * @module @hulala/dsh-llm/adapter-failure
  */
 
 import { HarnessError } from './error.ts'

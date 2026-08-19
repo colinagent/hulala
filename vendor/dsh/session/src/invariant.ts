@@ -1,18 +1,18 @@
 /**
  * Package-owned relational invariants for the session event log. Load this
- * companion beside `@loopwithai/dsh-invariants` to enable the checks.
+ * companion beside `@hulala/dsh-invariants` to enable the checks.
  *
- * @module @loopwithai/dsh-session/invariant
+ * @module @hulala/dsh-session/invariant
  */
 
-import type { Context } from '@loopwithai/cordis'
-import { assertNever } from '@loopwithai/dsh-llm'
-import type { CallId } from '@loopwithai/dsh-llm'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
-import type { Session, SessionEvent } from '@loopwithai/dsh-session'
+import type { Context } from '@hulala/cordis'
+import { assertNever } from '@hulala/dsh-llm'
+import type { CallId } from '@hulala/dsh-llm'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
+import type { Session, SessionEvent } from '@hulala/dsh-session'
 import { TOOL_NOT_STARTED } from './repair.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-session'
+const PACKAGE_NAME = '@hulala/dsh-session'
 
 /** Cordis companion plugin name. */
 export const name = 'session-invariant'

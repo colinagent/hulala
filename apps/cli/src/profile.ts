@@ -16,7 +16,7 @@ export function createPackagedHarnessPatch(): unknown[] {
     { id: 'agent-loop', disabled: true },
     {
       insert: [
-        { id: 'loopwithai-network', name: networkProxy },
+        { id: 'hulala-network', name: networkProxy },
         { id: 'agent-loop-runtime', name: pi },
         {
           id: 'agent-loop-selector',

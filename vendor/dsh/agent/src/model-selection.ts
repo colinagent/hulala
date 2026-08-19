@@ -1,10 +1,10 @@
 /**
  * Agent-scoped model selection shared by runtime entry points.
- * @module @loopwithai/dsh-agent/model-selection
+ * @module @hulala/dsh-agent/model-selection
  */
 
-import type { Context } from '@loopwithai/cordis'
-import type { LlmCallConfig, ReasoningEffortId } from '@loopwithai/dsh-llm'
+import type { Context } from '@hulala/cordis'
+import type { LlmCallConfig, ReasoningEffortId } from '@hulala/dsh-llm'
 
 /** Complete provider, model, and optional reasoning effort selected for one live Agent. */
 export interface ModelSelection {

@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-scope",
+  "name": "@hulala/dsh-scope",
   "description": "Scoped-context registration primitive (scope tags, scope-filtered event dispatch) for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,12 +29,12 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

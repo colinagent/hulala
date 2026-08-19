@@ -1,6 +1,6 @@
-/** Attachment identifier brand. @module @loopwithai/dsh-attachment/brand */
+/** Attachment identifier brand. @module @hulala/dsh-attachment/brand */
 
-import type { Branded } from '@loopwithai/dsh-brand'
+import type { Branded } from '@hulala/dsh-brand'
 
 /** Opaque content-addressed identifier for one immutable attachment object. */
 export type AttachmentId = Branded<'AttachmentId'>

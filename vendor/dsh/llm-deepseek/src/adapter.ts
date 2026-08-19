@@ -8,7 +8,7 @@
  * @module dsh-llm-deepseek/adapter
  */
 
-import { attributionHeaders, CONTEXT_WINDOW_EXCEEDED_CODE, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@loopwithai/dsh-llm'
+import { attributionHeaders, CONTEXT_WINDOW_EXCEEDED_CODE, isContextWindowExceededError, isQuotaExceededError, LlmAdapter, LlmError, ProviderRequestId, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@hulala/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -16,10 +16,10 @@ import type {
   LlmResolvedModelInfo,
   ResolvedRetryPolicy,
   StreamChunk,
-} from '@loopwithai/dsh-llm'
-import type { CredentialRef } from '@loopwithai/dsh-credentials'
-import { idleWatchdog, timeoutOf } from '@loopwithai/dsh-timeout'
-import type { AnonymousUserId } from '@loopwithai/dsh-anonymous-user-id'
+} from '@hulala/dsh-llm'
+import type { CredentialRef } from '@hulala/dsh-credentials'
+import { idleWatchdog, timeoutOf } from '@hulala/dsh-timeout'
+import type { AnonymousUserId } from '@hulala/dsh-anonymous-user-id'
 import { serializeRequest } from './serialize.ts'
 import type { RequestDefaults } from './serialize.ts'
 import { parseSse } from './sse.ts'

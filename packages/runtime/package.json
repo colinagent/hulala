@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/runtime",
+  "name": "@hulala/runtime",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "loopwithai-runtime": "./lib/cli.js"
+    "hulala-runtime": "./lib/cli.js"
   },
   "scripts": {
     "build": "bun build src/index.ts src/cli.ts src/bun-lifecycle.ts --target=bun --outdir=lib",
@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/dsh": "0.1.0-rc.6"
   },
   "devDependencies": {

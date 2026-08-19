@@ -1,4 +1,4 @@
-import type { HumanDecision, HumanPrior, Observation, Revision } from "@loopwithai/core";
+import type { HumanDecision, HumanPrior, Observation, Revision } from "@hulala/core";
 import { NextResponse } from "next/server";
 import { errorResponse } from "@/lib/http";
 import { getRuntime } from "@/lib/runtime";

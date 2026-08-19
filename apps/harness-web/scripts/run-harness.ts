@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { createHarnessPatch } from './harness-profile.js'
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url))
-const temporaryDirectory = await mkdtemp(join(tmpdir(), 'loopwithai-harness-'))
+const temporaryDirectory = await mkdtemp(join(tmpdir(), 'hulala-harness-'))
 const patchPath = join(temporaryDirectory, 'profile.patch.json')
 await writeFile(patchPath, JSON.stringify(createHarnessPatch(repositoryRoot)), 'utf8')
 

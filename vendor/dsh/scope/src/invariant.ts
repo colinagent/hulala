@@ -1,11 +1,11 @@
-/** Package-owned scoped-dispatch invariants. @module @loopwithai/dsh-scope/invariant */
+/** Package-owned scoped-dispatch invariants. @module @hulala/dsh-scope/invariant */
 
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
-import { carrierKeyOf, isScopeCarrier } from '@loopwithai/dsh-scope'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
+import { carrierKeyOf, isScopeCarrier } from '@hulala/dsh-scope'
 import { scopedSubjectResolverFor } from './scoped-events.generated.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-scope'
+const PACKAGE_NAME = '@hulala/dsh-scope'
 
 /** Cordis companion plugin name. */
 export const name = 'scope-invariant'

@@ -3,13 +3,13 @@
  * Every workspace package registers checks from a `./invariant` companion;
  * ordinary package entrypoints stay independent of diagnostics.
  *
- * @module @loopwithai/dsh-invariants
+ * @module @hulala/dsh-invariants
  */
 
-import { Context, Service } from '@loopwithai/cordis'
-import type { Inject } from '@loopwithai/cordis'
-import z from '@loopwithai/schemastery'
-import type Schema from '@loopwithai/schemastery'
+import { Context, Service } from '@hulala/cordis'
+import type { Inject } from '@hulala/cordis'
+import z from '@hulala/schemastery'
+import type Schema from '@hulala/schemastery'
 
 /** Runtime invariant selection configured on the service plugin. */
 export interface Config {
@@ -65,7 +65,7 @@ export class InvariantError extends Error {
   }
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     invariants: InvariantRegistry
   }

@@ -2,10 +2,10 @@
  * Shared buffering, serialization, adoption, repair, and disposal orchestration
  * for first-party backends. Third-party backends may implement the public
  * persistence seam directly.
- * @module @loopwithai/dsh-session-persistence/coordinator
+ * @module @hulala/dsh-session-persistence/coordinator
  */
 
-import { Context } from '@loopwithai/cordis'
+import { Context } from '@hulala/cordis'
 import {
   adoptSessionEvent,
   interruptedTurnClosers,
@@ -14,9 +14,9 @@ import {
   SessionPreparation,
   snapshotJsonValue,
   snapshotSessionEvent,
-} from '@loopwithai/dsh-session'
-import type { Session, SessionEvent, SessionId, SessionHeader } from '@loopwithai/dsh-session'
-import { MAX_TIMER_DELAY_MS } from '@loopwithai/dsh-timeout'
+} from '@hulala/dsh-session'
+import type { Session, SessionEvent, SessionId, SessionHeader } from '@hulala/dsh-session'
+import { MAX_TIMER_DELAY_MS } from '@hulala/dsh-timeout'
 import type { SessionInspection, SessionLocation } from './index.ts'
 import type { SessionPersistenceRevision } from './revision.ts'
 import { observeQueuedAbort, SessionPreparations } from './preparations.ts'

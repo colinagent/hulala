@@ -3,11 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { LoopEvent } from "@loopwithai/core";
+import type { LoopEvent } from "@hulala/core";
 import { SQLiteEventStore } from "./sqlite-event-store";
 
 test("persists ordered events and enforces optimistic concurrency", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "loopwithai-store-"));
+  const directory = mkdtempSync(join(tmpdir(), "hulala-store-"));
   const event: LoopEvent = {
     id: "evt_test",
     loopId: "loop_test",

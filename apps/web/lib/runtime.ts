@@ -1,4 +1,4 @@
-import { LoopService } from "@loopwithai/core";
+import { LoopService } from "@hulala/core";
 import { DshAgentDriver } from "./dsh-agent-driver";
 import { SQLiteEventStore } from "./sqlite-event-store";
 

@@ -15,9 +15,9 @@ export async function runWatchdog(entryPath = fileURLToPath(import.meta.url)): P
     if (health === undefined && !await portIsOccupied()) {
       await startDetached(entryPath, paths)
       const ready = await waitForHealth(45_000)
-      if (ready === undefined && process.env.LOOPWITHAI_MANAGED_VERSION !== undefined) {
+      if (ready === undefined && process.env.HULALA_MANAGED_VERSION !== undefined) {
         const active = await readActiveManifest(paths)
-        if (active?.version === process.env.LOOPWITHAI_MANAGED_VERSION && active.previous !== undefined) {
+        if (active?.version === process.env.HULALA_MANAGED_VERSION && active.previous !== undefined) {
           await rollbackManagedVersion(paths)
           return 1
         }

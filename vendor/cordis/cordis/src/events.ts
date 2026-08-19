@@ -1,5 +1,5 @@
-import { defineProperty } from '@loopwithai/cosmokit'
-import type { Promisify } from '@loopwithai/cosmokit'
+import { defineProperty } from '@hulala/cosmokit'
+import type { Promisify } from '@hulala/cosmokit'
 import { Context } from './context.ts'
 import { Fiber, FiberState } from './fiber.ts'
 import { DisposableList, symbols } from './utils.ts'

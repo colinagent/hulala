@@ -12,9 +12,9 @@ import {
 } from '@deepseek-ai/dsh-agent'
 import { SessionPreparation, type Session } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
-import { HarnessSdkAgent, withSessionPreparation, type HarnessSdkSession } from '@loopwithai/dsh-agent-loop-pi'
-import { runtimeSelection } from '@loopwithai/dsh-agent-loop-selector'
-import type {} from '@loopwithai/dsh-network-proxy'
+import { HarnessSdkAgent, withSessionPreparation, type HarnessSdkSession } from '@hulala/dsh-agent-loop-pi'
+import { runtimeSelection } from '@hulala/dsh-agent-loop-selector'
+import type {} from '@hulala/dsh-network-proxy'
 
 type Listener = Parameters<HarnessSdkSession['subscribe']>[0]
 

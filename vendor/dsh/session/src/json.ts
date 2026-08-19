@@ -1,4 +1,4 @@
-/** Lossless-JSON validation and detached snapshots for durable session data. @module @loopwithai/dsh-session/json */
+/** Lossless-JSON validation and detached snapshots for durable session data. @module @hulala/dsh-session/json */
 
 /**
  * A value that round-trips losslessly through JSON: `null`, a boolean, a finite

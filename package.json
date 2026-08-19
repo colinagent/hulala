@@ -1,8 +1,9 @@
 {
-  "name": "@loopwithai/monorepo",
+  "name": "@hulala/monorepo",
   "version": "0.1.0",
   "description": "A multi-agent workbench for DeepSeek Harness with Pi, OpenAI Codex, Claude Code, and the native DeepSeek Agent Loop.",
   "private": true,
+  "packageManager": "bun@1.3.14",
   "homepage": "https://github.com/colinagent/hulala#readme",
   "repository": {
     "type": "git",
@@ -34,9 +35,10 @@
     "build:vendor": "tsx scripts/check-vendor.ts",
     "test": "bun run --cwd packages/runtime test && bun run --cwd apps/harness-web test && bun run --cwd packages/core test && bun run --cwd apps/web test && bun run --cwd packages/network-proxy test && bun run --cwd packages/agent-loop-selector test && bun run --cwd packages/agent-loop-pi test && bun run --cwd packages/agent-loop-codex test && bun run --cwd apps/cli test",
     "typecheck": "bun run --cwd packages/runtime typecheck && bun run --cwd apps/harness-web typecheck && bun run --cwd packages/core typecheck && bun run --cwd apps/web typecheck && bun run --cwd packages/network-proxy typecheck && bun run --cwd packages/agent-loop-selector typecheck && bun run --cwd packages/agent-loop-pi typecheck && bun run --cwd packages/agent-loop-codex typecheck && bun run --cwd packages/agent-loop-claude typecheck && bun run --cwd apps/cli typecheck",
-    "check": "npm run build:vendor && npm run test && npm run typecheck && npm run build"
+    "check": "npm run build:vendor && npm run build && npm run test && npm run typecheck"
   },
   "devDependencies": {
+    "@hulala/cordis": "*",
     "@types/node": "^24.0.0",
     "esbuild": "0.28.2",
     "tsx": "^4.20.0",

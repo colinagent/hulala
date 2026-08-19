@@ -4,11 +4,11 @@
  * Adapters expose one resolved policy per registered provider route; the
  * optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
  *
- * @module @loopwithai/dsh-llm/retry-policy
+ * @module @hulala/dsh-llm/retry-policy
  */
 
-import z from '@loopwithai/schemastery'
-import { MAX_TIMER_DELAY_MS } from '@loopwithai/dsh-timeout'
+import z from '@hulala/schemastery'
+import { MAX_TIMER_DELAY_MS } from '@hulala/dsh-timeout'
 import { EMPTY_RESPONSE_CODE } from './error.ts'
 
 const DEFAULT_MAX_RETRIES = 2
@@ -105,7 +105,7 @@ export const RetryPolicySchema: z<RetryPolicyConfig> = z.union([
 const NORMAL_POLICY_KEYS: ReadonlySet<string> = new Set([
   'mode', 'maxRetries', 'retryableCodes', 'backoff',
 ])
-const ALWAYS_POLICY_KEYS: ReadonlySet<string> = new Set(['mode', 'backoff'])
+const AHULALAYS_POLICY_KEYS: ReadonlySet<string> = new Set(['mode', 'backoff'])
 const BACKOFF_KEYS: ReadonlySet<string> = new Set(['initialDelayMs', 'maxDelayMs', 'jitterRatio'])
 
 function validateKeys(value: object, allowed: ReadonlySet<string>, path: string): void {
@@ -180,7 +180,7 @@ export function resolveRetryPolicy(
       })
     }
     case 'always':
-      validateKeys(config, ALWAYS_POLICY_KEYS, path)
+      validateKeys(config, AHULALAYS_POLICY_KEYS, path)
       return Object.freeze({
         mode: 'always',
         ...resolveBackoff(config.backoff, `${path}.backoff`),

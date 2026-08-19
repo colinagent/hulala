@@ -3,10 +3,10 @@
  * supplied each value. Harness consumers resolve through it instead of a flattened
  * `process.env`; launchers may still materialize accepted values for config
  * expressions and third-party libraries.
- * @module @loopwithai/dsh-launch-environment
+ * @module @hulala/dsh-launch-environment
  */
 
-import type { Context } from '@loopwithai/cordis'
+import type { Context } from '@hulala/cordis'
 
 /**
  * Which layer supplied a value, from most to least trusted: the environment
@@ -116,7 +116,7 @@ export function launchEnvironmentOf(ctx: Context): LaunchEnvironmentSnapshot {
     ?? createLaunchEnvironmentSnapshot([{ source: 'process', values: process.env as Record<string, string> }])
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     /** Launcher-owned snapshot of this run's environment; absent in compositions the product CLI did not boot. */
     launchEnvironment?: LaunchEnvironmentSnapshot

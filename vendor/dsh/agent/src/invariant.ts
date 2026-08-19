@@ -1,10 +1,10 @@
-/** Package-owned agent lifecycle invariants. @module @loopwithai/dsh-agent/invariant */
+/** Package-owned agent lifecycle invariants. @module @hulala/dsh-agent/invariant */
 
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
-import type { Agent, AgentStatus } from '@loopwithai/dsh-agent'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
+import type { Agent, AgentStatus } from '@hulala/dsh-agent'
 
-const PACKAGE_NAME = '@loopwithai/dsh-agent'
+const PACKAGE_NAME = '@hulala/dsh-agent'
 
 /** Cordis companion plugin name. */
 export const name = 'agent-invariant'

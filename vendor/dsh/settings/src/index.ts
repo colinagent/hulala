@@ -3,11 +3,11 @@
  * per-namespace sections; plugins register a namespace schema and read the
  * resolved value, which layers schema defaults, the registrant's composition
  * `base`, and the user document section, in that order.
- * @module @loopwithai/dsh-settings
+ * @module @hulala/dsh-settings
  */
 
-import { Context, Service } from '@loopwithai/cordis'
-import type z from '@loopwithai/schemastery'
+import { Context, Service } from '@hulala/cordis'
+import type z from '@hulala/schemastery'
 import { redactSecrets } from './redact.ts'
 import type { RedactedSecret } from './redact.ts'
 import type { SettingsNamespace, SettingsUpdateSource } from './types.ts'
@@ -128,7 +128,7 @@ export interface SettingsScope<T> {
   replace(section: object): Promise<void>
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     settings: SettingsProvider
   }

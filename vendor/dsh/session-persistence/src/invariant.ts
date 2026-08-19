@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-session-persistence`.
- * @module @loopwithai/dsh-session-persistence/invariant
+ * Package-owned invariant companion for `@hulala/dsh-session-persistence`.
+ * @module @hulala/dsh-session-persistence/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-session-persistence'
+const PACKAGE_NAME = '@hulala/dsh-session-persistence'
 
 /** Cordis companion plugin name. */
 export const name = 'session-persistence-invariant'

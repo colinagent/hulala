@@ -5,10 +5,10 @@
  * Browser-safe: web clients consume this subpath export, so it must stay free
  * of `node:` imports (they break the vite bundle).
  *
- * @module @loopwithai/dsh-session/surface
+ * @module @hulala/dsh-session/surface
  */
 
-import type { Message } from '@loopwithai/dsh-llm'
+import type { Message } from '@hulala/dsh-llm'
 import type { SessionEvent, SurfaceEvent, SurfaceEventType, SurfaceOp } from './types.ts'
 
 /** Runtime counterpart of the message-producing event union. */

@@ -3,13 +3,13 @@
  * {@link agentEvents} couples the agent subject to its scope carrier, so the
  * scope key and the payload's `agent` cannot diverge; repeat dispatchers (the
  * loop driver) build it once in the agent's constructor and reuse it.
- * @module @loopwithai/dsh-agent/dispatch
+ * @module @hulala/dsh-agent/dispatch
  */
 
-import type { Context, Events } from '@loopwithai/cordis'
-import { scopeTarget } from '@loopwithai/dsh-scope'
-import type { Scoped } from '@loopwithai/dsh-scope'
-import type { AssembleContext } from '@loopwithai/dsh-system-prompt'
+import type { Context, Events } from '@hulala/cordis'
+import { scopeTarget } from '@hulala/dsh-scope'
+import type { Scoped } from '@hulala/dsh-scope'
+import type { AssembleContext } from '@hulala/dsh-system-prompt'
 import type { Agent } from './runtime-types.ts'
 
 /** Extract the parameter tuple from an event handler type (its `this` is not part of the tuple). */

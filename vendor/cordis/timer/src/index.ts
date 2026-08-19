@@ -1,6 +1,6 @@
-import { Context, Service } from '@loopwithai/cordis'
+import { Context, Service } from '@hulala/cordis'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context extends Pick<TimerService, 'interval' | 'timeout' | 'throttle' | 'debounce' | 'setTimeout' | 'setInterval'> {
     timer: TimerService
   }

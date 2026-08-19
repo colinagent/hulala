@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-home-paths`.
- * @module @loopwithai/dsh-home-paths/invariant
+ * Package-owned invariant companion for `@hulala/dsh-home-paths`.
+ * @module @hulala/dsh-home-paths/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-home-paths'
+const PACKAGE_NAME = '@hulala/dsh-home-paths'
 
 /** Cordis companion plugin name. */
 export const name = 'home-paths-invariant'

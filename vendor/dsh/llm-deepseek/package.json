@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-llm-deepseek",
+  "name": "@hulala/dsh-llm-deepseek",
   "description": "DeepSeek chat-completions adapter for the DeepSeek Harness LLM seam",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,28 +29,28 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-credentials": "*",
-    "@loopwithai/dsh-launch-environment": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-settings": "*",
-    "@loopwithai/dsh-timeout": "*",
-    "@loopwithai/dsh-anonymous-user-id": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-credentials": "*",
+    "@hulala/dsh-launch-environment": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-settings": "*",
+    "@hulala/dsh-timeout": "*",
+    "@hulala/dsh-anonymous-user-id": "*",
+    "@hulala/cordis": "*"
   },
   "dependencies": {
     "eventsource-parser": "^3.1.0",
-    "@loopwithai/schemastery": "*"
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-credentials": "*",
-    "@loopwithai/dsh-launch-environment": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-settings": "*",
-    "@loopwithai/dsh-timeout": "*",
-    "@loopwithai/dsh-anonymous-user-id": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-credentials": "*",
+    "@hulala/dsh-launch-environment": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-settings": "*",
+    "@hulala/dsh-timeout": "*",
+    "@hulala/dsh-anonymous-user-id": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

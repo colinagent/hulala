@@ -24,9 +24,9 @@ function sendJson(response: ServerResponse, status: number, value: unknown, head
 }
 
 function localEntryCors(request: IncomingMessage): Record<string, string> {
-  if (request.headers.origin !== 'https://local.loopwith.ai') return {}
+  if (request.headers.origin !== 'https://local.hulala.ai') return {}
   return {
-    'access-control-allow-origin': 'https://local.loopwith.ai',
+    'access-control-allow-origin': 'https://local.hulala.ai',
     'access-control-allow-methods': 'GET, HEAD, OPTIONS',
     'access-control-allow-private-network': 'true',
     'access-control-max-age': '600',
@@ -52,7 +52,7 @@ export function authorizeServiceAction(request: IncomingMessage, actionToken: st
   if (request.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     return 'content type must be application/json'
   }
-  const supplied = request.headers['x-loopwithai-token']
+  const supplied = request.headers['x-hulala-token']
   if (typeof supplied !== 'string') return 'action token required'
   const expectedBytes = Buffer.from(actionToken)
   const suppliedBytes = Buffer.from(supplied)
@@ -134,7 +134,7 @@ export async function runLauncher(): Promise<number> {
   const server = createServer((request, response) => {
     void (async () => {
       const path = new URL(request.url ?? '/', APP_URL).pathname
-      if (path === '/api/loopwithai/health') {
+      if (path === '/api/hulala/health') {
         if (request.method === 'OPTIONS') {
           const headers = localEntryCors(request)
           if (headers['access-control-allow-origin'] === undefined) { sendJson(response, 403, { error: 'origin rejected' }); return }
@@ -156,7 +156,7 @@ export async function runLauncher(): Promise<number> {
         } else sendJson(response, 200, payload, localEntryCors(request))
         return
       }
-      if (path === '/api/loopwithai/service') {
+      if (path === '/api/hulala/service') {
         if (request.method === 'GET') { sendJson(response, 200, await status()); return }
         if (request.method !== 'POST') { sendJson(response, 405, { error: 'method not allowed' }); return }
         const authorizationError = authorizeServiceAction(request, actionToken)
@@ -173,11 +173,11 @@ export async function runLauncher(): Promise<number> {
             const autostart = await autostartStatus(true)
             if (!autostart.installed) throw new Error('Enable start after login before updating the managed service')
             const available = await updateStatus(true)
-            const targetVersion = process.env.LOOPWITHAI_UPDATE_VERSION ?? available.latestVersion
-            if (targetVersion === undefined || (!available.available && process.env.LOOPWITHAI_UPDATE_VERSION === undefined)) {
-              throw new Error('No newer LoopWithAI version is available')
+            const targetVersion = process.env.HULALA_UPDATE_VERSION ?? available.latestVersion
+            if (targetVersion === undefined || (!available.available && process.env.HULALA_UPDATE_VERSION === undefined)) {
+              throw new Error('No newer Hulala version is available')
             }
-            const packageSpec = process.env.LOOPWITHAI_UPDATE_PACKAGE_SPEC ?? `loopwithai@${targetVersion}`
+            const packageSpec = process.env.HULALA_UPDATE_PACKAGE_SPEC ?? `hulala@${targetVersion}`
             let switched = false
             try {
               await applyManagedUpdate(targetVersion, packageSpec)
@@ -227,7 +227,7 @@ export async function runLauncher(): Promise<number> {
     server.listen(APP_PORT, APP_HOST, resolve)
   })
   void controller.start().catch(error => console.error(`Workbench failed to start: ${error instanceof Error ? error.message : String(error)}`))
-  console.log(`LoopWithAI launcher: ${APP_URL}`)
+  console.log(`Hulala launcher: ${APP_URL}`)
 
   return await new Promise<number>(resolve => {
     let closing = false

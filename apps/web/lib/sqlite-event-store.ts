@@ -1,4 +1,4 @@
-import type { EventStore, LoopEvent } from "@loopwithai/core";
+import type { EventStore, LoopEvent } from "@hulala/core";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -16,7 +16,7 @@ interface EventRow {
 export class SQLiteEventStore implements EventStore {
   private readonly db: DatabaseSync;
 
-  constructor(dataDirectory = process.env.LOOP_DATA_DIR ?? join(homedir(), ".loopwithai")) {
+  constructor(dataDirectory = process.env.LOOP_DATA_DIR ?? join(homedir(), ".hulala")) {
     mkdirSync(dataDirectory, { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(join(dataDirectory, "loop.db"));
     this.db.exec(`

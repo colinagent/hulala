@@ -8,7 +8,7 @@ const LOOPBACK_REPLACEMENT = 'if (hostname === "localhost" || hostname.endsWith(
 export function patchLoopbackSource(source: string): string {
   if (source.includes(LOOPBACK_REPLACEMENT)) return source
   if (!source.includes(LOOPBACK_NEEDLE)) {
-    throw new Error('The installed DeepSeek Harness loopback check is not compatible with this LoopWithAI release.')
+    throw new Error('The installed DeepSeek Harness loopback check is not compatible with this Hulala release.')
   }
   return source.replaceAll(LOOPBACK_NEEDLE, LOOPBACK_REPLACEMENT)
 }
@@ -17,7 +17,7 @@ async function patchFile(path: string): Promise<void> {
   const source = await readFile(path, 'utf8')
   const patched = patchLoopbackSource(source)
   if (patched === source) return
-  const temporary = `${path}.loopwithai-${process.pid}`
+  const temporary = `${path}.hulala-${process.pid}`
   await writeFile(temporary, patched, 'utf8')
   await rename(temporary, path)
 }

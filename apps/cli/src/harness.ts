@@ -10,7 +10,7 @@ import { createPackagedHarnessPatch } from './profile.js'
 
 export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporaryDirectory: string }> {
   await ensureLocalhostSubdomainCompatibility()
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'loopwithai-harness-'))
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'hulala-harness-'))
   const patchPath = join(temporaryDirectory, 'profile.patch.json')
   await writeFile(patchPath, JSON.stringify(createPackagedHarnessPatch()), 'utf8')
 
@@ -25,7 +25,7 @@ export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporary
     '--trusted-host', APP_AUTHORITY,
   ], {
     stdio: 'inherit',
-    env: { ...process.env, LOOPWITHAI_VERSION: VERSION },
+    env: { ...process.env, HULALA_VERSION: VERSION },
   })
 
   return { child, temporaryDirectory }

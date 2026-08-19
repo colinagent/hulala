@@ -2,13 +2,13 @@
  * Concrete agent-loop plugin: creates scoped ReactLoopAgents, publishes them
  * through the agent/session registries, and owns their ordered teardown.
  *
- * @module @loopwithai/dsh-agent-loop
+ * @module @hulala/dsh-agent-loop
  */
 
-import { Context, FiberState, Service } from '@loopwithai/cordis'
+import { Context, FiberState, Service } from '@hulala/cordis'
 import { randomUUID } from 'node:crypto'
-import z from '@loopwithai/schemastery'
-import { emitAgentEvent } from '@loopwithai/dsh-agent'
+import z from '@hulala/schemastery'
+import { emitAgentEvent } from '@hulala/dsh-agent'
 import type {
   Agent,
   AgentFactory,
@@ -18,14 +18,14 @@ import type {
   CreateAgentOptions,
   ResumeAgentOptions,
   SessionStartSource,
-} from '@loopwithai/dsh-agent'
-import { errorChain } from '@loopwithai/dsh-llm'
-import { installSettingsSection, settingsNamespace } from '@loopwithai/dsh-settings'
-import { SessionId, SessionPreparation } from '@loopwithai/dsh-session'
-import type { Session, SessionHeader } from '@loopwithai/dsh-session'
-import type {} from '@loopwithai/dsh-system-prompt'
-import type {} from '@loopwithai/dsh-tools'
-import type { SessionPersistence } from '@loopwithai/dsh-session-persistence'
+} from '@hulala/dsh-agent'
+import { errorChain } from '@hulala/dsh-llm'
+import { installSettingsSection, settingsNamespace } from '@hulala/dsh-settings'
+import { SessionId, SessionPreparation } from '@hulala/dsh-session'
+import type { Session, SessionHeader } from '@hulala/dsh-session'
+import type {} from '@hulala/dsh-system-prompt'
+import type {} from '@hulala/dsh-tools'
+import type { SessionPersistence } from '@hulala/dsh-session-persistence'
 import { ReactLoopAgent } from './agent.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
 
@@ -157,7 +157,7 @@ interface PreparedAgent {
   dispose(): Promise<void>
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     agentLoop: AgentLoop
     /**

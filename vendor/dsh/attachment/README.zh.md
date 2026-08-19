@@ -1,4 +1,4 @@
-# @loopwithai/dsh-attachment
+# @hulala/dsh-attachment
 
 [English](README.md) | 中文
 

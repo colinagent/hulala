@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-anonymous-user-id`.
- * @module @loopwithai/dsh-anonymous-user-id/invariant
+ * Package-owned invariant companion for `@hulala/dsh-anonymous-user-id`.
+ * @module @hulala/dsh-anonymous-user-id/invariant
  */
 
 /* jscpd:ignore-start */
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantInstaller } from '@hulala/dsh-invariants'
 
-const PACKAGE_NAME = '@loopwithai/dsh-anonymous-user-id'
+const PACKAGE_NAME = '@hulala/dsh-anonymous-user-id'
 
 /** Cordis companion plugin name. */
 export const name = 'anonymous-user-id-invariant'

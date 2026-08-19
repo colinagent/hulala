@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/cordis-plugin-include",
+  "name": "@hulala/cordis-plugin-include",
   "description": "Include files in cordis configurations",
   "version": "1.0.6",
   "repository": {
@@ -27,11 +27,11 @@
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/cordis-plugin-loader": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/cordis-plugin-loader": "*",
+    "@hulala/cordis": "*"
   },
   "dependencies": {
-    "@loopwithai/cosmokit": "*",
+    "@hulala/cosmokit": "*",
     "js-yaml": "^4.1.0"
   },
   "private": true

@@ -2,11 +2,11 @@
  * Scoped-context primitive: mint a Cordis context that tags registrations with
  * an opaque identity and build routing-only event carriers for that identity.
  *
- * @module @loopwithai/dsh-scope
+ * @module @hulala/dsh-scope
  */
 
-import type { Context, Fiber } from '@loopwithai/cordis'
-import { Context as CordisContext } from '@loopwithai/cordis'
+import type { Context, Fiber } from '@hulala/cordis'
+import { Context as CordisContext } from '@hulala/cordis'
 
 export { AnonymousEntries, NamedEntries, ScopedLayers } from './store.ts'
 export type { ScopeLayer } from './store.ts'

@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-agent-loop",
+  "name": "@hulala/dsh-agent-loop",
   "description": "The concrete agent loop plugin for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -28,31 +28,31 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-agent": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-session-persistence": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/dsh-tools": "*",
-    "@loopwithai/cordis": "*",
-    "@loopwithai/dsh-settings": "*"
+    "@hulala/dsh-agent": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-session-persistence": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/dsh-tools": "*",
+    "@hulala/cordis": "*",
+    "@hulala/dsh-settings": "*"
   },
   "dependencies": {
-    "@loopwithai/schemastery": "*"
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-agent": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-session-persistence": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/dsh-tools": "*",
-    "@loopwithai/cordis": "*",
-    "@loopwithai/dsh-settings": "*"
+    "@hulala/dsh-agent": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-session-persistence": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/dsh-tools": "*",
+    "@hulala/cordis": "*",
+    "@hulala/dsh-settings": "*"
   },
   "private": true
 }

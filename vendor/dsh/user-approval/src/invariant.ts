@@ -1,12 +1,12 @@
-/** Package-owned approval audit-stream invariants. @module @loopwithai/dsh-user-approval/invariant */
+/** Package-owned approval audit-stream invariants. @module @hulala/dsh-user-approval/invariant */
 
-import type { Context } from '@loopwithai/cordis'
-import type { Session, SessionEvent } from '@loopwithai/dsh-session'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { Session, SessionEvent } from '@hulala/dsh-session'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
 import type { ApprovalRequestId } from './index.ts'
 import { APPROVAL_POLICIES } from './index.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-user-approval'
+const PACKAGE_NAME = '@hulala/dsh-user-approval'
 const APPROVAL_OUTCOMES = ['allowed-once', 'rejected', 'cancelled', 'unavailable'] as const
 
 /** Cordis companion plugin name. */

@@ -1,4 +1,4 @@
-# @loopwithai/dsh-settings
+# @hulala/dsh-settings
 
 [English](README.md) | 中文
 

@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-agent",
+  "name": "@hulala/dsh-agent",
   "description": "Agent interface, registry, initiator scope, and event vocabulary for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -34,22 +34,22 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/dsh-typert-protocol": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/dsh-typert-protocol": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/dsh-typert-protocol": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/dsh-typert-protocol": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

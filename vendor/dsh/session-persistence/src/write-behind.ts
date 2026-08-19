@@ -1,9 +1,9 @@
 /**
  * Bounded per-session write batching for the shared persistence coordinator.
- * @module @loopwithai/dsh-session-persistence/write-behind
+ * @module @hulala/dsh-session-persistence/write-behind
  */
 
-import type { SessionEvent } from '@loopwithai/dsh-session'
+import type { SessionEvent } from '@hulala/dsh-session'
 
 /** Dependencies and scheduling policy for one live session's write controller. */
 export interface SessionWriteBehindOptions {

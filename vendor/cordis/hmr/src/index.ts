@@ -1,18 +1,18 @@
-import { Context, Service, type Plugin } from '@loopwithai/cordis'
-import type { Dict } from '@loopwithai/cosmokit'
-import { ModuleLoader, type ModuleJob, type ResolveResult } from '@loopwithai/cordis-plugin-loader'
-import type { Include } from '@loopwithai/cordis-plugin-include'
+import { Context, Service, type Plugin } from '@hulala/cordis'
+import type { Dict } from '@hulala/cosmokit'
+import { ModuleLoader, type ModuleJob, type ResolveResult } from '@hulala/cordis-plugin-loader'
+import type { Include } from '@hulala/cordis-plugin-include'
 import { FSWatcher, watch, type ChokidarOptions } from 'chokidar'
 import { dirname, relative, resolve } from 'node:path'
 import { realpath, stat } from 'node:fs/promises'
 import { handleError } from './error.ts'
-import type {} from '@loopwithai/cordis-plugin-timer'
+import type {} from '@hulala/cordis-plugin-timer'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import picomatch from 'picomatch'
-import z from '@loopwithai/schemastery'
+import z from '@hulala/schemastery'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     hmr: Hmr
   }

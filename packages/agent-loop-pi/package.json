@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-agent-loop-pi",
+  "name": "@hulala/dsh-agent-loop-pi",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,10 +16,11 @@
     "@deepseek-ai/dsh-user-questions": "0.1.0-rc.6",
     "@deepseek-ai/dsh-host-webserver": "0.1.0-rc.6",
     "@deepseek-ai/schemastery": "3.18.1",
-    "@loopwithai/dsh-agent-loop-selector": "*",
-    "@loopwithai/dsh-network-proxy": "*",
+    "@hulala/dsh-agent-loop-selector": "*",
+    "@hulala/dsh-network-proxy": "*",
     "@earendil-works/pi-ai": "0.84.1",
-    "@earendil-works/pi-coding-agent": "0.84.1"
+    "@earendil-works/pi-coding-agent": "0.84.1",
+    "partial-json": "0.1.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

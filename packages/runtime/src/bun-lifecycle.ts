@@ -1,10 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 
-export const name = 'loopwithai-bun-lifecycle'
+export const name = 'hulala-bun-lifecycle'
 
 /**
  * DSH dynamically adds its Node-internal HMR service when none is present.
- * Bun does not expose Node's internal ESM loader, and production LoopWithAI
+ * Bun does not expose Node's internal ESM loader, and production Hulala
  * profiles do not hot-reload host plugins, so this marker owns that optional
  * service slot and keeps the DSH lifecycle on its normal no-HMR path.
  */

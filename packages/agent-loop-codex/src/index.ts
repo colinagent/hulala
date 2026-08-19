@@ -13,9 +13,9 @@ import {
 } from '@deepseek-ai/dsh-agent'
 import { SessionPreparation, type Session } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
-import { HarnessSdkAgent, withSessionPreparation, type HarnessSdkSession } from '@loopwithai/dsh-agent-loop-pi'
-import { registerRuntimeControl, runtimeSelection, type RuntimeSelection } from '@loopwithai/dsh-agent-loop-selector'
-import type {} from '@loopwithai/dsh-network-proxy'
+import { HarnessSdkAgent, withSessionPreparation, type HarnessSdkSession } from '@hulala/dsh-agent-loop-pi'
+import { registerRuntimeControl, runtimeSelection, type RuntimeSelection } from '@hulala/dsh-agent-loop-selector'
+import type {} from '@hulala/dsh-network-proxy'
 
 type JsonRecord = Record<string, unknown>
 type Listener = Parameters<HarnessSdkSession['subscribe']>[0]
@@ -118,7 +118,7 @@ class CodexAppServer {
         catch (error) { process.stderr.write(`invalid codex app-server frame: ${String(error)}\n`) }
       })
       const initialized = await this.requestBeforeStart('initialize', {
-        clientInfo: { name: 'loopwithai', title: 'Loop with AI Harness', version: '0.1.0' },
+        clientInfo: { name: 'hulala', title: 'Hulala Harness', version: '0.1.0' },
         capabilities: { experimentalApi: true },
       })
       if (initialized === undefined) throw new Error('codex app-server returned no initialize result')

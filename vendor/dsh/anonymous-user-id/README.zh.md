@@ -1,4 +1,4 @@
-# @loopwithai/dsh-anonymous-user-id
+# @hulala/dsh-anonymous-user-id
 
 [English](README.md) | 中文
 

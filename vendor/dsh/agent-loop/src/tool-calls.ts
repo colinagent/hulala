@@ -11,10 +11,10 @@
  * @module dsh-agent-loop/tool-calls
  */
 
-import type { Context } from '@loopwithai/cordis'
-import { assertNever, createToolResultMessage, type ToolCallBlock } from '@loopwithai/dsh-llm'
-import type { Session, UserMessage } from '@loopwithai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@loopwithai/dsh-tools'
+import type { Context } from '@hulala/cordis'
+import { assertNever, createToolResultMessage, type ToolCallBlock } from '@hulala/dsh-llm'
+import type { Session, UserMessage } from '@hulala/dsh-session'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@hulala/dsh-tools'
 
 /** One tool call after argument parsing, ready to schedule. */
 interface PlannedCall {

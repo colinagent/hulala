@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-tools",
+  "name": "@hulala/dsh-tools",
   "description": "Tool registry and execution pipeline for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -38,29 +38,29 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-agent": "*",
-    "@loopwithai/dsh-code-runtime": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/dsh-user-approval": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-agent": "*",
+    "@hulala/dsh-code-runtime": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/dsh-user-approval": "*",
+    "@hulala/cordis": "*"
   },
   "dependencies": {
-    "@loopwithai/schemastery": "*"
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-agent": "*",
-    "@loopwithai/dsh-code-runtime": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-session": "*",
-    "@loopwithai/dsh-system-prompt": "*",
-    "@loopwithai/dsh-user-approval": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-agent": "*",
+    "@hulala/dsh-code-runtime": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-session": "*",
+    "@hulala/dsh-system-prompt": "*",
+    "@hulala/dsh-user-approval": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

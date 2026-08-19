@@ -17,25 +17,25 @@ interface LaunchOptions {
 
 function usage(): string {
   return [
-    'Usage: loopwithai [--no-open] [--foreground]',
-    '       loopwithai service status|start|stop|restart|install|uninstall|update',
+    'Usage: hulala [--no-open] [--foreground]',
+    '       hulala service status|start|stop|restart|install|uninstall|update',
     '',
-    'Starts the local LoopWithAI workbench and opens:',
+    'Starts the local Hulala workbench and opens:',
     `  ${APP_URL}`,
   ].join('\n')
 }
 
 async function serviceRequest(action: 'start' | 'stop' | 'restart' | 'update'): Promise<any> {
-  const statusResponse = await fetch(`${new URL(HEALTH_URL).origin}/api/loopwithai/service`, { cache: 'no-store' })
-  if (!statusResponse.ok) throw new Error('LoopWithAI launcher is not running')
+  const statusResponse = await fetch(`${new URL(HEALTH_URL).origin}/api/hulala/service`, { cache: 'no-store' })
+  if (!statusResponse.ok) throw new Error('Hulala launcher is not running')
   const state = await statusResponse.json() as { actionToken?: unknown }
-  if (typeof state.actionToken !== 'string') throw new Error('LoopWithAI launcher does not support service control')
-  const response = await fetch(`${new URL(HEALTH_URL).origin}/api/loopwithai/service`, {
+  if (typeof state.actionToken !== 'string') throw new Error('Hulala launcher does not support service control')
+  const response = await fetch(`${new URL(HEALTH_URL).origin}/api/hulala/service`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'origin': new URL(APP_URL).origin,
-      'x-loopwithai-token': state.actionToken,
+      'x-hulala-token': state.actionToken,
     },
     body: JSON.stringify({ action }),
   })
@@ -73,18 +73,18 @@ async function runService(args: string[]): Promise<number> {
     const autostart = await getAutostartStatus()
     if (!autostart.installed) throw new Error('Install the managed service before updating it')
     const update = await checkForUpdate()
-    if (!update.available || update.latestVersion === undefined) throw new Error(update.error ?? 'No newer LoopWithAI version is available')
+    if (!update.available || update.latestVersion === undefined) throw new Error(update.error ?? 'No newer Hulala version is available')
     await applyManagedUpdate(update.latestVersion)
     await restartAutostart()
-    console.log(`LoopWithAI ${update.latestVersion} installed and restarting.`)
+    console.log(`Hulala ${update.latestVersion} installed and restarting.`)
     return 0
   }
   if (command === 'start' && await probeHealth() === undefined) {
     const paths = resolvePaths()
     if (await portIsOccupied()) throw new Error(`Port ${APP_PORT} is already used by another program.`)
     await startDetached(fileURLToPath(import.meta.url), paths)
-    if (await waitForHealth() === undefined) throw new Error(`LoopWithAI did not become ready. Check ${paths.launcherLog}`)
-    console.log(`LoopWithAI is ready at ${APP_URL}`)
+    if (await waitForHealth() === undefined) throw new Error(`Hulala did not become ready. Check ${paths.launcherLog}`)
+    console.log(`Hulala is ready at ${APP_URL}`)
     return 0
   }
   const value = await serviceRequest(command as 'start' | 'stop' | 'restart')
@@ -102,19 +102,19 @@ async function launch(options: LaunchOptions): Promise<number> {
   const existing = await probeHealth()
   if (existing === undefined) {
     if (await portIsOccupied()) {
-      throw new Error(`Port ${APP_PORT} is already used by another program. Stop it before starting LoopWithAI.`)
+      throw new Error(`Port ${APP_PORT} is already used by another program. Stop it before starting Hulala.`)
     }
     if (options.foreground) return await runLauncher()
     const paths = resolvePaths()
     await startDetached(fileURLToPath(import.meta.url), paths)
     const ready = await waitForHealth()
     if (ready === undefined) {
-      throw new Error(`LoopWithAI did not become ready. Check the log at ${paths.launcherLog}`)
+      throw new Error(`Hulala did not become ready. Check the log at ${paths.launcherLog}`)
     }
   }
 
-  if (options.open && process.env.LOOPWITHAI_NO_OPEN !== '1') openBrowser(APP_URL)
-  console.log(`LoopWithAI is ready at ${APP_URL}`)
+  if (options.open && process.env.HULALA_NO_OPEN !== '1') openBrowser(APP_URL)
+  console.log(`Hulala is ready at ${APP_URL}`)
   return 0
 }
 

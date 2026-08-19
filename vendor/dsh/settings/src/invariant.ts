@@ -1,13 +1,13 @@
 /**
- * Package-owned invariant companion for `@loopwithai/dsh-settings`.
- * @module @loopwithai/dsh-settings/invariant
+ * Package-owned invariant companion for `@hulala/dsh-settings`.
+ * @module @hulala/dsh-settings/invariant
  */
 
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
 import { deepEqualJson } from './index.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-settings'
+const PACKAGE_NAME = '@hulala/dsh-settings'
 
 /** Cordis companion plugin name. */
 export const name = 'settings-invariant'

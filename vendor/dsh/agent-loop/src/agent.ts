@@ -14,9 +14,9 @@ import type {
   InboxTarget,
   PreStepDecision,
   RequestErrorAction,
-} from '@loopwithai/dsh-agent'
-import { Inbox, agentEvents, assembleContextFor } from '@loopwithai/dsh-agent'
-import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@loopwithai/dsh-llm'
+} from '@hulala/dsh-agent'
+import { Inbox, agentEvents, assembleContextFor } from '@hulala/dsh-agent'
+import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@hulala/dsh-llm'
 import {
   BlockAssembler,
   LlmError,
@@ -24,14 +24,14 @@ import {
   deepFreeze,
   errorChain,
   markAgentLoopRequest,
-} from '@loopwithai/dsh-llm'
-import type { Scope } from '@loopwithai/dsh-scope'
-import { createScope } from '@loopwithai/dsh-scope'
-import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@loopwithai/dsh-session'
-import { canonicalHeader, headerEquals } from '@loopwithai/dsh-session'
-import { joinContextSections, renderContextSections, renderPrompt } from '@loopwithai/dsh-system-prompt'
-import type { PromptAssembly } from '@loopwithai/dsh-system-prompt'
-import type { Context } from '@loopwithai/cordis'
+} from '@hulala/dsh-llm'
+import type { Scope } from '@hulala/dsh-scope'
+import { createScope } from '@hulala/dsh-scope'
+import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@hulala/dsh-session'
+import { canonicalHeader, headerEquals } from '@hulala/dsh-session'
+import { joinContextSections, renderContextSections, renderPrompt } from '@hulala/dsh-system-prompt'
+import type { PromptAssembly } from '@hulala/dsh-system-prompt'
+import type { Context } from '@hulala/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
 import { executeToolCalls } from './tool-calls.ts'
 

@@ -1,5 +1,5 @@
-import { composeError, Context } from '@loopwithai/cordis'
-import { isNonNullable, type Dict } from '@loopwithai/cosmokit'
+import { composeError, Context } from '@hulala/cordis'
+import { isNonNullable, type Dict } from '@hulala/cosmokit'
 import { Entry, type EntryOptions } from './entry.ts'
 import { EntryGroup } from './group.ts'
 

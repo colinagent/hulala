@@ -3,8 +3,9 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@loopwithai/monorepo",
+      "name": "@hulala/monorepo",
       "devDependencies": {
+        "@hulala/cordis": "*",
         "@types/node": "^24.0.0",
         "esbuild": "0.28.2",
         "tsx": "^4.20.0",
@@ -12,10 +13,10 @@
       },
     },
     "apps/cli": {
-      "name": "loopwithai",
+      "name": "hulala",
       "version": "0.1.0",
       "bin": {
-        "loopwithai": "./dist/cli.js",
+        "hulala": "./dist/cli.js",
       },
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.3.232",
@@ -46,18 +47,18 @@
       },
     },
     "apps/harness-web": {
-      "name": "@loopwithai/harness-web",
+      "name": "@hulala/harness-web",
       "version": "0.1.0",
       "dependencies": {
         "@deepseek-ai/dsh": "0.1.0-rc.6",
         "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
         "@deepseek-ai/dsh-agent-loop": "0.1.0-rc.6",
-        "@loopwithai/dsh-agent-loop-claude": "*",
-        "@loopwithai/dsh-agent-loop-codex": "*",
-        "@loopwithai/dsh-agent-loop-pi": "*",
-        "@loopwithai/dsh-agent-loop-selector": "*",
-        "@loopwithai/dsh-network-proxy": "*",
-        "@loopwithai/runtime": "*",
+        "@hulala/dsh-agent-loop-claude": "*",
+        "@hulala/dsh-agent-loop-codex": "*",
+        "@hulala/dsh-agent-loop-pi": "*",
+        "@hulala/dsh-agent-loop-selector": "*",
+        "@hulala/dsh-network-proxy": "*",
+        "@hulala/runtime": "*",
       },
       "devDependencies": {
         "@types/bun": "^1.3.0",
@@ -68,11 +69,11 @@
       },
     },
     "apps/web": {
-      "name": "@loopwithai/web",
+      "name": "@hulala/web",
       "version": "0.1.0",
       "dependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/core": "*",
+        "@hulala/cordis": "*",
+        "@hulala/core": "*",
         "lucide-react": "^0.468.0",
         "next": "^16.3.0",
         "react": "^19.2.8",
@@ -86,7 +87,7 @@
       },
     },
     "packages/agent-loop-claude": {
-      "name": "@loopwithai/dsh-agent-loop-claude",
+      "name": "@hulala/dsh-agent-loop-claude",
       "version": "0.1.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "0.3.232",
@@ -94,9 +95,9 @@
         "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
         "@deepseek-ai/dsh-session": "0.1.0-rc.6",
         "@deepseek-ai/schemastery": "3.18.1",
-        "@loopwithai/dsh-agent-loop-pi": "*",
-        "@loopwithai/dsh-agent-loop-selector": "*",
-        "@loopwithai/dsh-network-proxy": "*",
+        "@hulala/dsh-agent-loop-pi": "*",
+        "@hulala/dsh-agent-loop-selector": "*",
+        "@hulala/dsh-network-proxy": "*",
       },
       "devDependencies": {
         "@types/node": "^24.0.0",
@@ -104,16 +105,16 @@
       },
     },
     "packages/agent-loop-codex": {
-      "name": "@loopwithai/dsh-agent-loop-codex",
+      "name": "@hulala/dsh-agent-loop-codex",
       "version": "0.1.0",
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.1",
         "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
         "@deepseek-ai/dsh-session": "0.1.0-rc.6",
         "@deepseek-ai/schemastery": "3.18.1",
-        "@loopwithai/dsh-agent-loop-pi": "*",
-        "@loopwithai/dsh-agent-loop-selector": "*",
-        "@loopwithai/dsh-network-proxy": "*",
+        "@hulala/dsh-agent-loop-pi": "*",
+        "@hulala/dsh-agent-loop-selector": "*",
+        "@hulala/dsh-network-proxy": "*",
       },
       "devDependencies": {
         "@types/node": "^24.0.0",
@@ -121,7 +122,7 @@
       },
     },
     "packages/agent-loop-pi": {
-      "name": "@loopwithai/dsh-agent-loop-pi",
+      "name": "@hulala/dsh-agent-loop-pi",
       "version": "0.1.0",
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.1",
@@ -135,8 +136,9 @@
         "@deepseek-ai/schemastery": "3.18.1",
         "@earendil-works/pi-ai": "0.84.1",
         "@earendil-works/pi-coding-agent": "0.84.1",
-        "@loopwithai/dsh-agent-loop-selector": "*",
-        "@loopwithai/dsh-network-proxy": "*",
+        "@hulala/dsh-agent-loop-selector": "*",
+        "@hulala/dsh-network-proxy": "*",
+        "partial-json": "0.1.7",
       },
       "devDependencies": {
         "@types/node": "^24.0.0",
@@ -145,7 +147,7 @@
       },
     },
     "packages/agent-loop-selector": {
-      "name": "@loopwithai/dsh-agent-loop-selector",
+      "name": "@hulala/dsh-agent-loop-selector",
       "version": "0.1.0",
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.1",
@@ -162,7 +164,7 @@
       },
     },
     "packages/core": {
-      "name": "@loopwithai/core",
+      "name": "@hulala/core",
       "version": "0.1.0",
       "devDependencies": {
         "@types/node": "^24.0.0",
@@ -171,7 +173,7 @@
       },
     },
     "packages/network-proxy": {
-      "name": "@loopwithai/dsh-network-proxy",
+      "name": "@hulala/dsh-network-proxy",
       "version": "0.1.0",
       "dependencies": {
         "@deepseek-ai/cordis": "4.0.1",
@@ -187,12 +189,13 @@
       },
     },
     "packages/runtime": {
-      "name": "@loopwithai/runtime",
+      "name": "@hulala/runtime",
       "version": "0.1.0",
       "bin": {
-        "loopwithai-runtime": "./lib/cli.js",
+        "hulala-runtime": "./lib/cli.js",
       },
       "dependencies": {
+        "@deepseek-ai/cordis": "4.0.1",
         "@deepseek-ai/dsh": "0.1.0-rc.6",
       },
       "devDependencies": {
@@ -201,41 +204,41 @@
       },
     },
     "vendor/cordis/cordis": {
-      "name": "@loopwithai/cordis",
+      "name": "@hulala/cordis",
       "version": "4.0.1",
       "bin": "bin.js",
       "dependencies": {
-        "@loopwithai/cosmokit": "*",
+        "@hulala/cosmokit": "*",
         "@standard-schema/spec": "^1.1.0",
       },
       "peerDependencies": {
-        "@loopwithai/cordis-plugin-include": "*",
-        "@loopwithai/cordis-plugin-loader": "*",
+        "@hulala/cordis-plugin-include": "*",
+        "@hulala/cordis-plugin-loader": "*",
       },
       "optionalPeers": [
-        "@loopwithai/cordis-plugin-include",
-        "@loopwithai/cordis-plugin-loader",
+        "@hulala/cordis-plugin-include",
+        "@hulala/cordis-plugin-loader",
       ],
     },
     "vendor/cordis/cosmokit": {
-      "name": "@loopwithai/cosmokit",
+      "name": "@hulala/cosmokit",
       "version": "1.8.2",
     },
     "vendor/cordis/group": {
-      "name": "@loopwithai/cordis-plugin-group",
+      "name": "@hulala/cordis-plugin-group",
       "version": "1.0.1",
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/cordis-plugin-loader": "*",
+        "@hulala/cordis": "*",
+        "@hulala/cordis-plugin-loader": "*",
       },
     },
     "vendor/cordis/hmr": {
-      "name": "@loopwithai/cordis-plugin-hmr",
+      "name": "@hulala/cordis-plugin-hmr",
       "version": "1.0.16",
       "dependencies": {
         "@babel/code-frame": "^7.29.0",
-        "@loopwithai/cosmokit": "*",
-        "@loopwithai/schemastery": "*",
+        "@hulala/cosmokit": "*",
+        "@hulala/schemastery": "*",
         "chokidar": "^4.0.3",
         "picomatch": "^4.0.3",
       },
@@ -245,30 +248,30 @@
         "esbuild": "^0.28.1",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/cordis-plugin-timer": "*",
+        "@hulala/cordis": "*",
+        "@hulala/cordis-plugin-timer": "*",
       },
     },
     "vendor/cordis/include": {
-      "name": "@loopwithai/cordis-plugin-include",
+      "name": "@hulala/cordis-plugin-include",
       "version": "1.0.6",
       "dependencies": {
-        "@loopwithai/cosmokit": "*",
+        "@hulala/cosmokit": "*",
         "js-yaml": "^4.1.0",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/cordis-plugin-loader": "*",
+        "@hulala/cordis": "*",
+        "@hulala/cordis-plugin-loader": "*",
       },
     },
     "vendor/cordis/loader": {
-      "name": "@loopwithai/cordis-plugin-loader",
+      "name": "@hulala/cordis-plugin-loader",
       "version": "1.0.2",
       "dependencies": {
-        "@loopwithai/cosmokit": "*",
+        "@hulala/cosmokit": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
+        "@hulala/cordis": "*",
         "node-addon-require-builtin": "^0.1.4",
       },
       "optionalPeers": [
@@ -276,406 +279,406 @@
       ],
     },
     "vendor/cordis/logger-console": {
-      "name": "@loopwithai/cordis-plugin-logger-console",
+      "name": "@hulala/cordis-plugin-logger-console",
       "version": "1.0.1",
       "dependencies": {
-        "@loopwithai/cosmokit": "*",
-        "@loopwithai/schemastery": "*",
+        "@hulala/cosmokit": "*",
+        "@hulala/schemastery": "*",
         "supports-color": "^9.4.0",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
+        "@hulala/cordis": "*",
       },
     },
     "vendor/cordis/schemastery": {
-      "name": "@loopwithai/schemastery",
+      "name": "@hulala/schemastery",
       "version": "3.18.1",
       "dependencies": {
-        "@loopwithai/cosmokit": "*",
+        "@hulala/cosmokit": "*",
         "@standard-schema/spec": "^1.1.0",
       },
     },
     "vendor/cordis/timer": {
-      "name": "@loopwithai/cordis-plugin-timer",
+      "name": "@hulala/cordis-plugin-timer",
       "version": "1.1.3",
       "dependencies": {
-        "@loopwithai/cosmokit": "*",
+        "@hulala/cosmokit": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
+        "@hulala/cordis": "*",
       },
     },
     "vendor/dsh/agent": {
-      "name": "@loopwithai/dsh-agent",
+      "name": "@hulala/dsh-agent",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-system-prompt": "*",
-        "@loopwithai/dsh-typert-protocol": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-system-prompt": "*",
+        "@hulala/dsh-typert-protocol": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-system-prompt": "*",
-        "@loopwithai/dsh-typert-protocol": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-system-prompt": "*",
+        "@hulala/dsh-typert-protocol": "*",
       },
     },
     "vendor/dsh/agent-loop": {
-      "name": "@loopwithai/dsh-agent-loop",
+      "name": "@hulala/dsh-agent-loop",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-agent": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-session-persistence": "*",
-        "@loopwithai/dsh-settings": "*",
-        "@loopwithai/dsh-system-prompt": "*",
-        "@loopwithai/dsh-tools": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-agent": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-session-persistence": "*",
+        "@hulala/dsh-settings": "*",
+        "@hulala/dsh-system-prompt": "*",
+        "@hulala/dsh-tools": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-agent": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-session-persistence": "*",
-        "@loopwithai/dsh-settings": "*",
-        "@loopwithai/dsh-system-prompt": "*",
-        "@loopwithai/dsh-tools": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-agent": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-session-persistence": "*",
+        "@hulala/dsh-settings": "*",
+        "@hulala/dsh-system-prompt": "*",
+        "@hulala/dsh-tools": "*",
       },
     },
     "vendor/dsh/anonymous-user-id": {
-      "name": "@loopwithai/dsh-anonymous-user-id",
+      "name": "@hulala/dsh-anonymous-user-id",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-home-paths": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-home-paths": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-home-paths": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-home-paths": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/attachment": {
-      "name": "@loopwithai/dsh-attachment",
+      "name": "@hulala/dsh-attachment",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/brand": {
-      "name": "@loopwithai/dsh-brand",
+      "name": "@hulala/dsh-brand",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/code-runtime": {
-      "name": "@loopwithai/dsh-code-runtime",
+      "name": "@hulala/dsh-code-runtime",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/credentials": {
-      "name": "@loopwithai/dsh-credentials",
+      "name": "@hulala/dsh-credentials",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/home-paths": {
-      "name": "@loopwithai/dsh-home-paths",
+      "name": "@hulala/dsh-home-paths",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/invariants": {
-      "name": "@loopwithai/dsh-invariants",
+      "name": "@hulala/dsh-invariants",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
+        "@hulala/cordis": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
+        "@hulala/cordis": "*",
       },
     },
     "vendor/dsh/launch-environment": {
-      "name": "@loopwithai/dsh-launch-environment",
+      "name": "@hulala/dsh-launch-environment",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/llm": {
-      "name": "@loopwithai/dsh-llm",
+      "name": "@hulala/dsh-llm",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-attachment": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-timeout": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-attachment": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-timeout": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-attachment": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-timeout": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-attachment": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-timeout": "*",
       },
     },
     "vendor/dsh/llm-deepseek": {
-      "name": "@loopwithai/dsh-llm-deepseek",
+      "name": "@hulala/dsh-llm-deepseek",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
         "eventsource-parser": "^3.1.0",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-anonymous-user-id": "*",
-        "@loopwithai/dsh-credentials": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-launch-environment": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-settings": "*",
-        "@loopwithai/dsh-timeout": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-anonymous-user-id": "*",
+        "@hulala/dsh-credentials": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-launch-environment": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-settings": "*",
+        "@hulala/dsh-timeout": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-anonymous-user-id": "*",
-        "@loopwithai/dsh-credentials": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-launch-environment": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-settings": "*",
-        "@loopwithai/dsh-timeout": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-anonymous-user-id": "*",
+        "@hulala/dsh-credentials": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-launch-environment": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-settings": "*",
+        "@hulala/dsh-timeout": "*",
       },
     },
     "vendor/dsh/protocol": {
-      "name": "@loopwithai/dsh-typert-protocol",
+      "name": "@hulala/dsh-typert-protocol",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/scope": {
-      "name": "@loopwithai/dsh-scope",
+      "name": "@hulala/dsh-scope",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/session": {
-      "name": "@loopwithai/dsh-session",
+      "name": "@hulala/dsh-session",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-typert-protocol": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-typert-protocol": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-typert-protocol": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-typert-protocol": "*",
       },
     },
     "vendor/dsh/session-persistence": {
-      "name": "@loopwithai/dsh-session-persistence",
+      "name": "@hulala/dsh-session-persistence",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-timeout": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-timeout": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-timeout": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-timeout": "*",
       },
     },
     "vendor/dsh/settings": {
-      "name": "@loopwithai/dsh-settings",
+      "name": "@hulala/dsh-settings",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/schemastery": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/schemastery": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/schemastery": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/schemastery": "*",
       },
     },
     "vendor/dsh/system-prompt": {
-      "name": "@loopwithai/dsh-system-prompt",
+      "name": "@hulala/dsh-system-prompt",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
       },
     },
     "vendor/dsh/timeout": {
-      "name": "@loopwithai/dsh-timeout",
+      "name": "@hulala/dsh-timeout",
       "version": "0.1.0-rc.5",
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-invariants": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-invariants": "*",
       },
     },
     "vendor/dsh/tools": {
-      "name": "@loopwithai/dsh-tools",
+      "name": "@hulala/dsh-tools",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-agent": "*",
-        "@loopwithai/dsh-code-runtime": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-system-prompt": "*",
-        "@loopwithai/dsh-user-approval": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-agent": "*",
+        "@hulala/dsh-code-runtime": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-system-prompt": "*",
+        "@hulala/dsh-user-approval": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-agent": "*",
-        "@loopwithai/dsh-code-runtime": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-system-prompt": "*",
-        "@loopwithai/dsh-user-approval": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-agent": "*",
+        "@hulala/dsh-code-runtime": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-system-prompt": "*",
+        "@hulala/dsh-user-approval": "*",
       },
     },
     "vendor/dsh/user-approval": {
-      "name": "@loopwithai/dsh-user-approval",
+      "name": "@hulala/dsh-user-approval",
       "version": "0.1.0-rc.5",
       "dependencies": {
-        "@loopwithai/schemastery": "*",
+        "@hulala/schemastery": "*",
       },
       "devDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-agent": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-system-prompt": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-agent": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-system-prompt": "*",
       },
       "peerDependencies": {
-        "@loopwithai/cordis": "*",
-        "@loopwithai/dsh-agent": "*",
-        "@loopwithai/dsh-brand": "*",
-        "@loopwithai/dsh-invariants": "*",
-        "@loopwithai/dsh-llm": "*",
-        "@loopwithai/dsh-scope": "*",
-        "@loopwithai/dsh-session": "*",
-        "@loopwithai/dsh-system-prompt": "*",
+        "@hulala/cordis": "*",
+        "@hulala/dsh-agent": "*",
+        "@hulala/dsh-brand": "*",
+        "@hulala/dsh-invariants": "*",
+        "@hulala/dsh-llm": "*",
+        "@hulala/dsh-scope": "*",
+        "@hulala/dsh-session": "*",
+        "@hulala/dsh-system-prompt": "*",
       },
     },
   },
@@ -798,7 +801,7 @@
 
     "@deepseek-ai/dsh-base": ["@deepseek-ai/dsh-base@0.1.0-rc.7", "", { "dependencies": { "@deepseek-ai/cordis-plugin-hmr": "^1.0.16", "@deepseek-ai/cordis-plugin-timer": "^1.1.3", "@deepseek-ai/dsh-agent": "^0.1.0-rc.7", "@deepseek-ai/dsh-agent-default-model": "^0.1.0-rc.7", "@deepseek-ai/dsh-agent-instructions": "^0.1.0-rc.7", "@deepseek-ai/dsh-agent-loop": "^0.1.0-rc.7", "@deepseek-ai/dsh-api-gateway": "^0.1.0-rc.7", "@deepseek-ai/dsh-attachment-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-bash-sandbox": "^0.1.0-rc.7", "@deepseek-ai/dsh-command-compact": "^0.1.0-rc.7", "@deepseek-ai/dsh-command-feedback": "^0.1.0-rc.7", "@deepseek-ai/dsh-command-goal": "^0.1.0-rc.7", "@deepseek-ai/dsh-commands": "^0.1.0-rc.7", "@deepseek-ai/dsh-compaction-basic": "^0.1.0-rc.7", "@deepseek-ai/dsh-compaction-tool-result-pruner": "^0.1.0-rc.7", "@deepseek-ai/dsh-credentials-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-fs-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-fs-observation-policy": "^0.1.0-rc.7", "@deepseek-ai/dsh-fs-sandbox": "^0.1.0-rc.7", "@deepseek-ai/dsh-goal": "^0.1.0-rc.7", "@deepseek-ai/dsh-goal-round-driver": "^0.1.0-rc.7", "@deepseek-ai/dsh-jobs-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-llm": "^0.1.0-rc.7", "@deepseek-ai/dsh-llm-deepseek": "^0.1.0-rc.7", "@deepseek-ai/dsh-llm-pi-ai": "^0.1.0-rc.7", "@deepseek-ai/dsh-llm-retry": "^0.1.0-rc.7", "@deepseek-ai/dsh-permission-presets": "^0.1.0-rc.7", "@deepseek-ai/dsh-plan-mode": "^0.1.0-rc.7", "@deepseek-ai/dsh-pwsh-sandbox": "^0.1.0-rc.7", "@deepseek-ai/dsh-repeat-tool-reminder": "^0.1.0-rc.7", "@deepseek-ai/dsh-sandbox-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-sandbox-policy": "^0.1.0-rc.7", "@deepseek-ai/dsh-session": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-checkpoint-policy": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-persistence-jsonl": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-projection": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-query-sqlite": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-telemetry-otel": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-title": "^0.1.0-rc.7", "@deepseek-ai/dsh-session-title-first-prompt-llm": "^0.1.0-rc.7", "@deepseek-ai/dsh-settings-file": "^0.1.0-rc.7", "@deepseek-ai/dsh-shell-env": "^0.1.0-rc.7", "@deepseek-ai/dsh-skill": "^0.1.0-rc.7", "@deepseek-ai/dsh-skill-badge": "^0.1.0-rc.7", "@deepseek-ai/dsh-skill-filesystem": "^0.1.0-rc.7", "@deepseek-ai/dsh-spill-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-spill-policy": "^0.1.0-rc.7", "@deepseek-ai/dsh-subagent": "^0.1.0-rc.7", "@deepseek-ai/dsh-subagent-fork-in-process": "^0.1.0-rc.7", "@deepseek-ai/dsh-subagent-spawn-in-process": "^0.1.0-rc.7", "@deepseek-ai/dsh-subprocess-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.7", "@deepseek-ai/dsh-token-meter": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-bash": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-call-timeout-policy": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-fs": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-fs-search": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-goal": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-jobs": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-pwsh": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-ralph": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-skill": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-str-replace-editor": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-subagent": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-subagent-control": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-subagent-report": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-todo": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-web": "^0.1.0-rc.7", "@deepseek-ai/dsh-tool-workflow": "^0.1.0-rc.7", "@deepseek-ai/dsh-tools": "^0.1.0-rc.7", "@deepseek-ai/dsh-typert-loader": "^0.1.0-rc.7", "@deepseek-ai/dsh-typert-registry": "^0.1.0-rc.7", "@deepseek-ai/dsh-user-approval": "^0.1.0-rc.7", "@deepseek-ai/dsh-user-questions": "^0.1.0-rc.7", "@deepseek-ai/dsh-web": "^0.1.0-rc.7", "@deepseek-ai/dsh-web-search-deepseek": "^0.1.0-rc.7", "@deepseek-ai/dsh-workflow-worker-thread": "^0.1.0-rc.7" }, "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7" } }, "sha512-lpAMUO3PdxZwLnCQOdOZ/fu7eI27Ckz3Ec9MB9QYL4u34yatndCliTrGaFBDoNHoWt3V4gojzszRFrEx+Vce/g=="],
 
-    "@deepseek-ai/dsh-bash-local": ["@deepseek-ai/dsh-bash-local@0.1.0-rc.7", "", { "dependencies": { "@deepseek-ai/schemastery": "^3.18.1" }, "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "@deepseek-ai/dsh-settings": "^0.1.0-rc.7", "@deepseek-ai/dsh-shell": "^0.1.0-rc.7", "@deepseek-ai/dsh-subprocess": "^0.1.0-rc.7", "@deepseek-ai/dsh-timeout": "^0.1.0-rc.7" } }, "sha512-fsw2Ex5ExyX4A62P1+fodbnUG4PXOSyHAM4YtaLg2kcPcElLwatYNPG3gEuulxwbpWDlx/OWvbjHThnJUuzaoA=="],
+    "@deepseek-ai/dsh-bash-local": ["@deepseek-ai/dsh-bash-local@0.1.0-rc.7", "", { "dependencies": { "@deepseek-ai/schemastery": "^3.18.1" }, "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "@deepseek-ai/dsh-settings": "^0.1.0-rc.7", "@deepseek-ai/dsh-shell": "^0.1.0-rc.7", "@deepseek-ai/dsh-subprocess": "^0.1.0-rc.7", "@deepseek-ai/dsh-timeout": "^0.1.0-rc.7" } }, ""],
 
     "@deepseek-ai/dsh-bash-sandbox": ["@deepseek-ai/dsh-bash-sandbox@0.1.0-rc.7", "", { "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-bash-local": "^0.1.0-rc.7", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "@deepseek-ai/dsh-sandbox": "^0.1.0-rc.7", "@deepseek-ai/dsh-sandbox-policy": "^0.1.0-rc.7", "@deepseek-ai/dsh-shell": "^0.1.0-rc.7" } }, "sha512-xX+XhqPeRaOqMPDNk8dPboHza2pP13hTIMt+ztvd8WpD0t35idrNrcsXEYs+CtKiFWn6I05WB1BeAimWkLDOcg=="],
 
@@ -842,7 +845,7 @@
 
     "@deepseek-ai/dsh-client-ui-message-feedback": ["@deepseek-ai/dsh-client-ui-message-feedback@0.1.0-rc.7", "", { "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-api-remotes": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.7", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "@deepseek-ai/dsh-message-feedback": "^0.1.0-rc.7", "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.7", "react": "^18.2.0" } }, "sha512-B8y2+tu1xorpHmwo8KWsLFZwa4P0uFCI32H1SwYyQjBjoTbSb+TOfPA3i6na988XMiF8NCcxynTFzHRv/77AJw=="],
 
-    "@deepseek-ai/dsh-client-ui-model-selection": ["@deepseek-ai/dsh-client-ui-model-selection@0.1.0-rc.7", "", { "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-api-remotes": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-commands": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-input-trigger": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.7", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "clsx": "^2.1.1", "react": "^18.2.0" } }, "sha512-Gr5goo9dEGCR/CqpeJgO1mGO1ZqoX4tpuAMuZoq3wmLwaeK8qOMMhHGTxGOI9NbBD1snvbUzOJP/LUoNrS61YQ=="],
+    "@deepseek-ai/dsh-client-ui-model-selection": ["@deepseek-ai/dsh-client-ui-model-selection@0.1.0-rc.7", "", { "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-api-remotes": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-commands": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-conversation": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-input-trigger": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.7", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "clsx": "^2.1.1", "react": "^18.2.0" } }, ""],
 
     "@deepseek-ai/dsh-client-ui-permission-presets": ["@deepseek-ai/dsh-client-ui-permission-presets@0.1.0-rc.7", "", { "peerDependencies": { "@deepseek-ai/cordis": "^4.0.1", "@deepseek-ai/dsh-api-remotes": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-schema-form": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-commands": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-input-trigger": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-primitives": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.7", "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.7", "@deepseek-ai/dsh-invariants": "^0.1.0-rc.7", "@deepseek-ai/dsh-permission-presets": "^0.1.0-rc.7", "react": "^18.2.0" } }, "sha512-OO/miNmPCJS/5GffqXeBnPvdx1HnHvi9AHb4Uoy9N+zucwo7ZQV40lQ+ODcAX9UaRW/6x3a8CxQ3G4q1t/ltKQ=="],
 
@@ -1220,6 +1223,84 @@
 
     "@hono/node-server": ["@hono/node-server@2.1.1", "", { "peerDependencies": { "hono": "^4" } }, "sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg=="],
 
+    "@hulala/cordis": ["@hulala/cordis@workspace:vendor/cordis/cordis"],
+
+    "@hulala/cordis-plugin-group": ["@hulala/cordis-plugin-group@workspace:vendor/cordis/group"],
+
+    "@hulala/cordis-plugin-hmr": ["@hulala/cordis-plugin-hmr@workspace:vendor/cordis/hmr"],
+
+    "@hulala/cordis-plugin-include": ["@hulala/cordis-plugin-include@workspace:vendor/cordis/include"],
+
+    "@hulala/cordis-plugin-loader": ["@hulala/cordis-plugin-loader@workspace:vendor/cordis/loader"],
+
+    "@hulala/cordis-plugin-logger-console": ["@hulala/cordis-plugin-logger-console@workspace:vendor/cordis/logger-console"],
+
+    "@hulala/cordis-plugin-timer": ["@hulala/cordis-plugin-timer@workspace:vendor/cordis/timer"],
+
+    "@hulala/core": ["@hulala/core@workspace:packages/core"],
+
+    "@hulala/cosmokit": ["@hulala/cosmokit@workspace:vendor/cordis/cosmokit"],
+
+    "@hulala/dsh-agent": ["@hulala/dsh-agent@workspace:vendor/dsh/agent"],
+
+    "@hulala/dsh-agent-loop": ["@hulala/dsh-agent-loop@workspace:vendor/dsh/agent-loop"],
+
+    "@hulala/dsh-agent-loop-claude": ["@hulala/dsh-agent-loop-claude@workspace:packages/agent-loop-claude"],
+
+    "@hulala/dsh-agent-loop-codex": ["@hulala/dsh-agent-loop-codex@workspace:packages/agent-loop-codex"],
+
+    "@hulala/dsh-agent-loop-pi": ["@hulala/dsh-agent-loop-pi@workspace:packages/agent-loop-pi"],
+
+    "@hulala/dsh-agent-loop-selector": ["@hulala/dsh-agent-loop-selector@workspace:packages/agent-loop-selector"],
+
+    "@hulala/dsh-anonymous-user-id": ["@hulala/dsh-anonymous-user-id@workspace:vendor/dsh/anonymous-user-id"],
+
+    "@hulala/dsh-attachment": ["@hulala/dsh-attachment@workspace:vendor/dsh/attachment"],
+
+    "@hulala/dsh-brand": ["@hulala/dsh-brand@workspace:vendor/dsh/brand"],
+
+    "@hulala/dsh-code-runtime": ["@hulala/dsh-code-runtime@workspace:vendor/dsh/code-runtime"],
+
+    "@hulala/dsh-credentials": ["@hulala/dsh-credentials@workspace:vendor/dsh/credentials"],
+
+    "@hulala/dsh-home-paths": ["@hulala/dsh-home-paths@workspace:vendor/dsh/home-paths"],
+
+    "@hulala/dsh-invariants": ["@hulala/dsh-invariants@workspace:vendor/dsh/invariants"],
+
+    "@hulala/dsh-launch-environment": ["@hulala/dsh-launch-environment@workspace:vendor/dsh/launch-environment"],
+
+    "@hulala/dsh-llm": ["@hulala/dsh-llm@workspace:vendor/dsh/llm"],
+
+    "@hulala/dsh-llm-deepseek": ["@hulala/dsh-llm-deepseek@workspace:vendor/dsh/llm-deepseek"],
+
+    "@hulala/dsh-network-proxy": ["@hulala/dsh-network-proxy@workspace:packages/network-proxy"],
+
+    "@hulala/dsh-scope": ["@hulala/dsh-scope@workspace:vendor/dsh/scope"],
+
+    "@hulala/dsh-session": ["@hulala/dsh-session@workspace:vendor/dsh/session"],
+
+    "@hulala/dsh-session-persistence": ["@hulala/dsh-session-persistence@workspace:vendor/dsh/session-persistence"],
+
+    "@hulala/dsh-settings": ["@hulala/dsh-settings@workspace:vendor/dsh/settings"],
+
+    "@hulala/dsh-system-prompt": ["@hulala/dsh-system-prompt@workspace:vendor/dsh/system-prompt"],
+
+    "@hulala/dsh-timeout": ["@hulala/dsh-timeout@workspace:vendor/dsh/timeout"],
+
+    "@hulala/dsh-tools": ["@hulala/dsh-tools@workspace:vendor/dsh/tools"],
+
+    "@hulala/dsh-typert-protocol": ["@hulala/dsh-typert-protocol@workspace:vendor/dsh/protocol"],
+
+    "@hulala/dsh-user-approval": ["@hulala/dsh-user-approval@workspace:vendor/dsh/user-approval"],
+
+    "@hulala/harness-web": ["@hulala/harness-web@workspace:apps/harness-web"],
+
+    "@hulala/runtime": ["@hulala/runtime@workspace:packages/runtime"],
+
+    "@hulala/schemastery": ["@hulala/schemastery@workspace:vendor/cordis/schemastery"],
+
+    "@hulala/web": ["@hulala/web@workspace:apps/web"],
+
     "@img/colour": ["@img/colour@1.1.0", "", {}, "sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ=="],
 
     "@img/sharp-darwin-arm64": ["@img/sharp-darwin-arm64@0.35.3", "", { "optionalDependencies": { "@img/sharp-libvips-darwin-arm64": "1.3.2" }, "os": "darwin", "cpu": "arm64" }, "sha512-RMnFX7YQsMoh7lWfcM4NEHHymBX/rLuKNPVM84XE9ONPcaSCDgE7CHIHpSgPcO2xcRthgBy1HfNO319mwhIAkg=="],
@@ -1305,84 +1386,6 @@
     "@koromix/koffi-win32-ia32": ["@koromix/koffi-win32-ia32@3.1.5", "", { "os": "win32", "cpu": "ia32" }, "sha512-d42jv2f4PwtJGNJS19Xfn/BRtGsBNNVkw0O0K5tkIGI+yNq4MnPTSUsaGbDIkCLNsCgk/LFqAaE8BExyCdrujA=="],
 
     "@koromix/koffi-win32-x64": ["@koromix/koffi-win32-x64@3.1.5", "", { "os": "win32", "cpu": "x64" }, "sha512-Pyo1WEHEP6Ek2NEn2pquwJzSPLOdY4vymoPSz0an1DgvFWSkOyBYYkGVoxL1ajfj5I1pPdXysYqixtVTzAtOfQ=="],
-
-    "@loopwithai/cordis": ["@loopwithai/cordis@workspace:vendor/cordis/cordis"],
-
-    "@loopwithai/cordis-plugin-group": ["@loopwithai/cordis-plugin-group@workspace:vendor/cordis/group"],
-
-    "@loopwithai/cordis-plugin-hmr": ["@loopwithai/cordis-plugin-hmr@workspace:vendor/cordis/hmr"],
-
-    "@loopwithai/cordis-plugin-include": ["@loopwithai/cordis-plugin-include@workspace:vendor/cordis/include"],
-
-    "@loopwithai/cordis-plugin-loader": ["@loopwithai/cordis-plugin-loader@workspace:vendor/cordis/loader"],
-
-    "@loopwithai/cordis-plugin-logger-console": ["@loopwithai/cordis-plugin-logger-console@workspace:vendor/cordis/logger-console"],
-
-    "@loopwithai/cordis-plugin-timer": ["@loopwithai/cordis-plugin-timer@workspace:vendor/cordis/timer"],
-
-    "@loopwithai/core": ["@loopwithai/core@workspace:packages/core"],
-
-    "@loopwithai/cosmokit": ["@loopwithai/cosmokit@workspace:vendor/cordis/cosmokit"],
-
-    "@loopwithai/dsh-agent": ["@loopwithai/dsh-agent@workspace:vendor/dsh/agent"],
-
-    "@loopwithai/dsh-agent-loop": ["@loopwithai/dsh-agent-loop@workspace:vendor/dsh/agent-loop"],
-
-    "@loopwithai/dsh-agent-loop-claude": ["@loopwithai/dsh-agent-loop-claude@workspace:packages/agent-loop-claude"],
-
-    "@loopwithai/dsh-agent-loop-codex": ["@loopwithai/dsh-agent-loop-codex@workspace:packages/agent-loop-codex"],
-
-    "@loopwithai/dsh-agent-loop-pi": ["@loopwithai/dsh-agent-loop-pi@workspace:packages/agent-loop-pi"],
-
-    "@loopwithai/dsh-agent-loop-selector": ["@loopwithai/dsh-agent-loop-selector@workspace:packages/agent-loop-selector"],
-
-    "@loopwithai/dsh-anonymous-user-id": ["@loopwithai/dsh-anonymous-user-id@workspace:vendor/dsh/anonymous-user-id"],
-
-    "@loopwithai/dsh-attachment": ["@loopwithai/dsh-attachment@workspace:vendor/dsh/attachment"],
-
-    "@loopwithai/dsh-brand": ["@loopwithai/dsh-brand@workspace:vendor/dsh/brand"],
-
-    "@loopwithai/dsh-code-runtime": ["@loopwithai/dsh-code-runtime@workspace:vendor/dsh/code-runtime"],
-
-    "@loopwithai/dsh-credentials": ["@loopwithai/dsh-credentials@workspace:vendor/dsh/credentials"],
-
-    "@loopwithai/dsh-home-paths": ["@loopwithai/dsh-home-paths@workspace:vendor/dsh/home-paths"],
-
-    "@loopwithai/dsh-invariants": ["@loopwithai/dsh-invariants@workspace:vendor/dsh/invariants"],
-
-    "@loopwithai/dsh-launch-environment": ["@loopwithai/dsh-launch-environment@workspace:vendor/dsh/launch-environment"],
-
-    "@loopwithai/dsh-llm": ["@loopwithai/dsh-llm@workspace:vendor/dsh/llm"],
-
-    "@loopwithai/dsh-llm-deepseek": ["@loopwithai/dsh-llm-deepseek@workspace:vendor/dsh/llm-deepseek"],
-
-    "@loopwithai/dsh-network-proxy": ["@loopwithai/dsh-network-proxy@workspace:packages/network-proxy"],
-
-    "@loopwithai/dsh-scope": ["@loopwithai/dsh-scope@workspace:vendor/dsh/scope"],
-
-    "@loopwithai/dsh-session": ["@loopwithai/dsh-session@workspace:vendor/dsh/session"],
-
-    "@loopwithai/dsh-session-persistence": ["@loopwithai/dsh-session-persistence@workspace:vendor/dsh/session-persistence"],
-
-    "@loopwithai/dsh-settings": ["@loopwithai/dsh-settings@workspace:vendor/dsh/settings"],
-
-    "@loopwithai/dsh-system-prompt": ["@loopwithai/dsh-system-prompt@workspace:vendor/dsh/system-prompt"],
-
-    "@loopwithai/dsh-timeout": ["@loopwithai/dsh-timeout@workspace:vendor/dsh/timeout"],
-
-    "@loopwithai/dsh-tools": ["@loopwithai/dsh-tools@workspace:vendor/dsh/tools"],
-
-    "@loopwithai/dsh-typert-protocol": ["@loopwithai/dsh-typert-protocol@workspace:vendor/dsh/protocol"],
-
-    "@loopwithai/dsh-user-approval": ["@loopwithai/dsh-user-approval@workspace:vendor/dsh/user-approval"],
-
-    "@loopwithai/harness-web": ["@loopwithai/harness-web@workspace:apps/harness-web"],
-
-    "@loopwithai/runtime": ["@loopwithai/runtime@workspace:packages/runtime"],
-
-    "@loopwithai/schemastery": ["@loopwithai/schemastery@workspace:vendor/cordis/schemastery"],
-
-    "@loopwithai/web": ["@loopwithai/web@workspace:apps/web"],
 
     "@mariozechner/clipboard": ["@mariozechner/clipboard@0.3.9", "", { "optionalDependencies": { "@mariozechner/clipboard-darwin-arm64": "0.3.9", "@mariozechner/clipboard-darwin-universal": "0.3.9", "@mariozechner/clipboard-darwin-x64": "0.3.9", "@mariozechner/clipboard-linux-arm64-gnu": "0.3.9", "@mariozechner/clipboard-linux-arm64-musl": "0.3.9", "@mariozechner/clipboard-linux-riscv64-gnu": "0.3.9", "@mariozechner/clipboard-linux-x64-gnu": "0.3.9", "@mariozechner/clipboard-linux-x64-musl": "0.3.9", "@mariozechner/clipboard-win32-arm64-msvc": "0.3.9", "@mariozechner/clipboard-win32-x64-msvc": "0.3.9" } }, "sha512-ABnA53mdfkGZwOFUdZNv2S0CWGO/EIuPj8Vv9xmBFmSYg/qFc7ihO6q5FcQjvoE67kZpWkEc4AhD6B/os04yuA=="],
 
@@ -1868,6 +1871,8 @@
 
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 
+    "hulala": ["hulala@workspace:apps/cli"],
+
     "iconv-lite": ["iconv-lite@0.7.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ=="],
 
     "ignore": ["ignore@7.0.5", "", {}, "sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg=="],
@@ -1913,8 +1918,6 @@
     "long": ["long@5.3.2", "", {}, "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA=="],
 
     "longest-streak": ["longest-streak@3.1.0", "", {}, "sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g=="],
-
-    "loopwithai": ["loopwithai@workspace:apps/cli"],
 
     "loose-envify": ["loose-envify@1.4.0", "", { "dependencies": { "js-tokens": "^3.0.0 || ^4.0.0" }, "bin": { "loose-envify": "cli.js" } }, "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q=="],
 

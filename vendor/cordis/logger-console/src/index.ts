@@ -1,4 +1,4 @@
-import { Formatter } from '@loopwithai/cordis'
+import { Formatter } from '@hulala/cordis'
 import { inspect } from 'node:util'
 import supportsColor from 'supports-color'
 import { ConsoleExporter as Base } from './shared.ts'

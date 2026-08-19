@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-timeout",
+  "name": "@hulala/dsh-timeout",
   "description": "Zero-dependency timeout/deadline primitive: clampTimeout, deadline, timeoutOf, TimeoutReason (timing + classification only, no termination)",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,12 +29,12 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

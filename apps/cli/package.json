@@ -1,10 +1,10 @@
 {
-  "name": "loopwithai",
+  "name": "hulala",
   "version": "0.1.0",
-  "description": "Launch the LoopWithAI local multi-agent workbench from one npx command.",
+  "description": "Launch the Hulala local multi-agent workbench from one npx command.",
   "type": "module",
   "bin": {
-    "loopwithai": "./dist/cli.js"
+    "hulala": "./dist/cli.js"
   },
   "files": [
     "dist/",
@@ -49,7 +49,7 @@
     "node": ">=24.0.0"
   },
   "license": "Apache-2.0",
-  "homepage": "https://loopwith.ai",
+  "homepage": "https://hulala.ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/colinagent/hulala.git",

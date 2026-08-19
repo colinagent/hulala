@@ -1,9 +1,9 @@
 /**
  * Bounded sharing and exclusive reservation of unpublished Sessions.
- * @module @loopwithai/dsh-session-persistence/preparations
+ * @module @hulala/dsh-session-persistence/preparations
  */
 
-import type { Session, SessionId } from '@loopwithai/dsh-session'
+import type { Session, SessionId } from '@hulala/dsh-session'
 
 interface PreparedSource {
   readonly session: Session

@@ -1,15 +1,15 @@
 /**
  * Durable agent session-event vocabulary shared with type-only consumers.
  *
- * @module @loopwithai/dsh-agent/types
+ * @module @hulala/dsh-agent/types
  */
 
-import type { UserMessage } from '@loopwithai/dsh-llm/types'
+import type { UserMessage } from '@hulala/dsh-llm/types'
 
 /** One of the two ordered pending-message lists owned by an agent. */
 export type InboxTarget = 'next-turn' | 'next-step'
 
-declare module '@loopwithai/dsh-session/types' {
+declare module '@hulala/dsh-session/types' {
   interface SessionEventMap {
     /**
      * One normalized mutation of an agent's durable pending-message lists.

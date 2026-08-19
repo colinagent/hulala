@@ -3,10 +3,10 @@ import { createServer } from 'node:net'
 
 const host = '127.0.0.1'
 // Keep 5173 available for OpenBrain's desktop Vite process.
-const preferredPort = Number.parseInt(process.env.LOOPWITHAI_VITE_PORT ?? '5174', 10)
+const preferredPort = Number.parseInt(process.env.HULALA_VITE_PORT ?? '5174', 10)
 
 if (!Number.isInteger(preferredPort) || preferredPort < 1 || preferredPort > 65_535) {
-  throw new Error(`LOOPWITHAI_VITE_PORT must be a valid TCP port, received ${process.env.LOOPWITHAI_VITE_PORT}`)
+  throw new Error(`HULALA_VITE_PORT must be a valid TCP port, received ${process.env.HULALA_VITE_PORT}`)
 }
 
 async function available(port: number): Promise<boolean> {
@@ -43,7 +43,7 @@ const child = spawn('npm', [
   stdio: 'inherit',
   env: {
     ...process.env,
-    LOOPWITHAI_UI_DEV_URL: `http://${host}:${vitePort}`,
+    HULALA_UI_DEV_URL: `http://${host}:${vitePort}`,
   },
 })
 

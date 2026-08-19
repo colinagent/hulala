@@ -50,29 +50,29 @@ export interface RuntimeControl {
   logout?(providerId: string): Promise<void>
 }
 
-const selectionKey = Symbol.for('loopwithai.agent-runtime-selection')
-const controlsKey = Symbol.for('loopwithai.agent-runtime-controls')
+const selectionKey = Symbol.for('hulala.agent-runtime-selection')
+const controlsKey = Symbol.for('hulala.agent-runtime-controls')
 const processStartedAt = new Date().toISOString()
 
-export interface LoopWithAIHealth {
-  name: 'loopwithai'
+export interface HulalaHealth {
+  name: 'hulala'
   version: string
   pid: number
   startedAt: string
 }
 
 export function healthPayload(
-  version = process.env.LOOPWITHAI_VERSION ?? '0.1.0',
+  version = process.env.HULALA_VERSION ?? '0.1.0',
   pid = process.pid,
   startedAt = processStartedAt,
-): LoopWithAIHealth {
-  return { name: 'loopwithai', version, pid, startedAt }
+): HulalaHealth {
+  return { name: 'hulala', version, pid, startedAt }
 }
 
 export function defaultWorkspacePath(userHome?: string): string {
   return userHome
-    ? join(userHome, '.config', 'lwa', 'workspace')
-    : join(process.env.LWA_HOME ?? join(homedir(), '.config', 'lwa'), 'workspace')
+    ? join(userHome, '.config', 'hulala', 'workspace')
+    : join(process.env.HULALA_HOME ?? join(homedir(), '.config', 'hulala'), 'workspace')
 }
 
 export async function ensureDefaultWorkspace(
@@ -207,7 +207,7 @@ export class AgentLoopSelector extends Service {
       res.end(JSON.stringify(value))
     }
     this.ctx.effect(() => this.ctx.webServer.register({
-      kind: 'exact', path: '/api/loopwithai/health', handler: (req, res) => {
+      kind: 'exact', path: '/api/hulala/health', handler: (req, res) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') { send(res, 405, { error: 'method not allowed' }); return }
         const payload = JSON.stringify(healthPayload())
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
@@ -215,7 +215,7 @@ export class AgentLoopSelector extends Service {
       },
     }), 'agentLoopSelector.health()')
     this.ctx.effect(() => this.ctx.webServer.register({
-      kind: 'exact', path: '/api/loopwithai/runtimes', handler: async (req, res) => {
+      kind: 'exact', path: '/api/hulala/runtimes', handler: async (req, res) => {
         try {
         if (req.method === 'GET') {
           const service = runtimeService()
@@ -296,7 +296,7 @@ export class AgentLoopSelector extends Service {
 
     const clientPath = new URL('./client/runtime-ui.js', import.meta.url)
     this.ctx.effect(() => this.ctx.webServer.register({
-      kind: 'exact', path: '/loopwithai/runtime-ui.js', handler: async (req, res) => {
+      kind: 'exact', path: '/hulala/runtime-ui.js', handler: async (req, res) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return }
         try {
           const body = await readFile(clientPath)
@@ -307,8 +307,8 @@ export class AgentLoopSelector extends Service {
         }
       },
     }), 'agentLoopSelector.webUiBundle()')
-    const devBase = process.env.LOOPWITHAI_UI_DEV_URL?.replace(/\/$/, '')
-    const clientUrl = devBase === undefined ? '/loopwithai/runtime-ui.js' : `${devBase}/src/client.ts`
+    const devBase = process.env.HULALA_UI_DEV_URL?.replace(/\/$/, '')
+    const clientUrl = devBase === undefined ? '/hulala/runtime-ui.js' : `${devBase}/src/client.ts`
     const script = `<script type="module" src="${clientUrl}"></script>`
     this.ctx.effect(() => this.ctx.webServer.tapIndex(html => html.replace('</body>', `${script}</body>`)), 'agentLoopSelector.webUi()')
   }

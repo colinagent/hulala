@@ -1,7 +1,7 @@
 # Third-party notices
 
 This repository vendors third-party source. Each copied package keeps its
-upstream `LICENSE`. LoopWithAI itself is licensed under Apache-2.0; see the
+upstream `LICENSE`. Hulala itself is licensed under Apache-2.0; see the
 root `LICENSE` file.
 
 ## DeepSeek Harness
@@ -15,7 +15,7 @@ root `LICENSE` file.
 
 Vendored from the same DeepSeek Harness checkout (`vendor/` there), originally
 authored by Shigma and rescoped by DeepSeek to `@deepseek-ai/*`. Loop rescopes
-them again to `@loopwithai/*`.
+them again to `@hulala/*`.
 
 - Location: `vendor/cordis/`
 - Packages: cosmokit, schemastery, cordis, loader, include, group, timer, hmr, logger-console

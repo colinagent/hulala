@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   const repositoryRoot = option('--repository-root')
     ?? fileURLToPath(new URL('../../../', import.meta.url))
   const portValue = option('--port')
-  const paths = resolveRuntimePaths({ root: option('--lwa-home') })
+  const paths = resolveRuntimePaths({ root: option('--hulala-home') })
 
   const runtime = await startHarnessRuntime({
     host: '127.0.0.1',

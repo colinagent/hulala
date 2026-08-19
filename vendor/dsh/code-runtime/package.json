@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-code-runtime",
+  "name": "@hulala/dsh-code-runtime",
   "description": "Abstract code-execution seam (ctx.codeRuntime) for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -29,12 +29,12 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-session",
+  "name": "@hulala/dsh-session",
   "description": "Event-sourced session store for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -38,20 +38,20 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-typert-protocol": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-typert-protocol": "*",
+    "@hulala/cordis": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/dsh-llm": "*",
-    "@loopwithai/dsh-scope": "*",
-    "@loopwithai/dsh-typert-protocol": "*",
-    "@loopwithai/cordis": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/dsh-llm": "*",
+    "@hulala/dsh-scope": "*",
+    "@hulala/dsh-typert-protocol": "*",
+    "@hulala/cordis": "*"
   },
   "private": true
 }

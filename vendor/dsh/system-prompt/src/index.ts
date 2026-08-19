@@ -1,16 +1,16 @@
 /**
  * Registry for ordered system sections, dynamic context, tool schemas, and prompt variables.
  *
- * @module @loopwithai/dsh-system-prompt
+ * @module @hulala/dsh-system-prompt
  */
 
-import { Context, Service } from '@loopwithai/cordis'
-import z from '@loopwithai/schemastery'
-import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@loopwithai/dsh-scope'
-import type { ScopeKey, ScopeLayer, Scoped } from '@loopwithai/dsh-scope'
-import type { ContextSnapshotSection, ToolSchema } from '@loopwithai/dsh-llm'
+import { Context, Service } from '@hulala/cordis'
+import z from '@hulala/schemastery'
+import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@hulala/dsh-scope'
+import type { ScopeKey, ScopeLayer, Scoped } from '@hulala/dsh-scope'
+import type { ContextSnapshotSection, ToolSchema } from '@hulala/dsh-llm'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     systemPrompt: SystemPrompt
   }
@@ -18,7 +18,7 @@ declare module '@loopwithai/cordis' {
   interface Events {
     /**
      * Expert waterfall over the assembled sections, contexts, tools, and variables.
-     * Scope-filtered dispatch (`@loopwithai/dsh-scope`): scoped listeners
+     * Scope-filtered dispatch (`@hulala/dsh-scope`): scoped listeners
      * receive only that scope's assemblies. The returned value is authoritative.
      * A supplied signal controls only this explicit assembly request and must not
      * be retained to control later turns. A registered complete section is

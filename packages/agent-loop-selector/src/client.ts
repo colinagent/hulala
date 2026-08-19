@@ -1,92 +1,92 @@
 /// <reference types="vite/client" />
 
-const UI_STYLE_ID = 'loopwithai-runtime-ui-style'
-const UI_ROOT_ID = 'loopwithai-runtime'
-const SERVICE_ROOT_ID = 'loopwithai-service'
-const PROXY_ROOT_ID = 'loopwithai-proxy-settings'
-const RUNTIME_CONFIRM_ID = 'loopwithai-runtime-confirm'
+const UI_STYLE_ID = 'hulala-runtime-ui-style'
+const UI_ROOT_ID = 'hulala-runtime'
+const SERVICE_ROOT_ID = 'hulala-service'
+const PROXY_ROOT_ID = 'hulala-proxy-settings'
+const RUNTIME_CONFIRM_ID = 'hulala-runtime-confirm'
 
 document.getElementById(UI_STYLE_ID)?.remove()
 document.getElementById(UI_ROOT_ID)?.remove()
 document.getElementById(SERVICE_ROOT_ID)?.remove()
 document.getElementById(PROXY_ROOT_ID)?.remove()
 document.getElementById(RUNTIME_CONFIRM_ID)?.remove()
-document.querySelectorAll<HTMLElement>('[data-loopwithai-trailing]').forEach(element => delete element.dataset.loopwithaiTrailing)
-document.querySelectorAll<HTMLElement>('[data-loopwithai-tools]').forEach(element => delete element.dataset.loopwithaiTools)
+document.querySelectorAll<HTMLElement>('[data-hulala-trailing]').forEach(element => delete element.dataset.hulalaTrailing)
+document.querySelectorAll<HTMLElement>('[data-hulala-tools]').forEach(element => delete element.dataset.hulalaTools)
 
 const style = document.createElement('style')
 style.id = UI_STYLE_ID
 style.textContent = `
-#loopwithai-runtime{position:relative;z-index:20;display:flex;flex:1 1 570px;align-items:center;gap:5px;width:570px;max-width:100%;min-width:0;color:inherit;font:12px system-ui}
-#loopwithai-runtime:not([data-mounted]),#loopwithai-runtime [hidden]{display:none!important}
-#loopwithai-runtime select,#loopwithai-runtime input,#loopwithai-runtime button{box-sizing:border-box;height:30px;max-width:240px;min-width:0;background:transparent;color:inherit;border:0;border-radius:7px;padding:4px 7px;font:inherit}
-#loopwithai-runtime select{border:1px solid color-mix(in srgb,currentColor 16%,transparent);background:Canvas}
-#loopwithai-runtime button{cursor:pointer}
-#loopwithai-runtime button:hover{background:color-mix(in srgb,currentColor 7%,transparent)}
-#loopwithai-runtime [data-runtime]{flex:0 2 110px;width:110px;min-width:72px}
-#loopwithai-runtime [data-model]{flex:1 4 250px;width:250px;max-width:290px;min-width:120px}
-#loopwithai-runtime [data-thinking]{flex:0 3 130px;width:130px;max-width:130px;min-width:82px}
-#loopwithai-runtime [data-accounts-toggle]{flex:0 0 auto;padding-inline:5px}
-[data-loopwithai-tools]{flex-shrink:0!important}
-[data-loopwithai-trailing]{flex:1 1 auto!important;min-width:0!important}
-#loopwithai-runtime .err{position:absolute;right:0;bottom:calc(100% + 8px);color:#d33;background:Canvas;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;padding:7px;max-width:420px;box-shadow:0 8px 28px #0002}
-#loopwithai-runtime .panel{position:absolute;right:0;bottom:calc(100% + 8px);z-index:2147483647;width:min(520px,calc(100vw - 32px));padding:10px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:10px;background:Canvas;color:CanvasText;box-shadow:0 10px 32px #0003}
-#loopwithai-runtime .accounts{display:grid;gap:7px}
-#loopwithai-runtime .account{display:flex;align-items:center;gap:7px;justify-content:space-between}
-#loopwithai-runtime .flow{display:grid;gap:5px;padding:6px;border-radius:6px;background:color-mix(in srgb,currentColor 6%,transparent)}
-#loopwithai-runtime a{color:LinkText}
-[data-loopwithai-service]{position:fixed;z-index:2147483600;top:12px;left:12px;color:CanvasText;font:13px system-ui}
-[data-loopwithai-service] [hidden]{display:none!important}
-[data-loopwithai-service] button,[data-loopwithai-service] a{box-sizing:border-box;border:0;border-radius:9px;background:transparent;color:inherit;padding:7px 10px;font:inherit;text-decoration:none;cursor:pointer}
-[data-loopwithai-service] button:hover,[data-loopwithai-service] a:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
-[data-loopwithai-service] .environment{display:flex;align-items:center;gap:5px;padding:4px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:12px;background:Canvas;box-shadow:0 7px 28px #0002}
-[data-loopwithai-service] .environment>[aria-current="page"]{background:#246bfd;color:white}
-[data-loopwithai-service] .status-dot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#d49b00}
-[data-loopwithai-service] .status-dot.running{background:#24a35a}
-[data-loopwithai-service] .status-dot.crashed{background:#d33}
-[data-loopwithai-service] .service-panel{position:absolute;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 24px));padding:16px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:14px;background:Canvas;box-shadow:0 12px 38px #0003}
-[data-loopwithai-service] .service-title{font-weight:650;margin-bottom:4px}
-[data-loopwithai-service] .service-detail{color:color-mix(in srgb,CanvasText 62%,transparent);font:12px/1.6 ui-monospace,SFMono-Regular,monospace}
-[data-loopwithai-service] .service-actions{display:flex;gap:7px;margin-top:13px}
-[data-loopwithai-service] .service-actions button{border:1px solid color-mix(in srgb,CanvasText 16%,transparent)}
-[data-loopwithai-service] .service-actions button:disabled{opacity:.55;cursor:wait}
-[data-loopwithai-service] .autostart-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px;padding-top:13px;border-top:1px solid color-mix(in srgb,CanvasText 12%,transparent)}
-[data-loopwithai-service] .autostart-row input{width:18px;height:18px}
-[data-loopwithai-service] .autostart-reminder{position:absolute;top:calc(100% + 8px);left:0;width:min(380px,calc(100vw - 24px));padding:14px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:14px;background:Canvas;box-shadow:0 12px 38px #0003}
-[data-loopwithai-service] .autostart-reminder p{margin:0 0 10px;color:color-mix(in srgb,CanvasText 66%,transparent);line-height:1.45}
-[data-loopwithai-service] .autostart-reminder div{display:flex;gap:7px}
-[data-loopwithai-service] .autostart-reminder [data-autostart-enable]{background:#246bfd;color:#fff}
-[data-loopwithai-busy="true"]{cursor:progress}
-#loopwithai-runtime-confirm{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,#000 32%,transparent);font:14px system-ui}
-#loopwithai-runtime-confirm[hidden]{display:none!important}
-#loopwithai-runtime-confirm .confirm-card{box-sizing:border-box;width:min(440px,100%);padding:20px;border:1px solid color-mix(in srgb,CanvasText 16%,transparent);border-radius:16px;background:Canvas;color:CanvasText;box-shadow:0 20px 64px #0004}
-#loopwithai-runtime-confirm h2{margin:0 0 8px;font-size:17px;line-height:24px}
-#loopwithai-runtime-confirm p{margin:0;color:color-mix(in srgb,CanvasText 68%,transparent);line-height:21px}
-#loopwithai-runtime-confirm .confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
-#loopwithai-runtime-confirm button{min-height:36px;padding:7px 13px;border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:9px;background:transparent;color:inherit;font:inherit;cursor:pointer}
-#loopwithai-runtime-confirm button:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
-#loopwithai-runtime-confirm [data-runtime-confirm]{border-color:#3377ff;background:#3377ff;color:white}
-#loopwithai-runtime-confirm [data-runtime-confirm]:hover{background:#2868e8}
-[data-slot="conversation.input.model"][data-loopwithai-hidden="true"]>*{display:none!important}
-#loopwithai-proxy-settings{box-sizing:border-box;display:flex;flex-direction:column;gap:12px;width:100%;padding:16px 0;border-top:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font:14px system-ui}
-#loopwithai-proxy-settings[hidden],#loopwithai-proxy-settings [hidden]{display:none!important}
-#loopwithai-proxy-settings .proxy-title{font-weight:500}
-#loopwithai-proxy-settings .proxy-description,#loopwithai-proxy-settings .proxy-state{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
-#loopwithai-proxy-settings .proxy-controls,#loopwithai-proxy-settings .proxy-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-#loopwithai-proxy-settings select,#loopwithai-proxy-settings input,#loopwithai-proxy-settings button{box-sizing:border-box;height:36px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:inherit;padding:0 11px;font:inherit}
-#loopwithai-proxy-settings select{background:var(--dsw-alias-bg-layer-2)}
-#loopwithai-proxy-settings input{flex:1;min-width:260px;background:var(--dsw-alias-bg-layer-1)}
-#loopwithai-proxy-settings button{cursor:pointer}
-#loopwithai-proxy-settings button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
-#loopwithai-proxy-settings button:disabled{opacity:.55;cursor:default}
-#loopwithai-proxy-settings .proxy-error{color:var(--dsw-alias-state-error-primary);font-size:13px}
-#loopwithai-proxy-settings .proxy-result{color:var(--dsw-alias-state-success-primary);font-size:13px}
+#hulala-runtime{position:relative;z-index:20;display:flex;flex:1 1 570px;align-items:center;gap:5px;width:570px;max-width:100%;min-width:0;color:inherit;font:12px system-ui}
+#hulala-runtime:not([data-mounted]),#hulala-runtime [hidden]{display:none!important}
+#hulala-runtime select,#hulala-runtime input,#hulala-runtime button{box-sizing:border-box;height:30px;max-width:240px;min-width:0;background:transparent;color:inherit;border:0;border-radius:7px;padding:4px 7px;font:inherit}
+#hulala-runtime select{border:1px solid color-mix(in srgb,currentColor 16%,transparent);background:Canvas}
+#hulala-runtime button{cursor:pointer}
+#hulala-runtime button:hover{background:color-mix(in srgb,currentColor 7%,transparent)}
+#hulala-runtime [data-runtime]{flex:0 2 110px;width:110px;min-width:72px}
+#hulala-runtime [data-model]{flex:1 4 250px;width:250px;max-width:290px;min-width:120px}
+#hulala-runtime [data-thinking]{flex:0 3 130px;width:130px;max-width:130px;min-width:82px}
+#hulala-runtime [data-accounts-toggle]{flex:0 0 auto;padding-inline:5px}
+[data-hulala-tools]{flex-shrink:0!important}
+[data-hulala-trailing]{flex:1 1 auto!important;min-width:0!important}
+#hulala-runtime .err{position:absolute;right:0;bottom:calc(100% + 8px);color:#d33;background:Canvas;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;padding:7px;max-width:420px;box-shadow:0 8px 28px #0002}
+#hulala-runtime .panel{position:absolute;right:0;bottom:calc(100% + 8px);z-index:2147483647;width:min(520px,calc(100vw - 32px));padding:10px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:10px;background:Canvas;color:CanvasText;box-shadow:0 10px 32px #0003}
+#hulala-runtime .accounts{display:grid;gap:7px}
+#hulala-runtime .account{display:flex;align-items:center;gap:7px;justify-content:space-between}
+#hulala-runtime .flow{display:grid;gap:5px;padding:6px;border-radius:6px;background:color-mix(in srgb,currentColor 6%,transparent)}
+#hulala-runtime a{color:LinkText}
+[data-hulala-service]{position:fixed;z-index:2147483600;top:12px;left:12px;color:CanvasText;font:13px system-ui}
+[data-hulala-service] [hidden]{display:none!important}
+[data-hulala-service] button,[data-hulala-service] a{box-sizing:border-box;border:0;border-radius:9px;background:transparent;color:inherit;padding:7px 10px;font:inherit;text-decoration:none;cursor:pointer}
+[data-hulala-service] button:hover,[data-hulala-service] a:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
+[data-hulala-service] .environment{display:flex;align-items:center;gap:5px;padding:4px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:12px;background:Canvas;box-shadow:0 7px 28px #0002}
+[data-hulala-service] .environment>[aria-current="page"]{background:#246bfd;color:white}
+[data-hulala-service] .status-dot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#d49b00}
+[data-hulala-service] .status-dot.running{background:#24a35a}
+[data-hulala-service] .status-dot.crashed{background:#d33}
+[data-hulala-service] .service-panel{position:absolute;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 24px));padding:16px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:14px;background:Canvas;box-shadow:0 12px 38px #0003}
+[data-hulala-service] .service-title{font-weight:650;margin-bottom:4px}
+[data-hulala-service] .service-detail{color:color-mix(in srgb,CanvasText 62%,transparent);font:12px/1.6 ui-monospace,SFMono-Regular,monospace}
+[data-hulala-service] .service-actions{display:flex;gap:7px;margin-top:13px}
+[data-hulala-service] .service-actions button{border:1px solid color-mix(in srgb,CanvasText 16%,transparent)}
+[data-hulala-service] .service-actions button:disabled{opacity:.55;cursor:wait}
+[data-hulala-service] .autostart-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px;padding-top:13px;border-top:1px solid color-mix(in srgb,CanvasText 12%,transparent)}
+[data-hulala-service] .autostart-row input{width:18px;height:18px}
+[data-hulala-service] .autostart-reminder{position:absolute;top:calc(100% + 8px);left:0;width:min(380px,calc(100vw - 24px));padding:14px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:14px;background:Canvas;box-shadow:0 12px 38px #0003}
+[data-hulala-service] .autostart-reminder p{margin:0 0 10px;color:color-mix(in srgb,CanvasText 66%,transparent);line-height:1.45}
+[data-hulala-service] .autostart-reminder div{display:flex;gap:7px}
+[data-hulala-service] .autostart-reminder [data-autostart-enable]{background:#246bfd;color:#fff}
+[data-hulala-busy="true"]{cursor:progress}
+#hulala-runtime-confirm{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,#000 32%,transparent);font:14px system-ui}
+#hulala-runtime-confirm[hidden]{display:none!important}
+#hulala-runtime-confirm .confirm-card{box-sizing:border-box;width:min(440px,100%);padding:20px;border:1px solid color-mix(in srgb,CanvasText 16%,transparent);border-radius:16px;background:Canvas;color:CanvasText;box-shadow:0 20px 64px #0004}
+#hulala-runtime-confirm h2{margin:0 0 8px;font-size:17px;line-height:24px}
+#hulala-runtime-confirm p{margin:0;color:color-mix(in srgb,CanvasText 68%,transparent);line-height:21px}
+#hulala-runtime-confirm .confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+#hulala-runtime-confirm button{min-height:36px;padding:7px 13px;border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:9px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+#hulala-runtime-confirm button:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
+#hulala-runtime-confirm [data-runtime-confirm]{border-color:#3377ff;background:#3377ff;color:white}
+#hulala-runtime-confirm [data-runtime-confirm]:hover{background:#2868e8}
+[data-slot="conversation.input.model"][data-hulala-hidden="true"]>*{display:none!important}
+#hulala-proxy-settings{box-sizing:border-box;display:flex;flex-direction:column;gap:12px;width:100%;padding:16px 0;border-top:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font:14px system-ui}
+#hulala-proxy-settings[hidden],#hulala-proxy-settings [hidden]{display:none!important}
+#hulala-proxy-settings .proxy-title{font-weight:500}
+#hulala-proxy-settings .proxy-description,#hulala-proxy-settings .proxy-state{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
+#hulala-proxy-settings .proxy-controls,#hulala-proxy-settings .proxy-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#hulala-proxy-settings select,#hulala-proxy-settings input,#hulala-proxy-settings button{box-sizing:border-box;height:36px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:transparent;color:inherit;padding:0 11px;font:inherit}
+#hulala-proxy-settings select{background:var(--dsw-alias-bg-layer-2)}
+#hulala-proxy-settings input{flex:1;min-width:260px;background:var(--dsw-alias-bg-layer-1)}
+#hulala-proxy-settings button{cursor:pointer}
+#hulala-proxy-settings button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+#hulala-proxy-settings button:disabled{opacity:.55;cursor:default}
+#hulala-proxy-settings .proxy-error{color:var(--dsw-alias-state-error-primary);font-size:13px}
+#hulala-proxy-settings .proxy-result{color:var(--dsw-alias-state-success-primary);font-size:13px}
 `
 document.head.append(style)
 
 document.body.insertAdjacentHTML('beforeend', `
-<aside id="loopwithai-service" data-loopwithai-service>
-  <div class="environment"><button data-local-toggle aria-current="page" aria-expanded="false"><i class="status-dot" data-service-dot></i>Local</button><a href="https://loopwith.ai/" target="_blank" rel="noreferrer">Cloud ↗</a></div>
+<aside id="hulala-service" data-hulala-service>
+  <div class="environment"><button data-local-toggle aria-current="page" aria-expanded="false"><i class="status-dot" data-service-dot></i>Local</button><a href="https://hulala.ai/" target="_blank" rel="noreferrer">Cloud ↗</a></div>
   <section class="service-panel" data-service-panel hidden>
     <div class="service-title" data-service-status>Connecting to local service…</div>
     <div class="service-detail" data-service-detail></div>
@@ -95,7 +95,7 @@ document.body.insertAdjacentHTML('beforeend', `
   </section>
   <section class="autostart-reminder" data-autostart-reminder hidden><p>Keep Local available after you sign in. This installs a current-user startup item and never asks for administrator access.</p><div><button data-autostart-enable>Enable</button><button data-autostart-dismiss>Not now</button></div></section>
 </aside>
-<div id="loopwithai-runtime">
+<div id="hulala-runtime">
   <select data-runtime aria-label="Agent runtime"></select>
   <select data-model aria-label="Agent model" hidden></select>
   <select data-thinking aria-label="Thinking level" hidden></select>
@@ -104,7 +104,7 @@ document.body.insertAdjacentHTML('beforeend', `
   <span class="err" hidden></span>
   <div class="accounts panel" data-accounts hidden></div>
 </div>
-<section id="loopwithai-proxy-settings" hidden>
+<section id="hulala-proxy-settings" hidden>
   <div><div class="proxy-title">Proxy</div><div class="proxy-description">Global network settings for Pi, DeepSeek, Codex, Claude Code, and other Harness requests.</div></div>
   <div class="proxy-controls">
     <select data-proxy-mode aria-label="Proxy mode"><option value="auto">Auto · system/environment</option><option value="manual">Manual proxy</option><option value="off">Off · direct</option></select>
@@ -113,9 +113,9 @@ document.body.insertAdjacentHTML('beforeend', `
   <div class="proxy-state" data-proxy-state>Loading current network configuration…</div>
   <div class="proxy-actions"><button data-proxy-save>Save</button><button data-proxy-test>Test connection</button><span class="proxy-result" data-proxy-result role="status"></span><span class="proxy-error" data-proxy-error role="alert" hidden></span></div>
 </section>
-<div id="loopwithai-runtime-confirm" role="dialog" aria-modal="true" aria-labelledby="loopwithai-runtime-confirm-title" hidden>
+<div id="hulala-runtime-confirm" role="dialog" aria-modal="true" aria-labelledby="hulala-runtime-confirm-title" hidden>
   <div class="confirm-card">
-    <h2 id="loopwithai-runtime-confirm-title">Start a new session to switch agents?</h2>
+    <h2 id="hulala-runtime-confirm-title">Start a new session to switch agents?</h2>
     <p data-runtime-confirm-message></p>
     <div class="confirm-actions"><button data-runtime-cancel>Cancel</button><button data-runtime-confirm>New session &amp; switch</button></div>
   </div>
@@ -123,7 +123,7 @@ document.body.insertAdjacentHTML('beforeend', `
 
 function required<T extends Element>(selector: string, parent: ParentNode = document): T {
   const value = parent.querySelector<T>(selector)
-  if (value === null) throw new Error(`LoopWithAI UI element is missing: ${selector}`)
+  if (value === null) throw new Error(`Hulala UI element is missing: ${selector}`)
   return value
 }
 
@@ -182,15 +182,15 @@ function mount(): void {
   const trailing = right?.parentElement
   const row = trailing?.parentElement
   const tools = row === undefined || row === null ? undefined : [...row.children].find(element => element !== trailing)
-  document.querySelectorAll<HTMLElement>('[data-loopwithai-trailing]').forEach(element => {
-    if (element !== trailing) delete element.dataset.loopwithaiTrailing
+  document.querySelectorAll<HTMLElement>('[data-hulala-trailing]').forEach(element => {
+    if (element !== trailing) delete element.dataset.hulalaTrailing
   })
-  document.querySelectorAll<HTMLElement>('[data-loopwithai-tools]').forEach(element => {
-    if (element !== tools) delete element.dataset.loopwithaiTools
+  document.querySelectorAll<HTMLElement>('[data-hulala-tools]').forEach(element => {
+    if (element !== tools) delete element.dataset.hulalaTools
   })
-  if (trailing instanceof HTMLElement) trailing.dataset.loopwithaiTrailing = 'true'
-  if (tools instanceof HTMLElement) tools.dataset.loopwithaiTools = 'true'
-  if (nativeModel !== null) nativeModel.dataset.loopwithaiHidden = String(currentRuntime !== 'deepseek')
+  if (trailing instanceof HTMLElement) trailing.dataset.hulalaTrailing = 'true'
+  if (tools instanceof HTMLElement) tools.dataset.hulalaTools = 'true'
+  if (nativeModel !== null) nativeModel.dataset.hulalaHidden = String(currentRuntime !== 'deepseek')
 
   const dialog = document.querySelector('[role="dialog"]')
   const nav = dialog?.querySelector('nav')
@@ -245,17 +245,17 @@ function renderService(value: any): void {
   serviceRestart.disabled = workbench.state === 'starting' || workbench.state === 'stopping' || workbench.state === 'restarting'
   autostartToggle.checked = value.autostart?.installed === true
   autostartToggle.disabled = value.autostart?.supported !== true
-  autostartReminder.hidden = value.autostart?.installed === true || localStorage.getItem('loopwithai.autostart-reminder-dismissed') === '1'
+  autostartReminder.hidden = value.autostart?.installed === true || localStorage.getItem('hulala.autostart-reminder-dismissed') === '1'
   serviceUpdate.hidden = value.update?.available !== true || value.autostart?.installed !== true
   serviceUpdate.textContent = value.update?.latestVersion ? `Update to v${value.update.latestVersion}` : 'Update'
 }
 
 async function loadService(): Promise<void> {
   try {
-    renderService(await jsonRequest('/api/loopwithai/service', { cache: 'no-store' }))
+    renderService(await jsonRequest('/api/hulala/service', { cache: 'no-store' }))
   } catch {
     serviceStatus.textContent = 'Local launcher connection interrupted'
-    serviceDetail.textContent = 'Run npx loopwithai in a terminal to recover.'
+    serviceDetail.textContent = 'Run npx hulala in a terminal to recover.'
     serviceDot.className = 'status-dot crashed'
   } finally {
     serviceTimer = setTimeout(() => { void loadService() }, 2_000)
@@ -265,9 +265,9 @@ async function loadService(): Promise<void> {
 async function serviceAction(action: 'stop' | 'restart' | 'autostart-install' | 'autostart-uninstall' | 'update'): Promise<void> {
   serviceRestart.disabled = serviceStop.disabled = serviceUpdate.disabled = autostartToggle.disabled = true
   try {
-    const value = await jsonRequest('/api/loopwithai/service', {
+    const value = await jsonRequest('/api/hulala/service', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-loopwithai-token': serviceToken },
+      headers: { 'content-type': 'application/json', 'x-hulala-token': serviceToken },
       body: JSON.stringify({ action }),
     })
     if (action === 'stop' || action === 'restart') location.reload()
@@ -289,7 +289,7 @@ async function post(body: Record<string, unknown>, reload = false): Promise<bool
   errorBox.hidden = true
   errorBox.textContent = ''
   try {
-    await jsonRequest(body.action ? '/api/loopwithai/pi' : '/api/loopwithai/runtimes', {
+    await jsonRequest(body.action ? '/api/hulala/pi' : '/api/hulala/runtimes', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     })
     if (reload) location.reload()
@@ -318,7 +318,7 @@ function runtimeLabel(runtime: string): string {
 }
 
 function setRuntimeBusy(busy: boolean): void {
-  document.body.dataset.loopwithaiBusy = String(busy)
+  document.body.dataset.hulalaBusy = String(busy)
   runtimeSelect.disabled = busy
   modelSelect.disabled = busy
   thinkingSelect.disabled = busy
@@ -336,7 +336,7 @@ function closeRuntimeConfirm(): void {
 function openRuntimeConfirm(runtime: string): void {
   pendingRuntime = runtime
   runtimeSelect.value = currentRuntime
-  runtimeConfirmMessage.textContent = `Your current conversation stays in history. To use ${runtimeLabel(runtime)}, LoopWithAI will open a new session in the same workspace.`
+  runtimeConfirmMessage.textContent = `Your current conversation stays in history. To use ${runtimeLabel(runtime)}, Hulala will open a new session in the same workspace.`
   runtimeConfirm.hidden = false
   runtimeCancelButton.focus()
 }
@@ -462,13 +462,13 @@ function renderProxy(value: any): void {
   const endpoints = [value.httpProxy && `HTTP ${value.httpProxy}`, value.httpsProxy && `HTTPS ${value.httpsProxy}`].filter(Boolean).join(' · ')
   const source = value.source === 'macos-system' ? 'macOS system proxy'
     : value.source === 'environment' ? 'Terminal environment'
-      : value.source === 'loopwithai' ? 'LOOPWITHAI_PROXY'
+      : value.source === 'hulala' ? 'HULALA_PROXY'
         : value.source === 'manual' ? 'Manual proxy' : 'Direct connection'
   proxyState.textContent = `${source} · ${endpoints || 'direct'}${value.warning ? ` · ${value.warning}` : ''}`
 }
 
 async function loadProxy(): Promise<void> {
-  renderProxy(await jsonRequest('/api/loopwithai/proxy', { cache: 'no-store' }))
+  renderProxy(await jsonRequest('/api/hulala/proxy', { cache: 'no-store' }))
 }
 
 async function proxyPost(body: Record<string, unknown>): Promise<void> {
@@ -477,7 +477,7 @@ async function proxyPost(body: Record<string, unknown>): Promise<void> {
   proxyResult.textContent = ''
   proxySave.disabled = proxyTest.disabled = true
   try {
-    const value = await jsonRequest('/api/loopwithai/proxy', {
+    const value = await jsonRequest('/api/hulala/proxy', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     })
     if (body.action === 'test') proxyResult.textContent = `Connected · HTTP ${value.status} · ${value.durationMs} ms`
@@ -494,9 +494,9 @@ async function proxyPost(body: Record<string, unknown>): Promise<void> {
 }
 
 async function load(): Promise<void> {
-  const state = await jsonRequest('/api/loopwithai/runtimes', { cache: 'no-store' })
+  const state = await jsonRequest('/api/hulala/runtimes', { cache: 'no-store' })
   if (state.current === 'pi') {
-    const pi = await jsonRequest('/api/loopwithai/pi', { cache: 'no-store' })
+    const pi = await jsonRequest('/api/hulala/pi', { cache: 'no-store' })
     state.models = pi.models ?? []
     state.auth = pi.auth
     if (state.models.length) state.modelError = ''
@@ -536,11 +536,11 @@ localToggle.onclick = () => {
 serviceRestart.onclick = () => { void serviceAction('restart') }
 serviceStop.onclick = () => { void serviceAction('stop') }
 serviceUpdate.onclick = () => {
-  if (confirm(`Update LoopWithAI to ${serviceUpdate.textContent?.replace('Update to ', '') ?? 'the latest version'} and restart Local?`)) void serviceAction('update')
+  if (confirm(`Update Hulala to ${serviceUpdate.textContent?.replace('Update to ', '') ?? 'the latest version'} and restart Local?`)) void serviceAction('update')
 }
 autostartToggle.onchange = () => { void serviceAction(autostartToggle.checked ? 'autostart-install' : 'autostart-uninstall') }
 autostartEnable.onclick = () => { autostartReminder.hidden = true; autostartToggle.checked = true; void serviceAction('autostart-install') }
-autostartDismiss.onclick = () => { localStorage.setItem('loopwithai.autostart-reminder-dismissed', '1'); autostartReminder.hidden = true }
+autostartDismiss.onclick = () => { localStorage.setItem('hulala.autostart-reminder-dismissed', '1'); autostartReminder.hidden = true }
 proxyMode.onchange = () => { proxyUrl.hidden = proxyMode.value !== 'manual' }
 proxySave.onclick = () => { void proxyPost({ action: 'update', mode: proxyMode.value, proxyUrl: proxyUrl.value || undefined, expectedRevision: proxyRevision }) }
 proxyTest.onclick = () => { void proxyPost({ action: 'test' }) }
@@ -588,12 +588,12 @@ function dispose(): void {
   serviceRoot.remove()
   proxyRoot.remove()
   runtimeConfirm.remove()
-  delete document.body.dataset.loopwithaiBusy
-  document.querySelectorAll<HTMLElement>('[data-loopwithai-trailing]').forEach(element => delete element.dataset.loopwithaiTrailing)
-  document.querySelectorAll<HTMLElement>('[data-loopwithai-tools]').forEach(element => delete element.dataset.loopwithaiTools)
+  delete document.body.dataset.hulalaBusy
+  document.querySelectorAll<HTMLElement>('[data-hulala-trailing]').forEach(element => delete element.dataset.hulalaTrailing)
+  document.querySelectorAll<HTMLElement>('[data-hulala-tools]').forEach(element => delete element.dataset.hulalaTools)
   style.remove()
   const nativeModel = document.querySelector<HTMLElement>('[data-slot="conversation.input.model"]')
-  if (nativeModel !== null) delete nativeModel.dataset.loopwithaiHidden
+  if (nativeModel !== null) delete nativeModel.dataset.hulalaHidden
 }
 
 if (import.meta.hot) {

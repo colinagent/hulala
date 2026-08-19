@@ -6,12 +6,12 @@ import AgentLoopSelector, { defaultWorkspacePath, ensureDefaultWorkspace, health
 
 test('reports a stable local health identity', () => {
   assert.deepEqual(healthPayload('1.2.3', 42, '2026-08-15T00:00:00.000Z'), {
-    name: 'loopwithai', version: '1.2.3', pid: 42, startedAt: '2026-08-15T00:00:00.000Z',
+    name: 'hulala', version: '1.2.3', pid: 42, startedAt: '2026-08-15T00:00:00.000Z',
   })
 })
 
 test('uses a cross-platform default workspace below the supplied home directory', () => {
-  assert.equal(defaultWorkspacePath('/home/colin'), '/home/colin/.config/lwa/workspace')
+  assert.equal(defaultWorkspacePath('/home/colin'), '/home/colin/.config/hulala/workspace')
 })
 
 test('creates and registers the default workspace when the registry is empty', async () => {
@@ -24,9 +24,9 @@ test('creates and registers the default workspace when the registry is empty', a
   const result = await ensureDefaultWorkspace(registry as never, '/test/home', async (path, options) => {
     directories.push({ path, recursive: options.recursive })
   })
-  assert.equal(result, '/test/home/.config/lwa/workspace')
-  assert.deepEqual(directories, [{ path: '/test/home/.config/lwa/workspace', recursive: true }])
-  assert.deepEqual(created, ['/test/home/.config/lwa/workspace'])
+  assert.equal(result, '/test/home/.config/hulala/workspace')
+  assert.deepEqual(directories, [{ path: '/test/home/.config/hulala/workspace', recursive: true }])
+  assert.deepEqual(created, ['/test/home/.config/hulala/workspace'])
 })
 
 test('preserves an existing workspace without touching the filesystem', async () => {
@@ -74,8 +74,8 @@ test('serializes replacement and updates state only after success', async () => 
   })
   await fiber
   const injected = transformIndex?.('<html><body></body></html>') ?? ''
-  assert.match(injected, /<script type="module" src="\/loopwithai\/runtime-ui\.js"><\/script>/)
-  assert.doesNotMatch(injected, /id="loopwithai-runtime"/)
+  assert.match(injected, /<script type="module" src="\/hulala\/runtime-ui\.js"><\/script>/)
+  assert.doesNotMatch(injected, /id="hulala-runtime"/)
   await ctx.agentLoopSelector.activate('deepseek')
   assert.deepEqual(updates, ['deepseek-package'])
   assert.equal(ctx.agentLoopSelector.current(), 'deepseek')

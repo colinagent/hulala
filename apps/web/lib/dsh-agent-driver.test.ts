@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentRunContext } from "@loopwithai/core";
+import type { AgentRunContext } from "@hulala/core";
 import { DshAgentDriver, parseAdvice } from "./dsh-agent-driver";
 
 test("parseAdvice reads a JSON object out of model prose", () => {

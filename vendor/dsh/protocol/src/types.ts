@@ -1,10 +1,10 @@
 /**
  * Compiler-independent Typert protocol shared by business packages, generated
  * Remote artifacts, the Host Gateway, and Client API implementations.
- * @module @loopwithai/dsh-typert-protocol/types
+ * @module @hulala/dsh-typert-protocol/types
  */
 
-import type { Context, Events } from '@loopwithai/cordis'
+import type { Context, Events } from '@hulala/cordis'
 
 declare const LOOKUP_HOST: unique symbol
 declare const LOOKUP_WIRE: unique symbol
@@ -484,7 +484,7 @@ export interface TypertRegistryContract {
   readonly contexts: TypertContextRegistry
 }
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     typert: TypertRegistryContract
   }

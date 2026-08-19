@@ -1,4 +1,4 @@
-import { Context } from "@loopwithai/cordis";
+import { Context } from "@hulala/cordis";
 
 async function main(): Promise<void> {
   const ctx = new Context();

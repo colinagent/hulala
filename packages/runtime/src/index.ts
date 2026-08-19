@@ -56,7 +56,7 @@ export interface RuntimeHandle {
 export function resolveRuntimePaths(
   input: Partial<RuntimePaths> & { root?: string } = {},
 ): RuntimePaths {
-  const root = resolve(input.root ?? process.env.LWA_HOME ?? join(homedir(), '.config', 'lwa'))
+  const root = resolve(input.root ?? process.env.HULALA_HOME ?? join(homedir(), '.config', 'hulala'))
   return {
     root,
     configDir: resolve(input.configDir ?? join(root, 'config')),
@@ -80,8 +80,8 @@ export function createHarnessPatch(options: RuntimeProfileOptions): unknown[] {
   }
   const defaultDescriptor = options.runtimes.find(runtime => runtime.id === options.defaultRuntime)!
   const insert: unknown[] = []
-  if (options.bunLifecyclePlugin) insert.push({ id: 'loopwithai-bun-lifecycle', name: options.bunLifecyclePlugin })
-  if (options.networkPlugin) insert.push({ id: 'loopwithai-network', name: options.networkPlugin })
+  if (options.bunLifecyclePlugin) insert.push({ id: 'hulala-bun-lifecycle', name: options.bunLifecyclePlugin })
+  if (options.networkPlugin) insert.push({ id: 'hulala-network', name: options.networkPlugin })
   insert.push(
     { id: 'agent-loop-runtime', name: defaultDescriptor.package },
     {
@@ -100,7 +100,7 @@ export function createHarnessPatch(options: RuntimeProfileOptions): unknown[] {
   return [
     { id: 'agent-loop', disabled: true },
     // DeepSeek's optional code-mode worker currently imports Node-only
-    // stripTypeScriptTypes. LoopWithAI uses native tool presentation under Bun.
+    // stripTypeScriptTypes. Hulala uses native tool presentation under Bun.
     { id: 'code-runtime', disabled: true },
     { insert },
   ]
@@ -142,7 +142,7 @@ async function waitForHealth(url: string, process: Bun.Subprocess, timeoutMs: nu
   while (Date.now() < deadline) {
     if (process.exitCode !== null) throw new Error(`Harness exited during startup with code ${process.exitCode}`)
     try {
-      const response = await fetch(`${url}/api/loopwithai/health`, {
+      const response = await fetch(`${url}/api/hulala/health`, {
         cache: 'no-store',
         signal: AbortSignal.timeout(500),
       })
@@ -175,15 +175,15 @@ export async function startHarnessRuntime(options: StartRuntimeOptions): Promise
     env: {
       ...process.env,
       ...options.environment,
-      LWA_HOME: paths.root,
+      HULALA_HOME: paths.root,
       DSH_HOME: join(paths.configDir, 'harness'),
-      LOOPWITHAI_CONFIG_DIR: paths.configDir,
-      LOOPWITHAI_DATA_DIR: paths.dataDir,
-      LOOPWITHAI_WORKSPACE_DIR: paths.workspaceDir,
-      LOOPWITHAI_RUNTIME_DIR: paths.runtimeDir,
-      LOOPWITHAI_LOGS_DIR: paths.logsDir,
-      LOOPWITHAI_CACHE_DIR: paths.cacheDir,
-      LOOPWITHAI_VERSION: options.version ?? process.env.LOOPWITHAI_VERSION ?? '0.1.0',
+      HULALA_CONFIG_DIR: paths.configDir,
+      HULALA_DATA_DIR: paths.dataDir,
+      HULALA_WORKSPACE_DIR: paths.workspaceDir,
+      HULALA_RUNTIME_DIR: paths.runtimeDir,
+      HULALA_LOGS_DIR: paths.logsDir,
+      HULALA_CACHE_DIR: paths.cacheDir,
+      HULALA_VERSION: options.version ?? process.env.HULALA_VERSION ?? '0.1.0',
     },
   })
   const url = `http://${host}:${port}`

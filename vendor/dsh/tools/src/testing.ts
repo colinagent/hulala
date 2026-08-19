@@ -1,7 +1,7 @@
 /** Canonical tool-definition fixtures for repository tests. @module dsh-tools/testing */
 
-import type { ContentBlock } from '@loopwithai/dsh-llm'
-import type { JsonValue } from '@loopwithai/dsh-session'
+import type { ContentBlock } from '@hulala/dsh-llm'
+import type { JsonValue } from '@hulala/dsh-session'
 import { defineTool } from './schema.ts'
 import type { DefineToolOptions, ParameterSchemaSpec } from './schema.ts'
 import type { ToolDefinition, ToolRunContext } from './index.ts'

@@ -4,10 +4,10 @@ import { dirname } from 'node:path'
 
 import { VERSION } from './constants.js'
 import { activateManagedVersion, runCommand, stageManagedVersion, type CommandRunner, type CommandResult } from './managed-runtime.js'
-import { resolvePaths, type LoopWithAIPaths } from './paths.js'
+import { resolvePaths, type HulalaPaths } from './paths.js'
 
-export const MACOS_LABEL = 'ai.loopwith.loopwithai'
-export const WINDOWS_TASK = 'LoopWithAI'
+export const MACOS_LABEL = 'ai.hulala.launcher'
+export const WINDOWS_TASK = 'Hulala'
 
 export type { CommandResult, CommandRunner }
 
@@ -51,7 +51,7 @@ async function atomicWrite(path: string, content: string): Promise<void> {
   await rename(temporary, path)
 }
 
-async function installMacOS(paths: LoopWithAIPaths, runner: CommandRunner): Promise<void> {
+async function installMacOS(paths: HulalaPaths, runner: CommandRunner): Promise<void> {
   if (paths.autostartFile === undefined || process.getuid === undefined) throw new Error('macOS LaunchAgent path is unavailable')
   await mkdir(paths.logs, { recursive: true })
   await atomicWrite(paths.autostartFile, macosLaunchAgent(paths.serviceEntry, paths.launcherLog))
@@ -67,12 +67,12 @@ export function windowsInstallScript(): string {
     '$action = New-ScheduledTaskAction -Execute $args[0] -Argument ("`"" + $args[1] + "`" __watchdog")',
     '$trigger = New-ScheduledTaskTrigger -AtLogOn',
     '$settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries',
-    `Register-ScheduledTask -TaskName "${WINDOWS_TASK}" -Action $action -Trigger $trigger -Settings $settings -Description "LoopWithAI local launcher watchdog" -Force | Out-Null`,
+    `Register-ScheduledTask -TaskName "${WINDOWS_TASK}" -Action $action -Trigger $trigger -Settings $settings -Description "Hulala local launcher watchdog" -Force | Out-Null`,
     `Start-ScheduledTask -TaskName "${WINDOWS_TASK}"`,
   ].join('; ')
 }
 
-async function installWindows(paths: LoopWithAIPaths, runner: CommandRunner): Promise<void> {
+async function installWindows(paths: HulalaPaths, runner: CommandRunner): Promise<void> {
   const result = await runner('powershell.exe', [
     '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', windowsInstallScript(), process.execPath, paths.serviceEntry,
   ])
@@ -85,7 +85,7 @@ export async function installAutostart(
   platform: NodeJS.Platform = process.platform,
 ): Promise<AutostartStatus> {
   if (platform !== 'darwin' && platform !== 'win32') throw new Error('Login autostart is supported on macOS and Windows')
-  const version = await stageManagedVersion(process.env.LOOPWITHAI_PACKAGE_SPEC ?? `loopwithai@${VERSION}`, VERSION, paths, runner)
+  const version = await stageManagedVersion(process.env.HULALA_PACKAGE_SPEC ?? `hulala@${VERSION}`, VERSION, paths, runner)
   await activateManagedVersion(version, paths)
   if (platform === 'darwin') await installMacOS(paths, runner)
   else await installWindows(paths, runner)

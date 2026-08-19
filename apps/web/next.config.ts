@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@loopwithai/core", "@loopwithai/cordis", "@loopwithai/cosmokit"],
+  transpilePackages: ["@hulala/core", "@hulala/cordis", "@hulala/cosmokit"],
 };
 
 export default nextConfig;

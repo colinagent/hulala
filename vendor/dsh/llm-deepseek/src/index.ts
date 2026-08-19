@@ -8,18 +8,18 @@
  * anything, while an in-flight stream keeps the facts it started with. The
  * one registration-captured fact — the retry policy — re-registers the route
  * in place when it changes.
- * @module @loopwithai/dsh-llm-deepseek
+ * @module @hulala/dsh-llm-deepseek
  */
 
-import type { Context } from '@loopwithai/cordis'
-import z from '@loopwithai/schemastery'
-import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@loopwithai/dsh-llm'
-import type { RetryPolicyConfig } from '@loopwithai/dsh-llm'
-import { credentialRef } from '@loopwithai/dsh-credentials'
-import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@loopwithai/dsh-launch-environment'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@loopwithai/dsh-settings'
-import { MAX_TIMER_DELAY_MS } from '@loopwithai/dsh-timeout'
-import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@loopwithai/dsh-anonymous-user-id'
+import type { Context } from '@hulala/cordis'
+import z from '@hulala/schemastery'
+import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@hulala/dsh-llm'
+import type { RetryPolicyConfig } from '@hulala/dsh-llm'
+import { credentialRef } from '@hulala/dsh-credentials'
+import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@hulala/dsh-launch-environment'
+import { deepEqualJson, installSettingsSection, settingsNamespace } from '@hulala/dsh-settings'
+import { MAX_TIMER_DELAY_MS } from '@hulala/dsh-timeout'
+import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@hulala/dsh-anonymous-user-id'
 import {
   DEFAULT_CONTEXT_WINDOW,
   DEFAULT_MAX_TOKENS,

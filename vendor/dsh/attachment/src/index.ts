@@ -1,6 +1,6 @@
-/** Durable attachment storage seam (`ctx.attachments`). @module @loopwithai/dsh-attachment */
+/** Durable attachment storage seam (`ctx.attachments`). @module @hulala/dsh-attachment */
 
-import { Context, Service } from '@loopwithai/cordis'
+import { Context, Service } from '@hulala/cordis'
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
@@ -19,7 +19,7 @@ export type {
   StoredImageAttachment,
 } from './types.ts'
 
-declare module '@loopwithai/cordis' {
+declare module '@hulala/cordis' {
   interface Context {
     attachments: AttachmentStore
   }

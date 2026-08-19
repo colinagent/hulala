@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/cordis-plugin-loader",
+  "name": "@hulala/cordis-plugin-loader",
   "description": "Plugin loader for cordis",
   "version": "1.0.2",
   "repository": {
@@ -27,7 +27,7 @@
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/cordis": "*",
+    "@hulala/cordis": "*",
     "node-addon-require-builtin": "^0.1.4"
   },
   "peerDependenciesMeta": {
@@ -36,7 +36,7 @@
     }
   },
   "dependencies": {
-    "@loopwithai/cosmokit": "*"
+    "@hulala/cosmokit": "*"
   },
   "private": true
 }

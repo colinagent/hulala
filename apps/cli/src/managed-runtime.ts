@@ -4,7 +4,7 @@ import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises
 import { join } from 'node:path'
 
 import { VERSION } from './constants.js'
-import { resolvePaths, type LoopWithAIPaths } from './paths.js'
+import { resolvePaths, type HulalaPaths } from './paths.js'
 
 export interface CommandResult {
   code: number
@@ -54,7 +54,7 @@ let child;
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { stopping = true; child?.kill(signal); });
 while (true) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  child = spawn(process.execPath, [manifest.entry, '__watchdog'], { stdio: 'inherit', env: { ...process.env, LOOPWITHAI_MANAGED_VERSION: manifest.version } });
+  child = spawn(process.execPath, [manifest.entry, '__watchdog'], { stdio: 'inherit', env: { ...process.env, HULALA_MANAGED_VERSION: manifest.version } });
   const result = await new Promise((resolve) => { child.once('error', () => resolve({ code: 1, signal: null })); child.once('exit', (code, signal) => resolve({ code, signal })); });
   if (stopping || result.code === 0) process.exit(result.code ?? 0);
   if (!manifest.previous) process.exit(result.code ?? 1);
@@ -83,7 +83,7 @@ export async function readActiveManifest(paths = resolvePaths()): Promise<Active
 }
 
 export async function stageManagedVersion(
-  packageSpec = process.env.LOOPWITHAI_PACKAGE_SPEC ?? `loopwithai@${VERSION}`,
+  packageSpec = process.env.HULALA_PACKAGE_SPEC ?? `hulala@${VERSION}`,
   expectedVersion = VERSION,
   paths = resolvePaths(),
   runner: CommandRunner = runCommand,
@@ -91,7 +91,7 @@ export async function stageManagedVersion(
   await mkdir(paths.versionsRoot, { recursive: true })
   const safeVersion = expectedVersion.replace(/[^a-zA-Z0-9._-]/g, '_')
   const destination = join(paths.versionsRoot, safeVersion)
-  const destinationEntry = join(destination, 'node_modules', 'loopwithai', 'dist', 'cli.js')
+  const destinationEntry = join(destination, 'node_modules', 'hulala', 'dist', 'cli.js')
   if (await exists(destinationEntry)) {
     return { version: expectedVersion, entry: destinationEntry, installedAt: new Date().toISOString() }
   }
@@ -103,21 +103,21 @@ export async function stageManagedVersion(
     const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
     const install = await runner(npm, ['install', '--prefix', staging, '--omit=dev', '--no-audit', '--no-fund', '--save-exact', packageSpec])
     if (install.code !== 0) throw new Error(install.stderr.trim() || `npm install failed (${install.code})`)
-    const packagePath = join(staging, 'node_modules', 'loopwithai', 'package.json')
+    const packagePath = join(staging, 'node_modules', 'hulala', 'package.json')
     const packageJson = JSON.parse(await readFile(packagePath, 'utf8')) as { version?: unknown }
     if (packageJson.version !== expectedVersion) throw new Error(`Downloaded version ${String(packageJson.version)} does not match ${expectedVersion}`)
     const lock = JSON.parse(await readFile(join(staging, 'package-lock.json'), 'utf8')) as {
       packages?: Record<string, { version?: unknown; integrity?: unknown }>
     }
     const lockedPackage = Object.entries(lock.packages ?? {}).find(([key, value]) =>
-      (key === 'node_modules/loopwithai' || key.replaceAll('\\', '/').endsWith('/node_modules/loopwithai'))
+      (key === 'node_modules/hulala' || key.replaceAll('\\', '/').endsWith('/node_modules/hulala'))
       && value.version === expectedVersion,
     )?.[1]
     if (typeof lockedPackage?.integrity !== 'string' || !/^sha(256|384|512)-[A-Za-z0-9+/=]+$/.test(lockedPackage.integrity)) {
       throw new Error('Downloaded package has no verified npm integrity record')
     }
-    const entry = join(staging, 'node_modules', 'loopwithai', 'dist', 'cli.js')
-    if (!await exists(entry)) throw new Error('Downloaded package has no LoopWithAI CLI entry')
+    const entry = join(staging, 'node_modules', 'hulala', 'dist', 'cli.js')
+    if (!await exists(entry)) throw new Error('Downloaded package has no Hulala CLI entry')
     const versionCheck = await runner(process.execPath, [entry, '--version'])
     if (versionCheck.code !== 0 || versionCheck.stdout.trim() !== expectedVersion) {
       throw new Error(versionCheck.stderr.trim() || 'Downloaded package failed its CLI validation')

@@ -1,3 +1,3 @@
-import { Group } from '@loopwithai/cordis-plugin-loader'
+import { Group } from '@hulala/cordis-plugin-loader'
 
 export default Group

@@ -1,5 +1,5 @@
-import { Context } from "@loopwithai/cordis";
-import { buildAdvicePrompt, type AgentAdvice, type AgentDriver, type AgentRunContext } from "@loopwithai/core";
+import { Context } from "@hulala/cordis";
+import { buildAdvicePrompt, type AgentAdvice, type AgentDriver, type AgentRunContext } from "@hulala/core";
 
 interface ChatResponse {
   choices?: Array<{ message?: { content?: string } }>;

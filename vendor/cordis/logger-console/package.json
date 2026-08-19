@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/cordis-plugin-logger-console",
+  "name": "@hulala/cordis-plugin-logger-console",
   "description": "Console logger exporter for cordis",
   "version": "1.0.1",
   "repository": {
@@ -28,11 +28,11 @@
   "author": "Shigma <shigma10826@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/cordis": "*"
+    "@hulala/cordis": "*"
   },
   "dependencies": {
-    "@loopwithai/cosmokit": "*",
-    "@loopwithai/schemastery": "*",
+    "@hulala/cosmokit": "*",
+    "@hulala/schemastery": "*",
     "supports-color": "^9.4.0"
   },
   "private": true

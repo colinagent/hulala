@@ -8,6 +8,6 @@ coverage/
 .DS_Store
 .env
 .env.local
-.loopwithai/
+.hulala/
 *.log
 *.tsbuildinfo

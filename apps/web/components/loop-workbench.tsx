@@ -7,7 +7,7 @@ import type {
   LoopAggregate,
   Observation,
   Revision,
-} from "@loopwithai/core";
+} from "@hulala/core";
 import {
   Activity,
   ArrowRight,

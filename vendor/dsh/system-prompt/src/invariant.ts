@@ -1,10 +1,10 @@
-/** Package-owned prompt-assembly invariants. @module @loopwithai/dsh-system-prompt/invariant */
+/** Package-owned prompt-assembly invariants. @module @hulala/dsh-system-prompt/invariant */
 
-import type { Context } from '@loopwithai/cordis'
-import type { InvariantFailure, InvariantInstaller } from '@loopwithai/dsh-invariants'
+import type { Context } from '@hulala/cordis'
+import type { InvariantFailure, InvariantInstaller } from '@hulala/dsh-invariants'
 import type { PromptAssembly } from './index.ts'
 
-const PACKAGE_NAME = '@loopwithai/dsh-system-prompt'
+const PACKAGE_NAME = '@hulala/dsh-system-prompt'
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
 
 /** Cordis companion plugin name. */

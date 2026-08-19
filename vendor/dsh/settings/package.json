@@ -1,5 +1,5 @@
 {
-  "name": "@loopwithai/dsh-settings",
+  "name": "@hulala/dsh-settings",
   "description": "Abstract user-settings seam (ctx.settings) for the DeepSeek Harness",
   "version": "0.1.0-rc.5",
   "repository": {
@@ -34,16 +34,16 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*",
-    "@loopwithai/schemastery": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*",
+    "@hulala/schemastery": "*"
   },
   "devDependencies": {
-    "@loopwithai/dsh-brand": "*",
-    "@loopwithai/dsh-invariants": "*",
-    "@loopwithai/cordis": "*",
-    "@loopwithai/schemastery": "*"
+    "@hulala/dsh-brand": "*",
+    "@hulala/dsh-invariants": "*",
+    "@hulala/cordis": "*",
+    "@hulala/schemastery": "*"
   },
   "private": true
 }
