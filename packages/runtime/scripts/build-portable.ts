@@ -68,8 +68,8 @@ await writeFile(join(output, 'package.json'), `${JSON.stringify({
   private: true,
   type: 'module',
   dependencies: {
-    '@deepseek-ai/dsh': '0.1.0-rc.6',
-    '@deepseek-ai/dsh-agent-loop': '0.1.0-rc.6',
+    '@deepseek-ai/dsh': '0.1.0-rc.8',
+    '@deepseek-ai/dsh-agent-loop': '0.1.0-rc.8',
   },
 }, null, 2)}\n`)
 

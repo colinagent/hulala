@@ -7,7 +7,7 @@ dependency retains its upstream license.
 
 - Project: https://github.com/deepseek-ai/deepseek-harness
 - Packages: `@deepseek-ai/dsh`, Agent/session/Web packages, Cordis and Schemastery
-- Harness version: `0.1.0-rc.6`
+- Harness version: `0.1.0-rc.8`
 - License: MIT
 
 ## Cordis stack

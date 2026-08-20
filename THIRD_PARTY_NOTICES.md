@@ -27,7 +27,7 @@ See `vendor/README.md` for the package table and update procedure.
 
 - Packages: `@deepseek-ai/dsh`, Agent/session/Web packages, Cordis and
   Schemastery
-- Version: `0.1.0-rc.6` for Harness packages
+- Version: `0.1.0-rc.8` for Harness packages
 - License: MIT
 
 ## Pi Coding Agent

@@ -31,7 +31,7 @@ export async function ensureLocalhostSubdomainCompatibility(): Promise<void> {
   const require = createRequire(import.meta.url)
   const packagePath = require.resolve('@deepseek-ai/dsh-client-connection/package.json')
   const packageJson = JSON.parse(await readFile(packagePath, 'utf8')) as { version?: unknown }
-  if (packageJson.version !== '0.1.0-rc.6') {
+  if (packageJson.version !== '0.1.0-rc.8') {
     throw new Error(`Unsupported @deepseek-ai/dsh-client-connection version: ${String(packageJson.version)}`)
   }
   const root = dirname(packagePath)

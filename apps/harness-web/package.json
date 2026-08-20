@@ -14,9 +14,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@deepseek-ai/dsh": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-agent-loop": "0.1.0-rc.6",
+    "@deepseek-ai/dsh": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-agent": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-agent-loop": "0.1.0-rc.8",
     "@hulala/dsh-network-proxy": "*",
     "@hulala/runtime": "*",
     "@hulala/dsh-agent-loop-claude": "*",
