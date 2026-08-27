@@ -4,6 +4,8 @@ import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
+import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 
 export interface RuntimePaths {
   root: string
@@ -24,6 +26,7 @@ export interface RuntimeDescriptor {
 export interface RuntimeProfileOptions {
   defaultRuntime: string
   runtimes: RuntimeDescriptor[]
+  authorizationPlugin?: string
   networkPlugin?: string
   selectorPlugin: string
   bunLifecyclePlugin?: string
@@ -33,7 +36,7 @@ export interface StartRuntimeOptions {
   host?: '127.0.0.1'
   port?: number
   paths?: Partial<RuntimePaths> & { root?: string }
-  patch: unknown[]
+  patch: PatchOptions[]
   version?: string
   startupTimeoutMs?: number
   environment?: Record<string, string | undefined>
@@ -74,13 +77,14 @@ export async function ensureRuntimePaths(paths: RuntimePaths): Promise<void> {
     .map(([, path]) => mkdir(path, { recursive: true, mode: 0o700 })))
 }
 
-export function createHarnessPatch(options: RuntimeProfileOptions): unknown[] {
+export function createHarnessPatch(options: RuntimeProfileOptions): PatchOptions[] {
   if (!options.runtimes.some(runtime => runtime.id === options.defaultRuntime)) {
     throw new Error(`unknown default runtime "${options.defaultRuntime}"`)
   }
   const defaultDescriptor = options.runtimes.find(runtime => runtime.id === options.defaultRuntime)!
-  const insert: unknown[] = []
+  const insert: EntryOptions[] = []
   if (options.bunLifecyclePlugin) insert.push({ id: 'hulala-bun-lifecycle', name: options.bunLifecyclePlugin })
+  if (options.authorizationPlugin) insert.push({ id: 'authorization', name: options.authorizationPlugin })
   if (options.networkPlugin) insert.push({ id: 'hulala-network', name: options.networkPlugin })
   insert.push(
     { id: 'agent-loop-runtime', name: defaultDescriptor.package },
@@ -110,9 +114,10 @@ function repositoryPlugin(repositoryRoot: string, packageDirectory: string): str
   return pathToFileURL(resolve(repositoryRoot, 'packages', packageDirectory, 'lib', 'index.js')).href
 }
 
-export function createRepositoryHarnessPatch(repositoryRoot: string): unknown[] {
+export function createRepositoryHarnessPatch(repositoryRoot: string): PatchOptions[] {
   return createHarnessPatch({
     defaultRuntime: 'pi',
+    authorizationPlugin: '@deepseek-ai/dsh-authorization',
     networkPlugin: repositoryPlugin(repositoryRoot, 'network-proxy'),
     selectorPlugin: repositoryPlugin(repositoryRoot, 'agent-loop-selector'),
     bunLifecyclePlugin: pathToFileURL(resolve(repositoryRoot, 'packages', 'runtime', 'lib', 'bun-lifecycle.js')).href,
@@ -155,6 +160,24 @@ async function waitForHealth(url: string, process: Bun.Subprocess, timeoutMs: nu
   throw new Error(`Harness did not become ready within ${timeoutMs}ms`)
 }
 
+export function harnessWebCommand(
+  executable: string,
+  dshBin: string,
+  patchPath: string,
+  host: '127.0.0.1',
+  port: number,
+): string[] {
+  return [
+    executable,
+    dshBin,
+    'web',
+    '--patch', patchPath,
+    '--host', host,
+    '--port', String(port),
+    '--no-open',
+  ]
+}
+
 export async function startHarnessRuntime(options: StartRuntimeOptions): Promise<RuntimeHandle> {
   const host = options.host ?? '127.0.0.1'
   const port = options.port ?? await reserveLoopbackPort()
@@ -168,7 +191,7 @@ export async function startHarnessRuntime(options: StartRuntimeOptions): Promise
   const require = createRequire(import.meta.url)
   const dshBin = require.resolve('@deepseek-ai/dsh/lib/bin.js')
   let currentState: RuntimeState = 'starting'
-  const child = Bun.spawn([process.execPath, dshBin, 'web', '--patch', patchPath, '--host', host, '--port', String(port)], {
+  const child = Bun.spawn(harnessWebCommand(process.execPath, dshBin, patchPath, host, port), {
     stdin: 'ignore',
     stdout: options.stdout ?? 'inherit',
     stderr: options.stderr ?? 'inherit',

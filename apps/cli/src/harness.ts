@@ -5,11 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { APP_AUTHORITY, APP_HOST, VERSION, WORKBENCH_PORT } from './constants.js'
-import { ensureLocalhostSubdomainCompatibility } from './compatibility.js'
 import { createPackagedHarnessPatch } from './profile.js'
 
 export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporaryDirectory: string }> {
-  await ensureLocalhostSubdomainCompatibility()
   const temporaryDirectory = await mkdtemp(join(tmpdir(), 'hulala-harness-'))
   const patchPath = join(temporaryDirectory, 'profile.patch.json')
   await writeFile(patchPath, JSON.stringify(createPackagedHarnessPatch()), 'utf8')
@@ -23,6 +21,7 @@ export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporary
     '--host', APP_HOST,
     '--port', String(WORKBENCH_PORT),
     '--trusted-host', APP_AUTHORITY,
+    '--no-open',
   ], {
     stdio: 'inherit',
     env: { ...process.env, HULALA_VERSION: VERSION },

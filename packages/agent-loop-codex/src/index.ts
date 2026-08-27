@@ -328,6 +328,7 @@ export class CodexAgentLoop extends Service implements AgentFactory {
   private readonly handles = new Set<AgentHandle>()
   private readonly threadIds = new Map<string, string>()
   private readonly nativeSessions = new Map<string, CodexSdkSession>()
+  private readonly sessionsByHarnessId = new Map<string, CodexSdkSession>()
   private defaultModel: string | undefined
 
   constructor(ctx: Context, readonly config: Config) {
@@ -358,16 +359,20 @@ export class CodexAgentLoop extends Service implements AgentFactory {
     })
   }
 
-  async configure(selection: RuntimeSelection): Promise<void> {
+  async configure(selection: RuntimeSelection, sessionId?: string): Promise<void> {
     if (selection.model === undefined) return
     const models = await this.models()
     const model = models.find(candidate => candidate.id === selection.model)
     if (model === undefined) throw new Error(`Codex model "${selection.model}" is not available`)
     const thinkingLevel = selection.thinkingLevel ?? model.defaultThinkingLevel
-    if ([...this.nativeSessions.values()].some(session => session.active)) {
+    const sessions = sessionId === undefined
+      ? [...this.nativeSessions.values()]
+      : [this.sessionsByHarnessId.get(sessionId)].filter((session): session is CodexSdkSession => session !== undefined)
+    if (sessionId !== undefined && sessions.length === 0) throw new Error(`Codex session "${sessionId}" is not active`)
+    if (sessions.some(session => session.active)) {
       throw new Error('Wait for the current Codex turn to finish before changing model or Thinking Level.')
     }
-    for (const session of this.nativeSessions.values()) session.configure(model.id, thinkingLevel)
+    for (const session of sessions) session.configure(model.id, thinkingLevel)
   }
 
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
@@ -419,13 +424,14 @@ export class CodexAgentLoop extends Service implements AgentFactory {
     const native = new CodexSdkSession(this.server, threadId, model, thinkingLevel, cwd, this.server.currentGeneration,
       candidate => this.ensureSessionCurrent(candidate))
     this.nativeSessions.set(threadId, native)
+    this.sessionsByHarnessId.set(session.id, native)
     const agent = new HarnessSdkAgent(this.ctx, session.id, { provider: 'openai', model }, session, native)
     native.bindAgent(agent)
     let detachSession: (() => void) | undefined
     let detachAgent: (() => void) | undefined
     let disposing: Promise<void> | undefined
     const handle: AgentHandle = { agent, dispose: () => (disposing ??= (async () => {
-      await agent.dispose(); this.nativeSessions.delete(threadId); detachAgent?.(); detachSession?.(); this.handles.delete(handle)
+      await agent.dispose(); this.nativeSessions.delete(threadId); this.sessionsByHarnessId.delete(session.id); detachAgent?.(); detachSession?.(); this.handles.delete(handle)
     })()) }
     try {
       const commit = await setup?.(agent.ctx); commit?.commit()

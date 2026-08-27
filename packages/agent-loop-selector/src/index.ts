@@ -4,7 +4,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { EntryOptions, EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-host-apiproxy'
 import type {} from '@deepseek-ai/dsh-workspace'
+import type {} from '@deepseek-ai/dsh-agent-default-model'
+import { settingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
 export interface RuntimeDescriptor {
@@ -41,8 +44,9 @@ export interface RuntimeModel {
 }
 
 export interface RuntimeControl {
-  models(): Promise<RuntimeModel[]>
-  configure?(selection: RuntimeSelection): Promise<void>
+  acceptsArbitraryModel?: boolean
+  models(sessionId?: string): Promise<RuntimeModel[]>
+  configure?(selection: RuntimeSelection, sessionId?: string): Promise<void>
   authState?(): Promise<unknown>
   startLogin?(providerId: string): Promise<unknown>
   answerLogin?(flowId: string, value: string): unknown
@@ -53,6 +57,14 @@ export interface RuntimeControl {
 const selectionKey = Symbol.for('hulala.agent-runtime-selection')
 const controlsKey = Symbol.for('hulala.agent-runtime-controls')
 const processStartedAt = new Date().toISOString()
+export const RUNTIME_SELECTION_SETTINGS_NAMESPACE = settingsNamespace('hulala-agent-runtime')
+
+export const RuntimeSelectionSettingsSchema = z.object({
+  runtime: z.string().required(),
+  provider: z.string(),
+  model: z.string(),
+  thinkingLevel: z.string(),
+}) as z<RuntimeSelection>
 
 export interface HulalaHealth {
   name: 'hulala'
@@ -70,6 +82,7 @@ export function healthPayload(
 }
 
 export function defaultWorkspacePath(userHome?: string): string {
+  if (process.env.HULALA_WORKSPACE_DIR) return process.env.HULALA_WORKSPACE_DIR
   return userHome
     ? join(userHome, '.config', 'hulala', 'workspace')
     : join(process.env.HULALA_HOME ?? join(homedir(), '.config', 'hulala'), 'workspace')
@@ -108,6 +121,55 @@ export function runtimeSelection(): RuntimeSelection {
   return (globalThis as Record<PropertyKey, unknown>)[selectionKey] as RuntimeSelection
 }
 
+function normalizeSelection(value: RuntimeSelection, fallbackRuntime: string): RuntimeSelection {
+  const runtime = typeof value.runtime === 'string' && value.runtime ? value.runtime : fallbackRuntime
+  const provider = typeof value.provider === 'string' && value.provider ? value.provider : undefined
+  const model = typeof value.model === 'string' && value.model ? value.model : undefined
+  const thinkingLevel = typeof value.thinkingLevel === 'string' && value.thinkingLevel ? value.thinkingLevel : undefined
+  return {
+    runtime,
+    ...(provider ? { provider } : {}),
+    ...(model ? { model } : {}),
+    ...(thinkingLevel ? { thinkingLevel } : {}),
+  }
+}
+
+function sameSelection(left: RuntimeSelection, right: RuntimeSelection): boolean {
+  return left.runtime === right.runtime
+    && left.provider === right.provider
+    && left.model === right.model
+    && left.thinkingLevel === right.thinkingLevel
+}
+
+function nativeRuntimeModels(groups: unknown): RuntimeModel[] {
+  if (!Array.isArray(groups)) return []
+  return groups.flatMap((rawGroup): RuntimeModel[] => {
+    if (rawGroup === null || typeof rawGroup !== 'object') return []
+    const group = rawGroup as { id?: unknown; name?: unknown; models?: unknown }
+    if (typeof group.id !== 'string' || !Array.isArray(group.models)) return []
+    return group.models.flatMap((rawModel): RuntimeModel[] => {
+      if (rawModel === null || typeof rawModel !== 'object') return []
+      const model = rawModel as {
+        id?: unknown
+        name?: unknown
+        reasoning?: { efforts?: Array<{ id?: unknown }>; defaultEffort?: unknown }
+      }
+      if (typeof model.id !== 'string') return []
+      const thinkingLevels = Array.isArray(model.reasoning?.efforts)
+        ? model.reasoning.efforts.flatMap(effort => typeof effort.id === 'string' ? [effort.id] : [])
+        : []
+      return [{
+        provider: group.id as string,
+        providerName: typeof group.name === 'string' ? group.name : group.id as string,
+        id: model.id,
+        name: typeof model.name === 'string' ? model.name : model.id,
+        ...(thinkingLevels.length > 0 ? { thinkingLevels } : {}),
+        ...(typeof model.reasoning?.defaultEffort === 'string' ? { defaultThinkingLevel: model.reasoning.defaultEffort } : {}),
+      }]
+    })
+  })
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     agentLoopSelector: AgentLoopSelector
@@ -120,7 +182,7 @@ declare module '@deepseek-ai/cordis' {
  * Session state before the new factory resumes the current conversation.
  */
 export class AgentLoopSelector extends Service {
-  static inject = ['loader', 'webServer', 'workspaceRegistry']
+  static inject = ['loader', 'workspaceRegistry', 'settings', 'agentDefaultModel', 'apiProxy']
 
   static Config = z.object({
     defaultRuntime: z.string().default('pi'),
@@ -134,6 +196,8 @@ export class AgentLoopSelector extends Service {
   private activeRuntime: string
   private updateChain: Promise<void> = Promise.resolve()
   private readonly tree: EntryTree
+  private readonly selectionSettings: SettingsScope<RuntimeSelection>
+  private restoreWarning: string | undefined
 
   constructor(ctx: Context, readonly config: Config) {
     super(ctx, 'agentLoopSelector')
@@ -145,11 +209,34 @@ export class AgentLoopSelector extends Service {
     this.activeRuntime = Object.entries(config.runtimes)
       .find(([, descriptor]) => descriptor.package === entry.options.name)?.[0]
       ?? config.defaultRuntime
+    this.selectionSettings = ctx.settings.register(
+      RUNTIME_SELECTION_SETTINGS_NAMESPACE,
+      RuntimeSelectionSettingsSchema,
+      {
+        base: { runtime: config.defaultRuntime },
+        applies: 'live',
+        validate: value => {
+          if (!(value.runtime in config.runtimes)) throw new Error(`unknown agent runtime "${value.runtime}"`)
+          if ((value.provider === undefined) !== (value.model === undefined)) {
+            throw new Error('provider and model must be configured together')
+          }
+          if (value.thinkingLevel !== undefined && value.model === undefined) {
+            throw new Error('a model is required when selecting a thinking level')
+          }
+        },
+      },
+    )
     ;(globalThis as Record<PropertyKey, unknown>)[selectionKey] = { runtime: this.activeRuntime }
-    this.installWebSurface()
+    this.selectionSettings.watch(next => {
+      void this.enqueueRestore(next).catch(error => {
+        this.ctx.logger.warn(`agent-loop-selector: failed to apply updated user selection: ${String(error)}`)
+      })
+    })
+    ctx.inject(['webServer'], webCtx => this.installWebSurface(webCtx))
   }
 
   protected async [Service.init](): Promise<void> {
+    await this.enqueueRestore(this.selectionSettings.get())
     await ensureDefaultWorkspace(this.ctx.workspaceRegistry)
   }
 
@@ -157,13 +244,19 @@ export class AgentLoopSelector extends Service {
     return this.activeRuntime
   }
 
-  selectModel(provider: string | undefined, model: string | undefined, thinkingLevel?: string): void {
-    ;(globalThis as Record<PropertyKey, unknown>)[selectionKey] = {
+  async selectModel(provider: string | undefined, model: string | undefined, thinkingLevel?: string): Promise<void> {
+    const next = {
       runtime: this.activeRuntime,
       ...(provider ? { provider } : {}),
       ...(model ? { model } : {}),
       ...(thinkingLevel ? { thinkingLevel } : {}),
     }
+    const task = this.updateChain.then(async () => {
+      ;(globalThis as Record<PropertyKey, unknown>)[selectionKey] = next
+      await this.persistSelection(next)
+    })
+    this.updateChain = task.catch(() => undefined)
+    await task
   }
 
   list(): RuntimeState[] {
@@ -174,8 +267,78 @@ export class AgentLoopSelector extends Service {
     }))
   }
 
+  /** Return the active Runtime, selection, model directory, and auth state. */
+  async describe(sessionId?: string): Promise<unknown> {
+    const service = runtimeControls().get(this.activeRuntime)
+    let models: unknown[] = []
+    let modelError: string | undefined = this.restoreWarning
+    let selection = runtimeSelection()
+    if (service !== undefined) {
+      try { models = await service.models(sessionId) } catch (error) { modelError = error instanceof Error ? error.message : String(error) }
+    } else {
+      try {
+        const native = await this.nativeModelState(sessionId)
+        models = native.models
+        selection = native.selection
+      } catch (error) {
+        modelError = error instanceof Error ? error.message : String(error)
+      }
+    }
+    const auth = await service?.authState?.()
+    if (this.activeRuntime === 'pi' && models.length === 0 && modelError === undefined) {
+      modelError = 'No Pi models are currently available. Sign in below, run `pi` then `/login`, or configure a provider in ~/.pi/agent.'
+    }
+    return { current: this.activeRuntime, selection, runtimes: this.list(), models, modelError, auth }
+  }
+
+  /** Apply one Runtime/model/auth selection request without assuming HTTP. */
+  async select(input: Record<string, unknown>): Promise<unknown> {
+    if (typeof input.runtime === 'string' && input.runtime !== this.activeRuntime) await this.activate(input.runtime)
+    if (typeof input.action === 'string') {
+      const service = runtimeControls().get(this.activeRuntime)
+      if (this.activeRuntime !== 'pi' || service === undefined) throw new Error('Pi must be the active runtime')
+      if (input.action === 'login' && typeof input.provider === 'string' && service.startLogin !== undefined) {
+        await service.startLogin(input.provider)
+      } else if (input.action === 'logout' && typeof input.provider === 'string' && service.logout !== undefined) {
+        await service.logout(input.provider)
+      } else if (input.action === 'auth-input' && typeof input.flowId === 'string' && typeof input.value === 'string' && service.answerLogin !== undefined) {
+        service.answerLogin(input.flowId, input.value)
+      } else if (input.action === 'auth-cancel' && typeof input.flowId === 'string' && service.cancelLogin !== undefined) {
+        service.cancelLogin(input.flowId)
+      } else {
+        throw new Error('invalid Pi authentication action')
+      }
+      return { current: this.activeRuntime, selection: runtimeSelection(), auth: await service.authState?.() }
+    }
+    const provider = typeof input.provider === 'string' ? input.provider : undefined
+    const model = typeof input.model === 'string' ? input.model : undefined
+    const thinkingLevel = typeof input.thinkingLevel === 'string' ? input.thinkingLevel : undefined
+    const sessionId = typeof input.sessionId === 'string' && input.sessionId.trim() ? input.sessionId.trim() : undefined
+    const service = runtimeControls().get(this.activeRuntime)
+    if (provider !== undefined && model !== undefined) {
+      const descriptor = (await service?.models(sessionId))?.find(candidate => candidate.provider === provider && candidate.id === model)
+      if (descriptor === undefined && service !== undefined && service.acceptsArbitraryModel !== true) {
+        throw new Error(`model "${provider}/${model}" is not available`)
+      }
+      if (thinkingLevel !== undefined && descriptor !== undefined && !descriptor.thinkingLevels?.includes(thinkingLevel)) {
+        throw new Error(`thinking level "${thinkingLevel}" is not available for ${provider}/${model}`)
+      }
+    } else if (thinkingLevel !== undefined) {
+      throw new Error('a model is required when selecting a thinking level')
+    }
+    const nextSelection = { runtime: this.activeRuntime, provider, model, thinkingLevel }
+    if (service !== undefined) await service.configure?.(nextSelection, sessionId)
+    else if (provider !== undefined && model !== undefined) await this.selectNativeModel(provider, model, thinkingLevel, sessionId)
+    await this.selectModel(provider, model, thinkingLevel)
+    this.restoreWarning = undefined
+    return { current: this.activeRuntime, selection: runtimeSelection() }
+  }
+
   activate(runtime: string): Promise<void> {
-    const task = this.updateChain.then(() => this.activateNow(runtime))
+    const task = this.updateChain.then(async () => {
+      await this.activateNow(runtime)
+      await this.persistSelection({ runtime })
+    })
     this.updateChain = task.catch(() => undefined)
     return task
   }
@@ -199,14 +362,139 @@ export class AgentLoopSelector extends Service {
     ;(globalThis as Record<PropertyKey, unknown>)[selectionKey] = { runtime }
   }
 
+  private async persistSelection(selection: RuntimeSelection): Promise<void> {
+    try {
+      await this.selectionSettings.replace(selection)
+    } catch (error) {
+      throw new Error(`Selection applied, but Harness could not remember it: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
 
-  private installWebSurface(): void {
-    const runtimeService = (): RuntimeControl | undefined => runtimeControls().get(this.activeRuntime)
+  private enqueueRestore(selection: RuntimeSelection): Promise<void> {
+    const task = this.updateChain.then(() => this.restoreSelection(selection))
+    this.updateChain = task.catch(() => undefined)
+    return task
+  }
+
+  private async restoreSelection(value: RuntimeSelection): Promise<void> {
+    const saved = normalizeSelection(value, this.config.defaultRuntime)
+    const latest = normalizeSelection(this.selectionSettings.get(), this.config.defaultRuntime)
+    if (!sameSelection(saved, latest)) return
+    const current = runtimeSelection()
+    if (sameSelection(saved, current) && saved.runtime === this.activeRuntime) return
+    await this.activateNow(saved.runtime)
+    this.restoreWarning = undefined
+    const service = runtimeControls().get(saved.runtime)
+    if (saved.provider !== undefined && saved.model !== undefined && service !== undefined) {
+      try {
+        const models = await service.models()
+        const descriptor = models.find(candidate => candidate.provider === saved.provider && candidate.id === saved.model)
+        if (descriptor === undefined && service.acceptsArbitraryModel !== true) {
+          this.restoreWarning = `Saved model "${saved.provider}/${saved.model}" is no longer available; using the ${saved.runtime} default.`
+          return
+        }
+        if (saved.thinkingLevel !== undefined && descriptor !== undefined && !descriptor.thinkingLevels?.includes(saved.thinkingLevel)) {
+          this.restoreWarning = `Saved thinking level "${saved.thinkingLevel}" is no longer available; using the model default.`
+          const fallback = { runtime: saved.runtime, provider: saved.provider, model: saved.model }
+          await service.configure?.(fallback)
+          ;(globalThis as Record<PropertyKey, unknown>)[selectionKey] = fallback
+          return
+        }
+        await service.configure?.(saved)
+      } catch (error) {
+        this.restoreWarning = `Saved selection could not be restored; using the ${saved.runtime} default. ${error instanceof Error ? error.message : String(error)}`
+        return
+      }
+    }
+    ;(globalThis as Record<PropertyKey, unknown>)[selectionKey] = saved
+  }
+
+  private async nativeModelState(sessionId?: string): Promise<{ models: RuntimeModel[]; selection: RuntimeSelection }> {
+    if (sessionId !== undefined) {
+      const rpcId = crypto.randomUUID()
+      const response = await this.ctx.apiProxy.sessions.models({
+        type: 'client-request',
+        rpcId,
+        method: 'session.models',
+        payload: { sessionId },
+      } as never) as unknown as {
+        result: { ok: true; value: { current: { provider: string; model: string; reasoningEffort?: string }; groups: unknown } }
+          | { ok: false; error: { message: string } }
+      }
+      if (!response.result.ok) throw new Error(response.result.error.message)
+      return {
+        models: nativeRuntimeModels(response.result.value.groups),
+        selection: {
+          runtime: this.activeRuntime,
+          provider: response.result.value.current.provider,
+          model: response.result.value.current.model,
+          ...(response.result.value.current.reasoningEffort
+            ? { thinkingLevel: response.result.value.current.reasoningEffort }
+            : {}),
+        },
+      }
+    }
+
+    const rpcId = crypto.randomUUID()
+    const response = await this.ctx.apiProxy.llm.models({
+      type: 'client-request',
+      rpcId,
+      method: 'llm.models',
+      payload: {},
+    } as never) as unknown as {
+      result: { ok: true; value: { groups: unknown } } | { ok: false; error: { message: string } }
+    }
+    if (!response.result.ok) throw new Error(response.result.error.message)
+    const selected = this.ctx.agentDefaultModel.currentSelection()
+    return {
+      models: nativeRuntimeModels(response.result.value.groups),
+      selection: {
+        runtime: this.activeRuntime,
+        provider: selected.provider,
+        model: selected.model,
+        ...(selected.reasoningEffort ? { thinkingLevel: selected.reasoningEffort } : {}),
+      },
+    }
+  }
+
+  private async selectNativeModel(
+    provider: string,
+    model: string,
+    thinkingLevel: string | undefined,
+    sessionId: string | undefined,
+  ): Promise<void> {
+    if (sessionId === undefined) {
+      await this.ctx.agentDefaultModel.saveSelection({
+        provider,
+        model,
+        ...(thinkingLevel ? { reasoningEffort: thinkingLevel as never } : {}),
+      })
+      return
+    }
+    const rpcId = crypto.randomUUID()
+    const response = await this.ctx.apiProxy.sessions.selectModel({
+      type: 'client-request',
+      rpcId,
+      method: 'session.selectModel',
+      payload: {
+        sessionId,
+        provider,
+        model,
+        ...(thinkingLevel ? { reasoningEffort: thinkingLevel } : {}),
+      },
+    } as never) as unknown as {
+      result: { ok: true; value: unknown } | { ok: false; error: { message: string } }
+    }
+    if (!response.result.ok) throw new Error(response.result.error.message)
+  }
+
+
+  private installWebSurface(ctx: Context): void {
     const send = (res: import('node:http').ServerResponse, status: number, value: unknown): void => {
       res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
       res.end(JSON.stringify(value))
     }
-    this.ctx.effect(() => this.ctx.webServer.register({
+    ctx.effect(() => ctx.webServer.register({
       kind: 'exact', path: '/api/hulala/health', handler: (req, res) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') { send(res, 405, { error: 'method not allowed' }); return }
         const payload = JSON.stringify(healthPayload())
@@ -214,21 +502,13 @@ export class AgentLoopSelector extends Service {
         res.end(req.method === 'HEAD' ? undefined : payload)
       },
     }), 'agentLoopSelector.health()')
-    this.ctx.effect(() => this.ctx.webServer.register({
+    ctx.effect(() => ctx.webServer.register({
       kind: 'exact', path: '/api/hulala/runtimes', handler: async (req, res) => {
         try {
+        const requestUrl = new URL(req.url ?? '/api/hulala/runtimes', 'http://127.0.0.1')
+        const requestedSessionId = requestUrl.searchParams.get('sessionId')?.trim() || undefined
         if (req.method === 'GET') {
-          const service = runtimeService()
-          let models: unknown[] = []
-          let modelError: string | undefined
-          if (service !== undefined) {
-            try { models = await service.models() } catch (error) { modelError = error instanceof Error ? error.message : String(error) }
-          }
-          const auth = await service?.authState?.()
-          if (this.activeRuntime === 'pi' && models.length === 0 && modelError === undefined) {
-            modelError = 'No Pi models are currently available. Sign in below, run `pi` then `/login`, or configure a provider in ~/.pi/agent.'
-          }
-          send(res, 200, { current: this.activeRuntime, selection: runtimeSelection(), runtimes: this.list(), models, modelError, auth })
+          send(res, 200, await this.describe(requestedSessionId))
           return
         }
         if (req.method !== 'POST') { send(res, 405, { error: 'method not allowed' }); return }
@@ -250,41 +530,9 @@ export class AgentLoopSelector extends Service {
             action?: unknown
             flowId?: unknown
             value?: unknown
+            sessionId?: unknown
           }
-          if (typeof input.runtime === 'string' && input.runtime !== this.activeRuntime) await this.activate(input.runtime)
-          if (typeof input.action === 'string') {
-            const service = runtimeService()
-            if (this.activeRuntime !== 'pi' || service === undefined) throw new Error('Pi must be the active runtime')
-            if (input.action === 'login' && typeof input.provider === 'string' && service.startLogin !== undefined) {
-              await service.startLogin(input.provider)
-            } else if (input.action === 'logout' && typeof input.provider === 'string' && service.logout !== undefined) {
-              await service.logout(input.provider)
-            } else if (input.action === 'auth-input' && typeof input.flowId === 'string' && typeof input.value === 'string' && service.answerLogin !== undefined) {
-              service.answerLogin(input.flowId, input.value)
-            } else if (input.action === 'auth-cancel' && typeof input.flowId === 'string' && service.cancelLogin !== undefined) {
-              service.cancelLogin(input.flowId)
-            } else {
-              throw new Error('invalid Pi authentication action')
-            }
-            send(res, 200, { current: this.activeRuntime, selection: runtimeSelection(), auth: await service.authState?.() })
-            return
-          }
-          const provider = typeof input.provider === 'string' ? input.provider : undefined
-          const model = typeof input.model === 'string' ? input.model : undefined
-          const thinkingLevel = typeof input.thinkingLevel === 'string' ? input.thinkingLevel : undefined
-          const service = runtimeService()
-          if (provider !== undefined && model !== undefined) {
-            const descriptor = (await service?.models())?.find(candidate => candidate.provider === provider && candidate.id === model)
-            if (descriptor === undefined && service !== undefined) throw new Error(`model "${provider}/${model}" is not available`)
-            if (thinkingLevel !== undefined && !descriptor?.thinkingLevels?.includes(thinkingLevel)) {
-              throw new Error(`thinking level "${thinkingLevel}" is not available for ${provider}/${model}`)
-            }
-          } else if (thinkingLevel !== undefined) {
-            throw new Error('a model is required when selecting a thinking level')
-          }
-          await service?.configure?.({ runtime: this.activeRuntime, provider, model, thinkingLevel })
-          this.selectModel(provider, model, thinkingLevel)
-          send(res, 200, { current: this.activeRuntime, selection: runtimeSelection() })
+          send(res, 200, await this.select(input))
         } catch (error) {
           send(res, 409, { error: error instanceof Error ? error.message : String(error) })
         }
@@ -295,7 +543,7 @@ export class AgentLoopSelector extends Service {
     }), 'agentLoopSelector.webApi()')
 
     const clientPath = new URL('./client/runtime-ui.js', import.meta.url)
-    this.ctx.effect(() => this.ctx.webServer.register({
+    ctx.effect(() => ctx.webServer.register({
       kind: 'exact', path: '/hulala/runtime-ui.js', handler: async (req, res) => {
         if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return }
         try {
@@ -310,7 +558,7 @@ export class AgentLoopSelector extends Service {
     const devBase = process.env.HULALA_UI_DEV_URL?.replace(/\/$/, '')
     const clientUrl = devBase === undefined ? '/hulala/runtime-ui.js' : `${devBase}/src/client.ts`
     const script = `<script type="module" src="${clientUrl}"></script>`
-    this.ctx.effect(() => this.ctx.webServer.tapIndex(html => html.replace('</body>', `${script}</body>`)), 'agentLoopSelector.webUi()')
+    ctx.effect(() => ctx.webServer.tapIndex(html => html.replace('</body>', `${script}</body>`)), 'agentLoopSelector.webUi()')
   }
 }
 

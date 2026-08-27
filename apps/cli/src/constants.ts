@@ -6,7 +6,7 @@ const configuredPort = Number(process.env.HULALA_PORT ?? 3210)
 export const APP_PORT = Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65_535
   ? configuredPort
   : 3210
-export const APP_AUTHORITY = `hulala.localhost:${APP_PORT}`
+export const APP_AUTHORITY = `${APP_HOST}:${APP_PORT}`
 export const APP_URL = `http://${APP_AUTHORITY}/`
 const configuredWorkbenchPort = Number(process.env.HULALA_WORKBENCH_PORT ?? APP_PORT + 1)
 export const WORKBENCH_PORT = Number.isInteger(configuredWorkbenchPort) && configuredWorkbenchPort > 0 && configuredWorkbenchPort <= 65_535

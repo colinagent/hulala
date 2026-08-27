@@ -8,7 +8,6 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 
 import { browserLaunch } from '../src/browser.ts'
-import { patchLoopbackSource } from '../src/compatibility.ts'
 import { probeHealth } from '../src/health.ts'
 import { resolvePaths } from '../src/paths.ts'
 import { authorizeServiceAction } from '../src/launcher.ts'
@@ -19,20 +18,12 @@ import { activateManagedVersion, readActiveManifest, rollbackManagedVersion } fr
 import { applyManagedUpdate, isNewerVersion, validateManagedVersionStartup } from '../src/update.ts'
 
 test('uses native browser launchers without a shell', () => {
-  assert.deepEqual(browserLaunch('http://hulala.localhost:3210/', 'darwin'), {
-    command: 'open', args: ['http://hulala.localhost:3210/'],
+  assert.deepEqual(browserLaunch('http://127.0.0.1:3210/', 'darwin'), {
+    command: 'open', args: ['http://127.0.0.1:3210/'],
   })
-  assert.deepEqual(browserLaunch('http://hulala.localhost:3210/', 'win32'), {
-    command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', 'http://hulala.localhost:3210/'],
+  assert.deepEqual(browserLaunch('http://127.0.0.1:3210/', 'win32'), {
+    command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', 'http://127.0.0.1:3210/'],
   })
-})
-
-test('patches both Harness loopback predicates idempotently', () => {
-  const original = 'if (hostname === "localhost" || hostname === "[::1]") return true;'
-  const doubled = `${original}\n${original}`
-  const patched = patchLoopbackSource(doubled)
-  assert.equal(patched.match(/endsWith\("\.localhost"\)/g)?.length, 2)
-  assert.equal(patchLoopbackSource(patched), patched)
 })
 
 test('recognizes only a Hulala health response', async () => {
@@ -61,7 +52,7 @@ test('uses per-user data and log locations', () => {
 test('requires a same-origin process token for service actions', () => {
   const request = (headers: IncomingMessage['headers']) => ({ headers }) as IncomingMessage
   assert.equal(authorizeServiceAction(request({
-    origin: 'http://hulala.localhost:3210',
+    origin: 'http://127.0.0.1:3210',
     'content-type': 'application/json',
     'x-hulala-token': 'secret',
   }), 'secret'), undefined)
@@ -71,7 +62,7 @@ test('requires a same-origin process token for service actions', () => {
     'x-hulala-token': 'secret',
   }), 'secret'), 'origin rejected')
   assert.equal(authorizeServiceAction(request({
-    origin: 'http://hulala.localhost:3210',
+    origin: 'http://127.0.0.1:3210',
     'content-type': 'application/json',
     'x-hulala-token': 'wrong',
   }), 'secret'), 'invalid action token')

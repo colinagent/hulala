@@ -205,7 +205,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 export class NetworkProxy extends Service {
-  static inject = ['settings', 'webServer']
+  static inject = ['settings']
   static Config = z.object({})
 
   private readonly originalFetch = globalThis.fetch
@@ -224,7 +224,7 @@ export class NetworkProxy extends Service {
     this.resolved = resolveProxy(this.scope.get())
     this.apply(this.resolved)
     this.scope.watch(next => this.refresh(next))
-    this.installWebApi()
+    ctx.inject(['webServer'], webCtx => this.installWebApi(webCtx))
     const timer = setInterval(() => {
       if (this.scope.get().mode === 'auto') this.refresh(this.scope.get())
     }, 5_000)
@@ -295,12 +295,12 @@ export class NetworkProxy extends Service {
     globalThis.fetch = undiciFetch as unknown as typeof globalThis.fetch
   }
 
-  private installWebApi(): void {
+  private installWebApi(ctx: Context): void {
     const send = (res: import('node:http').ServerResponse, status: number, value: unknown): void => {
       res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
       res.end(JSON.stringify(value))
     }
-    this.ctx.effect(() => this.ctx.webServer.register({
+    ctx.effect(() => ctx.webServer.register({
       kind: 'exact', path: '/api/hulala/proxy', handler: async (req, res) => {
         try {
           if (req.method === 'GET') { send(res, 200, this.getState()); return }

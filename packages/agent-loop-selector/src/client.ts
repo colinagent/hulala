@@ -5,6 +5,7 @@ const UI_ROOT_ID = 'hulala-runtime'
 const SERVICE_ROOT_ID = 'hulala-service'
 const PROXY_ROOT_ID = 'hulala-proxy-settings'
 const RUNTIME_CONFIRM_ID = 'hulala-runtime-confirm'
+const embeddedInDesktop = window.parent !== window
 
 document.getElementById(UI_STYLE_ID)?.remove()
 document.getElementById(UI_ROOT_ID)?.remove()
@@ -36,9 +37,9 @@ style.textContent = `
 #hulala-runtime .flow{display:grid;gap:5px;padding:6px;border-radius:6px;background:color-mix(in srgb,currentColor 6%,transparent)}
 #hulala-runtime a{color:LinkText}
 [data-hulala-service]{position:fixed;z-index:2147483600;top:12px;left:12px;color:CanvasText;font:13px system-ui}
-[data-hulala-service] [hidden]{display:none!important}
-[data-hulala-service] button,[data-hulala-service] a{box-sizing:border-box;border:0;border-radius:9px;background:transparent;color:inherit;padding:7px 10px;font:inherit;text-decoration:none;cursor:pointer}
-[data-hulala-service] button:hover,[data-hulala-service] a:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
+[data-hulala-service][hidden],[data-hulala-service] [hidden]{display:none!important}
+[data-hulala-service] button{box-sizing:border-box;border:0;border-radius:9px;background:transparent;color:inherit;padding:7px 10px;font:inherit;text-decoration:none;cursor:pointer}
+[data-hulala-service] button:hover{background:color-mix(in srgb,CanvasText 7%,transparent)}
 [data-hulala-service] .environment{display:flex;align-items:center;gap:5px;padding:4px;border:1px solid color-mix(in srgb,CanvasText 15%,transparent);border-radius:12px;background:Canvas;box-shadow:0 7px 28px #0002}
 [data-hulala-service] .environment>[aria-current="page"]{background:#246bfd;color:white}
 [data-hulala-service] .status-dot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#d49b00}
@@ -86,7 +87,7 @@ document.head.append(style)
 
 document.body.insertAdjacentHTML('beforeend', `
 <aside id="hulala-service" data-hulala-service>
-  <div class="environment"><button data-local-toggle aria-current="page" aria-expanded="false"><i class="status-dot" data-service-dot></i>Local</button><a href="https://hulala.ai/" target="_blank" rel="noreferrer">Cloud ↗</a></div>
+  <div class="environment"><button data-local-toggle aria-current="page" aria-expanded="false"><i class="status-dot" data-service-dot></i>Local</button></div>
   <section class="service-panel" data-service-panel hidden>
     <div class="service-title" data-service-status>Connecting to local service…</div>
     <div class="service-detail" data-service-detail></div>
@@ -129,6 +130,7 @@ function required<T extends Element>(selector: string, parent: ParentNode = docu
 
 const root = required<HTMLDivElement>(`#${UI_ROOT_ID}`)
 const serviceRoot = required<HTMLElement>(`#${SERVICE_ROOT_ID}`)
+serviceRoot.hidden = embeddedInDesktop
 const localToggle = required<HTMLButtonElement>('[data-local-toggle]', serviceRoot)
 const servicePanel = required<HTMLElement>('[data-service-panel]', serviceRoot)
 const serviceDot = required<HTMLElement>('[data-service-dot]', serviceRoot)
@@ -168,7 +170,6 @@ let proxyRevision = 0
 let currentRuntime = 'pi'
 let pendingRuntime: string | undefined
 let availableModels: any[] = []
-
 function showProxyError(error: unknown): void {
   proxyError.textContent = error instanceof Error ? error.message : String(error)
   proxyError.hidden = false
@@ -578,7 +579,7 @@ void load().catch(error => {
   errorBox.textContent = error instanceof Error ? error.message : String(error)
   errorBox.hidden = false
 })
-void loadService()
+if (!embeddedInDesktop) void loadService()
 
 function dispose(): void {
   observer.disconnect()

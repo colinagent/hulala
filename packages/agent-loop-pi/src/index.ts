@@ -346,19 +346,19 @@ export class HarnessSdkAgent implements Agent {
 }
 
 export class PiAgentLoop extends Service implements AgentFactory {
-  static inject = ['agents', 'sessions', 'webServer', 'networkProxy']
+  static inject = ['agents', 'sessions', 'networkProxy']
   static Config = z.object({})
 
   private readonly modelRuntimePromise = ModelRuntime.create()
   private readonly handles = new Set<AgentHandle>()
-  private readonly nativeSessions = new Set<AgentSession>()
+  private readonly nativeSessions = new Map<string, AgentSession>()
   private readonly authFlows = new Map<string, PiAuthFlow>()
 
   constructor(ctx: Context) {
     super(ctx, 'piAgentLoop')
     ctx.effect(() => registerRuntimeControl('pi', this), 'piAgentLoop.control()')
     ctx.effect(() => ctx.agents.setFactory(this), 'piAgentLoop.setFactory()')
-    this.installWebApi()
+    ctx.inject(['webServer'], webCtx => this.installWebApi(webCtx))
     ctx.effect(() => async () => {
       for (const flow of this.authFlows.values()) flow.controller.abort()
       await Promise.all([...this.handles].map(handle => handle.dispose()))
@@ -382,15 +382,19 @@ export class PiAgentLoop extends Service implements AgentFactory {
     }))
   }
 
-  async configure(selection: RuntimeSelection): Promise<void> {
+  async configure(selection: RuntimeSelection, sessionId?: string): Promise<void> {
     if (selection.provider === undefined || selection.model === undefined) return
     const modelRuntime = await this.modelRuntimePromise
     const model = modelRuntime.getModel(selection.provider, selection.model)
     if (model === undefined) throw new Error(`Pi model "${selection.provider}/${selection.model}" is not available`)
-    if ([...this.nativeSessions].some(session => !session.isIdle)) {
+    const sessions = sessionId === undefined
+      ? [...this.nativeSessions.values()]
+      : [this.nativeSessions.get(sessionId)].filter((session): session is AgentSession => session !== undefined)
+    if (sessionId !== undefined && sessions.length === 0) throw new Error(`Pi session "${sessionId}" is not active`)
+    if (sessions.some(session => !session.isIdle)) {
       throw new Error('Wait for the current Pi turn to finish before changing model or Thinking Level.')
     }
-    for (const session of this.nativeSessions) {
+    for (const session of sessions) {
       if (session.model?.provider !== model.provider || session.model.id !== model.id) await session.setModel(model)
       if (selection.thinkingLevel !== undefined) session.setThinkingLevel(selection.thinkingLevel as ModelThinkingLevel)
     }
@@ -527,12 +531,12 @@ export class PiAgentLoop extends Service implements AgentFactory {
     }
   }
 
-  private installWebApi(): void {
+  private installWebApi(ctx: Context): void {
     const send = (res: import('node:http').ServerResponse, status: number, value: unknown): void => {
       res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
       res.end(JSON.stringify(value))
     }
-    this.ctx.effect(() => this.ctx.webServer.register({
+    ctx.effect(() => ctx.webServer.register({
       kind: 'exact', path: '/api/hulala/pi', handler: async (req, res) => {
         try {
           if (req.method === 'GET') {
@@ -628,7 +632,7 @@ export class PiAgentLoop extends Service implements AgentFactory {
       agent,
       dispose: () => (disposed ??= (async () => {
         await agent.dispose()
-        this.nativeSessions.delete(pi)
+        this.nativeSessions.delete(session.id)
         detachAgent?.()
         detachSession?.()
         this.handles.delete(handle)
@@ -643,7 +647,7 @@ export class PiAgentLoop extends Service implements AgentFactory {
       this.ctx.agents.announce(agent)
       emitAgentEvent(this.ctx, agent, 'agent/session-start', { source: resume ? 'resume' : 'startup' })
       this.handles.add(handle)
-      this.nativeSessions.add(pi)
+      this.nativeSessions.set(session.id, pi)
       ownerCtx.effect(() => () => handle.dispose(), `piAgentLoop.lifecycle(${session.id})`)
       return handle
     } catch (error) {

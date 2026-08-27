@@ -29,6 +29,7 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 - **一个 Harness，多套 Agent**：直接在输入框下方切换 Pi、DeepSeek、Codex 和 Claude Code。
 - **原生接入**：Pi 直连 TypeScript SDK，Codex 使用 `codex app-server`，Claude Code 使用 Agent SDK，DeepSeek 保留原始 Harness Agent Loop。
 - **模型与 Thinking 控制**：每次对话都能在输入区选择 Provider、模型和模型支持的思考级别。
+- **选择记忆**：成功选择 Runtime、模型或 Thinking 后会成为下一次新会话的用户默认值，并在本地 Runtime 重启后恢复。
 - **不阉割工具**：保留各 Agent 支持的 read、bash、edit、write、项目指令、Skills、Extensions、MCP 和审批能力。
 - **本地认证与会话**：凭据仍由 Pi、Codex、Claude Code 或系统环境管理，不经过 Hulala 托管网关。
 - **工作区自动恢复**：启动时自动打开上一次工作区；首次使用默认创建 `~/.config/hulala/workspace`。

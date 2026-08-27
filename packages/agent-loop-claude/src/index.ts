@@ -13,7 +13,11 @@ import {
 import { SessionPreparation, type Session } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
 import { HarnessSdkAgent, withSessionPreparation, type HarnessSdkSession } from '@hulala/dsh-agent-loop-pi'
-import { runtimeSelection } from '@hulala/dsh-agent-loop-selector'
+import {
+  registerRuntimeControl,
+  runtimeSelection,
+  type RuntimeSelection,
+} from '@hulala/dsh-agent-loop-selector'
 import type {} from '@hulala/dsh-network-proxy'
 
 type Listener = Parameters<HarnessSdkSession['subscribe']>[0]
@@ -41,6 +45,11 @@ class ClaudeSdkSession implements HarnessSdkSession {
   }
 
   bindAgent(agent: Agent): void { this.agent = agent }
+  configure(model: string): void {
+    if (this.active !== undefined) throw new Error('Wait for the current Claude Code turn to finish before changing model.')
+    this.model.id = model
+  }
+  get isActive(): boolean { return this.active !== undefined }
   subscribe(listener: Listener): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener) }
   private emit(event: Parameters<Listener>[0]): void { for (const listener of this.listeners) listener(event) }
 
@@ -164,11 +173,28 @@ export class ClaudeAgentLoop extends Service implements AgentFactory {
   static Config = z.object({ model: z.string() }) as z<Config>
   private readonly handles = new Set<AgentHandle>()
   private readonly sessionIds = new Map<string, string>()
+  private readonly nativeSessions = new Map<string, ClaudeSdkSession>()
+  readonly acceptsArbitraryModel = true
 
   constructor(ctx: Context, readonly config: Config) {
     super(ctx, 'claudeAgentLoop')
+    ctx.effect(() => registerRuntimeControl('claude', this), 'claudeAgentLoop.control()')
     ctx.effect(() => ctx.agents.setFactory(this), 'claudeAgentLoop.setFactory()')
     ctx.effect(() => async () => { await Promise.all([...this.handles].map(handle => handle.dispose())) })
+  }
+
+  async models(): Promise<[]> { return [] }
+
+  async configure(selection: RuntimeSelection, sessionId?: string): Promise<void> {
+    if (selection.model === undefined) return
+    const sessions = sessionId === undefined
+      ? [...this.nativeSessions.values()]
+      : [this.nativeSessions.get(sessionId)].filter((session): session is ClaudeSdkSession => session !== undefined)
+    if (sessionId !== undefined && sessions.length === 0) throw new Error(`Claude Code session "${sessionId}" is not active`)
+    if (sessions.some(session => session.isActive)) {
+      throw new Error('Wait for the current Claude Code turn to finish before changing model.')
+    }
+    for (const session of sessions) session.configure(selection.model)
   }
 
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
@@ -195,13 +221,14 @@ export class ClaudeAgentLoop extends Service implements AgentFactory {
       ?? 'default'
     const native = new ClaudeSdkSession(model, session.header.cwd ?? process.cwd(), () => this.ctx.networkProxy.childEnv(),
       id => this.sessionIds.set(session.id, id), resume ? this.sessionIds.get(session.id) : undefined)
+    this.nativeSessions.set(session.id, native)
     const agent = new HarnessSdkAgent(this.ctx, session.id, { provider: 'anthropic', model }, session, native)
     native.bindAgent(agent)
     let detachSession: (() => void) | undefined
     let detachAgent: (() => void) | undefined
     let disposing: Promise<void> | undefined
     const handle: AgentHandle = { agent, dispose: () => (disposing ??= (async () => {
-      await agent.dispose(); detachAgent?.(); detachSession?.(); this.handles.delete(handle)
+      await agent.dispose(); this.nativeSessions.delete(session.id); detachAgent?.(); detachSession?.(); this.handles.delete(handle)
     })()) }
     try {
       const commit = await setup?.(agent.ctx); commit?.commit()

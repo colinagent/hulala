@@ -1,9 +1,23 @@
-import { chmod, copyFile, mkdir, readdir, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { basename, dirname, join } from 'node:path'
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..')
+const require = createRequire(import.meta.url)
 const packageRoot = join(repositoryRoot, 'packages', 'runtime')
 const pluginPackages = ['network-proxy', 'agent-loop-selector', 'agent-loop-pi', 'agent-loop-codex', 'agent-loop-claude'] as const
+const desktopHostPackages = [
+  '@deepseek-ai/dsh-authorization',
+  '@deepseek-ai/dsh-storage',
+  '@deepseek-ai/dsh-storage-json',
+  '@deepseek-ai/dsh-storage-domain',
+  '@deepseek-ai/dsh-workspace',
+  '@deepseek-ai/dsh-host-directory-picker-native',
+  '@deepseek-ai/dsh-session-projection-cache',
+  '@deepseek-ai/dsh-host-plugin-inventory',
+  '@deepseek-ai/dsh-host-apiproxy',
+  '@deepseek-ai/dsh-agent-presets',
+] as const
 
 async function bundleFile(entrypoint: string, outfile: string): Promise<void> {
   const result = await Bun.build({
@@ -62,15 +76,15 @@ if (target === currentTarget()) {
 }
 await chmod(join(output, 'bin', bunName), 0o700).catch(() => undefined)
 
+const runtimeManifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')) as {
+  dependencies?: Record<string, string>
+}
 await writeFile(join(output, 'package.json'), `${JSON.stringify({
   name: '@hulala/runtime-bundle',
   version: '0.1.0',
   private: true,
   type: 'module',
-  dependencies: {
-    '@deepseek-ai/dsh': '0.1.0-rc.8',
-    '@deepseek-ai/dsh-agent-loop': '0.1.0-rc.8',
-  },
+  dependencies: runtimeManifest.dependencies,
 }, null, 2)}\n`)
 
 const install = Bun.spawn([process.execPath, 'install', '--production', '--os', targetPlatform.os, '--cpu', targetPlatform.cpu], {
@@ -80,7 +94,141 @@ const install = Bun.spawn([process.execPath, 'install', '--production', '--os', 
 })
 if (await install.exited !== 0) throw new Error('failed to install portable Runtime dependencies')
 
-await bundleFile(join(packageRoot, 'src', 'cli.ts'), join(output, 'runtime', 'launcher.js'))
+const moduleSpecifiers = new Set<string>(desktopHostPackages)
+const collectNames = async (path: string): Promise<void> => {
+  const source = await readFile(path, 'utf8')
+  for (const match of source.matchAll(/^\s*name:\s*['"]?([^'"\s#]+)/gmu)) {
+    const specifier = match[1]
+    if (specifier?.startsWith('@deepseek-ai/')) moduleSpecifiers.add(specifier)
+  }
+}
+const baseManifestPath = require.resolve('@deepseek-ai/dsh-base/package.json')
+const baseManifest = JSON.parse(await readFile(baseManifestPath, 'utf8')) as {
+  dsh?: { bundle?: { patch?: string } }
+}
+if (!baseManifest.dsh?.bundle?.patch) throw new Error('dsh-base has no bundle patch')
+await collectNames(join(dirname(baseManifestPath), baseManifest.dsh.bundle.patch))
+const presetRoot = join(dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'config', 'agent-presets')
+for (const preset of await readdir(presetRoot)) {
+  const config = join(presetRoot, preset, 'agent.cordis.yml')
+  if (await Bun.file(config).exists()) await collectNames(config)
+}
+
+const portableHostEntry = join(output, '.host-entry.ts')
+const moduleImports = [...moduleSpecifiers].sort().map((specifier, index) => ({
+  key: specifier,
+  identifier: `upstream${index}`,
+  specifier,
+}))
+const localImports = pluginPackages.map((plugin, index) => ({
+  key: `@hulala-local/${plugin}`,
+  identifier: `hulala${index}`,
+  specifier: join(repositoryRoot, 'packages', plugin, 'src', 'index.ts'),
+}))
+const portableImports = [...moduleImports, ...localImports]
+await Bun.write(portableHostEntry, [
+  ...portableImports.map(item => `import * as ${item.identifier} from ${JSON.stringify(item.specifier)}`),
+  `globalThis.__HULALA_RUNTIME_MODULES__ = new Map([${portableImports
+    .map(item => `[${JSON.stringify(item.key)}, ${item.identifier}]`).join(',')}])`,
+  `export { bootRepositoryHarness } from ${JSON.stringify(join(packageRoot, 'src', 'in-process.ts'))}`,
+  '',
+].join('\n'))
+
+const hostBuild = await Bun.build({
+  entrypoints: [portableHostEntry],
+  target: 'bun',
+  minify: true,
+  sourcemap: 'none',
+  plugins: [{
+    name: 'hulala-portable-sharp-binding',
+    setup(build) {
+      build.onLoad({ filter: /[\\/]sharp[\\/]dist[\\/]sharp\.(?:cjs|mjs)$/u }, ({ path }) => path.endsWith('.mjs')
+        ? {
+            contents: `
+              import { createRequire } from 'node:module'
+              import { join } from 'node:path'
+              import libvips from './libvips.mjs'
+              const root = process.env.HULALA_RUNTIME_REPOSITORY_ROOT
+              if (!root) throw new Error('HULALA_RUNTIME_REPOSITORY_ROOT is required to load sharp')
+              const request = createRequire(process.execPath)
+              export default request(join(root, 'node_modules', '@img', 'sharp-' + libvips.runtimePlatformArch(), 'index.cjs'))
+            `,
+            loader: 'js',
+          }
+        : {
+            contents: `
+              const { createRequire } = require('node:module')
+              const { join } = require('node:path')
+              const { runtimePlatformArch } = require('./libvips.cjs')
+              const root = process.env.HULALA_RUNTIME_REPOSITORY_ROOT
+              if (!root) throw new Error('HULALA_RUNTIME_REPOSITORY_ROOT is required to load sharp')
+              const request = createRequire(process.execPath)
+              module.exports = request(join(root, 'node_modules', '@img', 'sharp-' + runtimePlatformArch(), 'index.cjs'))
+            `,
+            loader: 'js',
+          })
+      build.onLoad({ filter: /[\\/]node-pty[\\/]lib[\\/]utils\.js$/u }, () => ({
+        contents: `
+          'use strict'
+          const { createRequire } = require('node:module')
+          const { join } = require('node:path')
+          exports.assign = function assign(target, ...sources) {
+            for (const source of sources) for (const key of Object.keys(source)) target[key] = source[key]
+            return target
+          }
+          exports.loadNativeModule = function loadNativeModule(name) {
+            const root = process.env.HULALA_RUNTIME_REPOSITORY_ROOT
+            if (!root) throw new Error('HULALA_RUNTIME_REPOSITORY_ROOT is required to load node-pty')
+            const dir = join(root, 'node_modules', 'node-pty', 'prebuilds', process.platform + '-' + process.arch)
+            const request = createRequire(process.execPath)
+            return { dir, module: request(join(dir, name + '.node')) }
+          }
+        `,
+        loader: 'js',
+      }))
+      build.onLoad({ filter: /[\\/]node-pty[\\/]lib[\\/]unixTerminal\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = 'helperPath = path.resolve(__dirname, helperPath);'
+        if (!source.includes(expected)) throw new Error('node-pty unix helper path expression changed')
+        return { contents: source.replace(expected, 'helperPath = path.resolve(helperPath);'), loader: 'js' }
+      })
+      build.onLoad({ filter: /[\\/]node-pty[\\/]lib[\\/](?:windowsConoutConnection|windowsPtyAgent)\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        return {
+          contents: source.replaceAll(
+            '__dirname',
+            "require('node:path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'node_modules', 'node-pty', 'lib')",
+          ),
+          loader: 'js',
+        }
+      })
+      build.onLoad({ filter: /[\\/]@silvia-odwyer[\\/]photon-node[\\/]photon_rs\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = "const path = require('path').join(__dirname, 'photon_rs_bg.wasm');"
+        if (!source.includes(expected)) throw new Error('photon-node wasm path expression changed')
+        return {
+          contents: source.replace(
+            expected,
+            "const path = require('path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'runtime', 'photon_rs_bg.wasm');",
+          ),
+          loader: 'js',
+        }
+      })
+    },
+  }],
+})
+if (!hostBuild.success || !hostBuild.outputs[0]) {
+  throw new AggregateError(hostBuild.logs, 'failed to bundle in-process Runtime Host')
+}
+const hostBytes = await hostBuild.outputs[0].arrayBuffer()
+const hostText = new TextDecoder().decode(hostBytes)
+for (const forbidden of [repositoryRoot, output]) {
+  if (hostText.includes(forbidden)) throw new Error(`portable Host contains build path ${forbidden}`)
+}
+await Bun.write(join(output, 'runtime', 'host.js'), hostBytes)
+const photonRoot = dirname(require.resolve('@silvia-odwyer/photon-node/package.json'))
+await copyFile(join(photonRoot, 'photon_rs_bg.wasm'), join(output, 'runtime', 'photon_rs_bg.wasm'))
+await rm(portableHostEntry, { force: true })
 
 for (const plugin of pluginPackages) {
   const pluginOutput = join(output, 'packages', plugin, 'lib')
@@ -102,7 +250,8 @@ await copyFile(
 
 const criticalFiles = [
   join(output, 'bin', bunName),
-  join(output, 'runtime', 'launcher.js'),
+  join(output, 'runtime', 'host.js'),
+  join(output, 'runtime', 'photon_rs_bg.wasm'),
   ...pluginPackages.map(plugin => join(output, 'packages', plugin, 'lib', 'index.js')),
 ]
 const artifacts = await Promise.all(criticalFiles.map(async path => {

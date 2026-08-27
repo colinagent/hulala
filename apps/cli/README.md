@@ -10,8 +10,7 @@ Node.js 24 or newer is required. npm and npx are included with Node.js; macOS
 and Windows do not provide npx by themselves.
 
 The command starts a background Launcher bound only to `127.0.0.1`, waits for
-the managed Workbench, and opens `http://hulala.localhost:3210/`. The
-`.localhost` name resolves locally by platform convention: Hulala never
+the managed Workbench, and opens `http://127.0.0.1:3210/`. Hulala never
 changes DNS or the system hosts file and never requests administrator access.
 
 The Local menu shows Launcher and Workbench state, PID, version and uptime. It

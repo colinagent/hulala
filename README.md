@@ -29,6 +29,7 @@ Pi is the default Agent. Every runtime keeps its native model access, tools, app
 - **One DeepSeek Harness, multiple Agents** — change the active Agent Loop from the composer instead of moving between separate terminal apps.
 - **Native integrations** — Pi uses its TypeScript SDK, Codex uses `codex app-server`, Claude Code uses the Agent SDK, and DeepSeek uses Harness's original Agent Loop.
 - **Models and Thinking controls** — choose the provider/model and supported reasoning level directly beside the prompt.
+- **Remembered selection** — a successful Runtime, model, or Thinking choice becomes the user default for the next new session and survives a local Runtime restart.
 - **Full coding tools** — read, bash, edit, write, project instructions, skills, extensions, MCP servers, and approval flows remain available where the selected Agent supports them.
 - **Local-first credentials and sessions** — tokens remain in the native Pi, Codex, Claude Code, or environment stores. Hulala does not run a hosted credential gateway.
 - **Workspace continuity** — reopen the last Workspace automatically; a fresh install starts at `~/.config/hulala/workspace`.
