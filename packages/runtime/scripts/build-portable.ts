@@ -53,14 +53,18 @@ await mkdir(join(output, 'bin'), { recursive: true })
 await mkdir(join(output, 'runtime'), { recursive: true })
 
 const bunName = targetPlatform.bunName
-if (target === currentTarget()) {
+const suppliedBun = process.env.HULALA_PORTABLE_BUN_EXECUTABLE?.trim()
+if (suppliedBun) {
+  if (!await Bun.file(suppliedBun).exists()) throw new Error(`supplied portable Bun does not exist: ${suppliedBun}`)
+  await copyFile(suppliedBun, join(output, 'bin', bunName))
+} else if (target === currentTarget()) {
   await copyFile(process.execPath, join(output, 'bin', bunName))
 } else {
   const download = join(output, '.bun-download.zip')
   const extracted = join(output, '.bun-download')
   const version = process.versions.bun
   const downloadUrl = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${targetPlatform.bunAsset}`
-  const curl = Bun.spawn(['curl', '-L', '--fail', '--silent', '--show-error', '--output', download, downloadUrl], {
+  const curl = Bun.spawn(['curl', '--http1.1', '--retry', '5', '--retry-all-errors', '-L', '--fail', '--silent', '--show-error', '--output', download, downloadUrl], {
     stdout: 'inherit',
     stderr: 'inherit',
   })
@@ -75,6 +79,13 @@ if (target === currentTarget()) {
   await rm(extracted, { recursive: true, force: true })
 }
 await chmod(join(output, 'bin', bunName), 0o700).catch(() => undefined)
+const expectedBunSha256 = process.env.HULALA_PORTABLE_BUN_SHA256?.trim().toLowerCase()
+if (expectedBunSha256) {
+  if (!/^[a-f0-9]{64}$/.test(expectedBunSha256)) throw new Error('HULALA_PORTABLE_BUN_SHA256 must be a SHA-256 hex digest')
+  const bunBytes = await Bun.file(join(output, 'bin', bunName)).arrayBuffer()
+  const actual = new Bun.CryptoHasher('sha256').update(bunBytes).digest('hex')
+  if (actual !== expectedBunSha256) throw new Error(`portable Bun SHA-256 mismatch: ${actual}`)
+}
 
 const runtimeManifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')) as {
   dependencies?: Record<string, string>
