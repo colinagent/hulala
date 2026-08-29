@@ -66,7 +66,7 @@ if (target === currentTarget()) {
   })
   if (await curl.exited !== 0) throw new Error(`failed to download Bun ${target}`)
   await mkdir(extracted)
-  const unzip = Bun.spawn(['tar', '-xf', download, '-C', extracted], { stdout: 'inherit', stderr: 'inherit' })
+  const unzip = Bun.spawn(['unzip', '-q', download, '-d', extracted], { stdout: 'inherit', stderr: 'inherit' })
   if (await unzip.exited !== 0) throw new Error(`failed to extract Bun ${target}`)
   const directories = await readdir(extracted)
   if (directories.length !== 1) throw new Error(`unexpected Bun archive layout for ${target}`)
