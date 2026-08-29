@@ -267,6 +267,7 @@ await Bun.write(join(output, 'manifest.json'), `${JSON.stringify({ version: '0.1
 const archive = join(packageRoot, 'dist', 'portable', `${target}.tar.gz`)
 await rm(archive, { force: true })
 const tar = Bun.spawn(['tar', '-czf', archive, '-C', join(packageRoot, 'dist', 'portable'), target], {
+  env: { ...process.env, COPYFILE_DISABLE: '1' },
   stdout: 'inherit',
   stderr: 'inherit',
 })
