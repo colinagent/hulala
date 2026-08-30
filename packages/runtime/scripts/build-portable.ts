@@ -100,8 +100,19 @@ await writeFile(join(output, 'package.json'), `${JSON.stringify({
   dependencies: runtimeManifest.dependencies,
 }, null, 2)}\n`)
 
+const installEnvironment = {
+  ...process.env,
+  HTTP_PROXY: undefined,
+  HTTPS_PROXY: undefined,
+  ALL_PROXY: undefined,
+  http_proxy: undefined,
+  https_proxy: undefined,
+  all_proxy: undefined,
+  BUN_CONFIG_MAX_HTTP_REQUESTS: '8',
+}
 const install = Bun.spawn([process.execPath, 'install', '--production', '--os', targetPlatform.os, '--cpu', targetPlatform.cpu], {
   cwd: output,
+  env: installEnvironment,
   stdout: 'inherit',
   stderr: 'inherit',
 })

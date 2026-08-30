@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -53,6 +54,12 @@ test('Desktop Runtime starts Harness without opening an external browser', () =>
     '--port', '43140',
     '--no-open',
   ])
+})
+
+test('portable dependency installs do not inherit proxy variables that can deadlock Bun', () => {
+  const source = readFileSync(join(import.meta.dir, '..', 'scripts', 'build-portable.ts'), 'utf8')
+  for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY']) expect(source).toContain(`${name}: undefined`)
+  expect(source).toContain("BUN_CONFIG_MAX_HTTP_REQUESTS: '8'")
 })
 
 test('boots the public Harness profile in the caller process', async () => {
