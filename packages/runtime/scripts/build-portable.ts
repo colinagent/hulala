@@ -88,11 +88,13 @@ if (expectedBunSha256) {
 }
 
 const runtimeManifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8')) as {
+  version?: string
   dependencies?: Record<string, string>
 }
+if (!runtimeManifest.version) throw new Error('Runtime package has no version')
 await writeFile(join(output, 'package.json'), `${JSON.stringify({
   name: '@hulala/runtime-bundle',
-  version: '0.1.0',
+  version: runtimeManifest.version,
   private: true,
   type: 'module',
   dependencies: runtimeManifest.dependencies,
@@ -273,7 +275,7 @@ const artifacts = await Promise.all(criticalFiles.map(async path => {
     sha256: new Bun.CryptoHasher('sha256').update(await file.arrayBuffer()).digest('hex'),
   }
 }))
-await Bun.write(join(output, 'manifest.json'), `${JSON.stringify({ version: '0.1.0', target, artifacts }, null, 2)}\n`)
+await Bun.write(join(output, 'manifest.json'), `${JSON.stringify({ version: runtimeManifest.version, target, artifacts }, null, 2)}\n`)
 
 const archive = join(packageRoot, 'dist', 'portable', `${target}.tar.gz`)
 await rm(archive, { force: true })
