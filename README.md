@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/brand/hulala-logo.svg" alt="Hulala paper pinwheel logo" width="128" />
+  <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala warm-brown paper pinwheel logo" width="128" />
   <h1>Hulala</h1>
   <p><strong>Growth in motion.</strong></p>
   <p><strong>Read. Write. Code. Keep going.</strong></p>

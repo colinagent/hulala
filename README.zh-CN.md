@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/brand/hulala-logo.svg" alt="Hulala 纸风车 Logo" width="128" />
+  <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala 暖棕色纸风车 Logo" width="128" />
   <h1>Hulala</h1>
   <p><strong>呼啦啦，你的成长飞轮。</strong></p>
   <p><strong>阅读、写作、编程，持续前行。</strong></p>
