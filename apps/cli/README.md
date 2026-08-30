@@ -1,6 +1,7 @@
 # Hulala CLI
 
-Launch the private Hulala workbench with one command:
+Launch **Hulala — Growth in motion**, the local-first DeepSeek Harness workbench
+for reading, writing, and coding with AI, with one command:
 
 ```bash
 npx hulala

@@ -1,7 +1,7 @@
 {
   "name": "hulala",
   "version": "0.1.0",
-  "description": "Launch the Hulala local multi-agent workbench from one npx command.",
+  "description": "Launch the local-first Hulala Agent workbench with one npx command.",
   "type": "module",
   "bin": {
     "hulala": "./dist/cli.js"

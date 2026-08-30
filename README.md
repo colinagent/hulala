@@ -1,10 +1,13 @@
 <div align="center">
   <img src="assets/brand/hulala-logo.svg" alt="Hulala paper pinwheel logo" width="128" />
   <h1>Hulala</h1>
-  <p><strong>A multi-agent workbench for DeepSeek Harness.</strong></p>
-  <p>Run Pi, OpenAI Codex, Claude Code, or the native DeepSeek Agent Loop in one local Web UI.</p>
+  <p><strong>Growth in motion.</strong></p>
+  <p><strong>Read. Write. Code. Keep going.</strong></p>
+  <p>Open-source DeepSeek Harness runtime and native Agent Loop plugins for local, long-term work.</p>
   <p>
     <a href="README.zh-CN.md">简体中文</a>
+    ·
+    <a href="https://hulala.ai/">Website</a>
     ·
     <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>
     ·
@@ -18,11 +21,21 @@
   </p>
 </div>
 
-Hulala turns [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) into a local multi-agent coding workbench. It keeps Harness's native Cordis plugin architecture and makes its Agent Loop replaceable, so you can switch between **Pi Coding Agent**, **OpenAI Codex**, **Claude Code**, and the original **DeepSeek Agent Loop** without adding an ACP gateway or a separate driver layer.
+Hulala is an open-source, local-first AI workbench for the long run. It turns [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) into a place where reading context informs writing, writing sharpens intent, and coding makes ideas real—without moving credentials or sessions into a hosted gateway.
+
+This repository contains the public Harness workbench, Runtime, and native Agent Loop plugins. It keeps Harness's Cordis plugin architecture and makes its Agent Loop replaceable, so you can switch between **Pi Coding Agent**, **OpenAI Codex**, **Claude Code**, and the original **DeepSeek Agent Loop** without adding an ACP gateway or a separate driver layer.
 
 Pi is the default Agent. Every runtime keeps its native model access, tools, approvals, MCP configuration, skills/extensions, and local authentication.
 
 > DeepSeek Harness is currently a developer preview. Hulala follows its plugin APIs closely, so breaking upstream changes may require an update.
+
+## The growth flywheel
+
+```text
+Read → Write → Code → Reflect → Repeat
+```
+
+Hulala is built around continuity rather than isolated prompts. Read the Workspace and its history, write down the reasoning, turn the idea into code, inspect the evidence, and let that result become context for the next turn. The flywheel compounds because the work stays local, inspectable, and attached to the Workspace that produced it.
 
 ## Why Hulala
 

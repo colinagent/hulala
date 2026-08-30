@@ -1,10 +1,13 @@
 <div align="center">
   <img src="assets/brand/hulala-logo.svg" alt="Hulala 纸风车 Logo" width="128" />
   <h1>Hulala</h1>
-  <p><strong>基于 DeepSeek Harness 的本地多 Agent 工作台。</strong></p>
-  <p>在同一个 Web UI 中使用 Pi、OpenAI Codex、Claude Code 或 DeepSeek 原生 Agent Loop。</p>
+  <p><strong>呼啦啦，你的成长飞轮。</strong></p>
+  <p><strong>阅读、写作、编程，持续前行。</strong></p>
+  <p>面向长期本地实践的开源 DeepSeek Harness Runtime 与原生 Agent Loop 插件。</p>
   <p>
     <a href="README.md">English</a>
+    ·
+    <a href="https://hulala.ai/zh-CN/">官网</a>
     ·
     <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>
     ·
@@ -18,11 +21,21 @@
   </p>
 </div>
 
-Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 扩展成一个本地多 Agent 编程工作台。它保留 Harness 原生的 Cordis 插件体系，把 Agent Loop 做成可替换插件，因此可以在 **Pi Coding Agent**、**OpenAI Codex**、**Claude Code** 和 **DeepSeek 原生 Agent Loop** 之间切换，不需要额外的 ACP 网关或另一套 Driver。
+Hulala 是一个面向长期实践的开源、本地优先 AI 工作台。它把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 扩展成一处连续工作的空间：阅读上下文形成输入，写作让思考变得清晰，编程再把想法变成真实成果；凭据和会话不需要经过托管网关。
+
+这个仓库公开 Harness Workbench、Runtime 与原生 Agent Loop 插件。它保留 Harness 原生的 Cordis 插件体系，把 Agent Loop 做成可替换插件，因此可以在 **Pi Coding Agent**、**OpenAI Codex**、**Claude Code** 和 **DeepSeek 原生 Agent Loop** 之间切换，不需要额外的 ACP 网关或另一套 Driver。
 
 默认 Agent 是 Pi。每套运行时仍然使用自己的模型、工具、审批、MCP、Skills/Extensions 和本地认证。
 
 > DeepSeek Harness 目前仍处于 Developer Preview。Hulala 紧贴其插件 API，上游出现不兼容更新时可能需要同步升级。
+
+## 成长飞轮
+
+```text
+阅读 → 写作 → 编程 → 复盘 → 再来一次
+```
+
+Hulala 关注连续积累，而不是一次性的 Prompt。阅读 Workspace 与历史，写下推理，把想法做成代码，检查真实证据，再让结果成为下一轮的上下文。工作始终保存在本地、可以检查，并与产生它的 Workspace 保持连接，成长飞轮因此能够持续复利。
 
 ## 主要能力
 

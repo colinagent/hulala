@@ -1,7 +1,7 @@
 {
   "name": "@hulala/monorepo",
   "version": "0.1.1",
-  "description": "A multi-agent workbench for DeepSeek Harness with Pi, OpenAI Codex, Claude Code, and the native DeepSeek Agent Loop.",
+  "description": "Hulala — Growth in motion. A local-first DeepSeek Harness workbench with native Pi, Codex, Claude Code, and DeepSeek Agent Loops.",
   "private": true,
   "packageManager": "bun@1.3.14",
   "homepage": "https://github.com/colinagent/hulala#readme",
@@ -13,6 +13,9 @@
     "deepseek-harness",
     "deepseek",
     "multi-agent",
+    "agent-loop",
+    "local-first",
+    "ai-workbench",
     "coding-agent",
     "pi-coding-agent",
     "openai-codex",
