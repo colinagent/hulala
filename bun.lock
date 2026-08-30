@@ -191,7 +191,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "bin": {
         "hulala-runtime": "./lib/cli.js",
       },

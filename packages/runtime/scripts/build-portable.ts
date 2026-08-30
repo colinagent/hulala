@@ -108,15 +108,31 @@ const installEnvironment = {
   http_proxy: undefined,
   https_proxy: undefined,
   all_proxy: undefined,
-  BUN_CONFIG_MAX_HTTP_REQUESTS: '8',
 }
-const install = Bun.spawn([process.execPath, 'install', '--production', '--os', targetPlatform.os, '--cpu', targetPlatform.cpu], {
-  cwd: output,
-  env: installEnvironment,
-  stdout: 'inherit',
-  stderr: 'inherit',
-})
-if (await install.exited !== 0) throw new Error('failed to install portable Runtime dependencies')
+const PORTABLE_INSTALL_TIMEOUT_MS = 90_000
+async function installPortableDependencies(maxHttpRequests: string): Promise<boolean> {
+  const install = Bun.spawn([process.execPath, 'install', '--production', '--os', targetPlatform.os, '--cpu', targetPlatform.cpu], {
+    cwd: output,
+    env: { ...installEnvironment, BUN_CONFIG_MAX_HTTP_REQUESTS: maxHttpRequests },
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    install.kill('SIGTERM')
+  }, PORTABLE_INSTALL_TIMEOUT_MS)
+  const exitCode = await install.exited
+  clearTimeout(timeout)
+  if (exitCode === 0) return true
+  if (!timedOut) throw new Error(`failed to install portable Runtime dependencies (exit ${exitCode})`)
+  return false
+}
+
+if (!await installPortableDependencies('8')) {
+  console.warn('portable Runtime dependency install timed out; retrying with network concurrency 4')
+  if (!await installPortableDependencies('4')) throw new Error('portable Runtime dependency install timed out twice')
+}
 
 const moduleSpecifiers = new Set<string>(desktopHostPackages)
 const collectNames = async (path: string): Promise<void> => {

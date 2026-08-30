@@ -56,10 +56,13 @@ test('Desktop Runtime starts Harness without opening an external browser', () =>
   ])
 })
 
-test('portable dependency installs do not inherit proxy variables that can deadlock Bun', () => {
+test('portable dependency installs exclude proxies and retry a stalled Bun install', () => {
   const source = readFileSync(join(import.meta.dir, '..', 'scripts', 'build-portable.ts'), 'utf8')
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY']) expect(source).toContain(`${name}: undefined`)
-  expect(source).toContain("BUN_CONFIG_MAX_HTTP_REQUESTS: '8'")
+  expect(source).toContain('PORTABLE_INSTALL_TIMEOUT_MS = 90_000')
+  expect(source).toContain("installPortableDependencies('8')")
+  expect(source).toContain("installPortableDependencies('4')")
+  expect(source).toContain("install.kill('SIGTERM')")
 })
 
 test('boots the public Harness profile in the caller process', async () => {
