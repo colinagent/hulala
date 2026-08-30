@@ -1,8 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
-  <path fill="#5278EE" d="M248 230V58Q248 48 240 54L132 138Q124 144 124 154V244Q124 250 132 250H222Q238 250 248 230Z"/>
-  <path fill="#51C9B3" d="M282 248H454Q464 248 458 240L374 132Q368 124 358 124H268Q262 124 262 132V222Q262 238 282 248Z"/>
-  <path fill="#5278EE" d="M264 282V454Q264 464 272 458L380 374Q388 368 388 358V268Q388 262 380 262H290Q274 262 264 282Z"/>
-  <path fill="#51C9B3" d="M230 264H58Q48 264 54 272L138 380Q144 388 154 388H244Q250 388 250 380V290Q250 274 230 264Z"/>
-  <circle cx="256" cy="256" r="40" fill="#FFFFFF"/>
-  <circle cx="256" cy="256" r="13" fill="#5278EE"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Hulala standard pinwheel</title>
+  <desc id="desc">The approved Hulala logo without a background tile.</desc>
+  <style>
+    .theme-hub { fill: #FFFFFF; }
+    @media (prefers-color-scheme: dark) {
+      .theme-hub { fill: #E6E6E6; }
+    }
+  </style>
+  <defs>
+    <pattern id="fixed-grain" width="42" height="42" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="8" r="1.1" fill="#FFFFFF"/>
+      <circle cx="28" cy="5" r="0.8" fill="#172138"/>
+      <circle cx="16" cy="24" r="0.9" fill="#FFFFFF"/>
+      <circle cx="37" cy="29" r="1" fill="#172138"/>
+      <circle cx="8" cy="38" r="0.7" fill="#172138"/>
+    </pattern>
+  </defs>
+  <g fill="#918072">
+    <path d="M248 230V58Q248 48 240 54L132 138Q124 144 124 154V244Q124 250 132 250H222Q238 250 248 230Z" transform="translate(-6 -6)"/>
+    <path d="M282 248H454Q464 248 458 240L374 132Q368 124 358 124H268Q262 124 262 132V222Q262 238 282 248Z" transform="translate(6 -6)"/>
+    <path d="M264 282V454Q264 464 272 458L380 374Q388 368 388 358V268Q388 262 380 262H290Q274 262 264 282Z" transform="translate(6 6)"/>
+    <path d="M230 264H58Q48 264 54 272L138 380Q144 388 154 388H244Q250 388 250 380V290Q250 274 230 264Z" transform="translate(-6 6)"/>
+  </g>
+  <g fill="url(#fixed-grain)" opacity="0.07">
+    <path d="M248 230V58Q248 48 240 54L132 138Q124 144 124 154V244Q124 250 132 250H222Q238 250 248 230Z" transform="translate(-6 -6)"/>
+    <path d="M282 248H454Q464 248 458 240L374 132Q368 124 358 124H268Q262 124 262 132V222Q262 238 282 248Z" transform="translate(6 -6)"/>
+    <path d="M264 282V454Q264 464 272 458L380 374Q388 368 388 358V268Q388 262 380 262H290Q274 262 264 282Z" transform="translate(6 6)"/>
+    <path d="M230 264H58Q48 264 54 272L138 380Q144 388 154 388H244Q250 388 250 380V290Q250 274 230 264Z" transform="translate(-6 6)"/>
+  </g>
+  <circle class="theme-hub" cx="256" cy="256" r="40"/>
+  <circle cx="256" cy="256" r="13" fill="#918072"/>
 </svg>
