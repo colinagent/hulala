@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url)
 const packageRoot = join(repositoryRoot, 'packages', 'runtime')
 const pluginPackages = ['network-proxy', 'agent-loop-selector', 'agent-loop-pi', 'agent-loop-codex', 'agent-loop-claude'] as const
 const desktopHostPackages = [
+  '@deepseek-ai/dsh-tool-subagent/model-selection-settings',
   '@deepseek-ai/dsh-authorization',
   '@deepseek-ai/dsh-storage',
   '@deepseek-ai/dsh-storage-json',
@@ -15,7 +16,9 @@ const desktopHostPackages = [
   '@deepseek-ai/dsh-host-directory-picker-native',
   '@deepseek-ai/dsh-session-projection-cache',
   '@deepseek-ai/dsh-host-plugin-inventory',
-  '@deepseek-ai/dsh-host-apiproxy',
+  '@deepseek-ai/dsh-api-session-controller',
+  '@deepseek-ai/dsh-api-settings-controller',
+  '@deepseek-ai/dsh-api-workspace-controller',
   '@deepseek-ai/dsh-agent-presets',
 ] as const
 
@@ -148,7 +151,7 @@ const baseManifest = JSON.parse(await readFile(baseManifestPath, 'utf8')) as {
 }
 if (!baseManifest.dsh?.bundle?.patch) throw new Error('dsh-base has no bundle patch')
 await collectNames(join(dirname(baseManifestPath), baseManifest.dsh.bundle.patch))
-const presetRoot = join(dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'config', 'agent-presets')
+const presetRoot = join(dirname(require.resolve('@deepseek-ai/dsh-agent-presets/package.json')), 'presets')
 for (const preset of await readdir(presetRoot)) {
   const config = join(presetRoot, preset, 'agent.cordis.yml')
   if (await Bun.file(config).exists()) await collectNames(config)
@@ -182,6 +185,27 @@ const hostBuild = await Bun.build({
   plugins: [{
     name: 'hulala-portable-sharp-binding',
     setup(build) {
+      build.onLoad({ filter: /[\\/]@deepseek-ai[\\/]dsh-terminal-bash[\\/]lib[\\/]index\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = 'createRequire(import.meta.url)("@xterm/headless")'
+        if (!source.includes(expected)) throw new Error('terminal-bash headless module expression changed')
+        return {
+          contents: source.replace(expected, 'createRequire(process.execPath)(process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@xterm/headless/lib-headless/xterm-headless.js")'),
+          loader: 'js',
+        }
+      })
+      build.onLoad({ filter: /[\\/]@deepseek-ai[\\/]dsh-agent-presets[\\/]lib[\\/]index\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = 'fileURLToPath(new URL("../presets/", import.meta.url))'
+        if (!source.includes(expected)) throw new Error('agent-presets shipped root expression changed')
+        return {
+          contents: source.replace(expected, 'process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-agent-presets/presets"'),
+          loader: 'js',
+        }
+      })
+      // Resolve both staged upstream imports and local plugins from the same install.
+      // Scope identity is module-local in Harness 0.1.2.
+      build.onResolve({ filter: /^@deepseek-ai\//u }, ({ path }) => ({ path: require.resolve(path) }))
       build.onLoad({ filter: /[\\/]sharp[\\/]dist[\\/]sharp\.(?:cjs|mjs)$/u }, ({ path }) => path.endsWith('.mjs')
         ? {
             contents: `

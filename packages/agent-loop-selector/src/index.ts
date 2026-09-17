@@ -4,10 +4,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { EntryOptions, EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import type {} from '@deepseek-ai/dsh-host-apiproxy'
+import type {} from '@deepseek-ai/dsh-api-gateway'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
-import { settingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
+import { type SettingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
 export interface RuntimeDescriptor {
@@ -57,7 +57,7 @@ export interface RuntimeControl {
 const selectionKey = Symbol.for('hulala.agent-runtime-selection')
 const controlsKey = Symbol.for('hulala.agent-runtime-controls')
 const processStartedAt = new Date().toISOString()
-export const RUNTIME_SELECTION_SETTINGS_NAMESPACE = settingsNamespace('hulala-agent-runtime')
+export const RUNTIME_SELECTION_SETTINGS_NAMESPACE = 'hulala-agent-runtime' as SettingsNamespace
 
 export const RuntimeSelectionSettingsSchema = z.object({
   runtime: z.string().required(),
@@ -182,7 +182,7 @@ declare module '@deepseek-ai/cordis' {
  * Session state before the new factory resumes the current conversation.
  */
 export class AgentLoopSelector extends Service {
-  static inject = ['loader', 'workspaceRegistry', 'settings', 'agentDefaultModel', 'apiProxy']
+  static inject = ['loader', 'workspaceRegistry', 'settings', 'agentDefaultModel', 'typertGateway']
 
   static Config = z.object({
     defaultRuntime: z.string().default('pi'),
@@ -410,44 +410,18 @@ export class AgentLoopSelector extends Service {
   }
 
   private async nativeModelState(sessionId?: string): Promise<{ models: RuntimeModel[]; selection: RuntimeSelection }> {
+    const catalog = await this.ctx.typertGateway.invoke({
+      namespace: 'session', method: 'modelCatalog', args: {},
+    }) as { default: { provider: string; model: string; reasoningEffort?: string }; groups: unknown }
+    let selected = catalog.default
     if (sessionId !== undefined) {
-      const rpcId = crypto.randomUUID()
-      const response = await this.ctx.apiProxy.sessions.models({
-        type: 'client-request',
-        rpcId,
-        method: 'session.models',
-        payload: { sessionId },
-      } as never) as unknown as {
-        result: { ok: true; value: { current: { provider: string; model: string; reasoningEffort?: string }; groups: unknown } }
-          | { ok: false; error: { message: string } }
-      }
-      if (!response.result.ok) throw new Error(response.result.error.message)
-      return {
-        models: nativeRuntimeModels(response.result.value.groups),
-        selection: {
-          runtime: this.activeRuntime,
-          provider: response.result.value.current.provider,
-          model: response.result.value.current.model,
-          ...(response.result.value.current.reasoningEffort
-            ? { thinkingLevel: response.result.value.current.reasoningEffort }
-            : {}),
-        },
-      }
+      const listing = await this.ctx.typertGateway.invoke({
+        namespace: 'session', method: 'list', args: { _request: {} },
+      }) as { items: Array<{ sessionId: string; projections?: { values?: { modelSelection?: { next?: typeof selected | null } } } }> }
+      selected = listing.items.find(item => item.sessionId === sessionId)?.projections?.values?.modelSelection?.next ?? selected
     }
-
-    const rpcId = crypto.randomUUID()
-    const response = await this.ctx.apiProxy.llm.models({
-      type: 'client-request',
-      rpcId,
-      method: 'llm.models',
-      payload: {},
-    } as never) as unknown as {
-      result: { ok: true; value: { groups: unknown } } | { ok: false; error: { message: string } }
-    }
-    if (!response.result.ok) throw new Error(response.result.error.message)
-    const selected = this.ctx.agentDefaultModel.currentSelection()
     return {
-      models: nativeRuntimeModels(response.result.value.groups),
+      models: nativeRuntimeModels(catalog.groups),
       selection: {
         runtime: this.activeRuntime,
         provider: selected.provider,
@@ -471,21 +445,14 @@ export class AgentLoopSelector extends Service {
       })
       return
     }
-    const rpcId = crypto.randomUUID()
-    const response = await this.ctx.apiProxy.sessions.selectModel({
-      type: 'client-request',
-      rpcId,
-      method: 'session.selectModel',
-      payload: {
-        sessionId,
-        provider,
-        model,
+    await this.ctx.typertGateway.invoke({
+      namespace: 'session',
+      method: 'selectModel',
+      args: { request: {
+        sessionId, provider, model,
         ...(thinkingLevel ? { reasoningEffort: thinkingLevel } : {}),
-      },
-    } as never) as unknown as {
-      result: { ok: true; value: unknown } | { ok: false; error: { message: string } }
-    }
-    if (!response.result.ok) throw new Error(response.result.error.message)
+      } },
+    })
   }
 
 

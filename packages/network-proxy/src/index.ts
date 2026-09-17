@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { Context, Service } from '@deepseek-ai/cordis'
-import { settingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
+import { type SettingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import z from '@deepseek-ai/schemastery'
 import {
@@ -46,7 +46,7 @@ interface MacProxyConfig {
   warning?: string
 }
 
-const NS = settingsNamespace('hulala-network')
+const NS = 'hulala-network' as SettingsNamespace
 const TEST_URL = 'https://api.deepseek.com/models'
 const PROXY_KEYS = [
   'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
@@ -206,7 +206,7 @@ declare module '@deepseek-ai/cordis' {
 
 export class NetworkProxy extends Service {
   static inject = ['settings']
-  static Config = z.object({})
+  static Config: z<{}> = z.object({})
 
   private readonly originalFetch = globalThis.fetch
   private readonly originalDispatcher = getGlobalDispatcher()

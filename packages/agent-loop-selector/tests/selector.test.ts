@@ -38,15 +38,7 @@ function provideSelectionSettings(ctx: Context, initial: RuntimeSelection = { ru
     }),
   } as never)
   ctx.provide('agentDefaultModel', { saveSelection: async () => {} } as never)
-  ctx.provide('apiProxy', {
-    sessions: {
-      models: async () => ({ result: { ok: false, error: { message: 'session unavailable' } } }),
-      selectModel: async () => ({ result: { ok: false, error: { message: 'session unavailable' } } }),
-    },
-    llm: {
-      models: async () => ({ result: { ok: true, value: { groups: [] } } }),
-    },
-  } as never)
+  ctx.provide('typertGateway', { invoke: async () => ({ default: { provider: 'test', model: 'test' }, groups: [] }) } as never)
   return { writes, read: () => ({ ...value }) }
 }
 

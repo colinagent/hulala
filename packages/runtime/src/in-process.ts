@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
@@ -148,6 +148,7 @@ export async function bootRepositoryHarness(
   const paths = resolveRuntimePaths(options.paths)
   await ensureRuntimePaths(paths)
   const temporaryRoot = await mkdtemp(join(paths.runtimeDir, 'in-process-profile-'))
+  await symlink(join(resolve(options.repositoryRoot), 'node_modules'), join(temporaryRoot, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir')
   const rootConfig = join(temporaryRoot, 'cordis.yml')
   await writeFile(rootConfig, ROOT_CONFIG, { encoding: 'utf8', mode: 0o600 })
   const version = options.version ?? process.env.HULALA_VERSION ?? '0.1.0'
@@ -162,37 +163,29 @@ export async function bootRepositoryHarness(
     const base = bundlePatches(runtimeRequire, '@deepseek-ai/dsh-base')
     const hulala = createRepositoryHarnessPatch(options.repositoryRoot)
     const installAnchor = runtimeRequire.resolve('@deepseek-ai/dsh/package.json')
-    const shippedPresets = join(dirname(installAnchor), 'config', 'agent-presets')
-    const desktop = [
+    const host = [
       { id: 'hmr', disabled: true },
+      { id: 'plugin-package-inventory-deepseek', config: { enabled: false } },
+      { id: 'session-log-deepseek', config: { enabled: false } },
       { insert: [
-      { id: 'storage', name: '@deepseek-ai/dsh-storage' },
-      {
-        id: 'storage-json',
-        name: '@deepseek-ai/dsh-storage-json',
-        config: { root: join(paths.configDir, 'harness', 'storages') },
-      },
-      { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
-      { id: 'workspace', name: '@deepseek-ai/dsh-workspace' },
-      { id: 'directory-picker', name: '@deepseek-ai/dsh-host-directory-picker-native' },
-      {
-        id: 'session-projection-cache',
-        name: '@deepseek-ai/dsh-session-projection-cache',
-        config: { writeEveryEvents: 200, writeIntervalMs: 5_000 },
-      },
-      { id: 'plugin-inventory', name: '@deepseek-ai/dsh-host-plugin-inventory' },
-      { id: 'api-gateway', name: '@deepseek-ai/dsh-host-apiproxy' },
-      {
-        id: 'agent-presets',
-        name: '@deepseek-ai/dsh-agent-presets',
-        config: { default: 'standard', roots: [{ path: shippedPresets, trust: 'system' }] },
-      },
+        { id: 'subagent-model-selection-settings', name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings' },
+        { id: 'workspace', name: '@deepseek-ai/dsh-workspace' },
+        { id: 'directory-picker', name: '@deepseek-ai/dsh-host-directory-picker-native' },
+        { id: 'plugin-inventory', name: '@deepseek-ai/dsh-host-plugin-inventory' },
+        { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
+        { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
+        { id: 'workspace-controller', name: '@deepseek-ai/dsh-api-workspace-controller' },
+        {
+          id: 'agent-presets',
+          name: '@deepseek-ai/dsh-agent-presets',
+          config: { default: 'standard' },
+        },
       ] },
     ]
     ctx = await boot(
       BIN_NAME,
       rootConfig,
-      [...base, ...desktop, ...hulala],
+      [...base, ...host, ...hulala],
       (hostCtx) => {
         installPortableModuleResolver(hostCtx, runtimeRequire, installAnchor)
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([

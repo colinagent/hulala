@@ -76,7 +76,7 @@ test('boots the public Harness profile in the caller process', async () => {
   try {
     expect(runtime.state()).toBe('running')
     expect(runtime.ctx.get('sessions')).toBeDefined()
-    expect(runtime.ctx.get('apiProxy')).toBeDefined()
+    expect(runtime.ctx.get('sessionController')).toBeDefined()
     expect(runtime.ctx.get('authorization')).toBeDefined()
     expect(runtime.ctx.authorization.list().some(entry => entry.key === 'llm-pi-ai/openai-codex')).toBeTrue()
     expect(runtime.ctx.get('workspaceRegistry')).toBeDefined()

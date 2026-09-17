@@ -30,7 +30,7 @@ import {
   type ResumeAgentOptions,
 } from '@deepseek-ai/dsh-agent'
 import {
-  CallId,
+  ToolCallId,
   createAssistantMessage,
   createToolResultMessage,
   type ContentBlock,
@@ -149,7 +149,7 @@ function assistantBlocks(message: PiAssistantMessage): ContentBlock[] {
     if (block.type === 'toolCall') {
       return [{
         type: 'tool-call',
-        id: CallId(block.id),
+        id: ToolCallId(block.id),
         name: block.name,
         arguments: JSON.stringify(block.arguments),
       }]
@@ -195,7 +195,7 @@ export class HarnessSdkAgent implements Agent {
       discarded: message => dispatch.emit('agent/inbox/discarded', { message }),
       claimed: (message, turn) => dispatch.emit('agent/inbox/claimed', { message, turn }),
     })
-    this.turn = session.events.findLast(event => event.type === 'turn/start')?.data.turn ?? 0
+    this.turn = session.snapshotEvents().findLast(event => event.type === 'turn/start')?.data.turn ?? 0
     this.pi.subscribe(event => this.onPiEvent(event))
   }
 
@@ -325,7 +325,7 @@ export class HarnessSdkAgent implements Agent {
       this.session.append('tool/call', {
         turn: this.turn,
         step: this.step,
-        callId: CallId(event.toolCallId),
+        callId: ToolCallId(event.toolCallId),
         name: event.toolName,
         arguments: JSON.stringify(event.args),
       })
@@ -336,7 +336,7 @@ export class HarnessSdkAgent implements Agent {
         turn: this.turn,
         step: this.step,
         message: createToolResultMessage({
-          callId: CallId(event.toolCallId),
+          callId: ToolCallId(event.toolCallId),
           content: piResultContent(event.result),
           isError: event.isError,
         }),
