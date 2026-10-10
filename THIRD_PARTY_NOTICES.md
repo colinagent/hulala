@@ -27,7 +27,7 @@ See `vendor/README.md` for the package table and update procedure.
 
 - Packages: `@deepseek-ai/dsh`, Agent/session/Web packages, Cordis and
   Schemastery
-- Version: `0.1.1-rc.2` for Harness packages
+- Version: `0.1.5-rc.2` for Harness packages
 - License: MIT
 
 ## Pi Coding Agent
@@ -53,3 +53,10 @@ See `vendor/README.md` for the package table and update procedure.
 - Package: `undici` 8.9.0
 - Use: process-wide HTTP dispatcher and HTTP/HTTPS proxy support
 - License: MIT
+
+## Harness SDK inbox
+
+- Source: DeepSeek Harness `dsh-v0.1.5-rc.2`, `packages/core/agent-loop/src/inbox.ts`
+- Location: `packages/agent-loop-pi/src/inbox.ts`
+- License: MIT; the full upstream notice is retained in the file.
+- Reused for native SDK agents because the published package exposes the Inbox contract but not its durable implementation.

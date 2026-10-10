@@ -3,6 +3,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { type SettingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import z from '@deepseek-ai/schemastery'
+// Load the installed Undici implementation; Bun 1.4 provides a partial bare-specifier shim.
 import {
   Agent as UndiciAgent,
   EnvHttpProxyAgent,
@@ -10,7 +11,7 @@ import {
   getGlobalDispatcher,
   setGlobalDispatcher,
   type Dispatcher,
-} from 'undici'
+} from 'undici/index.js'
 
 export type ProxyMode = 'auto' | 'manual' | 'off'
 

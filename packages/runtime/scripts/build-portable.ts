@@ -2,6 +2,8 @@ import { chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:f
 import { createRequire } from 'node:module'
 import { basename, dirname, join } from 'node:path'
 
+if (!Bun.semver.satisfies(Bun.version, '>=1.4.2')) throw new Error('Harness portable builds require Bun >=1.4.2')
+
 const repositoryRoot = join(import.meta.dir, '..', '..', '..')
 const require = createRequire(import.meta.url)
 const packageRoot = join(repositoryRoot, 'packages', 'runtime')
@@ -16,11 +18,47 @@ const desktopHostPackages = [
   '@deepseek-ai/dsh-host-directory-picker-native',
   '@deepseek-ai/dsh-session-projection-cache',
   '@deepseek-ai/dsh-host-plugin-inventory',
+  '@deepseek-ai/dsh-client-connection',
+  '@deepseek-ai/dsh-client-file-upload',
   '@deepseek-ai/dsh-api-session-controller',
   '@deepseek-ai/dsh-api-settings-controller',
   '@deepseek-ai/dsh-api-workspace-controller',
   '@deepseek-ai/dsh-agent-presets',
 ] as const
+
+
+/** Keep upstream helper entrypoints relative to the installed portable Runtime. */
+function portableDependencyPlugin(): import('bun').BunPlugin {
+  return {
+    name: 'hulala-portable-dependency-paths',
+    setup(build) {
+      build.onLoad({ filter: /[\\/]undici[\\/]index\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = "const currentFilename = typeof __filename !== 'undefined' ? __filename : undefined"
+        if (!source.includes(expected)) throw new Error('Undici stack attribution expression changed')
+        return { contents: source.replace(expected, "const currentFilename = 'undici/index.js'"), loader: 'js' }
+      })
+      build.onLoad({ filter: /[\\/]dsh-subprocess-local[\\/]lib[\\/]runner-launch-[^/\\]+\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = 'return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner"))]'
+        if (!source.includes(expected)) throw new Error('Harness subprocess runner invocation changed')
+        return {
+          contents: source.replace(expected, 'return [process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/bin/" + (process.platform === "win32" ? "bun.exe" : "bun"), process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner.js"]'),
+          loader: 'js',
+        }
+      })
+      build.onLoad({ filter: /[\\/]dsh-session-persistence-jsonl[\\/]lib[\\/]index\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = 'new URL("./worker.cjs", import.meta.url)'
+        if (!source.includes(expected)) throw new Error('Harness persistence worker entry changed')
+        return {
+          contents: 'import { pathToFileURL as hulalaWorkerUrl } from "node:url";\n' + source.replace(expected, 'hulalaWorkerUrl(process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/worker.cjs")'),
+          loader: 'js',
+        }
+      })
+    },
+  }
+}
 
 async function bundleFile(entrypoint: string, outfile: string): Promise<void> {
   const result = await Bun.build({
@@ -28,6 +66,7 @@ async function bundleFile(entrypoint: string, outfile: string): Promise<void> {
     target: 'bun',
     minify: true,
     sourcemap: 'none',
+    plugins: [portableDependencyPlugin()],
   })
   if (!result.success || !result.outputs[0]) throw new AggregateError(result.logs, `failed to bundle ${entrypoint}`)
   await Bun.write(outfile, result.outputs[0])
@@ -182,7 +221,7 @@ const hostBuild = await Bun.build({
   target: 'bun',
   minify: true,
   sourcemap: 'none',
-  plugins: [{
+  plugins: [portableDependencyPlugin(), {
     name: 'hulala-portable-sharp-binding',
     setup(build) {
       build.onLoad({ filter: /[\\/]@deepseek-ai[\\/]dsh-terminal-bash[\\/]lib[\\/]index\.js$/u }, async ({ path }) => {
@@ -204,7 +243,7 @@ const hostBuild = await Bun.build({
         }
       })
       // Resolve both staged upstream imports and local plugins from the same install.
-      // Scope identity is module-local in Harness 0.1.2.
+      // Scope identity is module-local in Harness.
       build.onResolve({ filter: /^@deepseek-ai\//u }, ({ path }) => ({ path: require.resolve(path) }))
       build.onLoad({ filter: /[\\/]sharp[\\/]dist[\\/]sharp\.(?:cjs|mjs)$/u }, ({ path }) => path.endsWith('.mjs')
         ? {

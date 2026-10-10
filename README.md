@@ -160,6 +160,11 @@ Changes apply to subsequent requests without restarting Harness. `NO_PROXY`/`no_
 
 ## Development
 
+Use Bun 1.4.2 or newer for the Runtime. Run `bun install` to install the pinned
+development Bun used by `bun run` scripts. Harness is pinned to `0.1.5-rc.2`,
+the upstream default npm channel as of 2026-09-18. This is a release candidate;
+upstream has not published a non-prerelease stable release.
+
 ```bash
 npm run dev        # DeepSeek Harness + Vite HMR; Pi is the default Agent
 npm start          # build plugins and run Harness without Vite

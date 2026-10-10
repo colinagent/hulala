@@ -172,6 +172,8 @@ export async function bootRepositoryHarness(
         { id: 'workspace', name: '@deepseek-ai/dsh-workspace' },
         { id: 'directory-picker', name: '@deepseek-ai/dsh-host-directory-picker-native' },
         { id: 'plugin-inventory', name: '@deepseek-ai/dsh-host-plugin-inventory' },
+        { id: 'connection', name: '@deepseek-ai/dsh-client-connection' },
+        { id: 'file-uploads', name: '@deepseek-ai/dsh-client-file-upload' },
         { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
         { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
         { id: 'workspace-controller', name: '@deepseek-ai/dsh-api-workspace-controller' },

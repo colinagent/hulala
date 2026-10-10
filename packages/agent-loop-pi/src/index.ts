@@ -14,7 +14,6 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { Context, Service } from '@deepseek-ai/cordis'
 import {
-  Inbox,
   agentEvents,
   emitAgentEvent,
   type Agent,
@@ -37,13 +36,15 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import {
-  SessionPreparation,
   type Session,
   type SessionId,
   type UserMessage,
   type TurnEndReason,
 } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
+import { ReactLoopInbox } from './inbox.js'
+import { withStoredAgentSession } from './session.js'
+export { withStoredAgentSession } from './session.js'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { registerRuntimeControl, runtimeSelection, type RuntimeSelection } from '@hulala/dsh-agent-loop-selector'
 import type {} from '@hulala/dsh-network-proxy'
@@ -99,15 +100,6 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     piAgentLoop: PiAgentLoop
   }
-}
-
-/** Keep an unpublished Harness Session reserved through asynchronous publish. */
-export async function withSessionPreparation<T>(
-  preparation: SessionPreparation,
-  publish: (session: Session) => Promise<T>,
-): Promise<T> {
-  using ownedPreparation = preparation
-  return await publish(ownedPreparation.session)
 }
 
 function textOf(message: UserMessage): string {
@@ -172,7 +164,7 @@ export interface HarnessSdkSession {
 export class HarnessSdkAgent implements Agent {
   readonly scope: Scope
   readonly ctx: Context
-  readonly inbox: Inbox
+  readonly inbox: ReactLoopInbox
   private state: AgentStatus = 'idle'
   private activity: Promise<void> = Promise.resolve()
   private abortController: AbortController | undefined
@@ -186,15 +178,12 @@ export class HarnessSdkAgent implements Agent {
     readonly options: AgentOptions,
     readonly session: Session,
     private readonly pi: HarnessSdkSession,
+    parentAgent?: Agent,
   ) {
-    this.scope = createScope(rootCtx, this)
-    this.ctx = this.scope.ctx.extend({ agent: this })
+    this.scope = createScope(rootCtx, this, { parent: parentAgent })
+    this.ctx = this.scope.ctx
     const dispatch = agentEvents(rootCtx, this)
-    this.inbox = new Inbox(session, {
-      inserted: message => dispatch.emit('agent/inbox/inserted', { message }),
-      discarded: message => dispatch.emit('agent/inbox/discarded', { message }),
-      claimed: (message, turn) => dispatch.emit('agent/inbox/claimed', { message, turn }),
-    })
+    this.inbox = new ReactLoopInbox(rootCtx.sessionProjections, session, dispatch)
     this.turn = session.snapshotEvents().findLast(event => event.type === 'turn/start')?.data.turn ?? 0
     this.pi.subscribe(event => this.onPiEvent(event))
   }
@@ -311,6 +300,7 @@ export class HarnessSdkAgent implements Agent {
           content,
           source: { runtime: this.pi.runtime, provider: message.provider, model: message.model },
         }),
+        stream: [],
         usage: {
           inputTokens: message.usage.input,
           outputTokens: message.usage.output,
@@ -346,7 +336,7 @@ export class HarnessSdkAgent implements Agent {
 }
 
 export class PiAgentLoop extends Service implements AgentFactory {
-  static inject = ['agents', 'sessions', 'networkProxy']
+  static inject = ['agents', 'sessions', 'sessionProjections', 'networkProxy']
   static Config = z.object({})
 
   private readonly modelRuntimePromise = ModelRuntime.create()
@@ -568,20 +558,13 @@ export class PiAgentLoop extends Service implements AgentFactory {
   }
 
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
-    const preparation = SessionPreparation.create(this.ctx.sessions.prepare(options.sessionId, {
-      ...(options.seed === undefined ? {} : { seed: options.seed }),
-      ...(options.meta === undefined ? {} : { meta: options.meta }),
-    }))
-    return withSessionPreparation(preparation, session =>
-      this.createFromSession(ownerCtx, session, options.agentOptions ?? {}, options.setup, false))
+    return withStoredAgentSession(this.ctx, ownerCtx, options, (session, beforePublish) =>
+      this.createFromSession(ownerCtx, session, options.agentOptions ?? {}, options.setup, false, options.parentAgent, beforePublish))
   }
 
   async resume(ownerCtx: Context, options: ResumeAgentOptions): Promise<AgentHandle> {
-    const persistence = this.ctx.get('sessionPersistence')
-    if (persistence === undefined) throw new Error('cannot resume: session persistence is not configured')
-    const preparation = await persistence.prepare(options.resumeSessionId, options.signal)
-    return withSessionPreparation(preparation, session =>
-      this.createFromSession(ownerCtx, session, options.agentOptions ?? {}, options.setup, true))
+    return withStoredAgentSession(this.ctx, ownerCtx, options, (session, beforePublish) =>
+      this.createFromSession(ownerCtx, session, options.agentOptions ?? {}, options.setup, true, options.parentAgent, beforePublish))
   }
 
   private async createFromSession(
@@ -590,6 +573,8 @@ export class PiAgentLoop extends Service implements AgentFactory {
     options: AgentOptions,
     setup: AgentSetup | undefined,
     resume: boolean,
+    parentAgent: Agent | undefined,
+    beforePublish: () => Promise<void>,
   ): Promise<AgentHandle> {
     ownerCtx.fiber.assertActive()
     const cwd = session.header.cwd ?? process.cwd()
@@ -622,7 +607,7 @@ export class PiAgentLoop extends Service implements AgentFactory {
       provider: pi.model?.provider ?? options.provider,
       model: pi.model?.id ?? options.model,
       maxTokens: options.maxTokens,
-    }, session, native)
+    }, session, native, parentAgent)
     await pi.bindExtensions({ uiContext: this.extensionUi(agent), mode: 'print' })
 
     let detachSession: (() => void) | undefined
@@ -639,10 +624,11 @@ export class PiAgentLoop extends Service implements AgentFactory {
       })()),
     }
     try {
-      const commit = await setup?.(agent.ctx)
+      const commit = await setup?.(agent.ctx, agent)
       commit?.commit()
+      await beforePublish()
       detachSession = agent.ctx.sessions.enter(session)
-      detachAgent = this.ctx.agents.enter(agent, ownerCtx.agent)
+      detachAgent = this.ctx.agents.enter(agent, parentAgent)
       agent.ctx.sessions.announce(session)
       this.ctx.agents.announce(agent)
       emitAgentEvent(this.ctx, agent, 'agent/session-start', { source: resume ? 'resume' : 'startup' })

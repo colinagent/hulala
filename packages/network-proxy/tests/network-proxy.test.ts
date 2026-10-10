@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import test from 'node:test'
-import { fetch } from 'undici'
+import { fetch } from 'undici/index.js'
 import { createProxyDispatcher, parseMacosSystemProxy, proxyChildEnv, redactProxyUrl, resolveProxy, validateProxyUrl } from '../src/index.ts'
 
 test('manual mode overrides environment and redacts credentials', () => {

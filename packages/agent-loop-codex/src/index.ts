@@ -11,9 +11,9 @@ import {
   type CreateAgentOptions,
   type ResumeAgentOptions,
 } from '@deepseek-ai/dsh-agent'
-import { SessionPreparation, type Session } from '@deepseek-ai/dsh-session'
+import { type Session } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
-import { HarnessSdkAgent, withSessionPreparation, type HarnessSdkSession } from '@hulala/dsh-agent-loop-pi'
+import { HarnessSdkAgent, withStoredAgentSession, type HarnessSdkSession } from '@hulala/dsh-agent-loop-pi'
 import { registerRuntimeControl, runtimeSelection, type RuntimeSelection } from '@hulala/dsh-agent-loop-selector'
 import type {} from '@hulala/dsh-network-proxy'
 
@@ -322,7 +322,7 @@ class CodexSdkSession implements HarnessSdkSession {
 export interface Config { model?: string }
 
 export class CodexAgentLoop extends Service implements AgentFactory {
-  static inject = ['agents', 'sessions', 'networkProxy']
+  static inject = ['agents', 'sessions', 'sessionProjections', 'networkProxy']
   static Config = z.object({ model: z.string() }) as z<Config>
   private readonly server: CodexAppServer
   private readonly handles = new Set<AgentHandle>()
@@ -376,23 +376,16 @@ export class CodexAgentLoop extends Service implements AgentFactory {
   }
 
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
-    const preparation = SessionPreparation.create(this.ctx.sessions.prepare(options.sessionId, {
-      ...(options.seed === undefined ? {} : { seed: options.seed }),
-      ...(options.meta === undefined ? {} : { meta: options.meta }),
-    }))
-    return withSessionPreparation(preparation, session =>
-      this.create(ownerCtx, session, options.agentOptions ?? {}, options.setup, false))
+    return withStoredAgentSession(this.ctx, ownerCtx, options, (session, beforePublish) =>
+      this.create(ownerCtx, session, options.agentOptions ?? {}, options.setup, false, options.parentAgent, beforePublish))
   }
 
   async resume(ownerCtx: Context, options: ResumeAgentOptions): Promise<AgentHandle> {
-    const persistence = this.ctx.get('sessionPersistence')
-    if (persistence === undefined) throw new Error('cannot resume: session persistence is not configured')
-    const preparation = await persistence.prepare(options.resumeSessionId, options.signal)
-    return withSessionPreparation(preparation, session =>
-      this.create(ownerCtx, session, options.agentOptions ?? {}, options.setup, true))
+    return withStoredAgentSession(this.ctx, ownerCtx, options, (session, beforePublish) =>
+      this.create(ownerCtx, session, options.agentOptions ?? {}, options.setup, true, options.parentAgent, beforePublish))
   }
 
-  private async create(ownerCtx: Context, session: Session, options: AgentOptions, setup: AgentSetup | undefined, resume: boolean): Promise<AgentHandle> {
+  private async create(ownerCtx: Context, session: Session, options: AgentOptions, setup: AgentSetup | undefined, resume: boolean, parentAgent: Agent | undefined, beforePublish: () => Promise<void>): Promise<AgentHandle> {
     const selected = runtimeSelection()
     const models = await this.models()
     let model = (selected.runtime === 'codex' ? selected.model : undefined)
@@ -425,7 +418,7 @@ export class CodexAgentLoop extends Service implements AgentFactory {
       candidate => this.ensureSessionCurrent(candidate))
     this.nativeSessions.set(threadId, native)
     this.sessionsByHarnessId.set(session.id, native)
-    const agent = new HarnessSdkAgent(this.ctx, session.id, { provider: 'openai', model }, session, native)
+    const agent = new HarnessSdkAgent(this.ctx, session.id, { provider: 'openai', model }, session, native, parentAgent)
     native.bindAgent(agent)
     let detachSession: (() => void) | undefined
     let detachAgent: (() => void) | undefined
@@ -434,8 +427,9 @@ export class CodexAgentLoop extends Service implements AgentFactory {
       await agent.dispose(); this.nativeSessions.delete(threadId); this.sessionsByHarnessId.delete(session.id); detachAgent?.(); detachSession?.(); this.handles.delete(handle)
     })()) }
     try {
-      const commit = await setup?.(agent.ctx); commit?.commit()
-      detachSession = agent.ctx.sessions.enter(session); detachAgent = this.ctx.agents.enter(agent, ownerCtx.agent)
+      const commit = await setup?.(agent.ctx, agent); commit?.commit()
+      await beforePublish()
+      detachSession = agent.ctx.sessions.enter(session); detachAgent = this.ctx.agents.enter(agent, parentAgent)
       agent.ctx.sessions.announce(session); this.ctx.agents.announce(agent)
       emitAgentEvent(this.ctx, agent, 'agent/session-start', { source: resume ? 'resume' : 'startup' })
       this.handles.add(handle)
