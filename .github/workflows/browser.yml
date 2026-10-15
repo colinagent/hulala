@@ -8,12 +8,40 @@ on:
       - 'apps/workbench/**'
       - 'packages/**'
       - 'scripts/workbench/**'
+      - 'tests/browser/**'
+      - 'patches/**'
       - 'bun.lock'
       - 'package.json'
       - '.github/workflows/browser.yml'
 permissions:
   contents: read
 jobs:
+  browsers:
+    name: Chromium, Firefox and WebKit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      HULALA_NO_OPEN: '1'
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun node_modules/bun/install.js
+      - run: bun run build
+      - run: bunx tsc --noEmit -p tests/browser/tsconfig.json
+      - run: bunx playwright install --with-deps chromium firefox webkit
+      - run: bunx playwright test --config tests/browser/playwright.config.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure()
+        with:
+          name: browser-ui-failures
+          retention-days: 3
+          path: dist/browser-test-results/
   native:
     name: Native ${{ matrix.target }}
     strategy:

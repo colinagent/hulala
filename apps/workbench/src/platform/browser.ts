@@ -38,22 +38,22 @@ export function reserveWorkspacePage(): Window | null {
   return page
 }
 
-export async function openBrowserWorkspace(path: string, reserved?: Window | null): Promise<void> {
+export async function openBrowserWorkspace(path: string, reserved?: Window | null, file?: string): Promise<void> {
   const replaceCurrent = location.pathname === '/open'
   const existing = reservedPages.get(path)
   const hadReserved = reservedPages.delete(path)
   const page = replaceCurrent ? window : reserved !== undefined ? reserved : hadReserved ? existing ?? null : reserveWorkspacePage()
   try {
     const workspace = await browserJson<BrowserWorkspace>('/api/browser/workspaces', body({ path }))
-    const url = '/w/' + workspace.id
+    const url = '/w/' + workspace.id + (file ? '?' + new URLSearchParams({ file }) : '')
     if (page) { if (!page.closed) page.location.replace(url) }
     else window.dispatchEvent(new CustomEvent('hulala:open-blocked', { detail: { url, name: workspace.name } }))
   } catch (error) { if (page !== window) page?.close(); throw error }
 }
 
-export async function openRemoteWorkspace(host: SshHostPayload, path?: string, createName?: string): Promise<void> {
+export async function openRemoteWorkspace(host: SshHostPayload, path?: string, createName?: string, document?: { reserved: Window | null; file: string }): Promise<void> {
   if (!host.id) throw new Error('Choose a saved SSH host')
-  const page = location.pathname === '/open' ? window : reserveWorkspacePage()
+  const page = location.pathname === '/open' ? window : document ? document.reserved : reserveWorkspacePage()
   if (page && page !== window) { const status = page.document.querySelector('[role="status"]'); if (status) status.textContent = 'Connecting to ' + host.alias + '…' }
   try {
     let workspace: BrowserWorkspace
@@ -83,7 +83,7 @@ export async function openRemoteWorkspace(host: SshHostPayload, path?: string, c
         await browserJson('/api/browser/ssh/hosts/' + host.id + '/trust', body({ fingerprint: challenge.fingerprint })); trusted = true
       }
     }
-    const url = '/w/' + workspace.id
+    const url = '/w/' + workspace.id + (document ? '?' + new URLSearchParams({ file: document.file }) : '')
     if (page) { if (!page.closed) page.location.replace(url) }
     else window.dispatchEvent(new CustomEvent('hulala:open-blocked', { detail: { url, name: workspace.name } }))
   } catch (error) { if (page !== window) page?.close(); window.dispatchEvent(new CustomEvent('hulala:notice', { detail: { message: error instanceof Error ? error.message : String(error) } })); throw error }
@@ -119,7 +119,13 @@ export async function createBrowserPlatform(options: { workspaceId?: string; ref
   const readonlyExportBackup: WorkbenchPlatform['backup'] = { stage: () => { throw new Error('PDF render views cannot edit drafts') }, load: async () => [], flush: async () => ({}), delete: async () => { throw new Error('PDF render views cannot delete drafts') } }
   const { viewId, backup } = exportJob ? { viewId: crypto.randomUUID(), backup: readonlyExportBackup } : await createBrowserRecovery(id, prefix, browserJson)
   const stateKey = 'hulala.view.' + id
-  const saved = readStored<Data | null>(stateKey, null)
+  let saved = readStored<Data | null>(stateKey, null)
+  const initialFile = query.get('file')
+  if (initialFile && !options.reference && !exportJob) {
+    saved = { ...saved, tabs: [{ ...saved?.tabs?.[0], openEditors: [{ path: initialFile, pane: 'main', active: true }], openTools: [] }] }
+    query.delete('file')
+    history.replaceState(history.state, '', location.pathname + (query.size ? '?' + query : '') + location.hash)
+  }
   const connectionListeners = new Set<Parameters<WorkbenchPlatform['desktop']['onConnection']>[0]>()
   const eventListeners = new Set<Parameters<WorkbenchPlatform['desktop']['onEvent']>[0]>()
   const settingsListeners = new Set<Parameters<WorkbenchPlatform['settings']['onChanged']>[0]>()
@@ -136,6 +142,18 @@ export async function createBrowserPlatform(options: { workspaceId?: string; ref
   const scopedQuery = (path: string, value?: string) => `?workspaceId=${encode(workspace.id)}${value === undefined ? '' : '&path=' + encode(value)}`
   const session = (sessionId: string, path = '') => '/conversations/' + encode(sessionId) + path
   const unavailable = async (): Promise<never> => { throw new Error('This native capability is awaiting its browser adaptation.') }
+  const openHarnessDocument = async (path: string, payload?: object) => {
+    // Reserve during the click, before the Host resolves its native document.
+    const reserved = reserveWorkspacePage()
+    try {
+      const document = await api<{ path: string; directory: string }>(path, payload ? body(payload) : { method: 'POST' })
+      if (bootstrap.workspace.kind === 'remote') {
+        if (!bootstrap.remoteHost) throw new Error('The SSH host is unavailable')
+        await openRemoteWorkspace(bootstrap.remoteHost, document.directory, undefined, { reserved, file: document.path })
+      } else await openBrowserWorkspace(document.directory, reserved, document.path)
+      return { opened: true }
+    } catch (error) { reserved?.close(); throw error }
+  }
   const platform: WorkbenchPlatform = {
     kind: 'browser', platform: bootstrap.platform, isDev: false,
     getPath: async name => name === 'home' ? bootstrap.homeDir : name === 'userData' ? bootstrap.settingsRoot : (() => { throw new Error('Unknown system directory') })(),
@@ -339,13 +357,13 @@ export async function createBrowserPlatform(options: { workspaceId?: string; ref
         signOutOpenAICodex: () => api('/harness/provider-auth/openai-codex/sign-out', { method: 'POST' }),
         openOpenAICodexAuthorizationPage: async url => { const parsed = new URL(url); if (parsed.protocol !== 'https:' || !['auth.openai.com', 'chatgpt.com'].includes(parsed.hostname)) throw new Error('Invalid authorization page'); external(url) },
       },
-      settings: { describe: () => api('/harness/settings/describe'), mutate: input => api('/harness/settings/mutate', body(input)), openDocument: () => api('/harness/settings/open-document', { method: 'POST' }) },
+      settings: { describe: () => api('/harness/settings/describe'), mutate: input => api('/harness/settings/mutate', body(input)), openDocument: () => openHarnessDocument('/harness/settings/open-document') },
       llm: { providers: () => api('/harness/llm/providers'), discoverModels: input => api('/harness/llm/discover-models', body(input)) },
       credentials: { describe: refs => api('/harness/credentials/describe', body({ refs })), set: (ref, value) => api('/harness/credentials/set', body({ ref, value })), unset: ref => api('/harness/credentials/unset', body({ ref })) },
       agentPresets: {
         list: () => api('/harness/agent-presets'), read: agentPreset => api('/harness/agent-presets/read', body({ agentPreset })),
         copy: (from, agentPreset, name) => api('/harness/agent-presets/copy', body({ from, agentPreset, name })),
-        openDocument: agentPreset => api('/harness/agent-presets/open-document', body({ agentPreset })),
+        openDocument: agentPreset => openHarnessDocument('/harness/agent-presets/open-document', { agentPreset }),
         remove: agentPreset => api('/harness/agent-presets/remove', body({ agentPreset })),
       },
       listPlugins: () => api('/harness/plugins'),

@@ -14,6 +14,8 @@ import type { SessionAddress, SessionFollowFrame, SessionPage, ModelCatalog } fr
 import type { LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { AgentRegistry } from '@deepseek-ai/dsh-agent'
 import type { AgentPresets } from '@deepseek-ai/dsh-agent-presets'
+import type { SettingsProvider } from '@deepseek-ai/dsh-settings'
+import { dirname } from 'node:path'
 import type { AgentDefaultModelConfig } from '@deepseek-ai/dsh-agent-default-model'
 import type { SessionAssistantStreamBaseline } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { EventHub } from './events.ts'
@@ -26,6 +28,7 @@ export type RuntimeState = 'disabled' | 'starting' | 'running' | 'stopping' | 's
 export interface HarnessInProcessServices {
   agents?: AgentRegistry
   agentPresets?: AgentPresets
+  settings?: SettingsProvider
   agentDefaultModel?: AgentDefaultModelConfig
   llm?: LlmRuntime
   attachments?: AttachmentStore
@@ -212,7 +215,11 @@ export class HarnessApiAdapter {
 
   settingsDescribe(): Promise<unknown> { return this.call('settings/describe') }
   settingsMutate(payload: Record<string, unknown>): Promise<unknown> { return this.call('settings/mutate', payload) }
-  settingsOpenDocument(): Promise<unknown> { return this.call('settings/openSettingsDocument') }
+  async settingsOpenDocument(): Promise<{ path: string; directory: string }> {
+    const path = await this.services.settings?.prepareDocument()
+    if (!path) throw new HttpError(409, 'settings_document_unavailable', 'This settings provider has no local document')
+    return { path, directory: dirname(path) }
+  }
   llmProviders(): Promise<unknown> { return this.call<unknown[]>('llm/listConfigurableProviders').then(providers => ({ providers })) }
   llmDiscoverModels(payload: Record<string, unknown>): Promise<unknown> { const { settingsNs, ...request } = payload; return this.call('llm/discoverModels', { settingsNs, request }).then(models => ({ models })) }
   credentialsDescribe(payload: Record<string, unknown>): Promise<unknown> { return this.call('credentials/describe', payload).then(credentials => ({ credentials })) }
@@ -274,15 +281,18 @@ export class HarnessApiAdapter {
     throw new HttpError(409, 'provider_activation_failed', 'OpenAI Codex provider could not be activated for account authentication')
   }
   async agentPresetList(): Promise<unknown> {
-    const [roster, hasDocument] = await Promise.all([
-      this.call<Record<string, unknown>>('agentPresets/list'),
-      this.call<boolean>('settings/canOpenAgentPresetDirectory'),
-    ])
-    return { ...roster, hasDocument }
+    const roster = await this.call<Record<string, unknown>>('agentPresets/list')
+    return { ...roster, hasDocument: Boolean(this.services.agentPresets) }
   }
   agentPresetRead(payload: Record<string, unknown>): Promise<unknown> { return this.call('agentPresets/read', payload) }
   agentPresetCopy(payload: Record<string, unknown>): Promise<unknown> { const { agentPreset: id, ...rest } = payload; return this.call('agentPresets/copy', { ...rest, id }).then(() => ({ agentPreset: id })) }
-  agentPresetOpenDocument(payload: Record<string, unknown>): Promise<unknown> { return this.call('settings/openAgentPresetDirectory', payload) }
+  async agentPresetOpenDocument(payload: Record<string, unknown>): Promise<{ path: string; directory: string }> {
+    if (typeof payload.agentPreset !== 'string' || !payload.agentPreset.trim()) throw new HttpError(400, 'invalid_agent_preset', 'An Agent preset is required')
+    if (!this.services.agentPresets) throw new HttpError(503, 'runtime_unavailable', 'Agent presets are unavailable')
+    const preset = await this.services.agentPresets.resolve(payload.agentPreset)
+    if (preset.trust !== 'user') throw new HttpError(403, 'agent_preset_read_only', 'Built-in Agent presets are read-only; copy the preset before editing it')
+    return { path: preset.path, directory: dirname(preset.path) }
+  }
   agentPresetRemove(payload: Record<string, unknown>): Promise<unknown> { return this.call('agentPresets/deletePreset', { id: payload.agentPreset }).then(() => ({ removed: true })) }
   pluginInventory(): Promise<unknown> { return this.call('pluginInventory/list') }
 

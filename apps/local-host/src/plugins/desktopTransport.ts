@@ -30,6 +30,7 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
   const server = await createDesktopServer(config, {
     agents: ctx.get('agents'),
     agentPresets: ctx.get('agentPresets'),
+    settings: ctx.get('settings'),
     agentDefaultModel: ctx.get('agentDefaultModel'),
     llm: ctx.get('llm'),
     notifications: ctx.get('sessionController') ? createHarnessNotifications(ctx) : undefined,

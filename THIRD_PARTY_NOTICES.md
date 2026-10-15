@@ -29,6 +29,8 @@ See `vendor/README.md` for the package table and update procedure.
   Schemastery
 - Version: `0.1.5-rc.2` for Harness packages
 - License: MIT
+- Local patch: `patches/@deepseek-ai%2Fdsh-subprocess-local@0.1.5-rc.2.patch`
+  preserves the native subprocess runner's argument delimiter under Bun.
 
 ## Pi Coding Agent
 
@@ -45,7 +47,7 @@ See `vendor/README.md` for the package table and update procedure.
 ## Claude Agent SDK
 
 - Package: `@anthropic-ai/claude-agent-sdk` 0.3.232
-- License: commercial package terms; see the package's bundled `LICENSE.md`
+- License: commercial package terms; see the package's bundled `README.md`
 
 ## Undici
 

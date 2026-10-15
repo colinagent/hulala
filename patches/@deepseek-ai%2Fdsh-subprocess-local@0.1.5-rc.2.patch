@@ -1,0 +1,32 @@
+diff --git a/lib/runner-launch-COYGu0Dl.js b/lib/runner-launch-COYGu0Dl.js
+index fbd9735f8d5be5afeef095783b2dcced40f86874..678071dbfe85e4b4c07cb1250b266d1d2f4f5c59 100644
+--- a/lib/runner-launch-COYGu0Dl.js
++++ b/lib/runner-launch-COYGu0Dl.js
+@@ -1413,7 +1413,8 @@ function spawnRunnerInvocation() {
+ 	if ("pkg" in process) return [process.execPath];
+ 	/* v8 ignore next -- built-artifact smoke imports the emitted JavaScript runner entry;
+ 	* source-unit coverage cannot change import.meta.url. */
+-	if (extname(fileURLToPath(import.meta.url)) !== ".ts") return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner"))];
++	// Bun consumes the first --; retain the runner's private delimiter after it.
++	if (extname(fileURLToPath(import.meta.url)) !== ".ts") return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner")), ...process.versions.bun ? ["--"] : []];
+ 	return [
+ 		process.execPath,
+ 		"--import",
+@@ -1429,7 +1430,7 @@ function spawnRunnerInvocation() {
+ function runnerInvocationAvailable(invocation = spawnRunnerInvocation()) {
+ 	try {
+ 		if (isAbsolute(invocation[0])) accessSync(invocation[0], constants.X_OK);
+-		const entry = invocation.at(-1);
++		const entry = invocation.at(-1) === "--" ? invocation.at(-2) : invocation.at(-1);
+ 		if (entry !== void 0 && entry !== invocation[0] && isAbsolute(entry)) accessSync(entry, constants.R_OK);
+ 		return true;
+ 	} catch {
+@@ -1443,7 +1444,7 @@ function runnerInvocationAvailable(invocation = spawnRunnerInvocation()) {
+ * @returns environment for the runner before target state is restored.
+ */
+ function runnerEnvironment(selection, invocation) {
+-	const entry = invocation?.at(-1);
++	const entry = invocation?.at(-1) === "--" ? invocation.at(-2) : invocation?.at(-1);
+ 	const env = childEnv();
+ 	for (const name of Object.keys(env)) {
+ 		const normalized = name.toUpperCase();

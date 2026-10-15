@@ -40,10 +40,10 @@ function portableDependencyPlugin(): import('bun').BunPlugin {
       })
       build.onLoad({ filter: /[\\/]dsh-subprocess-local[\\/]lib[\\/]runner-launch-[^/\\]+\.js$/u }, async ({ path }) => {
         const source = await readFile(path, 'utf8')
-        const expected = 'return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner"))]'
+        const expected = 'return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner")), ...process.versions.bun ? ["--"] : []]'
         if (!source.includes(expected)) throw new Error('Harness subprocess runner invocation changed')
         return {
-          contents: source.replace(expected, 'return [process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/bin/" + (process.platform === "win32" ? "bun.exe" : "bun"), process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner.js"]'),
+          contents: source.replace(expected, 'return [process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/bin/" + (process.platform === "win32" ? "bun.exe" : "bun"), process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner.js", "--"]'),
           loader: 'js',
         }
       })
@@ -142,7 +142,12 @@ const hostDependencies = process.env.HULALA_PORTABLE_WORKBENCH === '1'
   : {}
 const dependencies = Object.fromEntries(Object.entries({ ...runtimeManifest.dependencies, ...hostDependencies }).filter(([name]) => !name.startsWith('@hulala/')))
 const lockBytes = await readFile(join(repositoryRoot, 'bun.lock'), 'utf8')
-const sourceLock = Bun.JSONC.parse(lockBytes) as { workspaces: unknown; packages: Record<string, [string, ...unknown[]]> }
+const sourceLock = Bun.JSONC.parse(lockBytes) as { workspaces: unknown; packages: Record<string, [string, ...unknown[]]>; patchedDependencies?: Record<string, string> }
+for (const path of Object.values(sourceLock.patchedDependencies || {})) {
+  const destination = join(output, path)
+  await mkdir(dirname(destination), { recursive: true })
+  await copyFile(join(repositoryRoot, path), destination)
+}
 // Retain the source lock's complete resolution/integrity graph. Unused entries
 // are harmless, while workspace links cannot appear in a portable install.
 const portableLock = { ...sourceLock,
@@ -156,6 +161,7 @@ await writeFile(join(output, 'package.json'), `${JSON.stringify({
   private: true,
   type: 'module',
   dependencies,
+  patchedDependencies: sourceLock.patchedDependencies,
 }, null, 2)}\n`)
 
 const installEnvironment = {

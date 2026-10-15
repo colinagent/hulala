@@ -179,7 +179,7 @@ test('Harness 0.1.5 Remote services preserve settings, history, and native appro
   const runtime = await module.bootRepositoryHarness({ repositoryRoot: publicRepository, paths: { root }, environment: { DSH_TELEMETRY_DISABLED: '1' } })
   const ctx = runtime.ctx as Context
   const notifications = createHarnessNotifications(ctx)
-  const harness = new HarnessApiAdapter({ typertGateway: ctx.typertGateway, notifications, sessions: ctx.sessions, sessionPersistence: ctx.sessionPersistence })
+  const harness = new HarnessApiAdapter({ typertGateway: ctx.typertGateway, notifications, sessions: ctx.sessions, sessionPersistence: ctx.sessionPersistence, agentPresets: ctx.agentPresets, settings: ctx.settings })
   const abort = new AbortController()
   try {
     const workspace = await harness.createWorkspace(root)
@@ -192,6 +192,14 @@ test('Harness 0.1.5 Remote services preserve settings, history, and native appro
     expect(await harness.listSubagents(sessionId)).toHaveProperty('entries')
     expect(await harness.agentPresetList()).toMatchObject({ hasDocument: true })
     expect(await harness.agentPresetRead({ agentPreset: 'standard' })).toHaveProperty('content')
+    await expect(harness.agentPresetOpenDocument({ agentPreset: 'standard' })).rejects.toThrow('read-only')
+    await harness.agentPresetCopy({ from: 'standard', agentPreset: 'browser-edit-test' })
+    const presetDocument = await harness.agentPresetOpenDocument({ agentPreset: 'browser-edit-test' })
+    expect(presetDocument.directory).toStartWith(root)
+    expect(await Bun.file(presetDocument.path).exists()).toBeTrue()
+    const settingsDocument = await harness.settingsOpenDocument()
+    expect(settingsDocument.directory).toStartWith(root)
+    expect(await Bun.file(settingsDocument.path).exists()).toBeTrue()
     expect(await harness.selectAgentPreset(sessionId, 'standard')).toEqual({ agentPreset: 'standard' })
     expect(await harness.llmProviders()).toHaveProperty('providers')
     const ref = 'HULALA_UPGRADE_TEST_KEY'

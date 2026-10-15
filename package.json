@@ -49,14 +49,18 @@
   },
   "devDependencies": {
     "@hulala/cordis": "*",
+    "@playwright/test": "1.64.1",
     "@types/node": "^24.0.0",
+    "bun": "1.4.2",
     "esbuild": "0.28.2",
     "tsx": "^4.20.0",
-    "typescript": "^7.0.0",
-    "bun": "1.4.2"
+    "typescript": "^7.0.0"
   },
   "engines": {
     "node": ">=24.0.0",
     "bun": ">=1.4.2"
+  },
+  "patchedDependencies": {
+    "@deepseek-ai/dsh-subprocess-local@0.1.5-rc.2": "patches/@deepseek-ai%2Fdsh-subprocess-local@0.1.5-rc.2.patch"
   }
 }
