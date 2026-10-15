@@ -1,10 +1,11 @@
 # Browser workbench
 
 The browser edition reuses Hulala's workbench UI and local Harness capabilities.
-It is being implemented in reviewed stages. The CLI now starts the browser
-workbench at `http://hulala.localhost:3210`. Each Workspace has its own browser
-tab and an isolated Harness process; views of the same Workspace share that
-process. Full Desktop parity and production distribution are still in progress.
+The CLI starts the browser workbench at `http://hulala.localhost:3210`.
+Each Workspace has its own browser tab and an isolated Harness process; views
+of the same Workspace share that
+process. The source, native packaging and installation tools are available;
+this browser release has not been published to npm or GitHub Releases.
 
 ## Development
 
@@ -142,9 +143,9 @@ During development, `HULALA_REMOTE_PACKAGES` points to directories named
 `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, or `win32-x64`, each
 containing a verified public remote Host package. Build a public portable Runtime,
 then run `bun scripts/workbench/remote-package.ts <runtime-directory>` to add the
-browser Host. Production platform-package delivery remains part of the distribution
-stage. Native SSH/package execution has been tested on macOS arm64; other targets
-remain unverified.
+browser Host. Published releases use the verified release-index download path
+described below. Native SSH/package execution is tested on macOS arm64/x64 and
+Linux arm64/x64. Windows SSH execution remains unverified.
 
 ## Browser settings and trusted plugins
 
@@ -155,8 +156,9 @@ by a watcher with a periodic check. Settings writes merge individual fields.
 
 The local service can prevent idle sleep while it runs, including after its
 browser tabs close. The UI reports the actual assertion or an unavailable/failed
-capability. macOS execution has been verified; Linux and Windows implementations
-still require native acceptance testing.
+capability. Installed-package checks exercise acquiring and releasing the native
+assertion. Linux systems that deny the inhibitor report an explicit error and
+retain the prior setting.
 
 Trusted plugins are installed, enabled, and stored per Workspace. Multiple views
 of one Workspace share one backend, its tasks and RPC state. UI modules and CSS
@@ -174,6 +176,9 @@ If browser preferences, IndexedDB or cross-tab broadcasts are blocked, the page
 reports the limitation and continues with in-memory view state and Host-backed
 drafts. Keep the page open while editing offline in this mode. Live Host view
 leases prevent another tab from claiming an active draft.
+The draft database opens in a Worker so a slow browser storage service cannot
+block the UI thread. Storage requests have bounded waits; invalid cached view
+identifiers are regenerated without deleting durable drafts.
 
 Browser new/close-tab, address, reload and page-zoom shortcuts remain native.
 The settings file supports application bindings for opening settings and searching
@@ -210,10 +215,11 @@ Bun executables require an explicitly pinned SHA-256. Build/installer metadata
 that npm omits is removed before inventory generation; the unpacked npm tarball
 is verified again against that same canonical inventory.
 
-macOS arm64 has passed native installed startup, npm global installation, fresh
-npx invocation with cache removal, bundled search, and SSH/SFTP acceptance.
-macOS x64, Linux arm64/x64 and Windows x64 are build targets awaiting native
-acceptance. Linux musl and Windows arm64 are not claimed as supported.
+Native package checks cover macOS arm64/x64, Linux arm64/x64 and Windows x64:
+installed startup, native SDK loading, default Agent sessions, npm global
+installation, fresh npx invocation with cache removal, bundled search, and
+install/restart/uninstall with user-data retention. SSH/SFTP checks also run on
+macOS and Linux. Linux musl and Windows arm64 are not claimed as supported.
 
 Local integrity verification rejects modified files, unexpected entries,
 duplicate manifest paths, path traversal, and symlinks. It verifies consistency
@@ -228,10 +234,27 @@ are not inputs to this build.
 
 ## Review and tests
 
+The [2026-10-16 acceptance run](https://github.com/colinagent/hulala/actions/runs/38811822425)
+for code revision `9af016c` passed all five native targets and both browser matrices.
+
 `check:workbench` runs source-boundary checks, strict type checks, the migrated
 Host/UI/contract tests, package-integrity tests, and a web/Host build. The Host
 integration tests boot the public Harness from this repository using temporary
 state and Workspace directories.
+
+The browser matrix runs Chromium, Edge, Firefox and WebKit on Linux, plus
+Chromium, Edge and Firefox on Windows. It covers folder-named tabs, settings
+documents, Chinese editing, streaming conversations, composer stability, denied
+browser storage, save failures and draft recovery. Run it locally with:
+
+```sh
+bunx playwright install chromium firefox webkit
+bunx playwright test --config tests/browser/playwright.config.ts
+```
+
+The current macOS check also exercises installed Chrome and Playwright WebKit.
+Current native Safari validation remains unverified; the automated matrix uses
+the WebKit engine.
 
 Historical tests for removed Agent modules and a superseded ban on native HTML
 selects were excluded. Tests no longer read external Agent documents or private
