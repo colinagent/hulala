@@ -44,6 +44,8 @@ jobs:
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Initialize the pinned development Bun
+        run: bun node_modules/bun/install.js
       - run: bun scripts/workbench/ci.ts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
