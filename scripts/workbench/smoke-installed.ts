@@ -82,12 +82,20 @@ try {
   if (!search.ok || !(await search.json() as any).items.some((item: any) => item.text.includes('BUNDLED_RIPGREP_OK'))) throw new Error('Packaged ripgrep search failed')
   const text = await readFile(join(root, 'workspaces/workspace/AGENTS.md'), 'utf8')
   if (!text) throw new Error('Installed default Workspace was not initialized')
+  const powerSetting = (idleSleepPolicy: string) => fetch(origin + '/api/browser/settings', {
+    method: 'PATCH', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ system: { power: { idleSleepPolicy } } }),
+  })
+  const awake = await powerSetting('whileAppRunning'), power = await awake.json() as any
+  const sleepPrevention = awake.ok && power.browserPower?.active ? 'acquired' : 'unavailable'
+  if (sleepPrevention !== 'acquired' && (process.platform !== 'linux' || awake.status !== 409 || power.code !== 'settings_not_saved')) throw new Error('Native sleep prevention did not report a valid result: ' + JSON.stringify(power))
+  const released = await powerSetting('off')
+  if (!released.ok || (await released.json() as any).browserPower?.active !== false) throw new Error('Native sleep prevention was not released')
   const repeat = Bun.spawn([executable, '--no-open'], { cwd: root, env: environment, stdout: 'pipe', stderr: 'pipe' })
   if (await repeat.exited !== 0) throw new Error(await new Response(repeat.stderr).text())
   const reused = await (await fetch(origin + '/api/hulala/health')).json() as any
   if (ready.pid !== reused.pid || ready.workbench.pid !== reused.workbench.pid) throw new Error('Duplicate launch did not reuse the service')
   console.log(JSON.stringify({ installed: true, version: manifest.version, target: manifest.target, coldStartMs,
-    runtimeWithoutNodeOrBunOnPath: true, arbitraryUnicodeCwd: true, repeatReusesHost: true, bundledSearch: true, sdkPluginImports: true, defaultAgentSession: true, browserOpensOnlyWhenReady: true }))
+    runtimeWithoutNodeOrBunOnPath: true, arbitraryUnicodeCwd: true, repeatReusesHost: true, bundledSearch: true, sdkPluginImports: true, defaultAgentSession: true, sleepPrevention, browserOpensOnlyWhenReady: true }))
 } finally {
   child.kill('SIGTERM')
   const timer = setTimeout(() => child.kill('SIGKILL'), 8000)

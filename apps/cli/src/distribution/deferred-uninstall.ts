@@ -3,6 +3,7 @@ import { closeSync, openSync } from 'node:fs'
 import { cp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { tmpdir } from 'node:os'
 import { Installation, installationReceipt, withInstallationLock } from './install.js'
 import { readdir } from 'node:fs/promises'
 import { removeCommandPath } from './path.js'
@@ -22,7 +23,7 @@ export async function deferWindowsUninstall(root: string, stateRoot: string): Pr
   await writeFile(pending, JSON.stringify({ format: 1, id, result }), { flag: 'wx', mode: 0o600 })
   const log = openSync(join(directory, 'helper.log'), 'a', 0o600)
   try {
-    const child = spawn(executable, ['__complete-uninstall', plan], { detached: true, stdio: ['ignore', log, log], windowsHide: true, env: process.env })
+    const child = spawn(executable, ['__complete-uninstall', plan], { cwd: tmpdir(), detached: true, stdio: ['ignore', log, log], windowsHide: true, env: process.env })
     await new Promise<void>((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject) })
     child.unref()
   } catch (error) { await rm(pending, { force: true }); throw error }
@@ -64,7 +65,9 @@ export async function completeDeferredUninstall(filename: string): Promise<void>
       // Windows keeps a mapped executable locked. A short-lived OS helper waits
       // for this process, then removes only its UUID-named temporary directory.
       const cleanup = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `Wait-Process -Id ${process.pid} -Timeout 60 -ErrorAction SilentlyContinue; if(!(Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue)){Remove-Item -LiteralPath $env:HULALA_UNINSTALL_CACHE -Recurse -Force}`], {
-        detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, HULALA_UNINSTALL_CACHE: directory },
+        // Do not retain the invoking project's directory as the working
+        // directory of a detached Windows process while it waits for exit.
+        cwd: tmpdir(), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, HULALA_UNINSTALL_CACHE: directory },
       })
       await new Promise<void>(resolve => { cleanup.once('spawn', resolve); cleanup.once('error', () => resolve()) })
       cleanup.unref()
