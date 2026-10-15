@@ -1,0 +1,8 @@
+{
+  // Configuration file schema version. Keep as 1 unless release notes say otherwise.
+  "version": 1,
+
+  // Optional absolute local path used when Hulala needs to open its default
+  // Workspace. Set this to null to use ~/hulala-workspace/workspace.
+  "defaultWorkspacePath": null
+}

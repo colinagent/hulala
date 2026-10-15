@@ -8,7 +8,7 @@ export async function startDetached(entryPath: string, paths: HulalaPaths): Prom
   await mkdir(paths.logs, { recursive: true })
   const log = openSync(paths.launcherLog, 'a')
   try {
-    const child = spawn(process.execPath, [entryPath, '__serve'], {
+    const child = spawn(process.execPath, [...(process.env.HULALA_PACKAGE_ROOT ? [] : [entryPath]), '__serve'], {
       detached: true,
       stdio: ['ignore', log, log],
       env: { ...process.env, HULALA_DAEMON: '1' },

@@ -1,0 +1,70 @@
+{
+  "unsaved": {
+    "title": "关闭且不保存？",
+    "body": "「{{title}}」有未保存的更改。现在关闭将丢弃这些编辑。",
+    "closeAnyway": "仍要关闭"
+  },
+  "rename": {
+    "title": "重命名",
+    "selected": "重命名所选条目",
+    "pathPrefix": "重命名：\n{{path}}"
+  },
+  "createWorkspace": {
+    "title": "新建 Workspace",
+    "description": "直接在所选计算机的 hulala-workspace 目录下创建 Workspace。",
+    "nameLabel": "Workspace 名称",
+    "namePlaceholder": "my-workspace",
+    "localTarget": "本机 · ~/hulala-workspace",
+    "remoteTarget": "远程：{{host}} · ~/hulala-workspace",
+    "create": "创建",
+    "connectRemote": "连接远程",
+    "changeRemote": "更换远程",
+    "useLocal": "使用本机"
+  },
+  "delete": {
+    "title": "删除",
+    "moveToTrash": "移到废纸篓",
+    "deletePermanently": "永久删除",
+    "file": "将文件移到废纸篓？\n\n{{path}}",
+    "folder": "将文件夹移到废纸篓？\n\n{{path}}\n\n其中所有内容也将被移动。",
+    "multi": "将 {{count}} 项移到废纸篓？",
+    "andMore": "…还有 {{count}} 项",
+    "folderContentsToo": "文件夹内容也将被移动。"
+  },
+  "importConflict": {
+    "title": "覆盖现有文件？",
+    "body": "拖放目标已包含 {{count}} 个冲突路径。\n\n目标：{{dir}}",
+    "more": "+ {{count}} 项",
+    "overwrite": "覆盖"
+  },
+  "remote": {
+    "alias": "别名",
+    "user": "用户",
+    "host": "主机",
+    "port": "端口",
+    "password": "密码",
+    "privateKey": "私钥",
+    "passwordKeep": "密码（留空保留已保存密码）",
+    "passphraseOptional": "口令（可选）",
+    "passphraseKeep": "口令（留空保留已保存口令）",
+    "choose": "选择",
+    "saving": "保存中…"
+  },
+  "excalidraw": {
+    "edit": "编辑 {{name}}",
+    "loading": "正在加载绘图…",
+    "create": "{{name}} — 点击创建",
+    "empty": "空白绘图 — 点击编辑",
+    "editReference": "编辑 Markdown 引用",
+    "invalidPath": "绘图路径无效，请引用工作区内的 .excalidraw 文件。",
+    "invalidFile": "此文件不是有效的 Excalidraw 绘图。",
+    "readFailed": "无法读取绘图，请检查文件和工作区连接。",
+    "saveFailed": "保存失败，编辑内容已保留，请重试。",
+    "conflict": "绘图已被其他编辑器修改，或在其他标签页中有未保存的修改。当前编辑已保留，请先另存副本再重新打开原文件。",
+    "loadFailed": "无法加载绘图编辑器，请关闭后再次点击绘图重试。",
+    "unsaved": "绘图有尚未保存的修改。",
+    "localFile": "保存到当前工作区中引用的文件",
+    "saving": "正在保存…",
+    "save": "保存"
+  }
+}

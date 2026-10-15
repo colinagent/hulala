@@ -1,30 +1,21 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { APP_AUTHORITY, APP_HOST, VERSION, WORKBENCH_PORT } from './constants.js'
-import { createPackagedHarnessPatch } from './profile.js'
 
 export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporaryDirectory: string }> {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), 'hulala-harness-'))
-  const patchPath = join(temporaryDirectory, 'profile.patch.json')
-  await writeFile(patchPath, JSON.stringify(createPackagedHarnessPatch()), 'utf8')
-
   const require = createRequire(import.meta.url)
-  const dshBin = require.resolve('@deepseek-ai/dsh/lib/bin.js')
-  const child = spawn(process.execPath, [
-    dshBin,
-    'web',
-    '--patch', patchPath,
-    '--host', APP_HOST,
-    '--port', String(WORKBENCH_PORT),
-    '--trusted-host', APP_AUTHORITY,
-    '--no-open',
-  ], {
+  const repositoryRoot = process.env.HULALA_REPOSITORY_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
+  const packageRoot = process.env.HULALA_PACKAGE_ROOT
+  const executable = packageRoot ? join(packageRoot, 'runtime/bin', process.platform === 'win32' ? 'bun.exe' : 'bun') : process.versions.bun ? process.execPath : require.resolve('bun/bin/bun.exe')
+  const child = spawn(executable, [packageRoot ? join(packageRoot, 'runtime/host/browser.js') : join(repositoryRoot, 'apps/local-host/src/browser-main.ts')], {
     stdio: 'inherit',
-    env: { ...process.env, HULALA_VERSION: VERSION },
+    env: { ...process.env, HULALA_VERSION: VERSION, HULALA_REPOSITORY_ROOT: repositoryRoot, HULALA_WORKBENCH_PORT: String(WORKBENCH_PORT) },
   })
 
   return { child, temporaryDirectory }

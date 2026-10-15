@@ -4,14 +4,26 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { connect } from 'node:net'
 import type { Duplex } from 'node:stream'
 
-import { getAutostartStatus, installAutostart, restartAutostart, type AutostartStatus, uninstallAutostart } from './autostart.js'
-import { APP_AUTHORITY, APP_HOST, APP_NAME, APP_PORT, APP_URL, CLOUD_URL, VERSION, WORKBENCH_PORT } from './constants.js'
+import { getAutostartStatus, installAutostart, type AutostartStatus, uninstallAutostart } from './autostart.js'
+import { APP_AUTHORITY, APP_HOST, APP_NAME, APP_PORT, APP_URL, HEALTH_URL, VERSION, WORKBENCH_PORT } from './constants.js'
 import { recoveryPage } from './recovery-page.js'
-import { rollbackManagedVersion } from './managed-runtime.js'
-import { applyManagedUpdate, checkForUpdate, type UpdateStatus } from './update.js'
+import { checkForUpdate, type UpdateStatus } from './update.js'
 import { WorkbenchController } from './workbench.js'
+import { launcherStateIdentity } from './paths.js'
+import { installationIdentity, prepareWorkbenchStop } from './lifecycle.js'
 
 const launcherStartedAt = new Date().toISOString()
+const localAuthorities = new Set([APP_AUTHORITY, new URL(HEALTH_URL).host])
+
+/** Keep both browser and command-line traffic on this launcher's local origins. */
+export function authorizeLocalRequest(request: IncomingMessage): string | undefined {
+  const host = request.headers.host
+  if (host === undefined || !localAuthorities.has(host)) return 'host rejected'
+  if (request.headers['sec-fetch-site'] === 'cross-site') return 'cross-site request rejected'
+  const origin = request.headers.origin
+  if (origin !== undefined && origin !== `http://${host}`) return 'origin rejected'
+  return undefined
+}
 
 function sendJson(response: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}): void {
   response.writeHead(status, {
@@ -21,17 +33,6 @@ function sendJson(response: ServerResponse, status: number, value: unknown, head
     ...headers,
   })
   response.end(JSON.stringify(value))
-}
-
-function localEntryCors(request: IncomingMessage): Record<string, string> {
-  if (request.headers.origin !== 'https://local.hulala.ai') return {}
-  return {
-    'access-control-allow-origin': 'https://local.hulala.ai',
-    'access-control-allow-methods': 'GET, HEAD, OPTIONS',
-    'access-control-allow-private-network': 'true',
-    'access-control-max-age': '600',
-    'vary': 'Origin',
-  }
 }
 
 async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -46,9 +47,8 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
 }
 
 export function authorizeServiceAction(request: IncomingMessage, actionToken: string): string | undefined {
-  if (request.headers['sec-fetch-site'] === 'cross-site') return 'cross-site request rejected'
-  const origin = request.headers.origin
-  if (origin !== undefined && origin !== new URL(APP_URL).origin) return 'origin rejected'
+  const requestError = authorizeLocalRequest(request)
+  if (requestError !== undefined) return requestError
   if (request.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     return 'content type must be application/json'
   }
@@ -93,7 +93,9 @@ function proxyUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): v
   socket.once('error', () => upstream.destroy())
 }
 
-export async function runLauncher(): Promise<number> {
+export async function runLauncher(options: { onReady?: () => void } = {}): Promise<number> {
+  const stateId = await launcherStateIdentity()
+  const installationId = await installationIdentity()
   const controller = new WorkbenchController()
   const actionToken = randomBytes(32).toString('base64url')
   let cachedAutostart: AutostartStatus | undefined
@@ -125,35 +127,36 @@ export async function runLauncher(): Promise<number> {
     },
     workbench: controller.status(),
     autostart: await autostartStatus(),
-    update: await updateStatus(),
+    update: cachedUpdate ?? { currentVersion: VERSION, available: false },
     localUrl: APP_URL,
-    cloudUrl: CLOUD_URL,
     actionToken,
+    protocol: 1,
   })
 
   const server = createServer((request, response) => {
     void (async () => {
       const path = new URL(request.url ?? '/', APP_URL).pathname
+      const requestError = authorizeLocalRequest(request)
+      if (requestError !== undefined) {
+        sendJson(response, 403, { error: requestError })
+        return
+      }
       if (path === '/api/hulala/health') {
-        if (request.method === 'OPTIONS') {
-          const headers = localEntryCors(request)
-          if (headers['access-control-allow-origin'] === undefined) { sendJson(response, 403, { error: 'origin rejected' }); return }
-          response.writeHead(204, headers)
-          response.end()
-          return
-        }
         if (request.method !== 'GET' && request.method !== 'HEAD') { sendJson(response, 405, { error: 'method not allowed' }); return }
         const payload = {
           name: APP_NAME,
+          stateId,
+          installationId,
+          protocol: 1,
           version: VERSION,
           pid: process.pid,
           startedAt: launcherStartedAt,
           workbench: controller.status(),
         }
         if (request.method === 'HEAD') {
-          response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...localEntryCors(request) })
+          response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
           response.end()
-        } else sendJson(response, 200, payload, localEntryCors(request))
+        } else sendJson(response, 200, payload)
         return
       }
       if (path === '/api/hulala/service') {
@@ -163,37 +166,14 @@ export async function runLauncher(): Promise<number> {
         if (authorizationError !== undefined) { sendJson(response, 403, { error: authorizationError }); return }
         try {
           const body = await readJson(request)
+          if (['stop', 'restart', 'shutdown'].includes(String(body.action)) && controller.isAvailable()) await prepareWorkbenchStop(body.force === true)
           if (body.action === 'start') await controller.start()
           else if (body.action === 'stop') await controller.stop()
           else if (body.action === 'restart') await controller.restart()
+          else if (body.action === 'shutdown') { sendJson(response, 200, { stopping: true }); setTimeout(() => requestShutdown?.(), 10).unref(); return }
           else if (body.action === 'autostart-install') { cachedAutostart = await installAutostart(); autostartCheckedAt = Date.now() }
           else if (body.action === 'autostart-uninstall') { cachedAutostart = await uninstallAutostart(); autostartCheckedAt = Date.now() }
           else if (body.action === 'check-update') { cachedUpdate = await updateStatus(true); updateCheckedAt = Date.now() }
-          else if (body.action === 'update') {
-            const autostart = await autostartStatus(true)
-            if (!autostart.installed) throw new Error('Enable start after login before updating the managed service')
-            const available = await updateStatus(true)
-            const targetVersion = process.env.HULALA_UPDATE_VERSION ?? available.latestVersion
-            if (targetVersion === undefined || (!available.available && process.env.HULALA_UPDATE_VERSION === undefined)) {
-              throw new Error('No newer Hulala version is available')
-            }
-            const packageSpec = process.env.HULALA_UPDATE_PACKAGE_SPEC ?? `hulala@${targetVersion}`
-            let switched = false
-            try {
-              await applyManagedUpdate(targetVersion, packageSpec)
-              switched = true
-              await restartAutostart()
-            } catch (error) {
-              if (switched) {
-                await rollbackManagedVersion()
-                await restartAutostart().catch(() => undefined)
-              }
-              throw error
-            }
-            sendJson(response, 200, { ...(await status()), update: { currentVersion: VERSION, latestVersion: targetVersion, available: false, restarting: true } })
-            setTimeout(() => requestShutdown?.(), 500).unref()
-            return
-          }
           else { sendJson(response, 400, { error: 'unsupported service action' }); return }
           sendJson(response, 200, await status())
         } catch (error) {
@@ -218,6 +198,7 @@ export async function runLauncher(): Promise<number> {
   })
 
   server.on('upgrade', (request, socket, head) => {
+    if (authorizeLocalRequest(request) !== undefined) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return }
     if (!controller.isAvailable()) { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return }
     proxyUpgrade(request, socket, head)
   })
@@ -226,7 +207,7 @@ export async function runLauncher(): Promise<number> {
     server.once('error', reject)
     server.listen(APP_PORT, APP_HOST, resolve)
   })
-  void controller.start().catch(error => console.error(`Workbench failed to start: ${error instanceof Error ? error.message : String(error)}`))
+  void controller.start().then(() => options.onReady?.()).catch(error => console.error(`Workbench failed to start: ${error instanceof Error ? error.message : String(error)}`))
   console.log(`Hulala launcher: ${APP_URL}`)
 
   return await new Promise<number>(resolve => {

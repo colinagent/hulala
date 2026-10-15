@@ -1,0 +1,18 @@
+{
+  "window": "窗口",
+  "settings": "设置",
+  "openConfigFiles": "打开配置文件",
+  "newWindow": "新建窗口",
+  "workspaceTab": {
+    "newTab": "新建标签页",
+    "closeTab": "关闭标签页",
+    "createWorkspace": "新建 Workspace",
+    "openFolder": "打开文件夹",
+    "connectRemote": "连接远程",
+    "recent": "最近",
+    "noRecentFolders": "无最近文件夹",
+    "noRecentRemotes": "无最近远程连接",
+    "showRightWorkspace": "打开右侧工作区",
+    "hideRightWorkspace": "关闭右侧工作区"
+  }
+}

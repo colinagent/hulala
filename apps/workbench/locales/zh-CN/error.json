@@ -1,0 +1,44 @@
+{
+  "startup": {
+    "title": "Hulala 启动失败",
+    "message": "请重新启动 Hulala。如果问题持续出现，请检查启动日志。你的设置和工作区文件已保留。"
+  },
+  "remote": {
+    "deleteHostFailed": "删除 SSH 主机失败",
+    "saveHostFailed": "保存 SSH 主机失败",
+    "aliasRequired": "别名为必填",
+    "hostRequired": "主机为必填",
+    "userRequired": "用户为必填",
+    "portNumber": "端口必须为数字",
+    "passwordRequired": "密码为必填",
+    "keyRequired": "私钥文件为必填",
+    "connectFailed": "远程连接失败"
+  },
+  "dirPicker": {
+    "pathRequired": "路径为必填",
+    "pathAbsolute": "路径必须为绝对路径",
+    "notDirectory": "路径不是目录",
+    "fileNameRequired": "文件名为必填",
+    "providerUnavailable": "提供方不可用",
+    "createDirFailed": "创建目录失败",
+    "writeFileFailed": "写入文件失败"
+  },
+  "workspace": {
+    "nameRequired": "Workspace 名称不能为空",
+    "nameInvalid": "Workspace 名称不能包含路径分隔符或控制字符",
+    "exists": "已存在同名 Workspace",
+    "createFailed": "创建 Workspace 失败",
+    "remoteConnectFailed": "无法连接到所选远程主机"
+  },
+  "main": {
+    "pathRequired": "路径为必填",
+    "pathAbsolute": "路径必须为绝对路径",
+    "windowNotFound": "未找到窗口",
+    "selectSshKey": "选择 SSH 私钥",
+    "specialDirWorkspace": "工作区",
+    "specialDirHome": "主目录",
+    "specialDirDesktop": "桌面",
+    "specialDirDownloads": "下载",
+    "specialDirRoot": "根目录"
+  }
+}

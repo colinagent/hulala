@@ -1,0 +1,36 @@
+{
+  // Configuration file schema version. Keep as 1 unless release notes say otherwise.
+  "version": 1,
+
+  // Default integrated terminal appearance and buffer settings.
+  "terminal": {
+    // Font family used by terminal panes. Keep monospace fonts first.
+    "fontFamily": "SF Mono, Menlo, Monaco, Consolas, \"Liberation Mono\", monospace",
+    // Terminal font size in pixels.
+    "fontSize": 13,
+    // Terminal color mode. Supported values: "dark" or "light".
+    "theme": "dark",
+    // Cursor shape: "block", "bar", or "underline".
+    "cursorStyle": "block",
+    "cursorBlink": true,
+    // Number of lines kept in scrollback history.
+    "scrollback": 5000
+  },
+
+  // Shell profiles shown by the terminal launcher.
+  // Leave `shell` empty in the default profile to let Hulala choose the OS default shell.
+  "profiles": [
+    {
+      "id": "default",
+      "name": "Default",
+      "shell": "",
+      "args": [],
+      "env": {},
+      "cwd": "",
+      "shellIntegration": true
+    }
+  ],
+
+  // Must match one of `profiles[].id`.
+  "defaultProfileId": "default"
+}

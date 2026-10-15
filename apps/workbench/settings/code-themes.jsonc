@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "builtInVersion": 10,
+  "themes": [
+    {
+      "id": "default-code-light",
+      "name": "Default Code Light",
+      "core": {
+        "brand": "#2f8f6b",
+        "highlight": "#2f8f6b",
+        "brandDark": "#17604d",
+        "background": "#f4f9f7",
+        "primeText": "#000000",
+        "secondaryText": "rgba(0,0,0,0.7)",
+        "onSurface": "#000000",
+        "onSurfaceMuted": "rgba(0,0,0,0.7)"
+      },
+      "tokens": {}
+    },
+    {
+      "id": "default-code-dark",
+      "name": "Default Code Dark",
+      "core": {
+        "brand": "#2f8f6b",
+        "highlight": "#2f8f6b",
+        "brandDark": "#17604d",
+        "background": "#282c34",
+        "primeText": "#ffffff",
+        "secondaryText": "rgba(255,255,255,0.7)",
+        "onSurface": "#000000",
+        "onSurfaceMuted": "rgba(0,0,0,0.7)"
+      },
+      "tokens": {}
+    }
+  ]
+}

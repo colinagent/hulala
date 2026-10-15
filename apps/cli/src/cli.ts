@@ -1,14 +1,13 @@
 import { fileURLToPath } from 'node:url'
 
-import { getAutostartStatus, installAutostart, restartAutostart, uninstallAutostart } from './autostart.js'
+import { getAutostartStatus, installAutostart, uninstallAutostart } from './autostart.js'
 import { APP_PORT, APP_URL, HEALTH_URL, VERSION } from './constants.js'
 import { openBrowser } from './browser.js'
 import { startDetached } from './daemon.js'
-import { portIsOccupied, probeHealth, waitForHealth } from './health.js'
+import { localFetch, portIsOccupied, probeHealth, waitForHealth, type HealthState } from './health.js'
 import { runLauncher } from './launcher.js'
-import { resolvePaths } from './paths.js'
-import { runWatchdog } from './watchdog.js'
-import { applyManagedUpdate, checkForUpdate } from './update.js'
+import { launcherStateIdentity, resolvePaths } from './paths.js'
+import { runDistributionCommand } from './distribution/commands.js'
 
 interface LaunchOptions {
   open: boolean
@@ -18,35 +17,47 @@ interface LaunchOptions {
 function usage(): string {
   return [
     'Usage: hulala [--no-open] [--foreground]',
-    '       hulala service status|start|stop|restart|install|uninstall|update',
+    '       hulala install|update|rollback|uninstall|doctor [options]',
+    '       hulala service status|start|stop|restart|shutdown|install|uninstall [--force]',
     '',
     'Starts the local Hulala workbench and opens:',
     `  ${APP_URL}`,
   ].join('\n')
 }
 
-async function serviceRequest(action: 'start' | 'stop' | 'restart' | 'update'): Promise<any> {
-  const statusResponse = await fetch(`${new URL(HEALTH_URL).origin}/api/hulala/service`, { cache: 'no-store' })
+async function serviceRequest(action: 'start' | 'stop' | 'restart' | 'shutdown', force = false): Promise<any> {
+  const health = await probeHealth()
+  if (!health) throw new Error('Hulala launcher is not running')
+  await assertCompatibleHealth(health, true)
+  const statusResponse = await localFetch(`${new URL(HEALTH_URL).origin}/api/hulala/service`, { cache: 'no-store' })
   if (!statusResponse.ok) throw new Error('Hulala launcher is not running')
   const state = await statusResponse.json() as { actionToken?: unknown }
   if (typeof state.actionToken !== 'string') throw new Error('Hulala launcher does not support service control')
-  const response = await fetch(`${new URL(HEALTH_URL).origin}/api/hulala/service`, {
+  const response = await localFetch(`${new URL(HEALTH_URL).origin}/api/hulala/service`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'origin': new URL(APP_URL).origin,
+      'origin': new URL(HEALTH_URL).origin,
       'x-hulala-token': state.actionToken,
     },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, force }),
   })
   const value = await response.json() as { error?: string }
   if (!response.ok) throw new Error(value.error ?? `Service request failed (${response.status})`)
   return value
 }
 
+async function assertCompatibleHealth(health: HealthState, control = false): Promise<void> {
+  if ((control ? health.protocol !== 1 : health.version !== VERSION) || health.stateId !== await launcherStateIdentity()) {
+    throw new Error(`Port ${APP_PORT} belongs to an incompatible Hulala instance or a different state directory. Stop that instance explicitly, or choose HULALA_PORT and HULALA_WORKBENCH_PORT.`)
+  }
+}
+
 async function runService(args: string[]): Promise<number> {
+  const force = args.includes('--force')
+  args = args.filter(value => value !== '--force')
   const command = args[0]
-  if (args.length !== 1 || !['status', 'start', 'stop', 'restart', 'install', 'uninstall', 'update'].includes(command ?? '')) {
+  if (args.length !== 1 || !['status', 'start', 'stop', 'restart', 'shutdown', 'install', 'uninstall'].includes(command ?? '')) {
     throw new Error(`Unknown service command: ${args.join(' ') || '(missing)'}\n\n${usage()}`)
   }
   if (command === 'install') {
@@ -64,21 +75,6 @@ async function runService(args: string[]): Promise<number> {
     console.log(JSON.stringify({ launcher: health ?? { state: 'stopped' }, autostart }, null, 2))
     return health === undefined ? 1 : 0
   }
-  if (command === 'update') {
-    if (await probeHealth() !== undefined) {
-      const value = await serviceRequest('update')
-      console.log(JSON.stringify(value.update, null, 2))
-      return 0
-    }
-    const autostart = await getAutostartStatus()
-    if (!autostart.installed) throw new Error('Install the managed service before updating it')
-    const update = await checkForUpdate()
-    if (!update.available || update.latestVersion === undefined) throw new Error(update.error ?? 'No newer Hulala version is available')
-    await applyManagedUpdate(update.latestVersion)
-    await restartAutostart()
-    console.log(`Hulala ${update.latestVersion} installed and restarting.`)
-    return 0
-  }
   if (command === 'start' && await probeHealth() === undefined) {
     const paths = resolvePaths()
     if (await portIsOccupied()) throw new Error(`Port ${APP_PORT} is already used by another program.`)
@@ -87,8 +83,8 @@ async function runService(args: string[]): Promise<number> {
     console.log(`Hulala is ready at ${APP_URL}`)
     return 0
   }
-  const value = await serviceRequest(command as 'start' | 'stop' | 'restart')
-  console.log(JSON.stringify(value.workbench, null, 2))
+  const value = await serviceRequest(command as 'start' | 'stop' | 'restart' | 'shutdown', force)
+  console.log(JSON.stringify(value.workbench ?? value, null, 2))
   return 0
 }
 
@@ -99,18 +95,32 @@ function parseLaunchOptions(args: string[]): LaunchOptions {
 }
 
 async function launch(options: LaunchOptions): Promise<number> {
-  const existing = await probeHealth()
+  let existing = await probeHealth()
+  if (existing) await assertCompatibleHealth(existing)
   if (existing === undefined) {
     if (await portIsOccupied()) {
-      throw new Error(`Port ${APP_PORT} is already used by another program. Stop it before starting Hulala.`)
+      // Another terminal may have won the loopback listener between our probe
+      // and connect. The listener is the exclusive launch lock; only its owner
+      // starts a Host. Reuse a compatible winner instead of reporting failure.
+      existing = await probeHealth()
+      if (!existing) throw new Error(`Port ${APP_PORT} is already used by another program. Stop it before starting Hulala.`)
+      await assertCompatibleHealth(existing)
     }
-    if (options.foreground) return await runLauncher()
-    const paths = resolvePaths()
-    await startDetached(fileURLToPath(import.meta.url), paths)
+    if (!existing && options.foreground) return await runLauncher({ onReady: () => {
+      if (options.open && process.env.HULALA_NO_OPEN !== '1') openBrowser(APP_URL)
+    } })
+    if (!existing) await startDetached(fileURLToPath(import.meta.url), resolvePaths())
     const ready = await waitForHealth()
     if (ready === undefined) {
-      throw new Error(`Hulala did not become ready. Check the log at ${paths.launcherLog}`)
+      throw new Error(`Hulala did not become ready. Check the log at ${resolvePaths().launcherLog}`)
     }
+    await assertCompatibleHealth(ready)
+    existing = ready
+  }
+
+  if (existing && existing.workbench?.state !== 'running') {
+    await serviceRequest('start')
+    if (await waitForHealth() === undefined) throw new Error('The browser workbench did not become ready')
   }
 
   if (options.open && process.env.HULALA_NO_OPEN !== '1') openBrowser(APP_URL)
@@ -119,8 +129,8 @@ async function launch(options: LaunchOptions): Promise<number> {
 }
 
 export async function runCli(args = process.argv.slice(2)): Promise<number> {
+  if (['install', 'update', 'rollback', 'uninstall', 'doctor'].includes(args[0] || '')) return runDistributionCommand(args[0]!, args.slice(1))
   if (args[0] === '__serve') return await runLauncher()
-  if (args[0] === '__watchdog') return await runWatchdog(fileURLToPath(import.meta.url))
   if (args[0] === 'service') return await runService(args.slice(1))
   if (args.includes('--version') || args.includes('-V')) { console.log(VERSION); return 0 }
   if (args.includes('--help') || args.includes('-h')) { console.log(usage()); return 0 }

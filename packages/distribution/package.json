@@ -1,0 +1,16 @@
+{
+  "name": "@hulala/distribution",
+  "version": "0.1.4",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./manifest": "./src/manifest.ts",
+    "./archive": "./src/archive.ts",
+    "./channels": "./src/channels.ts",
+    "./targets": "./src/targets.ts"
+  },
+  "dependencies": { "tar-stream": "3.2.2" },
+  "devDependencies": { "@types/bun": "1.3.14", "typescript": "5.9.3" },
+  "scripts": { "typecheck": "tsc --noEmit" }
+}

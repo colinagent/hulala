@@ -1,0 +1,44 @@
+{
+  "startup": {
+    "title": "Hulala could not start",
+    "message": "Please restart Hulala. If the problem persists, check the startup log for details. Your settings and workspace files have been preserved."
+  },
+  "remote": {
+    "deleteHostFailed": "Failed to delete SSH host",
+    "saveHostFailed": "Failed to save SSH host",
+    "aliasRequired": "Alias is required",
+    "hostRequired": "Host is required",
+    "userRequired": "User is required",
+    "portNumber": "Port must be a number",
+    "passwordRequired": "Password is required",
+    "keyRequired": "Private key file is required",
+    "connectFailed": "Remote connect failed"
+  },
+  "dirPicker": {
+    "pathRequired": "Path is required",
+    "pathAbsolute": "Path must be absolute",
+    "notDirectory": "Path is not a directory",
+    "fileNameRequired": "File name is required",
+    "providerUnavailable": "Provider unavailable",
+    "createDirFailed": "Failed to create directory",
+    "writeFileFailed": "Failed to write file"
+  },
+  "workspace": {
+    "nameRequired": "Workspace name is required",
+    "nameInvalid": "Workspace name cannot contain path separators or control characters",
+    "exists": "A Workspace with this name already exists",
+    "createFailed": "Failed to create Workspace",
+    "remoteConnectFailed": "Failed to connect to the selected remote host"
+  },
+  "main": {
+    "pathRequired": "Path is required",
+    "pathAbsolute": "Path must be absolute",
+    "windowNotFound": "Window not found",
+    "selectSshKey": "Select SSH Private Key",
+    "specialDirWorkspace": "Workspace",
+    "specialDirHome": "Home",
+    "specialDirDesktop": "Desktop",
+    "specialDirDownloads": "Downloads",
+    "specialDirRoot": "Root"
+  }
+}

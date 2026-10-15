@@ -1,0 +1,57 @@
+{
+  "landing": {
+    "openFolder": "Open Folder",
+    "connectRemote": "Connect Remote"
+  },
+  "pinnedFile": "Pinned file",
+  "returnPinnedToEditor": "Return {{title}} to editor",
+  "editorPane": {
+    "moveRight": "Move to Right",
+    "moveMain": "Move to Main",
+    "outline": "Outline",
+    "activity": "Activity",
+    "dropRight": "Move to Right"
+  },
+  "noFolder": "No folder",
+  "connection": {
+    "connected": "Connected",
+    "connecting": "Connecting...",
+    "reconnecting": "Reconnecting...",
+    "disconnected": "Disconnected"
+  },
+  "dirPicker": {
+    "selectDirectory": "Select Directory",
+    "saveFile": "Save File",
+    "save": "Save",
+    "ok": "OK",
+    "close": "Close",
+    "recent": "Recent",
+    "saveAs": "Save as",
+    "working": "Working...",
+    "switchDirectory": "Switch Directory",
+    "openFolder": "Open Folder",
+    "subtitleLocal": "Local Workspace",
+    "subtitleRemote": "Remote Workspace",
+    "subtitleNewLocalTab": "New Local Workspace Tab"
+  },
+  "remote": {
+    "title": "Remote SSH",
+    "add": "Add",
+    "back": "Back",
+    "close": "Close",
+    "searchPlaceholder": "Search host...",
+    "loading": "Loading...",
+    "noHosts": "No hosts found",
+    "edit": "Edit",
+    "delete": "Delete",
+    "authKey": "key",
+    "authPassword": "password"
+  },
+  "tab": {
+    "newTab": "New Tab",
+    "welcome": "Welcome",
+    "unsavedChanges": "Unsaved changes",
+    "desktopSettings": "Desktop",
+    "settings": "Settings"
+  }
+}

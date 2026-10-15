@@ -15,5 +15,6 @@ export function openBrowser(url: string, platform: NodeJS.Platform = process.pla
   const launch = browserLaunch(url, platform)
   const child = spawn(launch.command, launch.args, { detached: true, stdio: 'ignore' })
   child.on('error', error => console.warn(`Hulala could not open the browser automatically: ${error.message}`))
+  child.on('exit', code => { if (code !== null && code !== 0) console.warn(`Browser launcher exited with code ${code}. Open ${url}`) })
   child.unref()
 }

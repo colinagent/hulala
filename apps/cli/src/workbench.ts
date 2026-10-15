@@ -107,6 +107,12 @@ export class WorkbenchController {
     while (Date.now() < deadline && this.child === child) {
       const health = await probeHealth(this.healthUrl, 700)
       if (health !== undefined) {
+        if (health.pid !== child.pid || health.version !== VERSION) {
+          this.error = 'Workbench health belongs to a different process or version'
+          await this.stopNow()
+          this.state = 'crashed'
+          throw new Error(this.error)
+        }
         this.startedAt = health.startedAt
         this.state = 'running'
         return

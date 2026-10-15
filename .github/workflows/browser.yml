@@ -1,0 +1,56 @@
+name: Browser workbench
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/cli/**'
+      - 'apps/local-host/**'
+      - 'apps/workbench/**'
+      - 'packages/**'
+      - 'scripts/workbench/**'
+      - 'bun.lock'
+      - 'package.json'
+      - '.github/workflows/browser.yml'
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: darwin-arm64
+          - os: macos-15-intel
+            target: darwin-x64
+          - os: ubuntu-24.04
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: windows-2025
+            target: win32-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      HULALA_CI_TARGET: ${{ matrix.target }}
+      HULALA_NO_OPEN: '1'
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun scripts/workbench/ci.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: browser-${{ matrix.target }}
+          retention-days: 3
+          path: |
+            dist/ci/${{ matrix.target }}/reports/
+            dist/ci/${{ matrix.target }}/packages/*.tar.gz
+            dist/ci/${{ matrix.target }}/packages/*.sha256

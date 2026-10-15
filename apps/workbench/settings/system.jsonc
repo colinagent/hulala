@@ -1,0 +1,22 @@
+{
+  // Configuration file schema version. Keep as 1 unless release notes say otherwise.
+  "version": 1,
+
+  // Runtime logging. Enable temporarily when diagnosing desktop issues.
+  "logging": {
+    "enabled": false,
+    // Common values: "debug", "info", "warn", "error".
+    "level": "info"
+  },
+
+  // Extra diagnostics collection/reporting switches.
+  "diagnostics": {
+    "enabled": false
+  },
+
+  // Power management while Hulala is running.
+  "power": {
+    // off | whileAppRunning
+    "idleSleepPolicy": "off"
+  }
+}

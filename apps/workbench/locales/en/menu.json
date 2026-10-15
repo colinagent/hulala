@@ -1,0 +1,18 @@
+{
+  "window": "Window",
+  "settings": "Settings",
+  "openConfigFiles": "Open Config Files",
+  "newWindow": "New Window",
+  "workspaceTab": {
+    "newTab": "New tab",
+    "closeTab": "Close tab",
+    "createWorkspace": "New Workspace",
+    "openFolder": "Open Folder",
+    "connectRemote": "Connect Remote",
+    "recent": "Recent",
+    "noRecentFolders": "No recent folders",
+    "noRecentRemotes": "No recent remotes",
+    "showRightWorkspace": "Open right workspace",
+    "hideRightWorkspace": "Close right workspace"
+  }
+}

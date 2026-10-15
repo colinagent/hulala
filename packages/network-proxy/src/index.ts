@@ -3,6 +3,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { type SettingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import z from '@deepseek-ai/schemastery'
+import { createNativeProxyFetch } from './native-fetch.js'
 // Load the installed Undici implementation; Bun 1.4 provides a partial bare-specifier shim.
 import {
   Agent as UndiciAgent,
@@ -196,7 +197,7 @@ export function createProxyDispatcher(resolved: ResolvedProxy): Dispatcher {
     : new EnvHttpProxyAgent({
       httpProxy: resolved.httpProxy,
       httpsProxy: resolved.httpsProxy,
-      noProxy: resolved.noProxy,
+      noProxy: resolved.noProxy?.split(/[,\s]+/).includes('*') ? '*' : ['localhost', '127.0.0.1', '[::1]', resolved.noProxy || ''].join(','),
       allowH2: false,
     })
 }
@@ -211,6 +212,7 @@ export class NetworkProxy extends Service {
 
   private readonly originalFetch = globalThis.fetch
   private readonly originalDispatcher = getGlobalDispatcher()
+  private readonly lifetime = new AbortController()
   private readonly dispatchers = new Set<Dispatcher>()
   private readonly listeners = new Set<(state: ProxyState) => void>()
   private readonly scope: SettingsScope<ProxySettings>
@@ -232,9 +234,12 @@ export class NetworkProxy extends Service {
     timer.unref()
     ctx.effect(() => async () => {
       clearInterval(timer)
+      this.lifetime.abort(new DOMException('The Host is stopping.', 'AbortError'))
       globalThis.fetch = this.originalFetch
       setGlobalDispatcher(this.originalDispatcher)
-      await Promise.allSettled([...this.dispatchers].map(dispatcher => dispatcher.close()))
+      // Host shutdown must abort owned streams. Graceful close can otherwise
+      // wait forever for a model stream while its Agent is awaiting disposal.
+      await Promise.allSettled([...this.dispatchers].map(dispatcher => dispatcher.destroy()))
     }, 'networkProxy.lifecycle()')
   }
 
@@ -293,7 +298,9 @@ export class NetworkProxy extends Service {
     const dispatcher = createProxyDispatcher(resolved)
     this.dispatchers.add(dispatcher)
     setGlobalDispatcher(dispatcher)
-    globalThis.fetch = undiciFetch as unknown as typeof globalThis.fetch
+    globalThis.fetch = process.versions.bun
+      ? createNativeProxyFetch(this.originalFetch, resolved.mode === 'off' ? {} : resolved, this.lifetime.signal)
+      : undiciFetch as unknown as typeof globalThis.fetch
   }
 
   private installWebApi(ctx: Context): void {

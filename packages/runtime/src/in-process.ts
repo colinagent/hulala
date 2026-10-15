@@ -28,6 +28,8 @@ export interface InProcessHarnessOptions {
   paths?: Partial<RuntimePaths> & { root?: string }
   version?: string
   environment?: Record<string, string | undefined>
+  /** A shared native credential document; settings and sessions can remain isolated. */
+  credentialsPath?: string
 }
 
 /** In-process public Runtime consumed by the compiled private Desktop Host. */
@@ -187,7 +189,7 @@ export async function bootRepositoryHarness(
     ctx = await boot(
       BIN_NAME,
       rootConfig,
-      [...base, ...host, ...hulala],
+      [...base, ...host, ...hulala, ...(options.credentialsPath ? [{ id: 'credentials', config: { path: resolve(options.credentialsPath) } }] : [])],
       (hostCtx) => {
         installPortableModuleResolver(hostCtx, runtimeRequire, installAnchor)
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([
