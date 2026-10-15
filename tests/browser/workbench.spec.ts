@@ -33,17 +33,19 @@ test.afterAll(async () => {
 })
 
 test('workspace tabs, editing/reload and streaming composer remain stable', async ({ page, context }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript(workspaceId => {
+    const viewKey = 'hulala.view-id.' + workspaceId
+    if (!sessionStorage.getItem(viewKey)) sessionStorage.setItem(viewKey, 'corrupt-view-id')
     Reflect.set(window, '__hulalaMainJournalOpens', 0)
-    const open = indexedDB.open.bind(indexedDB)
-    Object.defineProperty(indexedDB, 'open', { configurable: true, value: (name: string, version?: number) => {
+    const open = IDBFactory.prototype.open
+    Object.defineProperty(IDBFactory.prototype, 'open', { configurable: true, value: function(this: IDBFactory, name: string, version?: number) {
       if (name.startsWith('hulala.drafts.')) {
         Reflect.set(window, '__hulalaMainJournalOpens', Number(Reflect.get(window, '__hulalaMainJournalOpens')) + 1)
         throw new Error('Draft database must open outside the UI thread')
       }
-      return open(name, version)
+      return open.call(this, name, version)
     } })
-  })
+  }, fixture.workspaceId)
   await page.goto(fixture.url)
   await expect(page).toHaveTitle('workspace · Hulala')
   await page.getByText('Browser QA.md', { exact: true }).dblclick()
@@ -96,6 +98,7 @@ test('blocked browser storage preserves drafts and settings dialogs stay usable'
     for (const name of ['localStorage', 'sessionStorage', 'indexedDB']) Object.defineProperty(window, name, { configurable: true, get() { throw new DOMException('Synthetic denied storage', 'SecurityError') } })
     Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
     Object.defineProperty(window, 'BroadcastChannel', { configurable: true, value: undefined })
+    Object.defineProperty(window, 'Worker', { configurable: true, value: undefined })
   })
   const page = await context.newPage()
   try {

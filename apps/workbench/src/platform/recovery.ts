@@ -11,7 +11,8 @@ const keyFor = (identity: RecoveryBackupIdentity) => identity.workspaceTabId + '
 export async function createBrowserRecovery(workspaceId: string, prefix: string, json: JsonRequest): Promise<{ viewId: string; backup: WorkbenchPlatform['backup'] }> {
   const sessionKey = 'hulala.view-id.' + workspaceId
   const lockPrefix = 'hulala.view.' + workspaceId + '.'
-  let viewId = sessionStore.getItem(sessionKey) || crypto.randomUUID()
+  const storedView = sessionStore.getItem(sessionKey)
+  let viewId = storedView && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(storedView) ? storedView : crypto.randomUUID()
   const acquire = (id: string) => new Promise<boolean>((resolve, reject) => {
     let settled = false
     const timer = setTimeout(() => { settled = true; reject(new Error('Browser view coordination did not respond')) }, 2500)

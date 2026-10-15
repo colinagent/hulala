@@ -7,7 +7,7 @@ export interface BrowserJournal { read(): Promise<JournalEntry[]>; put(entry: Jo
 
 /** IndexedDB initialization can block Firefox's main thread on a new profile. */
 export async function openBrowserJournal(workspaceId: string): Promise<BrowserJournal> {
-  if (typeof indexedDB === 'undefined') throw new Error('Browser draft storage is unavailable')
+  if (typeof Worker === 'undefined') throw new Error('Browser draft storage is unavailable')
   const worker = new Worker(new URL('./journal.worker.ts', import.meta.url), { type: 'module' })
   let next = 0, closed = false
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>()
