@@ -112,7 +112,13 @@ export class Installation {
       await verifyPackage(staging)
       await validate(staging, manifest.version)
       try { await rename(staging, destination) }
-      catch (error) { if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code || '')) throw error; await verifyInstalled(this.root, version) }
+      catch (error) {
+        const collision = ['EEXIST', 'ENOTEMPTY', ...(process.platform === 'win32' ? ['EPERM'] : [])].includes((error as NodeJS.ErrnoException).code || '')
+        if (!collision) throw error
+        // Windows reports an occupied directory as EPERM. Only accept it when
+        // another installer already committed this exact verified package.
+        try { await verifyInstalled(this.root, version) } catch { throw error }
+      }
       return version
     } finally { await rm(staging, { recursive: true, force: true }) }
   }

@@ -29,7 +29,7 @@ export async function stablePackage(source: string, stateRoot: string, expectedV
       await check(staging)
       try { await rename(staging, destination) }
       catch (error) {
-        if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code || '')) throw error
+        if (!['EEXIST', 'ENOTEMPTY', ...(process.platform === 'win32' ? ['EPERM'] : [])].includes((error as NodeJS.ErrnoException).code || '')) throw error
         await check(destination)
       }
     } finally { await rm(staging, { recursive: true, force: true }) }
