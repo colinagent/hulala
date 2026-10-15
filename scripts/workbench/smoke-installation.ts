@@ -69,5 +69,7 @@ try {
     busyRestartRefused: true, explicitRestartPreservesHistory: true, uninstallRemovesOwnedServiceAndCommand: true, userDataPreserved: true, archiveBootstrap: process.argv.includes('--archive') }))
 } finally {
   if (pid) { try { process.kill(pid, 'SIGTERM') } catch {}; await Bun.sleep(1000) }
-  await rm(temporary, { recursive: true, force: true })
+  // The Windows uninstall helper exits just after writing its result. Let its
+  // mapped executable and the short-lived cleanup process release the fixture.
+  await rm(temporary, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 }

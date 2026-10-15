@@ -84,5 +84,5 @@ try {
   registry.stop(true)
   for (const pid of ownedPids) try { process.kill(pid, 'SIGTERM') } catch {}
   await Bun.sleep(1000)
-  await rm(root, { recursive: true, force: true })
+  await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 }
