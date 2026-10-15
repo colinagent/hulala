@@ -14,7 +14,7 @@ export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporary
   const repositoryRoot = typeof __HULALA_COMPILED__ !== 'undefined' && __HULALA_COMPILED__ ? join(packageRoot!, 'runtime') : process.env.HULALA_REPOSITORY_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
   const executable = packageRoot ? join(packageRoot, 'runtime/bin', process.platform === 'win32' ? 'bun.exe' : 'bun') : process.execPath
   const child = spawn(executable, [packageRoot ? join(packageRoot, 'runtime/host/browser.js') : join(repositoryRoot, 'apps/local-host/src/browser-main.ts')], {
-    stdio: 'inherit',
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     env: { ...process.env, HULALA_VERSION: VERSION, HULALA_REPOSITORY_ROOT: repositoryRoot, HULALA_WORKBENCH_PORT: String(WORKBENCH_PORT) },
   })
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 if (!process.argv[2]) throw new Error('Pass the JSON output file from npm-package.ts')
 const packages = JSON.parse(await readFile(process.argv[2], 'utf8')) as { meta: string; platform: string; artifacts: string[]; version: string }
@@ -10,7 +10,7 @@ const root = await mkdtemp(join(tmpdir(), 'hulala npm 中文 '))
 const packagesByVersion: Record<string, any> = {}, archives = new Map<string, string>()
 for (const directory of [packages.meta, packages.platform]) {
   const metadata = await Bun.file(join(directory, 'package.json')).json()
-  const archive = packages.artifacts.find(file => file.endsWith('/hulala-' + metadata.version + '.tgz'))!
+  const archive = packages.artifacts.find(file => basename(file) === 'hulala-' + metadata.version + '.tgz')!
   const bytes = await readFile(archive)
   packagesByVersion[metadata.version] = { ...metadata, dist: { tarball: '', integrity: 'sha512-' + createHash('sha512').update(bytes).digest('base64') } }
   archives.set('/hulala/-/' + metadata.version + '.tgz', archive)

@@ -134,7 +134,10 @@ export class WorkbenchController {
     }
     if (!preserveState) this.state = 'stopping'
     const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
-    child.kill('SIGTERM')
+    // Windows TerminateProcess does not deliver a JavaScript SIGTERM handler.
+    // Ask the owned gateway to drain its Workspace children over parent IPC.
+    if (child.connected) child.send({ type: 'hulala.stop' }, error => { if (error) child.kill('SIGTERM') })
+    else child.kill('SIGTERM')
     let timeout: NodeJS.Timeout | undefined
     const graceful = await Promise.race([
       exited.then(() => true),

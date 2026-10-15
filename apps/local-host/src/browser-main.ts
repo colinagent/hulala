@@ -18,5 +18,10 @@ async function main(): Promise<void> {
   const stop = async () => { if (stopping) return; stopping = true; await handle.stop(); process.exit(0) }
   process.once('SIGINT', () => void stop())
   process.once('SIGTERM', () => void stop())
+  if (typeof process.send === 'function') {
+    process.on('message', message => { if (message && typeof message === 'object' && 'type' in message && message.type === 'hulala.stop') void stop() })
+    process.once('disconnect', () => void stop())
+    if (!process.connected) void stop()
+  }
 }
 void main().catch(error => { console.error(error); process.exit(1) })

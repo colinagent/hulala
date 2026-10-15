@@ -48,7 +48,7 @@ export class WorkspaceWorkers {
       '--runtime-host-module', options.runtimeHostModule ?? join(options.repositoryRoot, 'packages/runtime/lib/in-process.js'),
       '--runtime-repository-root', options.repositoryRoot,
     ], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       env: { ...process.env, HULALA_BROWSER_WORKSPACE_ID: workspace.id, HULALA_BROWSER_WORKSPACE_PATH: workspace.path, HULALA_VERSION: options.version, DSH_TELEMETRY_DISABLED: '1' },
     })
     let exited = false
@@ -59,7 +59,8 @@ export class WorkspaceWorkers {
     })
     const stop = async () => {
       if (exited) return
-      child.kill('SIGTERM')
+      if (child.connected) child.send({ type: 'hulala.stop' }, error => { if (error) child.kill('SIGTERM') })
+      else child.kill('SIGTERM')
       const timeout = setTimeout(() => child.kill('SIGKILL'), 5000)
       timeout.unref()
       await exit

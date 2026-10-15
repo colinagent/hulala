@@ -7,7 +7,8 @@ import { createRequire } from 'node:module'
 
 const repository = join(import.meta.dirname, '../..')
 let child: ChildProcess, root: string, fixture: { url: string; workspace: string; second: string; workspaceId: string }
-test.beforeAll(async () => {
+test.beforeAll(async ({ browser }, info) => {
+  console.log(JSON.stringify({ browser: info.project.name, version: browser.version(), host: process.platform }))
   root = await mkdtemp(join(tmpdir(), 'hulala browser acceptance '))
   const bun = createRequire(import.meta.url).resolve('bun/bin/bun.exe')
   child = spawn(bun, [join(repository, 'scripts/workbench/browser-fixture.ts'), '--root', root, '--web', process.env.HULALA_WEB_OUTPUT || join(repository, 'apps/workbench/dist')], { cwd: repository, stdio: ['ignore', 'pipe', 'pipe'] })

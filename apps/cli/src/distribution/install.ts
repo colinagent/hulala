@@ -111,13 +111,20 @@ export class Installation {
       await cp(source, staging, { recursive: true, dereference: false })
       await verifyPackage(staging)
       await validate(staging, manifest.version)
-      try { await rename(staging, destination) }
-      catch (error) {
-        const collision = ['EEXIST', 'ENOTEMPTY', ...(process.platform === 'win32' ? ['EPERM'] : [])].includes((error as NodeJS.ErrnoException).code || '')
-        if (!collision) throw error
-        // Windows reports an occupied directory as EPERM. Only accept it when
-        // another installer already committed this exact verified package.
-        try { await verifyInstalled(this.root, version) } catch { throw error }
+      const deadline = Date.now() + 5000
+      for (;;) {
+        try { await rename(staging, destination); break }
+        catch (error) {
+          const code = (error as NodeJS.ErrnoException).code || ''
+          const windowsLock = process.platform === 'win32' && code === 'EPERM'
+          if (!['EEXIST', 'ENOTEMPTY'].includes(code) && !windowsLock) throw error
+          // A racing installer may have committed this exact package. Windows
+          // can also retain an executable mapping briefly after candidate exit.
+          try { await verifyInstalled(this.root, version); break }
+          catch (verification) { if (!missing(verification)) throw verification }
+          if (!windowsLock || Date.now() >= deadline) throw error
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
       }
       return version
     } finally { await rm(staging, { recursive: true, force: true }) }

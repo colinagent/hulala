@@ -23,6 +23,11 @@ async function main(): Promise<void> {
   }
   process.once('SIGINT', () => void stop())
   process.once('SIGTERM', () => void stop())
+  if (typeof process.send === 'function') {
+    process.on('message', message => { if (message && typeof message === 'object' && 'type' in message && message.type === 'hulala.stop') void stop() })
+    process.once('disconnect', () => void stop())
+    if (!process.connected) void stop()
+  }
 }
 
 void main().catch(error => {
