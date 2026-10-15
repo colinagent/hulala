@@ -33,6 +33,17 @@ test.afterAll(async () => {
 })
 
 test('workspace tabs, editing/reload and streaming composer remain stable', async ({ page, context }) => {
+  await page.addInitScript(() => {
+    Reflect.set(window, '__hulalaMainJournalOpens', 0)
+    const open = indexedDB.open.bind(indexedDB)
+    Object.defineProperty(indexedDB, 'open', { configurable: true, value: (name: string, version?: number) => {
+      if (name.startsWith('hulala.drafts.')) {
+        Reflect.set(window, '__hulalaMainJournalOpens', Number(Reflect.get(window, '__hulalaMainJournalOpens')) + 1)
+        throw new Error('Draft database must open outside the UI thread')
+      }
+      return open(name, version)
+    } })
+  })
   await page.goto(fixture.url)
   await expect(page).toHaveTitle('workspace · Hulala')
   await page.getByText('Browser QA.md', { exact: true }).dblclick()
@@ -70,6 +81,7 @@ test('workspace tabs, editing/reload and streaming composer remain stable', asyn
   }) as { expected: number; samples: Array<{ buttons: number; opacity: string; height: number }> }
   expect(before.expected).toBeGreaterThan(0)
   expect(before.samples.every(sample => sample.buttons === before.expected && sample.opacity === '1' && sample.height > 0)).toBe(true)
+  expect(await page.evaluate(() => Reflect.get(window, '__hulalaMainJournalOpens'))).toBe(0)
 })
 
 test('blocked browser storage preserves drafts and settings dialogs stay usable', async ({ browser }) => {

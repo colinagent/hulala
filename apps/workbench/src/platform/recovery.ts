@@ -2,41 +2,25 @@ import { sessionStore, reportStorageIssue } from "./storage";
 import type { WorkbenchPlatform } from '../renderer/types/platform'
 import type { RecoveryBackupIdentity, RecoveryBackupInput, RecoveryBackupRecord } from '../shared/recoveryBackup'
 import { setDraftStatus } from './draftStatus'
+import { openBrowserJournal, type BrowserJournal, type JournalEntry } from './journal'
 
-type JournalEntry = { key: string; identity: RecoveryBackupIdentity; record?: RecoveryBackupRecord }
 type JsonRequest = <T = any>(url: string, init?: RequestInit) => Promise<T>
 const requestBody = (value: unknown, method: string): RequestInit => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) })
 const keyFor = (identity: RecoveryBackupIdentity) => identity.workspaceTabId + ':' + identity.id
-
-async function openJournal(workspaceId: string): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('hulala.drafts.' + workspaceId, 1)
-    let settled = false
-    const timeout = setTimeout(() => { settled = true; reject(new Error('Browser draft storage did not respond')) }, 2500)
-    request.onupgradeneeded = () => request.result.createObjectStore('drafts', { keyPath: 'key' })
-    request.onsuccess = () => { if (settled) { request.result.close(); return }; settled = true; clearTimeout(timeout); resolve(request.result) }
-    request.onerror = request.onblocked = () => { settled = true; clearTimeout(timeout); reject(request.error || new Error('Browser draft storage is blocked')) }
-  })
-}
-
-function transaction<T>(db: IDBDatabase, write: boolean, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('drafts', write ? 'readwrite' : 'readonly')
-    const request = action(tx.objectStore('drafts'))
-    tx.oncomplete = () => resolve(request.result)
-    tx.onabort = tx.onerror = () => reject(tx.error || request.error || new Error('Draft storage failed'))
-  })
-}
 
 export async function createBrowserRecovery(workspaceId: string, prefix: string, json: JsonRequest): Promise<{ viewId: string; backup: WorkbenchPlatform['backup'] }> {
   const sessionKey = 'hulala.view-id.' + workspaceId
   const lockPrefix = 'hulala.view.' + workspaceId + '.'
   let viewId = sessionStore.getItem(sessionKey) || crypto.randomUUID()
   const acquire = (id: string) => new Promise<boolean>((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => { settled = true; reject(new Error('Browser view coordination did not respond')) }, 2500)
     void navigator.locks.request(lockPrefix + id, { ifAvailable: true }, async lock => {
+      if (settled) return
+      settled = true; clearTimeout(timer)
       resolve(Boolean(lock))
       if (lock) await new Promise<void>(() => { /* The browser releases this lease when the document dies. */ })
-    }).catch(reject)
+    }).catch(error => { clearTimeout(timer); if (!settled) { settled = true; reject(error) } })
   })
   let locksAvailable = false
   try {
@@ -48,15 +32,15 @@ export async function createBrowserRecovery(workspaceId: string, prefix: string,
   if (!locksAvailable) { viewId = crypto.randomUUID(); reportStorageIssue('preferences') }
   sessionStore.setItem(sessionKey, viewId)
   await json(prefix + '/views', requestBody({ viewId }, 'POST'))
-  let db: IDBDatabase | undefined
-  try { db = await openJournal(workspaceId) } catch { reportStorageIssue('drafts') }
+  let db: BrowserJournal | undefined
+  try { db = await openBrowserJournal(workspaceId) } catch { reportStorageIssue('drafts') }
   const memoryJournal = new Map<string, JournalEntry>()
   const unavailable = () => { try { db?.close() } catch {}; db = undefined; reportStorageIssue('drafts') }
-  const putLocal = async (entry: JournalEntry) => { memoryJournal.set(entry.key, entry); if (db) try { await transaction(db, true, store => store.put(entry)) } catch { unavailable() } }
-  const deleteLocal = async (key: string) => { memoryJournal.delete(key); if (db) try { await transaction(db, true, store => store.delete(key)) } catch { unavailable() } }
+  const putLocal = async (entry: JournalEntry) => { memoryJournal.set(entry.key, entry); if (db) try { await db.put(entry) } catch { unavailable() } }
+  const deleteLocal = async (key: string) => { memoryJournal.delete(key); if (db) try { await db.delete(key) } catch { unavailable() } }
   const readLocal = async (): Promise<JournalEntry[]> => {
     if (db) try {
-      const entries = await transaction(db, false, store => store.getAll()) as JournalEntry[]
+      const entries = await db.read()
       for (const entry of entries) if (!memoryJournal.has(entry.key)) memoryJournal.set(entry.key, entry)
       return entries
     } catch { unavailable() }
@@ -129,7 +113,12 @@ export async function createBrowserRecovery(workspaceId: string, prefix: string,
         hostViews = await json(prefix + '/views?viewId=' + encodeURIComponent(viewId))
       }
       let locks: LockManagerSnapshot = { held: [] }
-      if (locksAvailable) try { locks = await navigator.locks.query() } catch { /* Host leases remain authoritative. */ }
+      if (locksAvailable) {
+        let timeout: ReturnType<typeof setTimeout> | undefined
+        try { locks = await Promise.race([navigator.locks.query(), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Browser view query did not respond')), 2500) })]) }
+        catch { /* Host leases remain authoritative. */ }
+        finally { clearTimeout(timeout) }
+      }
       const activeViews = [...new Set([...hostViews.activeViews, ...(locks.held || []).map(lock => lock.name || '').filter(name => name.startsWith(lockPrefix)).map(name => name.slice(lockPrefix.length))])].filter(id => id !== viewId)
       const local = await readLocal()
       const restorable = local.filter(entry => !activeViews.includes(entry.identity.workspaceTabId))
