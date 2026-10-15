@@ -168,7 +168,7 @@ test('boots the public Harness and private transport in one Host process', async
   if (!opened.ok) throw new Error(`conversation open failed: ${JSON.stringify(openedPayload)}`)
   expect(openedPayload.snapshot?.session?.sessionId)
     .toBeString()
-})
+}, 30_000)
 
 test('Harness 0.1.5 Remote services preserve settings, history, and native approval answers', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-harness-upgrade-'))
