@@ -17,8 +17,18 @@ permissions:
   contents: read
 jobs:
   browsers:
-    name: Chromium, Edge, Firefox and WebKit
-    runs-on: ubuntu-24.04
+    name: Browser UI (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            browsers: chromium firefox webkit msedge
+            projects: ''
+          - os: windows-2025
+            browsers: chromium firefox msedge
+            projects: --project chromium --project firefox --project edge
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
       HULALA_NO_OPEN: '1'
@@ -34,12 +44,12 @@ jobs:
       - run: bun node_modules/bun/install.js
       - run: bun run build
       - run: bunx tsc --noEmit -p tests/browser/tsconfig.json
-      - run: bunx playwright install --with-deps chromium firefox webkit msedge
-      - run: bunx playwright test --config tests/browser/playwright.config.ts
+      - run: bunx playwright install --with-deps ${{ matrix.browsers }}
+      - run: bunx playwright test --config tests/browser/playwright.config.ts ${{ matrix.projects }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: failure()
         with:
-          name: browser-ui-failures
+          name: browser-ui-failures-${{ matrix.os }}
           retention-days: 3
           path: dist/browser-test-results/
   native:
