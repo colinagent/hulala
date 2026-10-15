@@ -9,7 +9,11 @@ import { completeDeferredUninstall } from '../../apps/cli/src/distribution/defer
 declare const HULALA_PACKAGE_VERSION: string
 async function main(): Promise<void> {
   const args = await applyAutostartEnvironment(process.argv.slice(2))
-  if (args[0] === '__complete-uninstall' && args.length === 2) { await completeDeferredUninstall(args[1]!); return }
+  if (args[0] === '__complete-uninstall' && args.length === 2) {
+    try { await completeDeferredUninstall(args[1]!) }
+    catch (error) { console.error(error instanceof Error ? error.message : 'Uninstall failed'); process.exit(1) }
+    process.exit(0)
+  }
   const executable = await realpath(process.execPath)
   const installation = await launcherInstallation(executable)
   if (installation) { process.exitCode = await runInstalledLauncher(installation, args); return }

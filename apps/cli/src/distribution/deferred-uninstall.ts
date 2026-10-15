@@ -52,7 +52,7 @@ export async function completeDeferredUninstall(filename: string): Promise<void>
       const installation = new Installation(plan.root, plan.stateRoot)
       const removed = await installation.uninstall()
       if (receipt.pathRegistration && (await readdir(dirname(receipt.command))).length === 0) await removeCommandPath(receipt.pathRegistration)
-      await writeFile(result, JSON.stringify({ removed: true, userDataPreserved: true, preserved: removed.preserved }) + '\n', { mode: 0o600 })
+      await writeFile(result, JSON.stringify({ removed: true, userDataPreserved: true, helperPid: process.pid, preserved: removed.preserved }) + '\n', { mode: 0o600 })
     })
   } catch (error) {
     await writeFile(result, JSON.stringify({ removed: false, error: error instanceof Error ? error.message : 'Uninstall failed' }) + '\n', { mode: 0o600 })
@@ -66,7 +66,8 @@ export async function completeDeferredUninstall(filename: string): Promise<void>
       const cleanup = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `Wait-Process -Id ${process.pid} -Timeout 60 -ErrorAction SilentlyContinue; if(!(Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue)){Remove-Item -LiteralPath $env:HULALA_UNINSTALL_CACHE -Recurse -Force}`], {
         detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, HULALA_UNINSTALL_CACHE: directory },
       })
-      cleanup.on('error', () => {}); cleanup.unref()
+      await new Promise<void>(resolve => { cleanup.once('spawn', resolve); cleanup.once('error', () => resolve()) })
+      cleanup.unref()
     }
   }
 }

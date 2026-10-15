@@ -22,7 +22,10 @@ export async function shutdownInstallation(root: string, force = false): Promise
   const deadline = Date.now() + 20000
   while (Date.now() < deadline) {
     const current = await probeHealth()
-    if (!current || current.pid !== health.pid) return true
+    if (!current || current.pid !== health.pid) {
+      try { process.kill(health.pid, 0) }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true; throw error }
+    }
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   throw new Error('The running service has not finished stopping; its active installation was left unchanged')

@@ -148,6 +148,7 @@ export class WorkbenchController {
       child.kill('SIGKILL')
       await exited
     }
+    try { if (child.connected) child.disconnect() } catch { /* Already closed by child exit. */ }
     if (!preserveState) this.state = 'stopped'
   }
 

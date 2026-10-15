@@ -65,6 +65,8 @@ export class WorkspaceWorkers {
       timeout.unref()
       await exit
       clearTimeout(timeout)
+      try { if (child.connected) child.disconnect() } catch { /* Already closed by child exit. */ }
+      child.stdout?.destroy(); child.stderr?.destroy()
     }
     try {
       const descriptor = await new Promise<ConnectionDescriptor>((resolve, reject) => {

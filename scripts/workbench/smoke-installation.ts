@@ -59,7 +59,13 @@ try {
     if (!result) throw new Error('Deferred Windows removal did not return a completion location')
     const deadline = Date.now() + 30000
     while (!await Bun.file(result).exists() && Date.now() < deadline) await Bun.sleep(100)
-    if (!(await Bun.file(result).json()).removed) throw new Error('Deferred Windows removal did not complete')
+    const completed = await Bun.file(result).json()
+    if (!completed.removed || completed.preserved?.length) throw new Error('Deferred Windows removal did not complete: ' + JSON.stringify(completed))
+    const helperDeadline = Date.now() + 15000
+    while (Date.now() < helperDeadline) {
+      try { process.kill(completed.helperPid, 0) } catch { break }
+      await Bun.sleep(100)
+    }
   }
   if (await Bun.file(installed).exists() || await health()) throw new Error('Uninstall left the command or owned service running')
   pid = undefined

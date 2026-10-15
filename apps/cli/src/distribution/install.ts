@@ -186,8 +186,6 @@ export class Installation {
   }
   async uninstall(): Promise<{ preserved: string[] }> {
     const receipt = await this.assertLauncherOwned()
-    await rm(receipt.command)
-    await rm(join(dirname(receipt.command), '.hulala-launcher.json'))
     const preserved: string[] = []
     for (const entry of await readdir(join(this.root, 'versions'), { withFileTypes: true })) {
       const directory = join(this.root, 'versions', entry.name)
@@ -196,9 +194,13 @@ export class Installation {
         const manifest = await verifyPackage(directory)
         const hash = digest(await readFile(join(directory, 'manifest.json')))
         if (entry.name !== manifest.version + '-' + hash.slice(0, 24)) throw new Error('Unknown directory')
-        await rm(directory, { recursive: true, force: true })
-      } catch { preserved.push(directory) }
+      } catch { preserved.push(directory); continue }
+      // A valid package that cannot be removed is an IO failure, not user work
+      // to silently preserve while claiming that uninstall succeeded.
+      await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
     }
+    await rm(receipt.command)
+    await rm(join(dirname(receipt.command), '.hulala-launcher.json'))
     for (const file of ['active.json', 'installation.json']) await rm(join(this.root, file), { force: true })
     return { preserved }
   }
