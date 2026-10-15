@@ -14,15 +14,17 @@ test('persists Messenger state in the injected Hulala data root', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-services-test-'))
   roots.push(root)
   const database = new ServerDatabase(await ensureHulalaPaths(root, join(root, 'managed-workspaces')))
-  expect((await stat(database.path)).mode & 0o077).toBe(0)
-  const messenger = new MessengerService(database, new EventHub())
-  const created = messenger.create({ workspaceId: 'workspace', kind: 'cron', title: 'Finished', body: 'Done' })
-  expect(messenger.list()).toHaveLength(1)
-  expect(messenger.update(created.id, 'read').readAt).not.toBeNull()
-  expect(messenger.update(created.id, 'archive').archivedAt).not.toBeNull()
-  expect(messenger.list()).toHaveLength(0)
-  expect(messenger.list({ includeArchived: true })).toHaveLength(1)
-  database.close()
+  try {
+    // Windows protects files with inherited ACLs, not POSIX permission bits.
+    if (process.platform !== 'win32') expect((await stat(database.path)).mode & 0o077).toBe(0)
+    const messenger = new MessengerService(database, new EventHub())
+    const created = messenger.create({ workspaceId: 'workspace', kind: 'cron', title: 'Finished', body: 'Done' })
+    expect(messenger.list()).toHaveLength(1)
+    expect(messenger.update(created.id, 'read').readAt).not.toBeNull()
+    expect(messenger.update(created.id, 'archive').archivedAt).not.toBeNull()
+    expect(messenger.list()).toHaveLength(0)
+    expect(messenger.list({ includeArchived: true })).toHaveLength(1)
+  } finally { database.close() }
 })
 
 test('two views and a response retry send one Messenger reply and preserve the user message', async () => {

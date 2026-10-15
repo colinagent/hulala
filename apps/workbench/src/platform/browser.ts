@@ -1,6 +1,6 @@
 import { sessionStore } from "./storage";
 import type { BrowserBootstrap, BrowserWorkspace } from '@hulala/workbench-contracts/browser'
-import type { WorkbenchPlatform, SshHostPayload } from '../renderer/types/platform'
+import type { WorkbenchPlatform, SshHostPayload, HarnessRuntimeState } from '../renderer/types/platform'
 import { chooseDirectory, configureBrowserSecret } from './dialogs'
 import { createBrowserRecovery } from './recovery'
 import { uploadBrowserResource } from './upload'
@@ -26,6 +26,7 @@ export async function browserJson<T = any>(url: string, init?: RequestInit, reco
   return result
 }
 const body = (value: unknown, method = 'POST'): RequestInit => ({ method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) })
+const presentRuntimeState = (state: HarnessRuntimeState): HarnessRuntimeState => ({ ...state, runtimes: state.runtimes?.map(runtime => runtime.id === 'claude' ? { ...runtime, name: 'Claude Agent' } : runtime) })
 
 export function reserveWorkspacePage(): Window | null {
   const page = window.open('about:blank', '_blank')
@@ -346,8 +347,8 @@ export async function createBrowserPlatform(options: { workspaceId?: string; ref
       onEvent: handler => { eventListeners.add(handler); return () => { eventListeners.delete(handler) } },
     },
     harness: {
-      getRuntimeState: sessionId => api('/harness/runtime-state' + (sessionId ? '?sessionId=' + encode(sessionId) : '')),
-      selectRuntime: input => api('/harness/runtime-selection', body(input)),
+      getRuntimeState: sessionId => api<HarnessRuntimeState>('/harness/runtime-state' + (sessionId ? '?sessionId=' + encode(sessionId) : '')).then(presentRuntimeState),
+      selectRuntime: input => api<HarnessRuntimeState>('/harness/runtime-selection', body(input)).then(presentRuntimeState),
       providerAuth: {
         describeOpenAICodex: () => api('/harness/provider-auth/openai-codex'),
         startOpenAICodex: () => api('/harness/provider-auth/openai-codex/start', { method: 'POST' }),

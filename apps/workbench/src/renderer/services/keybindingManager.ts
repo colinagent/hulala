@@ -1,6 +1,12 @@
 import { KeybindingItem } from '../../platform/settingsTypes';
 
 type ShortcutEvent = Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>;
+export function keybindingPlatform(platform: string, userAgent: string): 'mac' | 'win' | 'linux' {
+  // WebKit on Linux can report a Safari/macOS UA. The explicit client platform
+  // takes precedence over that compatibility string and over the remote Host.
+  const hint = (platform || userAgent).toLowerCase();
+  return hint.includes('mac') ? 'mac' : hint.includes('win') ? 'win' : 'linux';
+}
 export function browserOwnsShortcut(event: ShortcutEvent): boolean {
   const key = event.key.toLowerCase();
   return ['f5', 'f11'].includes(key)
@@ -116,9 +122,7 @@ class KeybindingMatcher {
     // Get platform-specific key (renderer-safe: no `process` access)
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
     const plat = typeof navigator !== 'undefined' ? (navigator.platform || '').toLowerCase() : '';
-    const isMac = plat.includes('mac') || ua.includes('mac os');
-    const isWin = plat.includes('win') || ua.includes('windows');
-    const platform: 'mac' | 'win' | 'linux' = isMac ? 'mac' : isWin ? 'win' : 'linux';
+    const platform = keybindingPlatform(plat, ua);
 
     for (const binding of this.keybindings) {
       // Check platform-specific override

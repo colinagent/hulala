@@ -35,8 +35,8 @@ test('remote package verification rejects traversal, replacement, unlisted files
 
 test('remote command quoting preserves untrusted path arguments literally', () => {
   const argument = "space ' $HOME $(printf injected); Unicode 项目"
-  const command = remoteCommand('linux', process.execPath, '--eval', 'process.stdout.write(process.argv[1])', argument)
-  const output = Bun.spawnSync(['/bin/sh', '-c', command])
+  const command = remoteCommand(process.platform, process.execPath, '--eval', 'process.stdout.write(process.argv[1])', argument)
+  const output = Bun.spawnSync(process.platform === 'win32' ? command.split(' ') : ['/bin/sh', '-c', command])
   expect(output.exitCode).toBe(0)
   expect(output.stdout.toString()).toBe(argument)
   const windows = remoteCommand('win32', "C:/Program Files/O'Brien/bun.exe", argument)

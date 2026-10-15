@@ -28,7 +28,7 @@ test('archive cleanup never follows an external link and preserves recently modi
     const recent = join(workspace.path, '.hulala/archive/recent')
     await mkdir(recent); await writeFile(join(recent, 'new.txt'), 'new'); await utimes(recent, old, old)
     const result = await archive.run(workspace, 1, true)
-    expect(result.candidates.map(candidate => candidate.path)).toEqual(['.hulala/archive/old'])
+    expect(result.candidates.map(candidate => candidate.path)).toEqual([join('.hulala', 'archive', 'old')])
     expect(result.reclaimedBytes).toBe(3)
     expect(await readFile(join(outside, 'keep.txt'), 'utf8')).toBe('keep')
     expect(await readFile(join(recent, 'new.txt'), 'utf8')).toBe('new')
