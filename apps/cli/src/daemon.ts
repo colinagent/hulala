@@ -9,7 +9,9 @@ export async function startDetached(entryPath: string, paths: HulalaPaths): Prom
   const log = openSync(paths.launcherLog, 'a')
   try {
     const child = spawn(process.execPath, [...(process.env.HULALA_PACKAGE_ROOT ? [] : [entryPath]), '__serve'], {
+      cwd: paths.data,
       detached: true,
+      windowsHide: true,
       stdio: ['ignore', log, log],
       env: { ...process.env, HULALA_DAEMON: '1' },
     })

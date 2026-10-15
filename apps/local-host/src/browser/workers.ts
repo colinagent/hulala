@@ -49,6 +49,7 @@ export class WorkspaceWorkers {
       '--runtime-repository-root', options.repositoryRoot,
     ], {
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      windowsHide: true,
       env: { ...process.env, HULALA_BROWSER_WORKSPACE_ID: workspace.id, HULALA_BROWSER_WORKSPACE_PATH: workspace.path, HULALA_VERSION: options.version, DSH_TELEMETRY_DISABLED: '1' },
     })
     let exited = false
