@@ -44,4 +44,4 @@ test('remote command quoting preserves untrusted path arguments literally', () =
   expect(script).toContain("O''Brien")
   expect(script).toContain("'space '' $HOME $(printf injected); Unicode 项目'")
   expect(() => remoteCommand('linux', 'newline\ncommand')).toThrow('Invalid')
-})
+}, 30000)

@@ -35,6 +35,7 @@ import { MessengerSidebar } from './MessengerSidebar';
 import { SearchSidebar } from './SearchSidebar';
 import { CronSidebar } from './CronSidebar';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
+import { getDirectoryPickerBaseName } from '../FileDialog/directoryPickerModel';
 import {
   getMainSidebarRailItems,
   isMainSidebarRailItemActive,
@@ -61,15 +62,7 @@ function getWorkspaceLabel(entry: LocalRecentWorkspace) {
 }
 
 function getPathBaseName(path: string | null) {
-  if (path === '/') {
-    return '/';
-  }
-  const normalized = (path || '').replace(/\/+$/, '');
-  if (!normalized) {
-    return 'workspace';
-  }
-  const parts = normalized.split('/');
-  return parts[parts.length - 1] || normalized;
+  return getDirectoryPickerBaseName(path) || 'workspace';
 }
 
 /** Matches `.sidebar-activity-rail` width; App shrinks to this when the panel is closed. */

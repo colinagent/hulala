@@ -73,6 +73,12 @@ test('workspace tabs, editing/reload and streaming composer remain stable', asyn
 
 test('blocked browser storage preserves drafts and settings dialogs stay usable', async ({ browser }) => {
   const context = await browser.newContext()
+  // Hold file saves unavailable so slow browsers cannot auto-save the draft
+  // before this recovery test observes it. The Host journal stays reachable.
+  const saveRoute = '**/api/files/text'
+  await context.route(saveRoute, route => route.request().method() === 'PUT'
+    ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'fixture_save_paused', message: 'File saves are temporarily unavailable in this fixture' }) })
+    : route.continue())
   await context.addInitScript(() => {
     for (const name of ['localStorage', 'sessionStorage', 'indexedDB']) Object.defineProperty(window, name, { configurable: true, get() { throw new DOMException('Synthetic denied storage', 'SecurityError') } })
     Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
@@ -85,9 +91,13 @@ test('blocked browser storage preserves drafts and settings dialogs stay usable'
     await page.getByText('Browser QA.md', { exact: true }).dblclick()
     const editor = page.locator('.cm-content[contenteditable="true"]')
     await editor.click(); await page.keyboard.press('ControlOrMeta+End'); await page.keyboard.insertText('\nRecover without browser storage')
-    await expect(page.getByRole('status').filter({ hasText: 'Draft backed up' })).toBeVisible()
+    await expect(editor).toContainText('Recover without browser storage')
+    await expect(page.getByRole('status').filter({ hasText: /Draft backed up|Save failed — draft retained/ })).toBeVisible()
+    await page.evaluate(async () => { await window.hulala!.backup.flush() })
+    expect(await readFile(join(fixture.workspace, 'Browser QA.md'), 'utf8')).not.toContain('Recover without browser storage')
     page.on('dialog', dialog => dialog.accept())
     await page.reload(); await expect(editor).toContainText('Recover without browser storage')
+    await context.unroute(saveRoute)
     await editor.click(); await page.keyboard.press('ControlOrMeta+s')
     await expect(page.getByRole('status').filter({ hasText: 'Saved to file' })).toBeVisible()
     await page.keyboard.press('ControlOrMeta+,')

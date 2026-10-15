@@ -32,6 +32,15 @@ function portableDependencyPlugin(): import('bun').BunPlugin {
   return {
     name: 'hulala-portable-dependency-paths',
     setup(build) {
+      build.onLoad({ filter: /[\\/]@silvia-odwyer[\\/]photon-node[\\/]photon_rs\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = "const path = require('path').join(__dirname, 'photon_rs_bg.wasm');"
+        if (!source.includes(expected)) throw new Error('photon-node wasm path expression changed')
+        return {
+          contents: source.replace(expected, "const path = require('path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'runtime', 'photon_rs_bg.wasm');"),
+          loader: 'js',
+        }
+      })
       build.onLoad({ filter: /[\\/]undici[\\/]index\.js$/u }, async ({ path }) => {
         const source = await readFile(path, 'utf8')
         const expected = "const currentFilename = typeof __filename !== 'undefined' ? __filename : undefined"
@@ -69,7 +78,9 @@ async function bundleFile(entrypoint: string, outfile: string): Promise<void> {
     plugins: [portableDependencyPlugin()],
   })
   if (!result.success || !result.outputs[0]) throw new AggregateError(result.logs, `failed to bundle ${entrypoint}`)
-  await Bun.write(outfile, result.outputs[0])
+  const source = await result.outputs[0].text()
+  if (source.includes(repositoryRoot) || source.includes(output)) throw new Error('Portable plugin contains a build-machine path')
+  await Bun.write(outfile, source)
 }
 
 function currentTarget(): string {
@@ -335,18 +346,6 @@ const hostBuild = await Bun.build({
           contents: source.replaceAll(
             '__dirname',
             "require('node:path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'node_modules', 'node-pty', 'lib')",
-          ),
-          loader: 'js',
-        }
-      })
-      build.onLoad({ filter: /[\\/]@silvia-odwyer[\\/]photon-node[\\/]photon_rs\.js$/u }, async ({ path }) => {
-        const source = await readFile(path, 'utf8')
-        const expected = "const path = require('path').join(__dirname, 'photon_rs_bg.wasm');"
-        if (!source.includes(expected)) throw new Error('photon-node wasm path expression changed')
-        return {
-          contents: source.replace(
-            expected,
-            "const path = require('path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'runtime', 'photon_rs_bg.wasm');",
           ),
           loader: 'js',
         }

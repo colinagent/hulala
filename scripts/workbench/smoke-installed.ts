@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { verifyPackage } from './package-manifest'
 
 const directory = resolve(process.argv[2] || '')
@@ -63,6 +64,19 @@ try {
   if (bootstrap.version !== manifest.version || !bootstrap.workspace.path.includes('hulala installed')) throw new Error('Installed Host version or paths are wrong')
   const plugins = await fetch(origin + prefix + '/api/harness/plugins', { headers: { cookie } })
   if (!plugins.ok) throw new Error('Packaged Harness plugin inventory is unavailable')
+  const conversation = await fetch(origin + prefix + '/api/conversations/open', {
+    method: 'POST', headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ kind: 'workspace', workspaceId: bootstrap.nativeWorkspace.id }),
+  })
+  const openedConversation = await conversation.json() as any
+  if (!conversation.ok || typeof openedConversation.snapshot?.session?.sessionId !== 'string') throw new Error('The installed default Agent could not open a conversation: ' + JSON.stringify(openedConversation))
+  const runtime = join(directory, 'runtime')
+  const imports = Bun.spawn([join(runtime, 'bin', process.platform === 'win32' ? 'bun.exe' : 'bun'), '-e',
+    'for (const entry of process.argv.slice(1)) await import(entry)',
+    ...['pi', 'codex', 'claude'].map(name => pathToFileURL(join(runtime, 'packages', 'agent-loop-' + name, 'lib/index.js')).href),
+  ], { cwd: root, env: { ...environment, HOME: root, USERPROFILE: root, HULALA_RUNTIME_REPOSITORY_ROOT: runtime }, stdout: 'ignore', stderr: 'pipe' })
+  const importErrors = new Response(imports.stderr).text()
+  if (await imports.exited !== 0) throw new Error('Installed SDK plugin import failed: ' + (await importErrors).slice(-3000))
   await writeFile(join(bootstrap.workspace.path, 'packaged-search.txt'), 'BUNDLED_RIPGREP_OK\n')
   const search = await fetch(origin + prefix + '/api/files/search?' + new URLSearchParams({ workspaceId: bootstrap.nativeWorkspace.id, path: '.', query: 'BUNDLED_RIPGREP_OK' }), { headers: { cookie } })
   if (!search.ok || !(await search.json() as any).items.some((item: any) => item.text.includes('BUNDLED_RIPGREP_OK'))) throw new Error('Packaged ripgrep search failed')
@@ -73,7 +87,7 @@ try {
   const reused = await (await fetch(origin + '/api/hulala/health')).json() as any
   if (ready.pid !== reused.pid || ready.workbench.pid !== reused.workbench.pid) throw new Error('Duplicate launch did not reuse the service')
   console.log(JSON.stringify({ installed: true, version: manifest.version, target: manifest.target, coldStartMs,
-    runtimeWithoutNodeOrBunOnPath: true, arbitraryUnicodeCwd: true, repeatReusesHost: true, bundledSearch: true, browserOpensOnlyWhenReady: true }))
+    runtimeWithoutNodeOrBunOnPath: true, arbitraryUnicodeCwd: true, repeatReusesHost: true, bundledSearch: true, sdkPluginImports: true, defaultAgentSession: true, browserOpensOnlyWhenReady: true }))
 } finally {
   child.kill('SIGTERM')
   const timer = setTimeout(() => child.kill('SIGKILL'), 8000)

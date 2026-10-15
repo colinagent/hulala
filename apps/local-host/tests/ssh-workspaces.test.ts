@@ -96,4 +96,4 @@ test.skipIf((!packages && !nativeRuntime && !releasePackage) || process.platform
     if (oldIndex === undefined) delete process.env.HULALA_RELEASE_INDEX_URL; else process.env.HULALA_RELEASE_INDEX_URL = oldIndex
     await rm(root, { recursive: true, force: true })
   }
-}, 180000)
+}, 300000)

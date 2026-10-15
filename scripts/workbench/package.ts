@@ -37,7 +37,7 @@ await mkdir(join(staging, 'bin'))
 const executable = `bin/hulala${target.startsWith('win32-') ? '.exe' : ''}`
 await run([process.execPath, 'build', join(import.meta.dir, 'package-entry.ts'), '--compile', '--minify', '--target', bunTarget,
   ...(target.startsWith('win32-') ? [] : ['--bytecode']), '--define', `HULALA_PACKAGE_VERSION=${JSON.stringify(pkg.version)}`,
-  '--define', `__HULALA_VERSION__=${JSON.stringify(pkg.version)}`, '--outfile', join(staging, executable)])
+  '--define', `__HULALA_VERSION__=${JSON.stringify(pkg.version)}`, '--define', '__HULALA_COMPILED__=true', '--outfile', join(staging, executable)])
 for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) await cp(join(root, file), join(staging, file))
 await copyCliLicenses(root, join(staging, 'licenses/cli'))
 await cp(join(root, 'apps/workbench/src/renderer/assets/file-icons/seti'), join(staging, 'licenses/seti'), {
@@ -46,6 +46,11 @@ await cp(join(root, 'apps/workbench/src/renderer/assets/file-icons/seti'), join(
 const lockSha256 = new Bun.CryptoHasher('sha256').update(await readFile(join(root, 'bun.lock'))).digest('hex')
 const manifest: PackageManifest = { format: 1, product: 'hulala', stage: 'workbench', version: pkg.version, target,
   protocol: 1, dataFormat: 1, lockSha256, entrypoint: executable, files: await packageFiles(staging) }
+const buildPaths = [...new Set([root, staging].flatMap(path => [path, path.replaceAll('\\', '/'), path.replaceAll('\\', '\\\\')]))].map(path => Buffer.from(path))
+for (const file of manifest.files) {
+  const bytes = await readFile(join(staging, file.path))
+  if (buildPaths.some(path => bytes.includes(path))) throw new Error('Package contains a build-machine path: ' + file.path)
+}
 await writeFile(join(staging, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 await verifyPackage(staging)
 const archive = staging + '.tar.gz'

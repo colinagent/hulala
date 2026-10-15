@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 
 import { getAutostartStatus, installAutostart, uninstallAutostart } from './autostart.js'
 import { APP_PORT, APP_URL, HEALTH_URL, VERSION } from './constants.js'
+declare const __HULALA_COMPILED__: boolean | undefined
 import { openBrowser } from './browser.js'
 import { startDetached } from './daemon.js'
 import { localFetch, portIsOccupied, probeHealth, waitForHealth, type HealthState } from './health.js'
@@ -78,7 +79,7 @@ async function runService(args: string[]): Promise<number> {
   if (command === 'start' && await probeHealth() === undefined) {
     const paths = resolvePaths()
     if (await portIsOccupied()) throw new Error(`Port ${APP_PORT} is already used by another program.`)
-    await startDetached(fileURLToPath(import.meta.url), paths)
+    await startDetached(typeof __HULALA_COMPILED__ !== 'undefined' && __HULALA_COMPILED__ ? process.execPath : fileURLToPath(import.meta.url), paths)
     if (await waitForHealth() === undefined) throw new Error(`Hulala did not become ready. Check ${paths.launcherLog}`)
     console.log(`Hulala is ready at ${APP_URL}`)
     return 0
@@ -109,7 +110,7 @@ async function launch(options: LaunchOptions): Promise<number> {
     if (!existing && options.foreground) return await runLauncher({ onReady: () => {
       if (options.open && process.env.HULALA_NO_OPEN !== '1') openBrowser(APP_URL)
     } })
-    if (!existing) await startDetached(fileURLToPath(import.meta.url), resolvePaths())
+    if (!existing) await startDetached(typeof __HULALA_COMPILED__ !== 'undefined' && __HULALA_COMPILED__ ? process.execPath : fileURLToPath(import.meta.url), resolvePaths())
     const ready = await waitForHealth()
     if (ready === undefined) {
       throw new Error(`Hulala did not become ready. Check the log at ${resolvePaths().launcherLog}`)
