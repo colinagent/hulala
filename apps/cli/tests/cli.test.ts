@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { IncomingMessage } from 'node:http'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, win32 } from 'node:path'
 import test from 'node:test'
 
 import { browserLaunch } from '../src/browser.ts'
@@ -20,8 +20,12 @@ test('uses native browser launchers without a shell', () => {
     command: 'open', args: ['http://127.0.0.1:3210/'],
   })
   assert.deepEqual(browserLaunch('http://127.0.0.1:3210/', 'win32'), {
-    command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', 'http://127.0.0.1:3210/'],
+    command: win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'rundll32.exe'), args: ['url.dll,FileProtocolHandler', 'http://127.0.0.1:3210/'],
   })
+  assert.deepEqual(browserLaunch('http://hulala.localhost:3210/', 'win32', 'C:\\Program Files\\Browser\\browser.exe'), {
+    command: 'C:\\Program Files\\Browser\\browser.exe', args: ['http://hulala.localhost:3210/'],
+  })
+  assert.throws(() => browserLaunch('http://hulala.localhost:3210/', 'linux', 'browser --shell-argument'), /absolute executable/)
 })
 
 test('recognizes only a Hulala health response', async () => {

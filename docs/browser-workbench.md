@@ -29,6 +29,9 @@ bun scripts/workbench/smoke-package.ts <package-directory>
 ```
 
 These are local build instructions; this browser release has not been published.
+By default Hulala uses the system browser. `HULALA_BROWSER` can select an
+absolute browser executable path (no shell arguments); `--no-open` leaves the
+browser closed and prints the local address.
 The npm wrapper selects an exact platform alias and copies the verified package
 to immutable Hulala runtime storage before execution. Background processes can
 therefore continue after an npx download cache is removed. Generated platform

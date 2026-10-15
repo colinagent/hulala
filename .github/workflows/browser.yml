@@ -26,7 +26,9 @@ jobs:
             browsers: chromium firefox webkit msedge
             projects: ''
           - os: windows-2025
-            browsers: chromium firefox msedge
+            # The runner already includes stable Edge; reinstalling its MSI
+            # can wait on the system updater instead of reaching the tests.
+            browsers: chromium firefox
             projects: --project chromium --project firefox --project edge
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20

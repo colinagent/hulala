@@ -25,7 +25,7 @@ const browserLog = join(root, 'browser-open.json')
 const environment = { ...process.env, PATH: process.platform === 'win32' ? testBin + ';' + process.env.SystemRoot + '\\System32' : testBin + ':/usr/bin:/bin',
   HULALA_HOME: join(root, 'state'), HULALA_WORKSPACE_ROOT: join(root, 'workspaces'), PI_CODING_AGENT_DIR: join(root, 'pi'),
   HULALA_PORT: String(publicPort), HULALA_WORKBENCH_PORT: String(backendPort), HULALA_REPOSITORY_ROOT: undefined,
-  HULALA_PACKAGE_ROOT: undefined, HULALA_NO_OPEN: undefined, HULALA_TEST_BROWSER_LOG: browserLog }
+  HULALA_PACKAGE_ROOT: undefined, HULALA_NO_OPEN: undefined, HULALA_BROWSER: opener, HULALA_TEST_BROWSER_LOG: browserLog }
 const executable = join(directory, manifest.entrypoint)
 const start = performance.now()
 const child = Bun.spawn([executable, '--foreground'], { cwd: root, env: environment, stdout: 'pipe', stderr: 'pipe' })
