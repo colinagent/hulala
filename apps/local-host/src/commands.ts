@@ -86,7 +86,12 @@ export class CommandService {
         this.snapshot(id)
         record.exitCode = outcome.exitCode
         record.state = record.state === 'stopping' ? 'stopped' : 'exited'
-      }, () => { record.state = 'failed'; record.error = 'The command could not run. Check its executable and working directory.' }).finally(async () => {
+      }, () => {
+        this.snapshot(id)
+        // Native containment can reject startup when Stop wins the launch race.
+        if (record.state === 'stopping') record.state = 'stopped'
+        else { record.state = 'failed'; record.error = 'The command could not run. Check its executable and working directory.' }
+      }).finally(async () => {
         record.finishedAt = new Date().toISOString()
         this.active.delete(id)
         this.trim()
@@ -115,7 +120,7 @@ export class CommandService {
     await Promise.allSettled([...this.starting.values()].map(item => item.promise))
     const running = [...this.active.values()]
     for (const id of this.active.keys()) this.stop(id)
-    await Promise.allSettled(running.map(async handle => { await handle.done; await handle.waitForExit(AbortSignal.timeout(10000)) }))
+    await Promise.allSettled(running.map(async handle => { await handle.done.catch(() => undefined); await handle.waitForExit(AbortSignal.timeout(10000)) }))
     await this.persist()
   }
   private require(id: string): CommandRecord {

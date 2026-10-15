@@ -7,7 +7,7 @@ const root = await mkdtemp(join(tmpdir(), 'hulala-pdf-smoke-'))
 const repositoryRoot = join(import.meta.dir, '../..')
 const previousPi = process.env.PI_CODING_AGENT_DIR
 process.env.PI_CODING_AGENT_DIR = join(root, 'pi')
-const handle = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: join(root, 'workspaces'), version: 'test', port: 0, publicPort: 0, webDirectory: join(repositoryRoot, 'apps/workbench/dist'), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings') })
+const handle = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: join(root, 'workspaces'), version: 'test', port: 0, publicPort: 0, webDirectory: process.env.HULALA_WEB_OUTPUT || join(repositoryRoot, 'apps/workbench/dist'), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings') })
 try {
   const origin = `http://127.0.0.1:${handle.server.port}`
   const page = await fetch(origin, { redirect: 'manual' })

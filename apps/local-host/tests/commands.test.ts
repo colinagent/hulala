@@ -59,6 +59,14 @@ test('line input and stopping are owned by the Host, with bounded Workspace cwd'
   service.stop(second.id)
   expect((await settled(service, second.id)).state).toBe('stopped')
   service.stop(second.id)
+  const running = await service.start(workspace, [process.execPath, '--eval', 'console.log("ready");setInterval(() => {},1000)'])
+  const deadline = Date.now() + 5000
+  while (!service.snapshot(running.id).stdout.includes('ready')) {
+    if (Date.now() > deadline) throw new Error('Command did not start')
+    await Bun.sleep(10)
+  }
+  await service.stopAll()
+  expect(service.snapshot(running.id)).toMatchObject({ state: 'stopped', stdout: 'ready\n' })
 })
 test('command text remains a single shell argument on both platform families', () => {
   const command = 'printf "space ; value"'
