@@ -172,22 +172,18 @@ test('uses the stable Harness surface operation and hides replacement messages f
   })).toEqual([])
 })
 
-test('projects the effective model system prompt as a visible system message', () => {
+test('projects native system messages and replaces or clears prior prompt nodes', () => {
   const readModel = new HarnessConversationReadModel()
-  expect(readModel.apply({
-    type: 'request/header', seq: 6, time: 22,
-    data: {
-      reason: 'initial',
-      header: {
-        config: { provider: 'openai-codex', model: 'gpt-5.6-sol' },
-        system: 'You are an AI agent powered by DeepSeek Harness.\n\nDeployment persona.',
-      },
-    },
-  })).toEqual([{ op: 'upsert', item: {
+  const data = { turn: 1, step: 1, message: { id: 'system-test', role: 'system', source: { kind: 'plugin', plugin: 'fixture' }, content: [{ type: 'text', text: 'Fixture prompt' }] } }
+  expect(readModel.apply({ type: 'system/message', seq: 6, time: 22, surfaceOp: 'append', data })).toEqual([{ op: 'upsert', item: {
     kind: 'message', id: 'system-prompt:6', seq: 6, time: 22,
-    role: 'system', sourceLabel: 'System prompt',
-    content: [{ type: 'text', text: 'You are an AI agent powered by DeepSeek Harness.\n\nDeployment persona.' }],
+    role: 'system', sourceLabel: 'System prompt', turn: 1, step: 1,
+    content: [{ type: 'text', text: 'Fixture prompt' }],
   } }])
+  expect(readModel.apply({ type: 'system/message', seq: 8, time: 24, surfaceOp: { op: 'replace', start: 6, end: 6 }, data }))
+    .toMatchObject([{ op: 'remove', id: 'system-prompt:6' }, { op: 'upsert', item: { id: 'system-prompt:8' } }])
+  expect(readModel.apply({ type: 'system/message', seq: 9, time: 25, surfaceOp: { op: 'replace', start: 8, end: 8 }, data: { ...data, message: { ...data.message, content: [] } } }))
+    .toEqual([{ op: 'remove', id: 'system-prompt:8' }])
 })
 
 test('marks unknown required events as an upgrade warning', () => {

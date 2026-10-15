@@ -8,7 +8,7 @@ import {
   type ConversationDelta,
   type ConversationItem,
 } from '@hulala/workbench-contracts'
-import { isAppendSurfaceEvent, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { deriveEventMessage, isAppendSurfaceEvent, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { expandAssistantStream, type AssistantStreamRecord } from '@deepseek-ai/dsh-llm'
 import type { SessionAssistantStreamBaseline, SessionAssistantStreamFrame } from '@deepseek-ai/dsh-api-session-controller/types'
 
@@ -40,6 +40,7 @@ const QUIET_EVENT_TYPES = new Set([
   'step/start',
   'step/end',
   'request/context',
+  'request/header',
   'session/end-seed',
   'session/title',
   'session/title-llm-request',
@@ -253,6 +254,7 @@ export class HarnessConversationReadModel {
   private readonly streams = new Map<string, MutableStream>()
   private readonly tools = new Map<string, ToolState>()
   private readonly commands = new Map<string, Extract<ConversationItem, { kind: 'notice' }>>()
+  private readonly systemMessages = new Map<number, string>()
   private currentTurn: number | undefined
   private currentStep: number | undefined
 
@@ -262,6 +264,7 @@ export class HarnessConversationReadModel {
     this.streams.clear()
     this.tools.clear()
     this.commands.clear()
+    this.systemMessages.clear()
     this.currentTurn = undefined
     this.currentStep = undefined
   }
@@ -407,15 +410,24 @@ export class HarnessConversationReadModel {
       return conversationDeltaSchema.array().parse(changes)
     }
 
-    if (event.type === 'request/header') {
-      const header = record(data.header)
-      const system = stringValue(header?.system)
-      if (system) changes.push({ op: 'upsert', item: {
-        kind: 'message', id: `system-prompt:${event.seq}`, seq: event.seq, time: event.time,
-        ...(this.currentTurn === undefined ? {} : { turn: this.currentTurn }),
-        ...(this.currentStep === undefined ? {} : { step: this.currentStep }),
-        role: 'system', sourceLabel: 'System prompt', content: [{ type: 'text', text: boundedText(system) }],
-      } })
+    if (event.type === 'system/message') {
+      if (typeof event.surfaceOp === 'object') {
+        const { start, end } = event.surfaceOp
+        for (const [seq, id] of this.systemMessages) if (seq >= start && seq <= end) {
+          changes.push({ op: 'remove', id })
+          this.systemMessages.delete(seq)
+        }
+      }
+      const message = deriveEventMessage(event as SessionEvent)
+      const content = normalizeConversationContent(message as unknown as Record<string, unknown> | null)
+      if (content.length) {
+        this.systemMessages.set(event.seq, `system-prompt:${event.seq}`)
+        changes.push({ op: 'upsert', item: {
+          kind: 'message', id: `system-prompt:${event.seq}`, seq: event.seq, time: event.time,
+          turn: coordinate(data.turn), step: coordinate(data.step),
+          role: 'system', sourceLabel: 'System prompt', content,
+        } })
+      }
     } else if (event.type === 'user/message') {
       if (!isAppendOrigin(event)) return []
       const message = data

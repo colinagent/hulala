@@ -57,6 +57,7 @@ test('workspace tabs, editing/reload and streaming composer remain stable', asyn
   await input.fill('Return a short fixture reply.')
   await input.press('Enter')
   await expect(page.getByText('Browser fixture reply.', { exact: false }).first()).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText('Unsupported Harness event', { exact: true })).toHaveCount(0)
   const toolbar = page.locator('.hulala-composer-toolbar')
   const before = await toolbar.evaluate(element => {
     const buttons = [...element.querySelectorAll('button')]
