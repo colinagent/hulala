@@ -4,8 +4,7 @@ import { dirnamePosix, normalizePosixPath } from '../utils/markdownMedia';
 import {
   canonicalFileURI,
   fileUrlToAbsolutePath,
-  isAbsoluteResourcePath,
-  normalizeResourcePath,
+  resolveResourcePath,
   isDataUrl,
   isFileUrl,
   isHttpUrl,
@@ -56,9 +55,7 @@ export function resolveResourceTargetFromRef(
   if (isDataUrl(value)) return { kind: 'data', url: value };
   if (isHttpUrl(value)) return { kind: 'external', url: value };
   if (isFileUrl(value)) return { kind: 'file', uri: canonicalFileURIFromPath(fileUrlToAbsolutePath(value), workspaceTabId) };
-  const path = isAbsoluteResourcePath(value)
-    ? normalizeResourcePath(value)
-    : normalizeResourcePath(`${dirnamePosix(normalizeResourcePath(documentPath || ''))}/${value}`);
+  const path = resolveResourcePath(documentPath, value);
   return { kind: 'file', uri: canonicalFileURIFromPath(path, workspaceTabId) };
 }
 

@@ -63,6 +63,13 @@ export function normalizeResourcePath(value: string): string {
   return normalizePosixPath(path);
 }
 
+export function resolveResourcePath(documentPath: string | null, reference: string): string {
+  if (isAbsoluteResourcePath(reference)) return normalizeResourcePath(reference);
+  const document = normalizeResourcePath(documentPath || '');
+  const directory = document.slice(0, document.lastIndexOf('/') + 1);
+  return normalizeResourcePath((directory || '/') + reference);
+}
+
 export function looksLikeResourcePath(value: string): boolean {
   const trimmed = value.trim();
   return Boolean(trimmed) && !isDataUrl(trimmed) && !isHttpUrl(trimmed);

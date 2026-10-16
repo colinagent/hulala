@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { canonicalFileURI, fileUrlToAbsolutePath, parseCanonicalFileURI } from './uri';
+import { canonicalFileURI, fileUrlToAbsolutePath, parseCanonicalFileURI, resolveResourcePath } from './uri';
 
 test('resource URIs round-trip Windows drive, mixed separators, UNC and POSIX paths', () => {
   for (const [input, expected] of [
@@ -22,4 +22,10 @@ test('file URLs retain Windows drives and network shares', () => {
 
 test('drive-relative and ordinary relative resource paths are rejected', () => {
   for (const path of ['C:book.epub', 'books/book.epub', '']) expect(() => canonicalFileURI('host', path)).toThrow();
+});
+
+test('relative resources preserve volume/share roots without confusing the POSIX root with UNC', () => {
+  expect(resolveResourcePath('/README.md', 'cover.png')).toBe('/cover.png');
+  expect(resolveResourcePath('C:\\books\\Reader.md', 'images\\cover.png')).toBe('C:/books/images/cover.png');
+  expect(resolveResourcePath('\\\\server\\share\\books\\Reader.md', '../cover.png')).toBe('//server/share/cover.png');
 });
