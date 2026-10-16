@@ -929,19 +929,16 @@ body.op-global-cursor-grabbing * {
 }
 
 .op-document-outline-toggle,
-.op-md-outline-pin,
 .op-text-editor-pin {
   color: var(--color-secondary-text);
 }
 
 .op-document-outline-toggle.is-active,
-.op-md-outline-pin.is-pinned,
 .op-text-editor-pin.is-pinned {
   color: var(--color-prime-text);
 }
 
 .op-document-outline-toggle svg,
-.op-md-outline-pin svg,
 .op-text-editor-pin svg {
   display: block;
 }

@@ -324,14 +324,15 @@ export function RightWorkspaceToggle({ rightPaneOpen, onToggleRightPane }: {
   const { t } = useTranslation('menu');
   return (
     <IconButton
-      size={34}
-      className={`sidebar-activity-button${rightPaneOpen ? ' is-active' : ''}`}
+      size={28}
+      variant="inline"
+      className={`right-workspace-toggle ${rightPaneOpen ? 'text-highlight' : 'text-secondary-text hover:text-brand'}`}
       onClick={onToggleRightPane}
       title={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
       aria-label={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
       aria-pressed={rightPaneOpen}
     >
-      <SidebarPanelToggleIcon className="h-5 w-5" />
+      <SidebarPanelToggleIcon className="h-4 w-4" />
     </IconButton>
   );
 }

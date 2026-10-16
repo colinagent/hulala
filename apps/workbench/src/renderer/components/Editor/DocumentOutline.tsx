@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Text } from '@codemirror/state';
-import { SidebarPanelToggleIcon } from '../Icons';
 import type { MarkdownEditorInstance } from './codemirror/setup';
 import {
   buildOutlineTreeEntries,
@@ -20,9 +19,7 @@ type DocumentOutlineProps = {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onEntriesChange?: (hasEntries: boolean) => void;
-  pinEnabled?: boolean;
-  pinned?: boolean;
-  onPinToggle?: () => void;
+  rightWorkspaceControl?: React.ReactNode;
   outlineToggleEnabled?: boolean;
   onNavigate?: () => void;
 };
@@ -65,9 +62,7 @@ export const DocumentOutline: React.FC<DocumentOutlineProps> = ({
   expanded,
   onExpandedChange,
   onEntriesChange,
-  pinEnabled = false,
-  pinned = false,
-  onPinToggle,
+  rightWorkspaceControl,
   outlineToggleEnabled = true,
   onNavigate,
 }) => {
@@ -165,9 +160,9 @@ export const DocumentOutline: React.FC<DocumentOutlineProps> = ({
   }, [editorRef, treeEntries]);
 
   const hasEntries = nodes.length > 0;
-  const showToggleWrap = (!expanded && pinEnabled) || (hasEntries && outlineToggleEnabled);
+  const showToggleWrap = (!expanded && Boolean(rightWorkspaceControl)) || (hasEntries && outlineToggleEnabled);
 
-  if (!hasEntries && !pinEnabled) {
+  if (!hasEntries && !rightWorkspaceControl) {
     return null;
   }
 
@@ -181,21 +176,7 @@ export const DocumentOutline: React.FC<DocumentOutlineProps> = ({
               onToggle={() => onExpandedChange(!expanded)}
             />
           )}
-          {!expanded && pinEnabled && (
-            <button
-              type="button"
-              className={`op-md-outline-pin icon-gutter-btn-sm icon-button-inline ${pinned ? 'is-pinned' : ''}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onPinToggle?.();
-              }}
-              title="Move to right workspace"
-              aria-label="Move to right workspace"
-              aria-pressed={pinned}
-            >
-              <SidebarPanelToggleIcon className="h-4 w-4" />
-            </button>
-          )}
+          {!expanded && rightWorkspaceControl}
         </div>
       ) : null}
       {expanded && hasEntries ? (

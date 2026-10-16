@@ -1011,6 +1011,20 @@ export default function App() {
 
   const renderedPinnedFilePanelWidth = clampPinnedFilePanelWidth(pinnedFilePanelWidth);
 
+  const rightWorkspaceControl = (
+    <RightWorkspaceToggle
+      rightPaneOpen={showRightPane}
+      onToggleRightPane={() => {
+        const nextOpen = !showRightPane;
+        if (nextOpen && rightPaneBlockedByUnavailableActivity) {
+          setActivityPanelPinnedRight(false);
+        }
+        setRightPaneOpen(nextOpen);
+        if (!nextOpen) setSidePanelStatusOpen(false);
+      }}
+    />
+  );
+
   const renderEditorForTab = (
     tab: typeof workspaceDocuments[number] | null,
     options?: {
@@ -1036,9 +1050,7 @@ export default function App() {
         <MarkdownEditor
           tabId={tab.id}
           autoFocus={options?.autoFocus ?? false}
-          outlinePinEnabled={!isRightPane && Boolean(tab.filePath)}
-          outlinePinned={false}
-          onOutlinePinToggle={!isRightPane ? () => moveFileToRightWorkspace(tab.id) : undefined}
+          rightWorkspaceControl={!isRightPane ? rightWorkspaceControl : undefined}
           outlineToggleEnabled={true}
           outlineMode="popover"
           textOffsetEnabled={true}
@@ -1066,7 +1078,7 @@ export default function App() {
         <BookReaderEditor
           tabId={tab.id}
           outlineMode="popover"
-          onMoveToRight={!isRightPane ? () => moveFileToRightWorkspace(tab.id) : undefined}
+          rightWorkspaceControl={!isRightPane ? rightWorkspaceControl : undefined}
         />
       );
     }
@@ -1487,19 +1499,6 @@ export default function App() {
                 onOpenRecentRemote={handleNewTabWithRemote}
               />
             }
-            workspaceActions={
-              <RightWorkspaceToggle
-                rightPaneOpen={showRightPane}
-                onToggleRightPane={() => {
-                  const nextOpen = !showRightPane;
-                  if (nextOpen && rightPaneBlockedByUnavailableActivity) {
-                    setActivityPanelPinnedRight(false);
-                  }
-                  setRightPaneOpen(nextOpen);
-                  if (!nextOpen) setSidePanelStatusOpen(false);
-                }}
-              />
-            }
             onOpenSettings={() => openUnifiedSettings('general')}
             onOpenConfigFiles={openSettingsWorkspace}
             onSwitchLocal={handleSwitchLocalWorkspace}
@@ -1527,6 +1526,7 @@ export default function App() {
             <section className="relative min-w-0 flex-1 flex flex-col overflow-hidden" data-editor-pane="main">
               <EditorTabBar
                 pane="main"
+                rightWorkspaceControl={primaryEditorTab && ['markdown', 'book', 'pdf'].includes(primaryEditorTab.editorId) ? undefined : rightWorkspaceControl}
                 onTabDragStateChange={setDraggingEditorTabId}
                 onMoveTabToPane={(tabId, pane) => {
                   if (pane === 'right') {

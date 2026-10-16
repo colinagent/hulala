@@ -44,12 +44,14 @@ type TabContextMenuState = {
 
 type EditorTabBarProps = {
   pane?: EditorPane;
+  rightWorkspaceControl?: React.ReactNode;
   onTabDragStateChange?: (tabId: string | null) => void;
   onMoveTabToPane?: (tabId: string, pane: EditorPane) => void;
 };
 
 export const EditorTabBar: React.FC<EditorTabBarProps> = ({
   pane = 'main',
+  rightWorkspaceControl,
   onTabDragStateChange,
   onMoveTabToPane,
 }) => {
@@ -345,6 +347,7 @@ export const EditorTabBar: React.FC<EditorTabBarProps> = ({
           );
         })}
       </CompressibleTabStrip>
+      {rightWorkspaceControl ? <div data-tabbar-action className="ml-auto shrink-0 pr-1">{rightWorkspaceControl}</div> : null}
       {tabContextMenuNode}
     </div>
   );

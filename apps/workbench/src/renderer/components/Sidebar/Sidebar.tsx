@@ -49,7 +49,6 @@ import { sidebarRailAlertCount } from './sidebarRailAlerts';
 import { useSidebarRailAlerts } from './useSidebarRailAlerts';
 
 type SidebarProps = {
-  workspaceActions: React.ReactNode;
   newWorkspaceAction: React.ReactNode;
   onOpenSettings: () => void;
   onOpenConfigFiles: () => void | Promise<void>;
@@ -129,7 +128,6 @@ function SidebarRailIcon({ itemKey }: { itemKey: SidebarRailItemKey }) {
 }
 
 export function Sidebar({
-  workspaceActions,
   newWorkspaceAction,
   onOpenSettings,
   onOpenConfigFiles,
@@ -492,9 +490,6 @@ export function Sidebar({
         className="sidebar-activity-rail flex shrink-0 flex-col items-center"
         style={{ width: SIDEBAR_ACTIVITY_RAIL_WIDTH_PX }}
       >
-        <div className="flex shrink-0 flex-col items-center gap-1 pt-2">
-          {workspaceActions}
-        </div>
         <div className="sidebar-activity-rail-items flex flex-col items-center gap-1">
           {mainRailItems.map((item) => {
             const selected = isMainSidebarRailItemActive(view, item.key);

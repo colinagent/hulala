@@ -52,9 +52,7 @@ const SCROLL_JUMP_CONTROL_SCREEN_THRESHOLD = 2;
 type MarkdownEditorProps = {
   tabId?: string | null;
   autoFocus?: boolean;
-  outlinePinEnabled?: boolean;
-  outlinePinned?: boolean;
-  onOutlinePinToggle?: () => void;
+  rightWorkspaceControl?: React.ReactNode;
   outlineToggleEnabled?: boolean;
   textOffsetEnabled?: boolean;
   compact?: boolean;
@@ -246,9 +244,7 @@ function MarkdownPinIcon() {
 export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   tabId = null,
   autoFocus = false,
-  outlinePinEnabled = false,
-  outlinePinned = false,
-  onOutlinePinToggle,
+  rightWorkspaceControl,
   outlineToggleEnabled = true,
   textOffsetEnabled = true,
   compact = false,
@@ -1428,9 +1424,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           expanded={false}
           onExpandedChange={handleOutlineExpandedChange}
           onEntriesChange={handleOutlineEntriesChange}
-          pinEnabled={outlinePinEnabled}
-          pinned={outlinePinned}
-          onPinToggle={onOutlinePinToggle}
+          rightWorkspaceControl={rightWorkspaceControl}
           outlineToggleEnabled={outlineToggleEnabled}
         />
       </div>
@@ -1448,7 +1442,6 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           expanded={true}
           onExpandedChange={handleOutlineExpandedChange}
           onEntriesChange={handleOutlineEntriesChange}
-          pinEnabled={false}
           outlineToggleEnabled={false}
           onNavigate={() => setOutlineExpanded(false)}
         />
