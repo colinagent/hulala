@@ -6,6 +6,7 @@ import { browserJson } from './browser'
 import { useTranslation } from 'react-i18next'
 import { useBlockingModal } from '../renderer/utils/useBlockingModal'
 import { onStorageIssue, storageIssues } from './storage'
+import type { NativeDirectoryDialogResult } from '@hulala/workbench-contracts/browser'
 
 export function BrowserDialogs() {
   const { t } = useTranslation('settings')
@@ -36,7 +37,25 @@ export function BrowserDialogs() {
     return () => { disposed = true; clearTimeout(timer) }
   }, [])
   useEffect(() => {
-    const select = (event: Event) => setRequest(previous => { previous?.resolve(null); return (event as CustomEvent<BrowserDirectoryRequest>).detail })
+    let disposed = false
+    let nativePicker: AbortController | null = null
+    const select = (event: Event) => {
+      const next = (event as CustomEvent<BrowserDirectoryRequest>).detail
+      if (nativePicker) { next.resolve(null); return }
+      if (!next.mode && !next.provider) {
+        const controller = new AbortController()
+        nativePicker = controller
+        void browserJson<NativeDirectoryDialogResult>('/api/browser/dialogs/directory', {
+          method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: next.title || 'Open Folder', defaultPath: next.defaultPath }),
+        }).then(result => next.resolve(result.path)).catch(error => {
+          next.resolve(null)
+          if (!disposed) setNotice({ message: error instanceof Error ? error.message : 'Could not open the system folder picker.' })
+        }).finally(() => { if (nativePicker === controller) nativePicker = null })
+        return
+      }
+      setRequest(previous => { previous?.resolve(null); return next })
+    }
     const opened = (event: Event) => setBlocked((event as CustomEvent).detail)
     const notified = (event: Event) => { const detail = (event as CustomEvent).detail; setNotice(typeof detail === 'string' ? { message: detail } : detail) }
     const configure = (event: Event) => {
@@ -48,7 +67,7 @@ export function BrowserDialogs() {
     window.addEventListener('hulala:open-blocked', opened)
     window.addEventListener('hulala:notice', notified)
     window.addEventListener(SECRET_REQUEST_EVENT, configure)
-    return () => { window.removeEventListener(DIRECTORY_REQUEST_EVENT, select); window.removeEventListener('hulala:open-blocked', opened); window.removeEventListener('hulala:notice', notified); window.removeEventListener(SECRET_REQUEST_EVENT, configure) }
+    return () => { disposed = true; nativePicker?.abort(); window.removeEventListener(DIRECTORY_REQUEST_EVENT, select); window.removeEventListener('hulala:open-blocked', opened); window.removeEventListener('hulala:notice', notified); window.removeEventListener(SECRET_REQUEST_EVENT, configure) }
   }, [])
   return <>
     {storageProblem.length ? <div role="status" className="fixed bottom-8 left-1/2 z-[12000] max-w-lg -translate-x-1/2 rounded border border-border bg-editor-bg p-3 text-sm text-prime-text">

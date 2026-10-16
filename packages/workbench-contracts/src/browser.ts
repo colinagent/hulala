@@ -13,6 +13,12 @@ export type BrowserWorkspace = z.infer<typeof browserWorkspaceSchema>
 export const browserWorkspaceListSchema = z.object({ version: z.literal(1), items: z.array(browserWorkspaceSchema) })
 export const openWorkspaceSchema = z.object({ path: z.string().min(1).max(32768) }).strict()
 export const createBrowserWorkspaceSchema = z.object({ name: z.string().trim().min(1).max(128) }).strict()
+export const nativeDirectoryDialogSchema = z.object({
+  title: z.string().min(1).max(160).regex(/^[^\u0000-\u001f]*$/).default('Open Folder'),
+  defaultPath: z.string().min(1).max(32768).regex(/^[^\u0000]*$/).optional(),
+}).strict()
+export type NativeDirectoryDialogInput = z.infer<typeof nativeDirectoryDialogSchema>
+export interface NativeDirectoryDialogResult { path: string | null }
 export interface BrowserServiceInfo {
   version: string
   source: 'source' | 'archive' | 'standalone' | 'npm' | 'npx' | 'bun' | 'pnpm'

@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { z } from 'zod'
 import WebSocket from 'ws'
 import { resolveHulalaPaths } from '@hulala/workbench-contracts/paths'
-import { createBrowserWorkspaceSchema, openWorkspaceSchema, type BrowserBootstrap } from '@hulala/workbench-contracts/browser'
+import { createBrowserWorkspaceSchema, openWorkspaceSchema, nativeDirectoryDialogSchema, type BrowserBootstrap } from '@hulala/workbench-contracts/browser'
 import { BrowserWorkspaceRegistry } from './registry'
 import { WorkspaceWorkers, type WorkerOptions, type WorkspaceTransport } from './workers'
 import { superviseScheduledWorkspaces } from './background'
@@ -25,6 +25,7 @@ import type { SettingsState } from '../settings/settingsStore'
 import { BrowserLifecycle } from './lifecycle'
 import { ensureBrowserDataFormat } from './data-format'
 import { browserServiceInfo } from './installation'
+import { NativeDirectoryPicker } from './native-directory'
 
 export interface BrowserServerOptions extends WorkerOptions {
   port: number
@@ -76,6 +77,7 @@ export async function startBrowserServer(options: BrowserServerOptions) {
   const remoteWorkers = new RemoteWorkspaceWorkers(sshHosts, sshTrust, new SshPackages(options.remotePackagesDirectory || process.env.HULALA_REMOTE_PACKAGES || join(options.repositoryRoot, 'dist/remote'), options.runtimeHostModule ? options.repositoryRoot : undefined, { root: paths.root, version: options.version }), options.version)
   const recovery = new BrowserRecovery(join(paths.server, 'browser/drafts'))
   const pdf = new PdfExports(join(paths.cache, 'exports'))
+  const directoryPicker = new NativeDirectoryPicker(paths.workspace)
   const webRoot = await realpath(options.webDirectory)
   if (!(await stat(join(webRoot, 'index.html'))).isFile()) throw new Error('Build the browser workbench before starting it')
   await workers.get(initial)
@@ -111,6 +113,10 @@ export async function startBrowserServer(options: BrowserServerOptions) {
             await lifecycle.cancel(input.lease); return json({ resumed: true })
           }
           if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) releaseMutation = lifecycle.enter()
+          if (url.pathname === '/api/browser/dialogs/directory' && request.method === 'POST') {
+            server.timeout(request, 0)
+            return json(await directoryPicker.pick(await parseJson(request, nativeDirectoryDialogSchema), request.signal))
+          }
           if (url.pathname === '/api/browser/ssh/hosts') {
             if (request.method === 'GET') { await sshHosts.refreshConfig(); return json(sshHosts.list()) }
             if (request.method === 'POST') return json(await sshHosts.save(await parseJson(request, saveSshHostSchema)), 201)
@@ -287,6 +293,6 @@ export async function startBrowserServer(options: BrowserServerOptions) {
   viewCheckpoint.unref()
   return {
     server, registry, workers, backgroundReady: background.ready,
-    async stop() { if (stopping) return; stopping = true; lifecycle.stop(); settings.stop(); clearInterval(viewCheckpoint); await recovery.sealViews().catch(() => undefined); server.stop(true); await settingsUpdates; await background.stop(); await Promise.all([workers.stop(), remoteWorkers.stop(), recovery.flush(), pdf.stop(), power.stop()]); sshHosts.stop() },
+    async stop() { if (stopping) return; stopping = true; lifecycle.stop(); settings.stop(); clearInterval(viewCheckpoint); await directoryPicker.stop(); await recovery.sealViews().catch(() => undefined); server.stop(true); await settingsUpdates; await background.stop(); await Promise.all([workers.stop(), remoteWorkers.stop(), recovery.flush(), pdf.stop(), power.stop()]); sshHosts.stop() },
   }
 }

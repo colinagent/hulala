@@ -60,10 +60,9 @@ export function authorizeServiceAction(request: IncomingMessage, actionToken: st
   return undefined
 }
 
-function proxyRequest(request: IncomingMessage, response: ServerResponse): void {
+export function proxyRequest(request: IncomingMessage, response: ServerResponse, target = { host: APP_HOST, port: WORKBENCH_PORT }): void {
   const upstream = requestHttp({
-    host: APP_HOST,
-    port: WORKBENCH_PORT,
+    ...target,
     method: request.method,
     path: request.url,
     headers: request.headers,
@@ -71,7 +70,10 @@ function proxyRequest(request: IncomingMessage, response: ServerResponse): void 
     response.writeHead(upstreamResponse.statusCode ?? 502, upstreamResponse.headers)
     upstreamResponse.pipe(response)
   })
+  request.once('aborted', () => upstream.destroy())
+  response.once('close', () => { if (!response.writableEnded) upstream.destroy() })
   upstream.on('error', error => {
+    if (response.destroyed) return
     if (!response.headersSent) sendJson(response, 502, { error: `Workbench connection failed: ${error.message}` })
     else response.destroy(error)
   })

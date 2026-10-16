@@ -91,7 +91,12 @@ never automatically overwrites the disk. Dirty pages receive browser-controlled
 navigation warnings. Saved editor files, pane placement and active selection
 are restored separately from drafts.
 
-File and folder inputs, drop and paste use browser File/Blob objects. Uploads
+Local Workspace and default-folder choices open the operating system's folder
+picker on the computer running Hulala. Linux desktop sessions need Zenity or
+KDialog. SSH directories continue to use the remote directory browser. Only one
+system picker opens at a time; cancellation leaves the current Workspace intact.
+
+File imports, drop and paste use browser File/Blob objects. Uploads
 stream through HTTP with progress and cancellation, a 256 MiB limit per file,
 and atomic publication. Import conflicts can be skipped or conditionally
 replaced; a file changed after confirmation is rejected. Partial multi-file

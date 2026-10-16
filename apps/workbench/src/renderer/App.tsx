@@ -1,4 +1,4 @@
-import { browserJson, openBrowserWorkspace, openRemoteWorkspace } from '../platform/browser';
+import { browserJson, openBrowserWorkspace, openLocalWorkspaceDirectory, openRemoteWorkspace } from '../platform/browser';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sidebar, SIDEBAR_ACTIVITY_RAIL_WIDTH_PX } from './components/Sidebar/Sidebar';
@@ -43,7 +43,6 @@ import {
   useSaveFileDialogRequest,
 } from './components/FileDialog/saveFileDialogBridge';
 import {
-  createLocalDirectoryPickerProvider,
   createRemoteDirectoryPickerProvider,
 } from './components/FileDialog/directoryPickerProviders';
 import { UnifiedSettingsModal } from './components/Settings/UnifiedSettingsModal';
@@ -80,9 +79,6 @@ import { UnsavedTabCloseDialog } from './components/UnsavedTabCloseDialog';
 import { formatStatusBarPathDisplay } from './utils/statusBarPath';
 import { countMarkdownWords } from './utils/markdownWordCount';
 import { normalizePosixPath } from './utils/markdownMedia';
-import {
-  resolveDefaultLocalWorkspacePath,
-} from './utils/workspaceClose';
 import { useToastStore } from './store/toastStore';
 
 // Keep the sidebar wide enough so the tab bar never overflows into the resize divider hit area.
@@ -96,26 +92,11 @@ const DEFAULT_PINNED_FILE_PANEL_WIDTH = 420;
 const PINNED_FILE_PANEL_PRIMARY_MIN_WIDTH = 260;
 const APP_BOOTSTRAP_RENDER_TIMEOUT_MS = 5_000;
 
-type DirectoryPickerRequest =
-  | {
-      source: 'switch-local-workspace';
-      currentPath: string | null;
-      defaultPath: string | null;
-    }
-  | {
-      source: 'switch-remote-workspace';
-      tabId: string;
-      currentPath: string | null;
-    }
-  | {
-      source: 'landing-open-folder';
-      defaultPath: string | null;
-    }
-  | {
-      source: 'new-local-workspace-tab';
-      defaultPath: string | null;
-    }
-  ;
+type DirectoryPickerRequest = {
+  source: 'switch-remote-workspace';
+  tabId: string;
+  currentPath: string | null;
+};
 
 function clampSidebarWidth(width: number) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -625,13 +606,12 @@ export default function App() {
   }
 
   const handleNewFolderTab = async () => {
-    const defaultDir = currentDir && !remoteSession
-      ? currentDir
-      : await resolveDefaultLocalWorkspacePath();
-    setDirectoryPickerRequest({
-      source: 'new-local-workspace-tab',
-      defaultPath: defaultDir,
-    });
+    try {
+      const path = await openLocalWorkspaceDirectory(currentDir && !remoteSession ? currentDir : undefined);
+      if (path) await useRecentWorkspacesStore.getState().recordLocal({ path });
+    } catch (error) {
+      useToastStore.getState().pushToast(error instanceof Error ? error.message : 'Could not open the folder.');
+    }
   };
 
   const handleOpenCreateWorkspace = () => {
@@ -667,16 +647,14 @@ export default function App() {
       return;
     }
     setOpeningLandingFolder(true);
-    let defaultDir: string | null = null;
     try {
-      defaultDir = await resolveDefaultLocalWorkspacePath();
+      const path = await openLocalWorkspaceDirectory();
+      if (path) await useRecentWorkspacesStore.getState().recordLocal({ path });
     } catch (error) {
-      console.warn('[landing] failed to resolve the default local workspace:', error);
+      useToastStore.getState().pushToast(error instanceof Error ? error.message : 'Could not open the folder.');
+    } finally {
+      setOpeningLandingFolder(false);
     }
-    setDirectoryPickerRequest({
-      source: 'landing-open-folder',
-      defaultPath: defaultDir,
-    });
   };
 
   const handleLandingConnectRemote = () => {
@@ -812,14 +790,7 @@ export default function App() {
   };
 
   const handleOpenLocalSwitchDirectory = async () => {
-    const defaultDir = currentDir && !remoteSession
-      ? currentDir
-      : await resolveDefaultLocalWorkspacePath();
-    setDirectoryPickerRequest({
-      source: 'switch-local-workspace',
-      currentPath: currentDir,
-      defaultPath: defaultDir,
-    });
+    await handleNewFolderTab();
   };
 
   const handleOpenRemoteSwitchDirectory = () => {
@@ -843,33 +814,11 @@ export default function App() {
   };
 
   const closeDirectoryPicker = () => {
-    if (directoryPickerRequest?.source === 'landing-open-folder') {
-      setOpeningLandingFolder(false);
-    }
     setDirectoryPickerRequest(null);
   };
 
   const handleDirectoryPickerSelect = async (path: string) => {
     if (!directoryPickerRequest) {
-      return;
-    }
-
-    if (directoryPickerRequest.source === 'switch-local-workspace') {
-      await handleSwitchLocalWorkspace(path);
-      await useRecentWorkspacesStore.getState().recordLocal({ path });
-      return;
-    }
-
-    if (directoryPickerRequest.source === 'new-local-workspace-tab') {
-      await handleNewTabWithLocal(path);
-      return;
-    }
-
-    if (directoryPickerRequest.source === 'landing-open-folder') {
-      connect();
-      await handleSwitchLocalWorkspace(path);
-      await useRecentWorkspacesStore.getState().recordLocal({ path });
-      await completeNewWindowLanding();
       return;
     }
 
@@ -926,42 +875,6 @@ export default function App() {
       };
     }
 
-    const localProvider = createLocalDirectoryPickerProvider();
-    const localRecentPaths = recentWorkspaces.local.map((entry) => entry.path);
-
-    if (directoryPickerRequest.source === 'landing-open-folder') {
-      return {
-        provider: localProvider,
-        title: 'Open Folder',
-        subtitle: 'Local Workspace',
-        defaultPath: directoryPickerRequest.defaultPath,
-        currentPath: null,
-        recentPaths: localRecentPaths,
-        submitLabel: 'Open',
-      };
-    }
-
-    if (directoryPickerRequest.source === 'new-local-workspace-tab') {
-      return {
-        provider: localProvider,
-        title: 'Open Folder',
-        subtitle: 'New Local Workspace Tab',
-        defaultPath: directoryPickerRequest.defaultPath,
-        currentPath: null,
-        recentPaths: localRecentPaths,
-        submitLabel: 'Open',
-      };
-    }
-
-    return {
-      provider: localProvider,
-      title: 'Switch Directory',
-      subtitle: 'Local Workspace',
-      defaultPath: directoryPickerRequest.defaultPath,
-      currentPath: directoryPickerRequest.currentPath,
-      recentPaths: localRecentPaths,
-      submitLabel: 'Switch',
-    };
   }, [directoryPickerRequest, recentWorkspaces]);
 
   useEffect(() => {

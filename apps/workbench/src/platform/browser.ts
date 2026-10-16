@@ -52,6 +52,17 @@ export async function openBrowserWorkspace(path: string, reserved?: Window | nul
   } catch (error) { if (page !== window) page?.close(); throw error }
 }
 
+export async function openLocalWorkspaceDirectory(defaultPath?: string): Promise<string | null> {
+  // Reserve during the browser click; the system dialog may remain open for minutes.
+  const reserved = location.pathname === '/open' ? window : reserveWorkspacePage()
+  try {
+    const path = await chooseDirectory(defaultPath, { title: 'Open Folder' })
+    if (!path) { if (reserved !== window) reserved?.close(); return null }
+    await openBrowserWorkspace(path, reserved)
+    return path
+  } catch (error) { if (reserved !== window) reserved?.close(); throw error }
+}
+
 export async function openRemoteWorkspace(host: SshHostPayload, path?: string, createName?: string, document?: { reserved: Window | null; file: string }): Promise<void> {
   if (!host.id) throw new Error('Choose a saved SSH host')
   const page = location.pathname === '/open' ? window : document ? document.reserved : reserveWorkspacePage()
@@ -397,7 +408,10 @@ export async function createBrowserPlatform(options: { workspaceId?: string; ref
       updateWorkspaceTabsSession: async snapshot => { sessionStore.setItem(stateKey, JSON.stringify(snapshot)); return snapshot },
       createNew: async () => { window.open('/open', '_blank', 'noopener'); return { requested: true } },
       completeNewWindowLanding: async () => ({ success: true }),
-      createLocal: async options => { const path = options?.path || await chooseDirectory(bootstrap.defaultDir); if (path) await openBrowserWorkspace(path); return { opened: Boolean(path) } },
+      createLocal: async options => {
+        if (options?.path) { await openBrowserWorkspace(options.path); return { opened: true } }
+        return { opened: Boolean(await openLocalWorkspaceDirectory(bootstrap.defaultDir)) }
+      },
       createRemote: async host => { await openRemoteWorkspace(host); return { requested: true } },
       focus: async () => { window.focus(); return { active: document.hasFocus() } },
       close: async () => { window.close(); return { closed: window.closed } },

@@ -119,13 +119,40 @@ test('blocked browser storage preserves drafts and settings dialogs stay usable'
     await page.keyboard.press('ControlOrMeta+,')
     const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
     await expect(settings).toBeVisible()
+    await page.route('**/api/browser/dialogs/directory', route => route.fulfill({ json: { path: null } }))
+    const folderRequest = page.waitForRequest(request => request.url().endsWith('/api/browser/dialogs/directory') && request.method() === 'POST')
     await settings.getByRole('button', { name: 'Choose Workspace', exact: true }).click()
-    const picker = page.getByRole('dialog', { name: 'Select directory', exact: true })
-    await expect(picker).toBeVisible(); await picker.getByRole('textbox').press('Escape')
-    await expect(picker).not.toBeVisible(); await expect(settings).toBeVisible()
+    await folderRequest
+    await expect(page.getByRole('dialog', { name: 'Select directory', exact: true })).not.toBeVisible()
+    await expect(settings).toBeVisible()
     await page.setViewportSize({ width: 800, height: 600 })
     const box = await settings.boundingBox(); expect(box!.width).toBeLessThanOrEqual(800)
     await settings.getByRole('button', { name: 'Close settings' }).click()
     await expect(settings).not.toBeVisible()
   } finally { await context.close() }
+})
+
+test('native folder selection opens its reserved tab and cancellation closes the empty tab', async ({ page, context }) => {
+  let chosenPath: string | null = fixture.second
+  await page.route('**/api/browser/dialogs/directory', route => route.fulfill({ json: { path: chosenPath } }))
+  await page.goto(fixture.url)
+  await expect(page).toHaveTitle('workspace · Hulala')
+  const openMenu = async () => {
+    await page.locator('.sidebar-root-header').hover()
+    await page.locator('.sidebar-root-header').getByRole('button', { name: 'New tab', exact: true }).click()
+  }
+  await openMenu()
+  const newPage = context.waitForEvent('page')
+  await page.getByRole('button', { name: 'Open Folder', exact: true }).click()
+  const selected = await newPage
+  await expect(selected).toHaveTitle('项目 B · Hulala')
+  await expect(page).toHaveTitle('workspace · Hulala')
+  await selected.close()
+  chosenPath = null
+  await openMenu()
+  const canceledPage = context.waitForEvent('page')
+  await page.getByRole('button', { name: 'Open Folder', exact: true }).click()
+  const canceled = await canceledPage
+  await expect.poll(() => canceled.isClosed()).toBe(true)
+  await expect(page.getByRole('dialog', { name: 'Open Folder', exact: true })).not.toBeVisible()
 })
