@@ -1050,7 +1050,7 @@ export default function App() {
         <MarkdownEditor
           tabId={tab.id}
           autoFocus={options?.autoFocus ?? false}
-          rightWorkspaceControl={!isRightPane ? rightWorkspaceControl : undefined}
+          rightWorkspaceControl={!isRightPane && !showRightPane ? rightWorkspaceControl : undefined}
           outlineToggleEnabled={true}
           outlineMode="popover"
           textOffsetEnabled={true}
@@ -1078,7 +1078,7 @@ export default function App() {
         <BookReaderEditor
           tabId={tab.id}
           outlineMode="popover"
-          rightWorkspaceControl={!isRightPane ? rightWorkspaceControl : undefined}
+          rightWorkspaceControl={!isRightPane && !showRightPane ? rightWorkspaceControl : undefined}
         />
       );
     }
@@ -1526,7 +1526,7 @@ export default function App() {
             <section className="relative min-w-0 flex-1 flex flex-col overflow-hidden" data-editor-pane="main">
               <EditorTabBar
                 pane="main"
-                rightWorkspaceControl={primaryEditorTab && ['markdown', 'book', 'pdf'].includes(primaryEditorTab.editorId) ? undefined : rightWorkspaceControl}
+                rightWorkspaceControl={showRightPane || (primaryEditorTab && ['markdown', 'book', 'pdf'].includes(primaryEditorTab.editorId)) ? undefined : rightWorkspaceControl}
                 onTabDragStateChange={setDraggingEditorTabId}
                 onMoveTabToPane={(tabId, pane) => {
                   if (pane === 'right') {
@@ -1573,6 +1573,7 @@ export default function App() {
                   data-editor-pane="right"
                 >
                   <RightWorkspaceTabBar
+                    rightWorkspaceControl={rightWorkspaceControl}
                     onAddReference={() => setReferenceDialogOpen(true)}
                     files={rightFileTabs}
                     activeTabKey={rightPaneActiveTabKeyForCurrentWorkspace}

@@ -31,6 +31,7 @@ export type RightWorkspaceFileTab = {
 };
 
 type Props = {
+  rightWorkspaceControl: React.ReactNode;
   onAddReference?: () => void;
   files: RightWorkspaceFileTab[];
   activeTabKey?: RightWorkspaceTabKey;
@@ -46,6 +47,7 @@ type Props = {
 type ContextMenuState = { x: number; y: number; file: RightWorkspaceFileTab };
 
 export function RightWorkspaceTabBar({
+  rightWorkspaceControl,
   onAddReference,
   files,
   activeTabKey,
@@ -170,6 +172,7 @@ export function RightWorkspaceTabBar({
           );
         })}
       </CompressibleTabStrip>
+      <div data-tabbar-action className="ml-auto shrink-0 pr-1">{rightWorkspaceControl}</div>
       {contextMenu ? createPortal(
         <PopupMenu
           substrate="sidebar"
