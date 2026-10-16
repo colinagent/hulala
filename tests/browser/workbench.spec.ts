@@ -29,7 +29,7 @@ test.beforeAll(async ({ browser }, info) => {
 })
 test.afterAll(async () => {
   if (child && child.exitCode === null) { const done = new Promise(resolve => child.once('exit', resolve)); child.kill('SIGTERM'); await done }
-  if (root) await rm(root, { recursive: true, force: true })
+  if (root) await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
 })
 
 test('workspace tabs, editing/reload and streaming composer remain stable', async ({ page, context }) => {

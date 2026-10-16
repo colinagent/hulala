@@ -4,7 +4,8 @@ import { dirnamePosix, normalizePosixPath } from '../utils/markdownMedia';
 import {
   canonicalFileURI,
   fileUrlToAbsolutePath,
-  isAbsolutePosixPath,
+  isAbsoluteResourcePath,
+  normalizeResourcePath,
   isDataUrl,
   isFileUrl,
   isHttpUrl,
@@ -42,7 +43,7 @@ export function authorityIdForWorkspace(workspaceTabId = activeTabId()): string 
 }
 
 export function canonicalFileURIFromPath(path: string, workspaceTabId = activeTabId()): string {
-  return canonicalFileURI(authorityIdForWorkspace(workspaceTabId), normalizePosixPath(path));
+  return canonicalFileURI(authorityIdForWorkspace(workspaceTabId), path);
 }
 
 export function resolveResourceTargetFromRef(
@@ -55,9 +56,9 @@ export function resolveResourceTargetFromRef(
   if (isDataUrl(value)) return { kind: 'data', url: value };
   if (isHttpUrl(value)) return { kind: 'external', url: value };
   if (isFileUrl(value)) return { kind: 'file', uri: canonicalFileURIFromPath(fileUrlToAbsolutePath(value), workspaceTabId) };
-  const path = isAbsolutePosixPath(value)
-    ? normalizePosixPath(value)
-    : normalizePosixPath(`${dirnamePosix(documentPath || '')}/${value}`);
+  const path = isAbsoluteResourcePath(value)
+    ? normalizeResourcePath(value)
+    : normalizeResourcePath(`${dirnamePosix(normalizeResourcePath(documentPath || ''))}/${value}`);
   return { kind: 'file', uri: canonicalFileURIFromPath(path, workspaceTabId) };
 }
 

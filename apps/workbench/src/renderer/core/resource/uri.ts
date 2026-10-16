@@ -47,8 +47,20 @@ export function isFileUrl(value: string): boolean {
   return value.trim().toLowerCase().startsWith('file://');
 }
 
-export function isAbsolutePosixPath(value: string): boolean {
-  return value.trim().startsWith('/');
+export function isAbsoluteResourcePath(value: string): boolean {
+  return /^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(value.trim());
+}
+
+export function normalizeResourcePath(value: string): string {
+  const path = value.trim();
+  const drive = /^([A-Za-z]):[\\/](.*)$/s.exec(path);
+  if (drive) return drive[1].toUpperCase() + ':' + normalizePosixPath('/' + drive[2].replaceAll('\\', '/'));
+  if (path.startsWith('\\\\') || path.startsWith('//')) {
+    const [host, share, ...parts] = path.replaceAll('\\', '/').slice(2).split('/');
+    if (!host || !share) throw new Error('UNC resource path requires a server and share');
+    return `//${host}/${share}${normalizePosixPath('/' + parts.join('/'))}`;
+  }
+  return normalizePosixPath(path);
 }
 
 export function looksLikeResourcePath(value: string): boolean {
@@ -65,10 +77,11 @@ export function decodeAuthority(encodedAuthority: string): string {
 }
 
 export function canonicalFileURI(authorityId: string, absolutePath: string): CanonicalFileURI {
-  const normalizedPath = normalizePosixPath(absolutePath.trim());
-  if (!normalizedPath.startsWith('/')) {
+  if (!isAbsoluteResourcePath(absolutePath)) {
     throw new Error(`Canonical file URI requires an absolute path: ${absolutePath}`);
   }
+  const physicalPath = normalizeResourcePath(absolutePath);
+  const normalizedPath = /^[A-Z]:\//.test(physicalPath) ? '/' + physicalPath : physicalPath;
   const encodedPath = normalizedPath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
   return `opfs://${encodeAuthority(authorityId)}${encodedPath}`;
 }
@@ -86,8 +99,9 @@ export function parseCanonicalFileURI(uri: string): { authorityId: string; path:
   if (parsed.protocol !== 'opfs:') {
     throw new Error(`Unsupported canonical file URI: ${uri}`);
   }
-  const path = normalizePosixPath(decodePathname(parsed.pathname || ''));
-  if (!path.startsWith('/')) {
+  const decoded = decodePathname(parsed.pathname || '');
+  const path = normalizeResourcePath(/^\/[A-Za-z]:\//.test(decoded) ? decoded.slice(1) : decoded);
+  if (!isAbsoluteResourcePath(path)) {
     throw new Error(`Canonical file URI is missing absolute path: ${uri}`);
   }
   return {
@@ -98,7 +112,10 @@ export function parseCanonicalFileURI(uri: string): { authorityId: string; path:
 
 export function fileUrlToAbsolutePath(fileUrl: string): string {
   const parsed = new URL(fileUrl);
-  return normalizePosixPath(decodePathname(parsed.pathname || ''));
+  if (parsed.protocol !== 'file:') throw new Error('Expected a file URL');
+  const path = decodePathname(parsed.pathname || '');
+  if (parsed.hostname && parsed.hostname !== 'localhost') return normalizeResourcePath('//' + parsed.hostname + path);
+  return normalizeResourcePath(/^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path);
 }
 
 export function resourceTargetKey(target: ResourceTarget): string {

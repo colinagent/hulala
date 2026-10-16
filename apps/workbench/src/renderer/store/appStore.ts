@@ -48,7 +48,7 @@ import { movePaneDocument } from './editorPaneState';
 import { useRightWorkspaceStore } from './rightWorkspaceStore';
 import { dirnamePosix, normalizePosixPath } from '../utils/markdownMedia';
 import { base64ToFile, importFile, uploadFileToPath } from '../services/resourceService';
-import { canonicalFileURI, type CanonicalFileURI } from '../core/resource/uri';
+import { canonicalFileURI, isAbsoluteResourcePath, normalizeResourcePath, type CanonicalFileURI } from '../core/resource/uri';
 import {
   getNormalizedFileExtension,
   isFileExtensionOpenable,
@@ -170,8 +170,8 @@ function pathToDocumentURI(
   path: string | null | undefined,
   state: Pick<AppState, 'instanceID' | 'remoteSession'>,
 ): CanonicalFileURI | null {
-  const normalized = normalizePosixPath((path || '').trim());
-  if (!normalized || !normalized.startsWith('/')) {
+  const normalized = normalizeResourcePath(path || '');
+  if (!normalized || !isAbsoluteResourcePath(normalized)) {
     return null;
   }
   return canonicalFileURI(authorityIdFromState(state), normalized);
