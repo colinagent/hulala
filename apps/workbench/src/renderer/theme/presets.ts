@@ -77,8 +77,8 @@ export function applyBuiltInSurfaceOverrides(themeId: string, palette: BasePalet
     };
   }
   if (themeId === 'default-dark') {
-    // Recess the chrome from the editor base without changing its blue-gray hue.
-    const chromeBg = mixHex(DEFAULT_DARK_BACKGROUND, '#000000', 12);
+    // Lift the surrounding chrome from the darker editor base with white.
+    const chromeBg = mixHex(DEFAULT_DARK_BACKGROUND, '#ffffff', 12);
     const lighterBg = mixHex(DEFAULT_DARK_BACKGROUND, '#ffffff', 4);
     const borderShade = mixHex(DEFAULT_DARK_BACKGROUND, '#ffffff', 8);
     return {

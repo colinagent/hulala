@@ -33,8 +33,8 @@ export const DEFAULT_DARK_CORE: BrandCore = {
   brand: '#918072',
   highlight: '#be7e4a',
   brandDark: '#8f5a2e',
-  // Ghostty's default background anchors the built-in dark surface scale.
-  background: '#282c34',
+  // The editor is the darkest surface in the built-in dark theme.
+  background: '#23272e',
   primeText: '#ffffff',
   secondaryText: 'rgba(255,255,255,0.7)',
   onSurface: '#000000',

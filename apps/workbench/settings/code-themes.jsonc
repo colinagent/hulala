@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "builtInVersion": 10,
+  "builtInVersion": 11,
   "themes": [
     {
       "id": "default-code-light",
@@ -24,7 +24,7 @@
         "brand": "#2f8f6b",
         "highlight": "#2f8f6b",
         "brandDark": "#17604d",
-        "background": "#282c34",
+        "background": "#23272e",
         "primeText": "#ffffff",
         "secondaryText": "rgba(255,255,255,0.7)",
         "onSurface": "#000000",

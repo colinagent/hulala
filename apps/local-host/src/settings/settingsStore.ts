@@ -687,7 +687,7 @@ function defaultKeybindingsConfig(): KeybindingsConfig {
 function defaultThemeConfig(): ThemeConfig {
   return {
     version: 1,
-    builtInVersion: 40,
+    builtInVersion: 41,
     themes: [
       {
         id: 'default-light',
@@ -714,7 +714,7 @@ function defaultThemeConfig(): ThemeConfig {
           brand: '#918072',
           highlight: '#be7e4a',
           brandDark: '#8f5a2e',
-          background: '#282c34',
+          background: '#23272e',
           primeText: '#ffffff',
           secondaryText: 'rgba(255,255,255,0.7)',
           onSurface: '#000000',
@@ -728,7 +728,7 @@ function defaultThemeConfig(): ThemeConfig {
 function defaultCodeThemesConfig(): CodeThemesConfig {
   return {
     version: 1,
-    builtInVersion: 10,
+    builtInVersion: 11,
     themes: [
       {
         id: 'default-code-light',
@@ -752,7 +752,7 @@ function defaultCodeThemesConfig(): CodeThemesConfig {
           brand: '#2f8f6b',
           highlight: '#2f8f6b',
           brandDark: '#17604d',
-          background: '#282c34',
+          background: '#23272e',
           primeText: '#ffffff',
           secondaryText: 'rgba(255,255,255,0.7)',
           onSurface: '#000000',
