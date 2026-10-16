@@ -1035,8 +1035,6 @@ export default function App() {
     if (!tab) {
       return null;
     }
-    const pane = options?.pane ?? 'main';
-    const isRightPane = pane === 'right';
     const isMarkdown = tab.editorId === 'markdown';
     if (tab.editorId === 'commands') return <CommandsEditor />;
     if (tab.editorId.startsWith('plugin:')) return <LocalPluginView viewKey={tab.editorId.slice(7)} />;
@@ -1050,7 +1048,6 @@ export default function App() {
         <MarkdownEditor
           tabId={tab.id}
           autoFocus={options?.autoFocus ?? false}
-          rightWorkspaceControl={!isRightPane && !showRightPane ? rightWorkspaceControl : undefined}
           outlineToggleEnabled={true}
           outlineMode="popover"
           textOffsetEnabled={true}
@@ -1078,7 +1075,6 @@ export default function App() {
         <BookReaderEditor
           tabId={tab.id}
           outlineMode="popover"
-          rightWorkspaceControl={!isRightPane && !showRightPane ? rightWorkspaceControl : undefined}
         />
       );
     }
@@ -1526,7 +1522,7 @@ export default function App() {
             <section className="relative min-w-0 flex-1 flex flex-col overflow-hidden" data-editor-pane="main">
               <EditorTabBar
                 pane="main"
-                rightWorkspaceControl={showRightPane || (primaryEditorTab && ['markdown', 'book', 'pdf'].includes(primaryEditorTab.editorId)) ? undefined : rightWorkspaceControl}
+                rightWorkspaceControl={showRightPane ? undefined : rightWorkspaceControl}
                 onTabDragStateChange={setDraggingEditorTabId}
                 onMoveTabToPane={(tabId, pane) => {
                   if (pane === 'right') {

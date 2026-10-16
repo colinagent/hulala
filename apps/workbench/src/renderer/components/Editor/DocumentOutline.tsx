@@ -19,7 +19,6 @@ type DocumentOutlineProps = {
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
   onEntriesChange?: (hasEntries: boolean) => void;
-  rightWorkspaceControl?: React.ReactNode;
   outlineToggleEnabled?: boolean;
   onNavigate?: () => void;
 };
@@ -62,7 +61,6 @@ export const DocumentOutline: React.FC<DocumentOutlineProps> = ({
   expanded,
   onExpandedChange,
   onEntriesChange,
-  rightWorkspaceControl,
   outlineToggleEnabled = true,
   onNavigate,
 }) => {
@@ -160,9 +158,9 @@ export const DocumentOutline: React.FC<DocumentOutlineProps> = ({
   }, [editorRef, treeEntries]);
 
   const hasEntries = nodes.length > 0;
-  const showToggleWrap = (!expanded && Boolean(rightWorkspaceControl)) || (hasEntries && outlineToggleEnabled);
+  const showToggleWrap = hasEntries && outlineToggleEnabled;
 
-  if (!hasEntries && !rightWorkspaceControl) {
+  if (!hasEntries) {
     return null;
   }
 
@@ -176,7 +174,6 @@ export const DocumentOutline: React.FC<DocumentOutlineProps> = ({
               onToggle={() => onExpandedChange(!expanded)}
             />
           )}
-          {!expanded && rightWorkspaceControl}
         </div>
       ) : null}
       {expanded && hasEntries ? (

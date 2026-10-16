@@ -93,7 +93,6 @@ import { OutlinePopover } from './outline/OutlinePopover';
 type BookReaderEditorProps = {
   tabId?: string | null;
   outlineMode?: 'popover' | 'hidden';
-  rightWorkspaceControl?: React.ReactNode;
 };
 
 type ReaderSelection = (EpubSelection | PdfSelection) & {
@@ -246,7 +245,6 @@ function selectionMatchesHighlightNote(selection: ReaderSelection, note: ParsedB
 export const BookReaderEditor: React.FC<BookReaderEditorProps> = ({
   tabId = null,
   outlineMode = 'popover',
-  rightWorkspaceControl,
 }) => {
   const workspaceStore = useWorkspaceStoreApi();
   const readerLayoutRef = useRef<HTMLDivElement>(null);
@@ -1020,7 +1018,6 @@ export const BookReaderEditor: React.FC<BookReaderEditorProps> = ({
       {hasReaderOutline && outlineMode !== 'hidden' ? (
         <DocumentOutlineToggle expanded={false} onToggle={toggleTocPopover} />
       ) : null}
-      {rightWorkspaceControl}
       <button
         type="button"
         className={`inline-flex h-7 w-7 items-center justify-center border-0 bg-transparent p-0 shadow-none transition-colors hover:text-brand focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand ${readerMenuOpen ? 'text-brand' : 'text-secondary-text'}`}
