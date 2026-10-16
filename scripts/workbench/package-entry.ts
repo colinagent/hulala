@@ -5,6 +5,7 @@ import { launcherInstallation } from '../../apps/cli/src/distribution/install'
 import { runInstalledLauncher } from '../../apps/cli/src/distribution/launcher'
 import { applyAutostartEnvironment } from '../../apps/cli/src/autostart-environment'
 import { completeDeferredUninstall } from '../../apps/cli/src/distribution/deferred-uninstall'
+import { withProgress, showStartupProgress } from '../../apps/cli/src/progress'
 
 declare const HULALA_PACKAGE_VERSION: string
 async function main(): Promise<void> {
@@ -25,7 +26,7 @@ async function main(): Promise<void> {
     const { runCli } = await import('../../apps/cli/src/cli')
     process.exitCode = await runCli(args); return
   }
-  const manifest = await verifyPackage(packageRoot)
+  const manifest = await withProgress('Checking runtime files', () => verifyPackage(packageRoot), showStartupProgress(args))
   if (manifest.version !== HULALA_PACKAGE_VERSION || manifest.target !== `${process.platform}-${process.arch}`) throw new Error('Package metadata does not match this executable')
   if (args.length === 1 && args[0] === '--check-package') {
     console.log(JSON.stringify({ valid: true, stage: manifest.stage, version: manifest.version, target: manifest.target, files: manifest.files.length })); return

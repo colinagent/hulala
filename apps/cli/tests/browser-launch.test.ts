@@ -47,8 +47,8 @@ test('reuses and restarts the browser workbench from an arbitrary working direct
   let diagnostics = ''
   daemon.stdout?.on('data', () => {})
   daemon.stderr?.on('data', chunk => { diagnostics = (diagnostics + String(chunk)).slice(-8192) })
-  const run = async (environment = env) => {
-    const child = spawn(executable, [entry, '--no-open'], { cwd: root, env: environment, stdio: ['ignore', 'pipe', 'pipe'] })
+  const run = async (environment = env, args = ['--no-open']) => {
+    const child = spawn(executable, [entry, ...args], { cwd: root, env: environment, stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
     child.stdout?.on('data', chunk => { output += String(chunk) })
     child.stderr?.on('data', chunk => { output += String(chunk) })
@@ -70,9 +70,9 @@ test('reuses and restarts the browser workbench from an arbitrary working direct
     const second = await waitFor(origin)
     assert.equal(second.pid, first.pid)
     assert.notEqual(second.workbench.pid, first.workbench.pid)
-    const wrong = await run({ ...env, HULALA_HOME: join(root, 'different-state') })
+    const wrong = await run({ ...env, HULALA_HOME: join(root, 'different-state') }, ['service', 'status'])
     assert.equal(wrong.code, 1)
-    assert.match(wrong.output, /different state directory/)
+    assert.match(wrong.output, /stopped/)
     assert.equal((await waitFor(origin)).pid, first.pid)
   } finally {
     daemon.kill('SIGTERM')

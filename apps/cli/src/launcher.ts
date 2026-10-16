@@ -5,20 +5,21 @@ import { connect } from 'node:net'
 import type { Duplex } from 'node:stream'
 
 import { getAutostartStatus, installAutostart, type AutostartStatus, uninstallAutostart } from './autostart.js'
-import { APP_AUTHORITY, APP_HOST, APP_NAME, APP_PORT, APP_URL, HEALTH_URL, VERSION, WORKBENCH_PORT } from './constants.js'
+import { APP_AUTHORITY, APP_HOST, APP_NAME, APP_URL, HEALTH_URL, VERSION, WORKBENCH_PORT, PREFERRED_PORT, configurePorts } from './constants.js'
 import { recoveryPage } from './recovery-page.js'
 import { checkForUpdate, type UpdateStatus } from './update.js'
 import { WorkbenchController } from './workbench.js'
-import { launcherStateIdentity } from './paths.js'
+import { launcherStateIdentity, resolvePaths } from './paths.js'
+import { withInstallationLock } from './distribution/install.js'
+import { discoverLauncher, listenWithFallback, chooseWorkbenchPort, saveEndpoint, removeEndpoint } from './instance.js'
 import { installationIdentity, prepareWorkbenchStop } from './lifecycle.js'
 
 const launcherStartedAt = new Date().toISOString()
-const localAuthorities = new Set([APP_AUTHORITY, new URL(HEALTH_URL).host])
 
 /** Keep both browser and command-line traffic on this launcher's local origins. */
 export function authorizeLocalRequest(request: IncomingMessage): string | undefined {
   const host = request.headers.host
-  if (host === undefined || !localAuthorities.has(host)) return 'host rejected'
+  if (host === undefined || ![APP_AUTHORITY, new URL(HEALTH_URL).host].includes(host)) return 'host rejected'
   if (request.headers['sec-fetch-site'] === 'cross-site') return 'cross-site request rejected'
   const origin = request.headers.origin
   if (origin !== undefined && origin !== `http://${host}`) return 'origin rejected'
@@ -98,7 +99,7 @@ function proxyUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): v
 export async function runLauncher(options: { onReady?: () => void } = {}): Promise<number> {
   const stateId = await launcherStateIdentity()
   const installationId = await installationIdentity()
-  const controller = new WorkbenchController()
+  let controller!: WorkbenchController
   const actionToken = randomBytes(32).toString('base64url')
   let cachedAutostart: AutostartStatus | undefined
   let autostartCheckedAt = 0
@@ -205,10 +206,21 @@ export async function runLauncher(options: { onReady?: () => void } = {}): Promi
     proxyUpgrade(request, socket, head)
   })
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(APP_PORT, APP_HOST, resolve)
+  const started = await withInstallationLock(resolvePaths().serviceRoot, async () => {
+    if (await discoverLauncher()) return false
+    const notices: string[] = []
+    const notify = (message: string) => { notices.push(message); console.log(message) }
+    const port = await listenWithFallback(server, PREFERRED_PORT, notify)
+    try {
+      const backend = await chooseWorkbenchPort(port, message => console.log(`Runtime: ${message}`))
+      configurePorts(port, backend)
+      controller = new WorkbenchController()
+      await saveEndpoint({ pid: process.pid, port, workbenchPort: backend, stateId, notices })
+      return true
+    } catch (error) { server.close(); throw error }
   })
+  if (!started) { console.log(`Hulala is already running at ${APP_URL}`); return 0 }
+  console.log('Initializing workspace and agent runtime...')
   void controller.start().then(() => options.onReady?.()).catch(error => console.error(`Workbench failed to start: ${error instanceof Error ? error.message : String(error)}`))
   console.log(`Hulala launcher: ${APP_URL}`)
 
@@ -218,7 +230,7 @@ export async function runLauncher(options: { onReady?: () => void } = {}): Promi
       if (closing) return
       closing = true
       void controller.stop().finally(() => {
-        server.close(() => resolve(code))
+        server.close(() => { void removeEndpoint().finally(() => resolve(code)) })
         server.closeAllConnections()
       })
     }

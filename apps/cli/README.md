@@ -1,7 +1,7 @@
 # Hulala CLI
 
 The installed `hulala` command starts the local browser workbench and opens
-`http://hulala.localhost:3210/` after readiness. Each Workspace uses its own
+`http://hulala.localhost/` after readiness. Each Workspace uses its own
 browser tab. The service binds only to loopback and does not change hosts/DNS.
 
 The browser edition's npm tarballs are generated from verified native packages:

@@ -16,6 +16,7 @@ import { autostartBelongsTo, restartAutostart, uninstallAutostart } from '../aut
 import { deferWindowsUninstall } from './deferred-uninstall.js'
 import { probeHealth } from '../health.js'
 import { installationIdentity } from '../lifecycle.js'
+import { discoverLauncher } from '../instance.js'
 
 interface Options { root?: string; bin?: string; from?: string; sha256?: string; force: boolean; addToPath: boolean; version?: string; channel?: string }
 function options(args: string[]): Options {
@@ -53,7 +54,7 @@ async function resumeInstallation(root: string, directory: string, version: stri
   else await runVersion(directory)
   const identity = await installationIdentity(root), deadline = Date.now() + 45000
   while (Date.now() < deadline) {
-    const health = await probeHealth()
+    const health = await discoverLauncher()
     if (health?.installationId === identity && health.version === version && health.workbench?.state === 'running') return
     await new Promise(resolve => setTimeout(resolve, 150))
   }
@@ -115,22 +116,30 @@ export async function runDistributionCommand(command: string, args: string[]): P
     const temporaryRoot = join(paths.data, 'cache/install'); await mkdir(temporaryRoot, { recursive: true, mode: 0o700 })
     const temporary = await mkdtemp(join(temporaryRoot, 'prepare-'))
     try {
+      console.log('Preparing installation...')
       if (/^https?:/.test(source)) {
         if (!input.sha256) throw new Error('A download requires --sha256')
+        console.log('Downloading the release package...')
         const archive = join(temporary, 'package.tar.gz'); await downloadArchive(source, archive, input.sha256); source = archive
       }
       source = await realpath(resolve(source))
       if ((await stat(source)).isFile()) {
+        console.log('Verifying and extracting the release package...')
         if (!input.sha256) throw new Error('An archive requires --sha256')
         source = (await unpackRelease(source, temporary, input.sha256)).directory
       }
+      console.log('Checking package integrity...')
       const manifest = await verifyPackage(source)
       if ((expectedManifest && await fileSha256(join(source, 'manifest.json')) !== expectedManifest) || (expectedVersion && manifest.version !== expectedVersion) || (expectedDataFormat !== undefined && expectedDataFormat !== manifest.dataFormat)) throw new Error('The package does not match the selected release index')
-      const candidate = await install.stage(source, validateNativeCandidate)
+      console.log('Installing program files and validating this platform...')
+      const heartbeat = setInterval(() => console.log('Installation is still running: copying and validating program files...'), 5000)
+      let candidate
+      try { candidate = await install.stage(source, validateNativeCandidate) } finally { clearInterval(heartbeat) }
       const before = await readInstallation(root).catch(() => undefined)
       const running = command === 'update' ? await shutdownInstallation(root, input.force) : false
       let active
       try {
+        console.log('Activating Hulala and registering the command...')
         active = await install.activate(candidate)
         const receipt = await installationReceipt(root).catch(() => undefined)
         const bin = resolve(input.bin || (receipt ? dirname(receipt.command) : join(homedir(), '.local/bin')))

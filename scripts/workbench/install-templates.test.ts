@@ -8,7 +8,7 @@ import { posixInstaller } from './install-templates'
 import type { ReleaseTarget } from '@hulala/distribution/targets'
 
 const hash = (data: string) => createHash('sha256').update(data).digest('hex')
-for (const mode of ['interrupt', 'unavailable', 'corrupt', 'no-range', 'archive-corrupt', 'installer-corrupt'] as const) {
+for (const mode of ['interrupt', 'unavailable', 'corrupt', 'no-range', 'archive-corrupt', 'installer-corrupt', 'preflight'] as const) {
   test.skipIf(process.platform === 'win32')(`POSIX installer handles ${mode} without executing unverified downloads`, async () => {
     const root = await mkdtemp(join(tmpdir(), 'hulala-bootstrap-test-'))
     const marker = join(root, 'invoked')
@@ -41,10 +41,11 @@ for (const mode of ['interrupt', 'unavailable', 'corrupt', 'no-range', 'archive-
       const target = `${process.platform}-${process.arch}` as ReleaseTarget
       const script = join(root, 'install.sh')
       await writeFile(script, posixInstaller({ [target]: { installer: base+'/primary/installer', installerFallback: base+'/mirror/installer', archive: base+'/primary/archive', archiveFallback: base+'/mirror/archive', installerSha256: hash(installer), archiveSha256: hash(archive) } }))
-      const child = Bun.spawn(['sh', script, '--root', join(root, 'custom directory')], { env: { ...process.env, HOME: root, TMPDIR: root, HULALA_TEST_MARKER: marker }, stdout: 'pipe', stderr: 'pipe' })
+      if (mode === 'preflight') await writeFile(join(root, 'state'), 'not a directory')
+      const child = Bun.spawn(['sh', script, '--root', join(root, 'custom directory')], { env: { ...process.env, HOME: root, TMPDIR: root, HULALA_HOME: join(root, 'state'), HULALA_TEST_MARKER: marker }, stdout: 'pipe', stderr: 'pipe' })
       const stderr = new Response(child.stderr).text()
       const code = await child.exited
-      if (mode === 'archive-corrupt' || mode === 'installer-corrupt') {
+      if (mode === 'archive-corrupt' || mode === 'installer-corrupt' || mode === 'preflight') {
         expect(code).not.toBe(0)
         expect(await Bun.file(marker).exists()).toBe(false)
       } else {
@@ -58,8 +59,12 @@ for (const mode of ['interrupt', 'unavailable', 'corrupt', 'no-range', 'archive-
         if (mode === 'interrupt') expect(requests.filter(r => r.path.startsWith('/mirror/')).every(r => r.range === 'bytes=10-')).toBe(true)
       }
       expect((await readdir(root)).some(name => name.startsWith('hulala-install.'))).toBe(false)
-      if (mode === 'corrupt' || mode === 'archive-corrupt') expect(await stderr).toContain('SHA-256 mismatch')
-      else await stderr
+      const messages = await stderr
+      if (mode === 'corrupt' || mode === 'archive-corrupt') expect(messages).toContain('SHA-256 mismatch')
+      if (mode === 'preflight') { expect(requests).toHaveLength(0); expect(messages).toContain('No packages have been downloaded') }
+      expect(messages).toContain('Checking platform and installation directory permissions')
+      expect(messages).not.toContain('% Total')
+      expect(messages).not.toContain('\r')
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(root, {recursive:true,force:true}) }
   }, 20000)
 }

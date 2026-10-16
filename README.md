@@ -5,7 +5,9 @@
   <p><a href="README.zh-CN.md">简体中文</a> · <a href="https://hulala.ai/">Website</a> · <a href="docs/browser-workbench.md">Web edition</a></p>
 </div>
 
-Hulala is an Apache-2.0 browser workbench built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Run `hulala` after installation: it starts the local service, waits for the workbench, and opens **http://hulala.localhost:3210/**.
+Hulala is an Apache-2.0 browser workbench built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Run `hulala` after installation: it starts the local service, waits for the workbench, and opens **http://hulala.localhost/**.
+
+The launcher prefers port 80. If that port is occupied or not permitted, it explains the reason in the terminal, selects an available port and prints the actual URL. Later commands find the same running instance automatically.
 
 Each Workspace opens in a browser tab named after its folder. Views of the same Workspace share its Host and running work; file editor tabs stay inside that page. Remote tabs also show the SSH host alias.
 
@@ -45,7 +47,7 @@ curl -fsSL https://hulala.ai/install.sh | sh
 
 Open a new terminal, then run `hulala`. The installer selects your platform and verifies its SHA-256 before installing. Interrupted downloads resume automatically, with GitHub as a fallback when the official download source is unavailable or too slow. [Official installation page](https://hulala.ai/download/).
 
-Download the [Web edition 0.1.5](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5) for macOS, Linux or Windows. Verify your archive against the release's `SHASUMS256.txt`, extract it, then install as shown below. npm publication is pending. See [distribution details and validation](docs/browser-workbench.md).
+Download the [Web edition 0.1.6](https://github.com/colinagent/hulala/releases/tag/web-v0.1.6) for macOS, Linux or Windows. Verify your archive against the release's `SHASUMS256.txt`, extract it, then install as shown below. npm publication is pending. See [distribution details and validation](docs/browser-workbench.md).
 
 To build packages from source:
 
