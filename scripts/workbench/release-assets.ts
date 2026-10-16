@@ -26,7 +26,9 @@ export async function stageReleaseAssets(packages: string[], output: string, bas
     const installerName = `hulala-installer-${version}-${target}${target.startsWith('win32-') ? '.exe' : ''}`, installer = join(staging, installerName)
     await cp(join(directory, manifest.entrypoint), installer)
     const archiveSha256 = await fileSha256(archive), installerSha256 = await fileSha256(installer)
-    assets[target] = { installer: new URL(installerName, base).href, installerSha256, archive: new URL(archiveName, base).href, archiveSha256 }
+    const mirror = new URL(`https://github.com/colinagent/hulala/releases/download/web-v${version}/`)
+    assets[target] = { installer: new URL(installerName, base).href, installerSha256, archive: new URL(archiveName, base).href, archiveSha256,
+      installerFallback: new URL(installerName, mirror).href, archiveFallback: new URL(archiveName, mirror).href }
     platforms[target] = { url: assets[target]!.archive, sha256: archiveSha256, manifestSha256: await fileSha256(join(directory, 'manifest.json')) }
     files.push(archiveName, installerName)
   }

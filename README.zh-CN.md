@@ -43,7 +43,7 @@ macOS 或 glibc Linux 一行安装 Hulala Web：
 curl -fsSL https://hulala.ai/install.sh | sh
 ```
 
-安装完成后重新打开终端，运行 `hulala`。安装脚本会自动识别平台并校验安装包的 SHA-256。[官网安装说明](https://hulala.ai/zh-CN/download/)。
+安装完成后重新打开终端，运行 `hulala`。安装脚本会自动识别平台并校验安装包的 SHA-256；下载中断后自动续传，官方下载源不可用或过慢时自动切换至 GitHub。[官网安装说明](https://hulala.ai/zh-CN/download/)。
 
 下载适用于 macOS、Linux 或 Windows 的[Web 版 0.1.5](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5)。使用发行页的 `SHASUMS256.txt` 校验压缩包，解压后按下方命令安装。npm 包尚未发布。完整目录、验证方法见[Web 版说明](docs/browser-workbench.md)。
 
