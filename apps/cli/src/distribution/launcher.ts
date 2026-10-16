@@ -2,11 +2,12 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { access } from 'node:fs/promises'
 import { installedDirectory, readInstallation, verifyInstalled } from './install.js'
+import { withProgress, showStartupProgress } from '../progress.js'
 
 export async function runInstalledLauncher(root: string, args: string[]): Promise<number> {
   if (await access(join(root, 'removal.json')).then(() => true, () => false)) throw new Error('Hulala removal is in progress. Check the completion result in the Hulala logs directory.')
   const active = await readInstallation(root)
-  const manifest = await verifyInstalled(root, active.current)
+  const manifest = await withProgress('Checking installed program integrity', () => verifyInstalled(root, active.current), showStartupProgress(args))
   const directory = installedDirectory(root, active.current)
   return new Promise((resolve, reject) => {
     const child = spawn(join(directory, manifest.entrypoint), args, { stdio: 'inherit', windowsHide: true,

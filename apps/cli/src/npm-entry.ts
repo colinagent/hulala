@@ -6,6 +6,7 @@ import { stablePackage } from './distribution/cache.js'
 import { platformPackage, releaseTarget } from '@hulala/distribution/targets'
 import { resolvePaths } from './paths.js'
 import { applyAutostartEnvironment } from './autostart-environment.js'
+import { withProgress, showStartupProgress } from './progress.js'
 
 declare const __HULALA_VERSION__: string
 async function main(): Promise<void> {
@@ -14,7 +15,7 @@ async function main(): Promise<void> {
   let packageRoot: string
   try { packageRoot = dirname(createRequire(import.meta.url).resolve(name + '/package.json')) }
   catch { throw new Error(`Missing platform dependency ${name}. Reinstall with optional dependencies enabled: npm install -g hulala@${__HULALA_VERSION__}`) }
-  const directory = await stablePackage(join(packageRoot, 'vendor'), resolvePaths().data, __HULALA_VERSION__)
+  const directory = await withProgress('Preparing the local runtime', () => stablePackage(join(packageRoot, 'vendor'), resolvePaths().data, __HULALA_VERSION__), showStartupProgress(args))
   const owner = dirname(dirname(fileURLToPath(import.meta.url)))
   const source = /[/\\]_npx[/\\]/.test(owner) ? 'npx' : /[/\\]\.bun[/\\]/.test(owner) || process.env.npm_config_user_agent?.startsWith('bun/') ? 'bun'
     : /[/\\]\.pnpm[/\\]/.test(owner) || process.env.npm_config_user_agent?.startsWith('pnpm/') ? 'pnpm' : 'npm'

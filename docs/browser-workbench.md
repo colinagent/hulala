@@ -1,10 +1,12 @@
 # Hulala Web
 
 The Web edition reuses Hulala's workbench UI and local Harness capabilities.
-The CLI starts the browser workbench at `http://hulala.localhost:3210`.
+The CLI prefers `http://hulala.localhost` on port 80. If the port is occupied or not permitted for the current user, it reports the reason, selects an available port and prints the actual URL. It records the running endpoint so subsequent launches and service commands reuse the same instance, even from a new terminal. No administrator privileges are requested.
+
+The macOS/Linux installer checks directory writability before downloading. Download stages identify the source, retry with resume and GitHub fallback, and report SHA-256 verification without a scrolling curl percentage table. Installation and startup report file verification, extraction, runtime preparation and readiness; long validation steps include elapsed-time updates. Machine-readable commands such as `--version` and `service status` keep their output unchanged.
 Each Workspace has its own browser tab and an isolated Harness process; views
 of the same Workspace share that
-process. Download standalone packages from the [Web 0.1.5 release](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5). npm publication is pending.
+process. Download standalone packages from the [Web 0.1.6 release](https://github.com/colinagent/hulala/releases/tag/web-v0.1.6). npm publication is pending.
 
 ## Development
 

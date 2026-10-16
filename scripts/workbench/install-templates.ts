@@ -23,9 +23,9 @@ transfer() {
   if command -v curl >/dev/null 2>&1; then
     protocol='=https'
     case "$url" in http://127.0.0.1:*|http://\\[::1\\]:*) protocol='=https,http' ;; esac
-    curl --fail --location --connect-timeout 15 --max-time 600 --speed-limit 32768 --speed-time 20 --proto "$protocol" --proto-redir "$protocol" --continue-at - --output "$destination" "$url"
+    curl --silent --show-error --fail --location --connect-timeout 15 --max-time 600 --speed-limit 32768 --speed-time 20 --proto "$protocol" --proto-redir "$protocol" --continue-at - --output "$destination" "$url" 2>"$work/download-error"
   else
-    wget --continue --timeout=20 --tries=1 -O "$destination" "$url"
+    wget --quiet --continue --timeout=20 --tries=1 -O "$destination" "$url" 2>"$work/download-error"
   fi
 }
 download() {
@@ -34,7 +34,9 @@ download() {
   while [ "$round" -le 3 ]; do
     for url in "$primary" "$fallback"; do
       [ -n "$url" ] || continue
-      echo "Downloading \${destination##*/} (attempt $round)..." >&2
+      source_name='official source'
+      [ "$url" != "$fallback" ] || source_name='GitHub mirror'
+      echo "Downloading \${destination##*/} from $source_name (attempt $round)..." >&2
       result=0
       transfer || result=$?
       if [ "$result" -eq 33 ] || [ "$result" -eq 36 ]; then
@@ -44,7 +46,7 @@ download() {
         transfer || result=$?
       fi
       if [ "$result" -eq 0 ]; then
-        if [ "$(sha256 "$destination")" = "$expected" ]; then return 0; fi
+        if [ "$(sha256 "$destination")" = "$expected" ]; then echo "Download complete; SHA-256 verified: \${destination##*/}." >&2; return 0; fi
         echo 'SHA-256 mismatch; discarding download.' >&2
         rm -f "$destination"
       fi
@@ -54,6 +56,33 @@ download() {
   done
   echo 'Download failed. Hulala has not been installed. Please retry the installation command.' >&2
   return 1
+}
+check_writable() {
+  if ! mkdir -p "$1" 2>/dev/null; then
+    echo "Cannot create directory: $1" >&2
+    echo 'The current account cannot write here. No packages have been downloaded. Check directory ownership with your administrator; do not run this installer with sudo.' >&2
+    exit 1
+  fi
+  probe=$(mktemp -d "$1/.hulala-write-check.XXXXXX") || { echo "Directory is not writable: $1. Installation stopped before downloading." >&2; exit 1; }
+  rmdir "$probe"
+}
+preflight() {
+  echo 'Checking platform and installation directory permissions...' >&2
+  state_root=\${HULALA_HOME:-"$HOME/.config/hulala"}
+  program_root=\${HULALA_INSTALL_ROOT:-"$state_root/runtime/install"}
+  command_bin="$HOME/.local/bin"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --root|--bin)
+        key=$1; shift
+        [ "$#" -gt 0 ] || { echo "Missing value for $key" >&2; exit 1; }
+        if [ "$key" = --root ]; then program_root=$1; else command_bin=$1; fi ;;
+    esac
+    shift
+  done
+  check_writable "$state_root"
+  check_writable "$program_root"
+  check_writable "$command_bin"
 }
 main() {
   os=$(uname -s)
@@ -67,12 +96,14 @@ ${cases}
   esac
   if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then echo 'curl or wget is required.' >&2; exit 1; fi
   if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then echo 'A SHA-256 verification tool is required.' >&2; exit 1; fi
+  preflight "$@"
   work=$(mktemp -d "\${TMPDIR:-/tmp}/hulala-install.XXXXXX")
   trap 'rm -rf "$work"' EXIT
   trap 'exit 1' HUP INT TERM
   download "$work/hulala" "$installer_sha" "$installer" "$installer_fallback"
   download "$work/package.tar.gz" "$archive_sha" "$archive" "$archive_fallback"
   chmod 700 "$work/hulala"
+  echo 'Installing Hulala: extracting and validating program files...' >&2
   "$work/hulala" install --add-to-path --from "$work/package.tar.gz" --sha256 "$archive_sha" "$@"
 }
 main "$@"

@@ -77,14 +77,14 @@ test('requires a same-origin process token for service actions', () => {
 })
 
 test('uses hulala.localhost in the browser and numeric loopback for CLI health', () => {
-  assert.equal(APP_URL, `http://hulala.localhost:${APP_PORT}/`)
+  assert.equal(APP_URL, new URL(`http://hulala.localhost:${APP_PORT}/`).href)
   assert.equal(APP_HOST, '127.0.0.1')
   assert.equal(HEALTH_URL, `http://127.0.0.1:${APP_PORT}/api/hulala/health`)
 })
 
 test('checks browser and websocket host and origin without trusting forwarded headers', () => {
   const request = (headers: IncomingMessage['headers']) => ({ headers }) as IncomingMessage
-  for (const host of [APP_AUTHORITY, `${APP_HOST}:${APP_PORT}`]) {
+  for (const host of [APP_AUTHORITY, new URL(HEALTH_URL).host]) {
     assert.equal(authorizeLocalRequest(request({ host, origin: `http://${host}` })), undefined)
     assert.equal(authorizeLocalRequest(request({ host })), undefined)
     assert.equal(authorizeLocalRequest(request({ host, origin: 'null' })), 'origin rejected')
@@ -95,7 +95,7 @@ test('checks browser and websocket host and origin without trusting forwarded he
   }
   assert.equal(authorizeLocalRequest(request({ host: APP_AUTHORITY, origin: `http://${APP_HOST}:${APP_PORT}` })), 'origin rejected')
   assert.equal(authorizeServiceAction(request({
-    host: `${APP_HOST}:${APP_PORT}`,
+    host: new URL(HEALTH_URL).host,
     origin: new URL(HEALTH_URL).origin,
     'content-type': 'application/json',
     'x-hulala-token': 'secret',

@@ -7,7 +7,7 @@ export interface HealthState {
   version: string
   pid: number
   startedAt: string
-  workbench?: { state: string }
+  workbench?: { state: string; error?: string }
   stateId?: string
   installationId?: string
   protocol?: number
@@ -44,11 +44,15 @@ export async function portIsOccupied(host = APP_HOST, port = APP_PORT, timeoutMs
   })
 }
 
-export async function waitForHealth(timeoutMs = 45_000): Promise<HealthState | undefined> {
+export async function waitForHealth(timeoutMs = 45_000, progress?: (elapsedSeconds: number, health?: HealthState) => void, probe = probeHealth): Promise<HealthState | undefined> {
+  const started = Date.now()
+  let nextProgress = started + 3000
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const health = await probeHealth()
+    const health = await probe()
     if (health?.version === VERSION && health.workbench?.state === 'running') return health
+    if (health?.workbench?.state === 'crashed') throw new Error(health.workbench.error || 'The workbench failed to start')
+    if (Date.now() >= nextProgress) { progress?.(Math.floor((Date.now() - started) / 1000), health); nextProgress = Date.now() + 3000 }
     await new Promise(resolve => setTimeout(resolve, 250))
   }
   return undefined

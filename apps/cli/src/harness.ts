@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { VERSION, WORKBENCH_PORT } from './constants.js'
+import { VERSION, APP_PORT, WORKBENCH_PORT } from './constants.js'
 declare const __HULALA_COMPILED__: boolean | undefined
 
 export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporaryDirectory: string }> {
@@ -16,7 +16,7 @@ export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporary
   const child = spawn(executable, [packageRoot ? join(packageRoot, 'runtime/host/browser.js') : join(repositoryRoot, 'apps/local-host/src/browser-main.ts')], {
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     windowsHide: true,
-    env: { ...process.env, HULALA_VERSION: VERSION, HULALA_REPOSITORY_ROOT: repositoryRoot, HULALA_WORKBENCH_PORT: String(WORKBENCH_PORT) },
+    env: { ...process.env, HULALA_VERSION: VERSION, HULALA_REPOSITORY_ROOT: repositoryRoot, HULALA_PORT: String(APP_PORT), HULALA_WORKBENCH_PORT: String(WORKBENCH_PORT) },
   })
 
   return { child, temporaryDirectory }

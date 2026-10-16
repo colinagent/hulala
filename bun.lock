@@ -17,7 +17,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -57,7 +57,7 @@
     },
     "apps/local-host": {
       "name": "@hulala/local-host",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "bin": {
         "hulala-local-host": "./src/main.ts",
       },
@@ -121,7 +121,7 @@
     },
     "apps/workbench": {
       "name": "@hulala/workbench",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "@codemirror/autocomplete": "6.20.3",
         "@codemirror/commands": "6.11.0",
@@ -270,7 +270,7 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
@@ -305,7 +305,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "bin": {
         "hulala-runtime": "./lib/cli.js",
       },
@@ -347,7 +347,7 @@
     },
     "packages/workbench-contracts": {
       "name": "@hulala/workbench-contracts",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "dependencies": {
         "zod": "^4.1.5",
       },
