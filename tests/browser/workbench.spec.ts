@@ -159,6 +159,10 @@ test('native folder selection creates no tab until a directory is chosen and non
   const selected = await newPage
   await expect(selected).toHaveTitle('项目 B · Hulala')
   await expect(page).toHaveTitle('workspace · Hulala')
+  await expect(page.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('workspace')
+  await expect(page.locator('.sidebar-hover-area').getByText('Browser QA.md', { exact: true })).toBeVisible()
+  await expect(selected.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('项目 B')
+  await expect(selected.locator('.sidebar-hover-area').getByText('Second.md', { exact: true })).toBeVisible()
   await selected.close()
   await openMenu()
   await page.getByRole('button', { name: 'Open Folder', exact: true }).click()
@@ -170,6 +174,40 @@ test('native folder selection creates no tab until a directory is chosen and non
   expect(context.pages().length).toBe(initialPages)
   expect(openedPages).toBe(1)
   await expect(page.getByRole('dialog', { name: 'Open Folder', exact: true })).not.toBeVisible()
+})
+
+test('a new window choosing another folder leaves the original Workspace isolated', async ({ page, context }) => {
+  await page.goto(fixture.url)
+  await expect(page).toHaveTitle('workspace · Hulala')
+  const originalUrl = page.url()
+  await page.getByText('Browser QA.md', { exact: true }).dblclick()
+  await expect(page.locator('.cm-content')).toContainText('Original content.')
+
+  const newWindow = context.waitForEvent('page')
+  await page.evaluate(async () => { await window.hulala!.window.createNew() })
+  const other = await newWindow
+  await expect(other).toHaveTitle('Open Workspace · Hulala')
+  await other.route('**/api/browser/dialogs/directory', route => route.fulfill({ json: { path: fixture.second } }))
+  await other.getByRole('button', { name: 'Open Folder', exact: true }).click()
+  await expect(other).toHaveTitle('项目 B · Hulala')
+  expect(context.pages()).toHaveLength(2)
+
+  const verify = async () => {
+    await expect(page).toHaveURL(originalUrl)
+    await expect(page).toHaveTitle('workspace · Hulala')
+    await expect(page.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('workspace')
+    await expect(page.locator('.sidebar-hover-area').getByText('Browser QA.md', { exact: true })).toBeVisible()
+    await expect(page.locator('.sidebar-hover-area').getByText('Second.md', { exact: true })).toHaveCount(0)
+    await expect(page.locator('.cm-content')).toContainText('Original content.')
+    await expect(other.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('项目 B')
+    await expect(other.locator('.sidebar-hover-area').getByText('Second.md', { exact: true })).toBeVisible()
+    await expect(other.locator('.sidebar-hover-area').getByText('Browser QA.md', { exact: true })).toHaveCount(0)
+  }
+  await verify()
+  await other.reload(); await page.reload()
+  await verify()
+  await other.close()
+  await expect(page.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('workspace')
 })
 
 test('the right-side control toggles the pane and preserves its files without a sidebar duplicate', async ({ page }) => {
