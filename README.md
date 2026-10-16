@@ -43,7 +43,7 @@ Install Hulala Web on macOS or glibc Linux:
 curl -fsSL https://hulala.ai/install.sh | sh
 ```
 
-Open a new terminal, then run `hulala`. The installer selects your platform and verifies its SHA-256 before installing. [Official installation page](https://hulala.ai/download/).
+Open a new terminal, then run `hulala`. The installer selects your platform and verifies its SHA-256 before installing. Interrupted downloads resume automatically, with GitHub as a fallback when the official download source is unavailable or too slow. [Official installation page](https://hulala.ai/download/).
 
 Download the [Web edition 0.1.5](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5) for macOS, Linux or Windows. Verify your archive against the release's `SHASUMS256.txt`, extract it, then install as shown below. npm publication is pending. See [distribution details and validation](docs/browser-workbench.md).
 
