@@ -54,7 +54,7 @@ await writeFile(join(workspace, 'Reader QA.epub'), zipSync({
     return [`chapter${n}.xhtml`, strToU8(`<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Chapter ${n}</title><script>parent.__hulalaEpubScriptRan = true</script><script src="/epub-fixture-script.js"></script></head><body onload="parent.__hulalaEpubScriptRan = true"><h1>Chapter ${n}</h1><p>Reader pagination fixture. Each gesture should turn the book without moving the workbench.</p>${footnote}</body></html>`)]
   })),
 }))
-const handle = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: workspaces, version: '0.1.4', port: 0, publicPort: 0,
+const handle = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: workspaces, version: '0.1.5', port: 0, publicPort: 0,
   webDirectory: resolve(argument('--web') || join(repositoryRoot, 'apps/workbench/dist')), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings') })
 const first = handle.registry.list()[0]!, worker = await handle.workers.get(first)
 const selected = await worker.request('/harness/runtime-selection', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runtime: 'deepseek' }) })

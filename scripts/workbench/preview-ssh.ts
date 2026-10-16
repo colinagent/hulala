@@ -15,7 +15,7 @@ const second = join(fixture.home, '项目 B')
 await mkdir(second)
 await writeFile(join(second, 'hello.md'), '# Remote Workspace B\n\nSynthetic browser SSH fixture.\n')
 const repositoryRoot = join(import.meta.dir, '../..')
-const server = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: join(root, 'workspaces'), version: '0.1.4',
+const server = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: join(root, 'workspaces'), version: '0.1.5',
   port: 0, publicPort: 0, webDirectory: resolve(webPath), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings'),
   remotePackagesDirectory: resolve(packagePath), sshHome: join(root, 'local-home'), sshSecrets: new FixtureSecrets(),
 })

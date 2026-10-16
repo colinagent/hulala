@@ -37,7 +37,9 @@ bun run start
 
 ## 安装包
 
-构建命令只生成本地发行物，不会发布 npm 或 GitHub Release。完整目录、验证方法见[浏览器版说明](docs/browser-workbench.md)。
+下载适用于 macOS、Linux 或 Windows 的[浏览器版 0.1.5](https://github.com/colinagent/hulala/releases/tag/browser-v0.1.5)。使用发行页的 `SHASUMS256.txt` 校验压缩包，解压后按下方命令安装。npm 包尚未发布。完整目录、验证方法见[浏览器版说明](docs/browser-workbench.md)。
+
+从源码构建安装包：
 
 ```sh
 bun run pack:workbench

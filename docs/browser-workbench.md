@@ -4,8 +4,7 @@ The browser edition reuses Hulala's workbench UI and local Harness capabilities.
 The CLI starts the browser workbench at `http://hulala.localhost:3210`.
 Each Workspace has its own browser tab and an isolated Harness process; views
 of the same Workspace share that
-process. The source, native packaging and installation tools are available;
-this browser release has not been published to npm or GitHub Releases.
+process. Download standalone packages from the [browser 0.1.5 release](https://github.com/colinagent/hulala/releases/tag/browser-v0.1.5). npm publication is pending.
 
 ## Development
 
@@ -29,14 +28,14 @@ bun scripts/workbench/smoke-installed.ts <package-directory>
 bun scripts/workbench/smoke-package.ts <package-directory>
 ```
 
-These are local build instructions; this browser release has not been published.
+These commands build and verify local packages; they do not publish them.
 By default Hulala uses the system browser. `HULALA_BROWSER` can select an
 absolute browser executable path (no shell arguments); `--no-open` leaves the
 browser closed and prints the local address.
 The npm wrapper selects an exact platform alias and copies the verified package
 to immutable Hulala runtime storage before execution. Background processes can
 therefore continue after an npx download cache is removed. Generated platform
-packages use versions such as `0.1.4-darwin-arm64`; the main `0.1.4` package
+packages use versions such as `0.1.5-darwin-arm64`; the main `0.1.5` package
 locks all platform aliases to matching versions. Pack the generated staging
 packages, not the CLI source checkout.
 

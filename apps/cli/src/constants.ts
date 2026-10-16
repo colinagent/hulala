@@ -15,4 +15,4 @@ export const WORKBENCH_PORT = Number.isInteger(configuredWorkbenchPort) && confi
   : APP_PORT + 1
 export const HEALTH_URL = `http://${APP_HOST}:${APP_PORT}/api/hulala/health`
 export const WORKBENCH_HEALTH_URL = `http://${APP_HOST}:${WORKBENCH_PORT}/api/hulala/health`
-export const VERSION = typeof __HULALA_VERSION__ === 'string' ? __HULALA_VERSION__ : '0.1.4'
+export const VERSION = typeof __HULALA_VERSION__ === 'string' ? __HULALA_VERSION__ : '0.1.5'

@@ -9,7 +9,7 @@ const port = Number(argument('--port') || 0)
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid preview port')
 process.env.PI_CODING_AGENT_DIR = join(root, 'pi')
 const repositoryRoot = join(import.meta.dir, '../..')
-const server = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: join(root, 'workspaces'), version: '0.1.4', port, publicPort: port, webDirectory: argument('--web') ? resolve(argument('--web')!) : join(repositoryRoot, 'apps/workbench/dist'), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings') })
+const server = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: join(root, 'workspaces'), version: '0.1.5', port, publicPort: port, webDirectory: argument('--web') ? resolve(argument('--web')!) : join(repositoryRoot, 'apps/workbench/dist'), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings') })
 const result = { pid: process.pid, port: server.server.port, root, url: `http://hulala.localhost:${server.server.port}` }
 await writeFile(join(tmpdir(), 'hulala-browser-preview.json'), JSON.stringify(result))
 console.log(JSON.stringify(result))

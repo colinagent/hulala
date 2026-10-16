@@ -37,7 +37,9 @@ bun run start
 
 ## Installable packages
 
-Browser release artifacts are staged locally; building this repository does not publish to npm or GitHub Releases. See [distribution details and validation](docs/browser-workbench.md).
+Download the [browser edition 0.1.5](https://github.com/colinagent/hulala/releases/tag/browser-v0.1.5) for macOS, Linux or Windows. Verify your archive against the release's `SHASUMS256.txt`, extract it, then install as shown below. npm publication is pending. See [distribution details and validation](docs/browser-workbench.md).
+
+To build packages from source:
 
 ```sh
 bun run pack:workbench
