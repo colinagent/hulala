@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from 'bun:test'
-import { BrowserApiError, browserJson, openBrowserWorkspace, openRemoteWorkspace } from './browser'
+import { BrowserApiError, browserJson, openBrowserWorkspace, openLocalWorkspaceDirectory, openRemoteWorkspace } from './browser'
+import { DIRECTORY_REQUEST_EVENT, type BrowserDirectoryRequest } from './dialogs'
 
 const originals = new Map<string, PropertyDescriptor | undefined>()
 const provisionalDocument = () => ({ title: '', createElement: () => ({ setAttribute() {}, textContent: '' }), querySelector: () => ({ textContent: '' }), body: { append() {}, style: { cssText: '' } } })
@@ -39,6 +40,46 @@ test('reports a clickable Workspace URL when the browser blocks the new tab', as
   replace('fetch', async () => Response.json({ id: 'next-workspace', name: '项目' }))
   await openBrowserWorkspace('/fixture/项目')
   expect(notice).toEqual({ url: '/w/next-workspace', name: '项目' })
+})
+
+test('canceling a native directory picker never creates a tab or registers a Workspace', async () => {
+  let selection!: BrowserDirectoryRequest
+  let opens = 0, requests = 0
+  replace('location', { pathname: '/w/current' })
+  replace('window', {
+    open() { opens++; return null },
+    dispatchEvent(event: CustomEvent<BrowserDirectoryRequest>) { if (event.type === DIRECTORY_REQUEST_EVENT) selection = event.detail },
+  })
+  replace('fetch', async () => { requests++; throw new Error('Unexpected Workspace registration') })
+  const choosing = openLocalWorkspaceDirectory('/fixture')
+  expect(opens).toBe(0)
+  expect(requests).toBe(0)
+  selection.resolve(null)
+  expect(await choosing).toBeNull()
+  expect(opens).toBe(0)
+  expect(requests).toBe(0)
+})
+
+test('opens only after native selection and keeps a usable link if the popup is blocked', async () => {
+  let selection!: BrowserDirectoryRequest, notice: unknown
+  let opens = 0, requests = 0
+  replace('location', { pathname: '/w/current' })
+  replace('window', {
+    open() { opens++; return null },
+    dispatchEvent(event: CustomEvent) {
+      if (event.type === DIRECTORY_REQUEST_EVENT) selection = event.detail
+      else if (event.type === 'hulala:open-blocked') notice = event.detail
+    },
+  })
+  replace('fetch', async () => { requests++; return Response.json({ id: 'chosen-workspace', name: '项目' }) })
+  const choosing = openLocalWorkspaceDirectory('/fixture')
+  expect(opens).toBe(0)
+  expect(requests).toBe(0)
+  selection.resolve('/fixture/项目')
+  expect(await choosing).toBe('/fixture/项目')
+  expect(opens).toBe(1)
+  expect(requests).toBe(1)
+  expect(notice).toEqual({ url: '/w/chosen-workspace', name: '项目' })
 })
 
 test('renews a restarted local session once without putting a token in browser requests', async () => {

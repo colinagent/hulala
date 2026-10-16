@@ -53,14 +53,10 @@ export async function openBrowserWorkspace(path: string, reserved?: Window | nul
 }
 
 export async function openLocalWorkspaceDirectory(defaultPath?: string): Promise<string | null> {
-  // Reserve during the browser click; the system dialog may remain open for minutes.
-  const reserved = location.pathname === '/open' ? window : reserveWorkspacePage()
-  try {
-    const path = await chooseDirectory(defaultPath, { title: 'Open Folder' })
-    if (!path) { if (reserved !== window) reserved?.close(); return null }
-    await openBrowserWorkspace(path, reserved)
-    return path
-  } catch (error) { if (reserved !== window) reserved?.close(); throw error }
+  const path = await chooseDirectory(defaultPath, { title: 'Open Folder' })
+  if (!path) return null
+  await openBrowserWorkspace(path)
+  return path
 }
 
 export async function openRemoteWorkspace(host: SshHostPayload, path?: string, createName?: string, document?: { reserved: Window | null; file: string }): Promise<void> {

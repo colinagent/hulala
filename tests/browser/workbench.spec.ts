@@ -132,28 +132,43 @@ test('blocked browser storage preserves drafts and settings dialogs stay usable'
   } finally { await context.close() }
 })
 
-test('native folder selection opens its reserved tab and cancellation closes the empty tab', async ({ page, context }) => {
-  let chosenPath: string | null = fixture.second
-  await page.route('**/api/browser/dialogs/directory', route => route.fulfill({ json: { path: chosenPath } }))
+test('native folder selection creates no tab until a directory is chosen and none on cancel', async ({ page, context }) => {
+  let complete!: (path: string | null) => void
+  let requests = 0
+  await page.route('**/api/browser/dialogs/directory', async route => {
+    const path = await new Promise<string | null>(resolve => { complete = resolve; requests++ })
+    await route.fulfill({ json: { path } })
+  })
   await page.goto(fixture.url)
   await expect(page).toHaveTitle('workspace · Hulala')
+  const initialPages = context.pages().length
+  let openedPages = 0
+  context.on('page', () => { openedPages++ })
   const openMenu = async () => {
     await page.locator('.sidebar-root-header').hover()
     await page.locator('.sidebar-root-header').getByRole('button', { name: 'New tab', exact: true }).click()
   }
   await openMenu()
-  const newPage = context.waitForEvent('page')
   await page.getByRole('button', { name: 'Open Folder', exact: true }).click()
+  await expect.poll(() => requests).toBe(1)
+  expect(context.pages().length).toBe(initialPages)
+  expect(openedPages).toBe(0)
+  await expect(page).toHaveTitle('workspace · Hulala')
+  const newPage = context.waitForEvent('page')
+  complete(fixture.second)
   const selected = await newPage
   await expect(selected).toHaveTitle('项目 B · Hulala')
   await expect(page).toHaveTitle('workspace · Hulala')
   await selected.close()
-  chosenPath = null
   await openMenu()
-  const canceledPage = context.waitForEvent('page')
   await page.getByRole('button', { name: 'Open Folder', exact: true }).click()
-  const canceled = await canceledPage
-  await expect.poll(() => canceled.isClosed()).toBe(true)
+  await expect.poll(() => requests).toBe(2)
+  expect(context.pages().length).toBe(initialPages)
+  const canceled = page.waitForResponse(response => response.url().endsWith('/api/browser/dialogs/directory'))
+  complete(null)
+  await canceled
+  expect(context.pages().length).toBe(initialPages)
+  expect(openedPages).toBe(1)
   await expect(page.getByRole('dialog', { name: 'Open Folder', exact: true })).not.toBeVisible()
 })
 
