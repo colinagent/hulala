@@ -3330,6 +3330,7 @@ body.op-global-cursor-grabbing * {
 .sidebar-hover-area .file-tree-item-right,
 .sidebar-hover-area .file-tree-agent-inline-pill,
 .sidebar-hover-area .workspace-root-chat-button,
+.sidebar-hover-area .workspace-root-new-tab-button,
 .sidebar-hover-area .sidebar-root-header-actions {
   opacity: 0;
   /* Keep semantic buttons actionable for accessibility activation. Pointer
@@ -3342,6 +3343,9 @@ body.op-global-cursor-grabbing * {
 .sidebar-hover-area .file-tree-agent-inline-pill:focus-visible,
 .sidebar-hover-area:hover .workspace-root-chat-button,
 .sidebar-hover-area .workspace-root-chat-button:focus-visible,
+.sidebar-hover-area:hover .workspace-root-new-tab-button,
+.sidebar-hover-area .workspace-root-new-tab-button:focus-visible,
+.sidebar-hover-area .workspace-root-new-tab-button[aria-expanded='true'],
 .sidebar-hover-area:hover .sidebar-root-header-actions,
 .sidebar-hover-area .sidebar-root-header-actions:focus-within {
   opacity: 1;
@@ -3351,6 +3355,7 @@ body.op-global-cursor-grabbing * {
 .workspace-agent-onboarding-active .sidebar-hover-area .file-tree-item-right,
 .workspace-agent-onboarding-active .sidebar-hover-area .file-tree-agent-inline-pill,
 .workspace-agent-onboarding-active .sidebar-hover-area .workspace-root-chat-button,
+.workspace-agent-onboarding-active .sidebar-hover-area .workspace-root-new-tab-button,
 .workspace-agent-onboarding-active .sidebar-hover-area .sidebar-root-header-actions {
   opacity: 1;
   pointer-events: auto;

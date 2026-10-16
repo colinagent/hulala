@@ -16,7 +16,7 @@ import { CommandsEditor } from './components/Editor/CommandsEditor';
 import { ConversationSurface } from './components/Chat/ConversationSurface';
 import { ActivityPanel } from './components/Chat/ActivityPanel';
 import { ConversationComposerDock } from './components/Chat/ConversationComposerDock';
-import { WorkspaceActions } from './components/WorkspaceActions';
+import { WorkspaceMenu, RightWorkspaceToggle } from './components/WorkspaceActions';
 import {
   RightWorkspaceTabBar,
   type RightWorkspaceFileTab,
@@ -1565,13 +1565,17 @@ export default function App() {
           }}
         >
           <Sidebar
-            workspaceActions={
-              <WorkspaceActions
+            newWorkspaceAction={
+              <WorkspaceMenu
                 onCreateWorkspace={handleOpenCreateWorkspace}
                 onNewFolder={handleNewFolderTab}
                 onNewRemote={handleNewRemoteTab}
                 onOpenRecentLocal={handleNewTabWithLocal}
                 onOpenRecentRemote={handleNewTabWithRemote}
+              />
+            }
+            workspaceActions={
+              <RightWorkspaceToggle
                 rightPaneOpen={showRightPane}
                 onToggleRightPane={() => {
                   const nextOpen = !showRightPane;

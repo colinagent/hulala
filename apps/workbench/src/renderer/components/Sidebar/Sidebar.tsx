@@ -50,6 +50,7 @@ import { useSidebarRailAlerts } from './useSidebarRailAlerts';
 
 type SidebarProps = {
   workspaceActions: React.ReactNode;
+  newWorkspaceAction: React.ReactNode;
   onOpenSettings: () => void;
   onOpenConfigFiles: () => void | Promise<void>;
   onSwitchLocal: (path: string) => Promise<void>;
@@ -129,6 +130,7 @@ function SidebarRailIcon({ itemKey }: { itemKey: SidebarRailItemKey }) {
 
 export function Sidebar({
   workspaceActions,
+  newWorkspaceAction,
   onOpenSettings,
   onOpenConfigFiles,
   onSwitchLocal,
@@ -577,6 +579,7 @@ export function Sidebar({
               >
                 Chat
               </button>
+              {newWorkspaceAction}
             </div>
           </div>
           <div

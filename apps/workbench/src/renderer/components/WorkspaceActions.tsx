@@ -36,14 +36,12 @@ function getLocalWorkspaceLabel(entry: LocalRecentWorkspace): string {
   return getPathBaseName(entry.path);
 }
 
-type WorkspaceActionsProps = {
+type WorkspaceMenuProps = {
   onCreateWorkspace: () => void;
   onNewFolder: () => void;
   onNewRemote: () => void;
   onOpenRecentLocal: (path: string) => Promise<void>;
   onOpenRecentRemote: (host: SshHost, path?: string) => Promise<void>;
-  rightPaneOpen: boolean;
-  onToggleRightPane: () => void;
 };
 
 const HOVER_LEAVE_MS = 120;
@@ -88,14 +86,12 @@ function RemoteRecentGroup({
   );
 }
 
-export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
+export const WorkspaceMenu: React.FC<WorkspaceMenuProps> = ({
   onCreateWorkspace,
   onNewFolder,
   onNewRemote,
   onOpenRecentLocal,
   onOpenRecentRemote,
-  rightPaneOpen,
-  onToggleRightPane,
 }) => {
   const { t } = useTranslation('menu');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -161,7 +157,10 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
     }
     const actionRect = triggerRef.current?.getBoundingClientRect();
     if (actionRect) {
-      setMenuPosition({ left: actionRect.right + 6, top: actionRect.top });
+      setMenuPosition({
+        left: Math.max(8, Math.min(actionRect.left, window.innerWidth - MAIN_MENU_WIDTH - RECENT_PANEL_WIDTH - 12)),
+        top: actionRect.bottom + 4,
+      });
     }
     setMenuOpen(true);
   };
@@ -170,15 +169,15 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
     <>
         <IconButton
           ref={triggerRef}
-          size={34}
-          className={`sidebar-activity-button${menuOpen ? ' is-active' : ''}`}
+          size={24}
+          className={`workspace-root-new-tab-button ml-1 shrink-0 ${menuOpen ? 'text-brand' : 'text-secondary-text'}`}
           onClick={handleToggleNewTabMenu}
           title={t('workspaceTab.newTab')}
           aria-label={t('workspaceTab.newTab')}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
         >
-          <PlusIcon className="h-5 w-5" />
+          <PlusIcon className="h-3.5 w-3.5" />
         </IconButton>
         {menuOpen && createPortal(
           <div ref={menuRef} className="fixed z-50" style={menuPosition}>
@@ -315,19 +314,24 @@ export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
     </>
   );
 
-  return (
-    <>
-      {newTabAction}
-        <IconButton
-          size={34}
-          className={`sidebar-activity-button${rightPaneOpen ? ' is-active' : ''}`}
-          onClick={onToggleRightPane}
-          title={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
-          aria-label={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
-          aria-pressed={rightPaneOpen}
-        >
-          <SidebarPanelToggleIcon className="h-5 w-5" />
-        </IconButton>
-    </>
-  );
+  return newTabAction;
 };
+
+export function RightWorkspaceToggle({ rightPaneOpen, onToggleRightPane }: {
+  rightPaneOpen: boolean;
+  onToggleRightPane: () => void;
+}) {
+  const { t } = useTranslation('menu');
+  return (
+    <IconButton
+      size={34}
+      className={`sidebar-activity-button${rightPaneOpen ? ' is-active' : ''}`}
+      onClick={onToggleRightPane}
+      title={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
+      aria-label={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
+      aria-pressed={rightPaneOpen}
+    >
+      <SidebarPanelToggleIcon className="h-5 w-5" />
+    </IconButton>
+  );
+}
