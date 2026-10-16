@@ -1,0 +1,73 @@
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+
+/* SDK chrome uses the application's resolved Static Glass capsule tokens. */
+:root .excalidraw.excalidraw :is(.main-menu-trigger, .default-sidebar-trigger, .zoom-actions, .undo-redo-buttons) {
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  border: var(--op-sg-capsule-border-width) solid var(--op-sg-capsule-border);
+  border-radius: 999px;
+  background: var(--op-sg-fill);
+  box-shadow: var(--op-sg-capsule-shadow);
+  color: var(--op-sg-capsule-text);
+  transition: color 0.15s ease;
+}
+
+:root .excalidraw.excalidraw :is(.main-menu-trigger, .default-sidebar-trigger, .zoom-actions, .undo-redo-buttons)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  background-image: var(--op-sg-noise-image);
+  background-size: var(--op-sg-noise-grain) var(--op-sg-noise-grain);
+  opacity: var(--op-sg-noise);
+  mix-blend-mode: var(--op-sg-noise-blend);
+}
+
+:root .excalidraw.excalidraw :is(.zoom-actions, .undo-redo-buttons) {
+  height: var(--lg-button-size);
+  overflow: hidden;
+}
+
+/* Keep the group surface visible instead of painting SDK purple on each cell. */
+:root .excalidraw.excalidraw :is(.zoom-button, .undo-redo-buttons button) {
+  height: calc(var(--lg-button-size) - 2px);
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit;
+}
+
+:root .excalidraw.excalidraw :is(.zoom-actions, .undo-redo-buttons) .ToolIcon__icon {
+  background: transparent;
+  color: inherit;
+}
+
+:root .excalidraw.excalidraw :is(.main-menu-trigger, .default-sidebar-trigger, .zoom-actions, .undo-redo-buttons) svg {
+  color: inherit;
+}
+
+:root .excalidraw.excalidraw :is(.main-menu-trigger, .default-sidebar-trigger):hover,
+:root .excalidraw.excalidraw :is(.zoom-button, .undo-redo-buttons button):hover:not(:disabled) {
+  color: var(--op-sg-hover-text);
+}
+
+:root .excalidraw.excalidraw .main-menu-trigger.active,
+:root .excalidraw.excalidraw .sidebar-trigger__label-element:has(input:checked) .default-sidebar-trigger {
+  color: var(--op-sg-highlight-text);
+}
+
+:root .excalidraw.excalidraw .main-menu-trigger:focus-visible,
+:root .excalidraw.excalidraw .sidebar-trigger__label-element:has(input:focus-visible) .default-sidebar-trigger {
+  outline: 2px solid var(--op-sg-hover-text);
+  outline-offset: 3px;
+}
+
+:root .excalidraw.excalidraw :is(.zoom-button, .undo-redo-buttons button):focus-visible {
+  color: var(--op-sg-hover-text);
+  outline: 2px solid var(--op-sg-hover-text);
+  outline-offset: -3px;
+}

@@ -1,0 +1,46 @@
+/* Each surface recomputes hover locally; inherited custom properties otherwise
+   retain the color calculated at their ancestor (including across nested panes). */
+:root {
+  --op-hover-ink: #000000;
+  --op-hover-brand-ratio: 80%;
+  --op-hover-amount: 10%;
+}
+:root[data-color-scheme='dark'] {
+  --op-hover-ink: #ffffff;
+  --op-hover-brand-ratio: 40%;
+  --op-hover-amount: 10%;
+}
+
+:where(body, .bg-editor-bg, .ui-statusbar, .op-outline-popover, .hulala-composer-dock,
+  .editor-file-tab.tab-active-shell) {
+  --op-hover-surface: var(--color-editor-bg);
+}
+:where(.bg-background) { --op-hover-surface: var(--color-background); }
+:where(.bg-secondary-bg) { --op-hover-surface: var(--color-secondary-bg); }
+:where(.bg-tertiary-bg) { --op-hover-surface: var(--color-tertiary-bg); }
+:where(.bg-overlay-bg) { --op-hover-surface: var(--color-overlay-bg); }
+:where(.bg-sidebar-bg, .ui-sidebar, .sidebar-activity-rail, .editor-tabbar) {
+  --op-hover-surface: var(--color-sidebar-bg);
+}
+:where(.bg-titlebar-bg, .ui-titlebar) { --op-hover-surface: var(--color-titlebar-bg); }
+
+/* Portaled menus declare a substrate through their existing Static Glass class;
+   use the resulting opaque fill, not the background behind the menu. */
+:where(.op-sg-surface, .op-sg-capsule, .hulala-composer-menu,
+  .hulala-composer-slash-menu, .hulala-slash-menu, .hulala-activity-body,
+  .hulala-activity-header, .hulala-interaction-card) {
+  --op-hover-surface: var(--op-sg-fill);
+}
+
+:where(body, .bg-editor-bg, .bg-background, .bg-secondary-bg, .bg-tertiary-bg,
+  .bg-overlay-bg, .bg-sidebar-bg, .bg-titlebar-bg, .ui-statusbar,
+  .op-outline-popover, .hulala-composer-dock, .editor-file-tab.tab-active-shell,
+  .ui-sidebar, .sidebar-activity-rail,
+  .editor-tabbar, .ui-titlebar, .op-sg-surface, .op-sg-capsule,
+  .hulala-composer-menu, .hulala-composer-slash-menu, .hulala-slash-menu,
+  .hulala-activity-body, .hulala-activity-header, .hulala-interaction-card) {
+  /* Light: 90% surface + 8% brand + 2% black. Dark: 90% surface + 4% brand + 6% white. */
+  --color-hover-bg: color-mix(in srgb, var(--op-hover-surface),
+    color-mix(in srgb, var(--color-brand) var(--op-hover-brand-ratio), var(--op-hover-ink)) var(--op-hover-amount));
+  --op-tab-hover-bg: var(--color-hover-bg);
+}

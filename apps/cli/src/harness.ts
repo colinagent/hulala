@@ -1,30 +1,22 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { mkdtemp, writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { APP_AUTHORITY, APP_HOST, VERSION, WORKBENCH_PORT } from './constants.js'
-import { createPackagedHarnessPatch } from './profile.js'
+import { VERSION, WORKBENCH_PORT } from './constants.js'
+declare const __HULALA_COMPILED__: boolean | undefined
 
 export async function spawnWorkbench(): Promise<{ child: ChildProcess; temporaryDirectory: string }> {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), 'hulala-harness-'))
-  const patchPath = join(temporaryDirectory, 'profile.patch.json')
-  await writeFile(patchPath, JSON.stringify(createPackagedHarnessPatch()), 'utf8')
-
-  const require = createRequire(import.meta.url)
-  const dshBin = require.resolve('@deepseek-ai/dsh/lib/bin.js')
-  const child = spawn(process.execPath, [
-    dshBin,
-    'web',
-    '--patch', patchPath,
-    '--host', APP_HOST,
-    '--port', String(WORKBENCH_PORT),
-    '--trusted-host', APP_AUTHORITY,
-    '--no-open',
-  ], {
-    stdio: 'inherit',
-    env: { ...process.env, HULALA_VERSION: VERSION },
+  const packageRoot = process.env.HULALA_PACKAGE_ROOT
+  if (typeof __HULALA_COMPILED__ !== 'undefined' && __HULALA_COMPILED__ && !packageRoot) throw new Error('The native CLI requires a verified package directory')
+  const repositoryRoot = typeof __HULALA_COMPILED__ !== 'undefined' && __HULALA_COMPILED__ ? join(packageRoot!, 'runtime') : process.env.HULALA_REPOSITORY_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
+  const executable = packageRoot ? join(packageRoot, 'runtime/bin', process.platform === 'win32' ? 'bun.exe' : 'bun') : process.execPath
+  const child = spawn(executable, [packageRoot ? join(packageRoot, 'runtime/host/browser.js') : join(repositoryRoot, 'apps/local-host/src/browser-main.ts')], {
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    windowsHide: true,
+    env: { ...process.env, HULALA_VERSION: VERSION, HULALA_REPOSITORY_ROOT: repositoryRoot, HULALA_WORKBENCH_PORT: String(WORKBENCH_PORT) },
   })
 
   return { child, temporaryDirectory }

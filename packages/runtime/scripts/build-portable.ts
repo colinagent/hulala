@@ -1,6 +1,6 @@
 import { chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 if (!Bun.semver.satisfies(Bun.version, '>=1.4.2')) throw new Error('Harness portable builds require Bun >=1.4.2')
 
@@ -32,6 +32,15 @@ function portableDependencyPlugin(): import('bun').BunPlugin {
   return {
     name: 'hulala-portable-dependency-paths',
     setup(build) {
+      build.onLoad({ filter: /[\\/]@silvia-odwyer[\\/]photon-node[\\/]photon_rs\.js$/u }, async ({ path }) => {
+        const source = await readFile(path, 'utf8')
+        const expected = "const path = require('path').join(__dirname, 'photon_rs_bg.wasm');"
+        if (!source.includes(expected)) throw new Error('photon-node wasm path expression changed')
+        return {
+          contents: source.replace(expected, "const path = require('path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'runtime', 'photon_rs_bg.wasm');"),
+          loader: 'js',
+        }
+      })
       build.onLoad({ filter: /[\\/]undici[\\/]index\.js$/u }, async ({ path }) => {
         const source = await readFile(path, 'utf8')
         const expected = "const currentFilename = typeof __filename !== 'undefined' ? __filename : undefined"
@@ -40,10 +49,10 @@ function portableDependencyPlugin(): import('bun').BunPlugin {
       })
       build.onLoad({ filter: /[\\/]dsh-subprocess-local[\\/]lib[\\/]runner-launch-[^/\\]+\.js$/u }, async ({ path }) => {
         const source = await readFile(path, 'utf8')
-        const expected = 'return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner"))]'
+        const expected = 'return [process.execPath, fileURLToPath(import.meta.resolve("@deepseek-ai/dsh-subprocess-local/runner")), ...process.versions.bun ? ["--"] : []]'
         if (!source.includes(expected)) throw new Error('Harness subprocess runner invocation changed')
         return {
-          contents: source.replace(expected, 'return [process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/bin/" + (process.platform === "win32" ? "bun.exe" : "bun"), process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner.js"]'),
+          contents: source.replace(expected, 'return [process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/bin/" + (process.platform === "win32" ? "bun.exe" : "bun"), process.env.HULALA_RUNTIME_REPOSITORY_ROOT + "/node_modules/@deepseek-ai/dsh-subprocess-local/lib/runner.js", "--"]'),
           loader: 'js',
         }
       })
@@ -69,7 +78,9 @@ async function bundleFile(entrypoint: string, outfile: string): Promise<void> {
     plugins: [portableDependencyPlugin()],
   })
   if (!result.success || !result.outputs[0]) throw new AggregateError(result.logs, `failed to bundle ${entrypoint}`)
-  await Bun.write(outfile, result.outputs[0])
+  const source = await result.outputs[0].text()
+  if (source.includes(repositoryRoot) || source.includes(output)) throw new Error('Portable plugin contains a build-machine path')
+  await Bun.write(outfile, source)
 }
 
 function currentTarget(): string {
@@ -89,13 +100,15 @@ const targetPlatforms: Record<string, { os: string; cpu: string; bunAsset: strin
 }
 const targetPlatform = targetPlatforms[target]
 if (!targetPlatform) throw new Error(`unsupported portable Runtime target: ${target}`)
-const output = join(packageRoot, 'dist', 'portable', target)
+const output = process.env.HULALA_PORTABLE_OUTPUT ? resolve(process.env.HULALA_PORTABLE_OUTPUT) : join(packageRoot, 'dist', 'portable', target)
 await rm(output, { recursive: true, force: true })
 await mkdir(join(output, 'bin'), { recursive: true })
 await mkdir(join(output, 'runtime'), { recursive: true })
 
 const bunName = targetPlatform.bunName
 const suppliedBun = process.env.HULALA_PORTABLE_BUN_EXECUTABLE?.trim()
+const expectedBunSha256 = process.env.HULALA_PORTABLE_BUN_SHA256?.trim().toLowerCase()
+if ((suppliedBun || target !== currentTarget()) && !expectedBunSha256) throw new Error('External/cross-target Bun requires HULALA_PORTABLE_BUN_SHA256 from the verified release input')
 if (suppliedBun) {
   if (!await Bun.file(suppliedBun).exists()) throw new Error(`supplied portable Bun does not exist: ${suppliedBun}`)
   await copyFile(suppliedBun, join(output, 'bin', bunName))
@@ -121,7 +134,6 @@ if (suppliedBun) {
   await rm(extracted, { recursive: true, force: true })
 }
 await chmod(join(output, 'bin', bunName), 0o700).catch(() => undefined)
-const expectedBunSha256 = process.env.HULALA_PORTABLE_BUN_SHA256?.trim().toLowerCase()
 if (expectedBunSha256) {
   if (!/^[a-f0-9]{64}$/.test(expectedBunSha256)) throw new Error('HULALA_PORTABLE_BUN_SHA256 must be a SHA-256 hex digest')
   const bunBytes = await Bun.file(join(output, 'bin', bunName)).arrayBuffer()
@@ -134,12 +146,33 @@ const runtimeManifest = JSON.parse(await readFile(join(packageRoot, 'package.jso
   dependencies?: Record<string, string>
 }
 if (!runtimeManifest.version) throw new Error('Runtime package has no version')
+const bundleVersion = process.env.HULALA_HOST_RELEASE_VERSION || runtimeManifest.version
+if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(bundleVersion)) throw new Error('Invalid Host release version')
+const hostDependencies = process.env.HULALA_PORTABLE_WORKBENCH === '1'
+  ? (JSON.parse(await readFile(join(repositoryRoot, 'apps/local-host/package.json'), 'utf8')) as { dependencies: Record<string, string> }).dependencies
+  : {}
+const dependencies = Object.fromEntries(Object.entries({ ...runtimeManifest.dependencies, ...hostDependencies }).filter(([name]) => !name.startsWith('@hulala/')))
+const lockBytes = await readFile(join(repositoryRoot, 'bun.lock'), 'utf8')
+const sourceLock = Bun.JSONC.parse(lockBytes) as { workspaces: unknown; packages: Record<string, [string, ...unknown[]]>; patchedDependencies?: Record<string, string> }
+for (const path of Object.values(sourceLock.patchedDependencies || {})) {
+  const destination = join(output, path)
+  await mkdir(dirname(destination), { recursive: true })
+  await copyFile(join(repositoryRoot, path), destination)
+}
+// Retain the source lock's complete resolution/integrity graph. Unused entries
+// are harmless, while workspace links cannot appear in a portable install.
+const portableLock = { ...sourceLock,
+  workspaces: { '': { name: '@hulala/runtime-bundle', version: bundleVersion, dependencies } },
+  packages: Object.fromEntries(Object.entries(sourceLock.packages).filter(([, entry]) => !entry[0].includes('@workspace:'))),
+}
+await writeFile(join(output, 'bun.lock'), JSON.stringify(portableLock, null, 2) + '\n')
 await writeFile(join(output, 'package.json'), `${JSON.stringify({
   name: '@hulala/runtime-bundle',
-  version: runtimeManifest.version,
+  version: bundleVersion,
   private: true,
   type: 'module',
-  dependencies: runtimeManifest.dependencies,
+  dependencies,
+  patchedDependencies: sourceLock.patchedDependencies,
 }, null, 2)}\n`)
 
 const installEnvironment = {
@@ -153,7 +186,7 @@ const installEnvironment = {
 }
 const PORTABLE_INSTALL_TIMEOUT_MS = 90_000
 async function installPortableDependencies(maxHttpRequests: string): Promise<boolean> {
-  const install = Bun.spawn([process.execPath, 'install', '--production', '--os', targetPlatform.os, '--cpu', targetPlatform.cpu], {
+  const install = Bun.spawn([process.execPath, 'install', '--production', '--frozen-lockfile', '--ignore-scripts', '--os', targetPlatform.os, '--cpu', targetPlatform.cpu], {
     cwd: output,
     env: { ...installEnvironment, BUN_CONFIG_MAX_HTTP_REQUESTS: maxHttpRequests },
     stdout: 'inherit',
@@ -175,6 +208,18 @@ if (!await installPortableDependencies('8')) {
   console.warn('portable Runtime dependency install timed out; retrying with network concurrency 4')
   if (!await installPortableDependencies('4')) throw new Error('portable Runtime dependency install timed out twice')
 }
+
+async function stripPackageMetadata(directory: string): Promise<void> {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    // npm omits these files during packing. Remove them before producing the
+    // canonical inventory so npm and standalone packages verify identically.
+    if (['.gitignore', '.npmignore', '.gitattributes', '.DS_Store', '.npmrc', 'npm-debug.log', 'package-lock.json'].includes(entry.name) || entry.name.endsWith('.map')) {
+      await rm(path, { recursive: true, force: true })
+    } else if (entry.isDirectory()) await stripPackageMetadata(path)
+  }
+}
+await stripPackageMetadata(join(output, 'node_modules'))
 
 const moduleSpecifiers = new Set<string>(desktopHostPackages)
 const collectNames = async (path: string): Promise<void> => {
@@ -305,18 +350,6 @@ const hostBuild = await Bun.build({
           loader: 'js',
         }
       })
-      build.onLoad({ filter: /[\\/]@silvia-odwyer[\\/]photon-node[\\/]photon_rs\.js$/u }, async ({ path }) => {
-        const source = await readFile(path, 'utf8')
-        const expected = "const path = require('path').join(__dirname, 'photon_rs_bg.wasm');"
-        if (!source.includes(expected)) throw new Error('photon-node wasm path expression changed')
-        return {
-          contents: source.replace(
-            expected,
-            "const path = require('path').join(process.env.HULALA_RUNTIME_REPOSITORY_ROOT, 'runtime', 'photon_rs_bg.wasm');",
-          ),
-          loader: 'js',
-        }
-      })
     },
   }],
 })
@@ -365,16 +398,18 @@ const artifacts = await Promise.all(criticalFiles.map(async path => {
     sha256: new Bun.CryptoHasher('sha256').update(await file.arrayBuffer()).digest('hex'),
   }
 }))
-await Bun.write(join(output, 'manifest.json'), `${JSON.stringify({ version: runtimeManifest.version, target, artifacts }, null, 2)}\n`)
+await Bun.write(join(output, 'manifest.json'), `${JSON.stringify({ version: bundleVersion, runtimeVersion: runtimeManifest.version, target, lockSha256: new Bun.CryptoHasher('sha256').update(lockBytes).digest('hex'), artifacts }, null, 2)}\n`)
 
-const archive = join(packageRoot, 'dist', 'portable', `${target}.tar.gz`)
-await rm(archive, { force: true })
-const tar = Bun.spawn(['tar', '-czf', archive, '-C', join(packageRoot, 'dist', 'portable'), target], {
-  env: { ...process.env, COPYFILE_DISABLE: '1' },
-  stdout: 'inherit',
-  stderr: 'inherit',
-})
-if (await tar.exited !== 0) throw new Error('failed to archive portable Runtime')
+const archive = output + '.tar.gz'
+if (process.env.HULALA_PORTABLE_SKIP_ARCHIVE !== '1') {
+  await rm(archive, { force: true })
+  const tar = Bun.spawn(['tar', '-czf', archive, '-C', dirname(output), basename(output)], {
+    env: { ...process.env, COPYFILE_DISABLE: '1' },
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  if (await tar.exited !== 0) throw new Error('failed to archive portable Runtime')
+}
 
 const entries = await readdir(output)
 console.log(`portable Runtime ${target}: ${entries.map(entry => basename(entry)).join(', ')}`)

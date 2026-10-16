@@ -1,0 +1,86 @@
+import React, { useId } from 'react';
+
+type HulalaLogoProps = {
+  className?: string;
+  height?: number | string;
+  title?: string;
+  width?: number | string;
+};
+
+const BLADE_PATHS = [
+  'M248 230V58Q248 48 240 54L132 138Q124 144 124 154V244Q124 250 132 250H222Q238 250 248 230Z',
+  'M282 248H454Q464 248 458 240L374 132Q368 124 358 124H268Q262 124 262 132V222Q262 238 282 248Z',
+  'M264 282V454Q264 464 272 458L380 374Q388 368 388 358V268Q388 262 380 262H290Q274 262 264 282Z',
+  'M230 264H58Q48 264 54 272L138 380Q144 388 154 388H244Q250 388 250 380V290Q250 274 230 264Z',
+] as const;
+
+const BLADE_OFFSETS = [
+  [-6, -6],
+  [6, -6],
+  [6, 6],
+  [-6, 6],
+] as const;
+
+export function HulalaLogo({ className = 'h-4 w-4', height, title, width }: HulalaLogoProps) {
+  const id = useId().replace(/:/g, '');
+
+  return (
+    <svg
+      className={className}
+      width={width}
+      height={height}
+      viewBox="0 0 512 512"
+      fill="none"
+      role={title ? 'img' : undefined}
+      aria-hidden={title ? undefined : true}
+    >
+      {title ? <title>{title}</title> : null}
+      <defs>
+        <pattern
+          id={`${id}-glass-grain`}
+          width="42"
+          height="42"
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx="6" cy="8" r="1.1" fill="#FFFFFF" />
+          <circle cx="28" cy="5" r="0.8" fill="#172138" />
+          <circle cx="16" cy="24" r="0.9" fill="#FFFFFF" />
+          <circle cx="37" cy="29" r="1" fill="#172138" />
+          <circle cx="8" cy="38" r="0.7" fill="#172138" />
+        </pattern>
+      </defs>
+      <g
+        fill="var(--hulala-logo-glass-frost, var(--color-brand, #918072))"
+        fillOpacity="var(--hulala-logo-glass-fill-opacity, 1)"
+        stroke="var(--hulala-logo-glass-border, transparent)"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      >
+        {BLADE_PATHS.map((path, index) => {
+          const [offsetX, offsetY] = BLADE_OFFSETS[index];
+          return (
+            <path
+              key={path}
+              d={path}
+              transform={`translate(${offsetX} ${offsetY})`}
+            />
+          );
+        })}
+      </g>
+      <g fill={`url(#${id}-glass-grain)`} opacity="0.07">
+        {BLADE_PATHS.map((path, index) => {
+          const [offsetX, offsetY] = BLADE_OFFSETS[index];
+          return (
+            <path
+              key={path}
+              d={path}
+              transform={`translate(${offsetX} ${offsetY})`}
+            />
+          );
+        })}
+      </g>
+      <circle className="hulala-logo-center-disc" cx="256" cy="256" r="40" fill="#FFFFFF" />
+      <circle cx="256" cy="256" r="13" fill="var(--color-brand, #918072)" />
+    </svg>
+  );
+}

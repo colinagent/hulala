@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "builtInVersion": 32,
+  "themes": [
+    {
+      "id": "default-light",
+      "name": "Default Light",
+      "core": {
+        "obBrand": "#918072",
+        "highlight": "#be7e4a",
+        "obBrandDark": "#8f5a2e",
+        "background": "#f3f0e7",
+        "primeText": "#000000",
+        "secondaryText": "rgba(0,0,0,0.7)",
+        "onSurface": "#000000",
+        "onSurfaceMuted": "rgba(0,0,0,0.7)"
+      },
+      "editor": {},
+      "syntax": {},
+      "preview": {}
+    },
+    {
+      "id": "default-dark",
+      "name": "Default Dark",
+      "core": {
+        "obBrand": "#918072",
+        "highlight": "#be7e4a",
+        "obBrandDark": "#8f5a2e",
+        "background": "#23272e",
+        "primeText": "#ffffff",
+        "secondaryText": "rgba(255,255,255,0.7)",
+        "onSurface": "#000000",
+        "onSurfaceMuted": "rgba(0,0,0,0.7)"
+      },
+      "editor": {},
+      "syntax": {},
+      "preview": {}
+    }
+  ]
+}

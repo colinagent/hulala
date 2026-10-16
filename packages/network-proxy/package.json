@@ -25,7 +25,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "bun test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   }
 }

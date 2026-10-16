@@ -2,16 +2,41 @@
 
 ## Read First
 
+- Product-owner authorization (2026-10-14): the current Hulala Desktop
+  workbench is being opened as a local browser edition in this repository.
+  Its UI, shared contracts, local Host capabilities (including direct SSH
+  workspaces, Cron, Messenger, and trusted local plugins), and necessary browser
+  adapters are in scope. Preserve the existing workflows and launch the UI
+  from the CLI at hulala.localhost. This authorization covers the reviewed
+  browser-edition migration; unrelated private source remains out of scope.
+  Never import credentials, user state, internal documentation, machine-specific
+  paths, deployment details, signing keys, or Electron release/update tooling.
+  The browser edition uses this repository's existing Apache-2.0 license.
+- Execute the browser migration in bounded stages: requirements, implementation,
+  acceptance checks, review, and fixes before the next stage. One Workspace maps
+  to one browser tab titled with its Workspace/folder name. File editor tabs stay
+  inside that page. Browser lifecycle, permissions, multi-tab isolation, and
+  native capability replacements are acceptance requirements, not follow-up work.
+- Review and fix each stage autonomously, then continue immediately to the next
+  stage. The user will review the working browser edition after the whole task
+  is complete; do not stop for intermediate phase approval.
+- The installed browser edition starts with bare `hulala` and opens the browser
+  after workbench readiness. Design a canonical release package with the Host,
+  Runtime, web assets, manifest, and licenses. Support npm and standalone
+  distribution, platform selection, integrity verification, install-source-aware
+  updates, rollback, and uninstall without deleting user data. Validate real
+  installed packages, not only source-checkout commands.
+
 - This file is the source of truth for the public/private product boundary.
-- **Current phase scope is the local DeepSeek Harness workbench and its local
-  Agent Loop plugins.** The older Loop Core/Local Web prototype is parked and
+- **Current scope is the Hulala browser workbench, its local/SSH Hosts,
+  distribution, and DeepSeek Harness Agent Loop plugins.** The older Loop Core/Local Web prototype is parked and
   must not be expanded unless the product owner reopens that work.
-- Do not design or implement Desktop, OpenBrain integration, Cloud, sync,
+- Do not design or implement a new Electron Desktop, unrelated product integration, Cloud, sync,
   accounts, billing, multi-tenancy, hosted runtimes, Telegram/channel gateways,
   teams, marketplace, or enterprise features in the current phase.
 - Do not add speculative interfaces, packages, configuration, feature flags, or
-  abstractions for those excluded products. Build only what Core and Local Web
-  need now.
+  abstractions for those excluded products. Build only what the local browser
+  workbench and its Runtime need now.
 - Before adding or moving code, classify it using the public/private boundary below.
 - If ownership is unclear, keep the work private and ask the product owner. Never
   publish first and clean it up later.
@@ -29,12 +54,11 @@ The public GitHub URL is <https://github.com/colinagent/hulala>.
 
 ## License Status
 
-- The product owner has decided that Loop Core and Local Web will be open
-  source, but has **not yet selected the exact open-source license**.
-- Do not add, change, or assume a license until the product owner makes that
-  decision explicitly.
+- The repository's existing `LICENSE` is Apache-2.0. The approved browser
+  edition follows it; preserve third-party licenses and notices.
+- Do not change the chosen license without the product owner's instruction.
 - Before importing third-party code, record its license and confirm that it is
-  compatible with the license eventually chosen for this repository.
+  compatible with the repository's Apache-2.0 license.
 - Vendored DeepSeek Harness and Cordis packages are MIT. Their licenses are
   kept next to the source and summarized in `THIRD_PARTY_NOTICES.md`.
 - Do not call a custom commercial or source-available license “open source.”
@@ -45,7 +69,10 @@ Only the following local product surfaces belong in this repository:
 
 ### Harness Workbench
 
-- DeepSeek Harness Web as the default local interface.
+- Hulala's browser workbench as the default local interface, preserving the
+  approved Desktop workflows through browser adapters.
+- Local and direct SSH Workspace Hosts, files, editors, Git, commands, Cron,
+  Messenger, trusted local plugins, and npm/standalone distribution.
 - Agent Loop plugins built on Harness `AgentFactory` and Cordis Loader entry
   replacement.
 - Direct local SDK integrations for Pi, Codex and Claude Code, with their
@@ -124,9 +151,9 @@ Do not introduce product names for excluded surfaces in implementation code.
 
 ## Safety Checks Before Every Public Change
 
-1. Confirm the change is necessary for Core or local Web to work independently.
-2. Confirm the change does not create Desktop, Cloud, channel, billing,
-   multi-tenant, or remote-runner code, including speculative abstractions.
+1. Confirm the change is necessary for the local browser workbench or Runtime.
+2. Confirm the change does not create a separate Electron client, hosted Cloud,
+   channel gateway, billing, or multi-tenant product, including speculative code.
 3. Search for secrets, private URLs, tenant identifiers, pricing logic, internal
    model/provider details, and deployment information.
 4. Confirm the change does not import or depend on private repository source.

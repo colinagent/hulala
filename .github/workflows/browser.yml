@@ -1,0 +1,104 @@
+name: Browser workbench
+on:
+  workflow_dispatch:
+    inputs:
+      validate_npm:
+        description: Also validate the unpublished npm/npx distribution
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - 'apps/cli/**'
+      - 'apps/local-host/**'
+      - 'apps/workbench/**'
+      - 'packages/**'
+      - 'scripts/workbench/**'
+      - 'tests/browser/**'
+      - 'patches/**'
+      - 'bun.lock'
+      - 'package.json'
+      - '.github/workflows/browser.yml'
+permissions:
+  contents: read
+jobs:
+  browsers:
+    name: Browser UI (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            browsers: chromium firefox webkit msedge
+            projects: ''
+          - os: windows-2025
+            # The runner already includes stable Edge; reinstalling its MSI
+            # can wait on the system updater instead of reaching the tests.
+            browsers: chromium firefox
+            projects: --project chromium --project firefox --project edge
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      HULALA_NO_OPEN: '1'
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun node_modules/bun/install.js
+      - run: bun run build
+      - run: bunx tsc --noEmit -p tests/browser/tsconfig.json
+      - run: bunx playwright install --with-deps ${{ matrix.browsers }}
+      - run: bunx playwright test --config tests/browser/playwright.config.ts ${{ matrix.projects }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: failure()
+        with:
+          name: browser-ui-failures-${{ matrix.os }}
+          retention-days: 3
+          path: dist/browser-test-results/
+  native:
+    name: Native ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: darwin-arm64
+          - os: macos-15-intel
+            target: darwin-x64
+          - os: ubuntu-24.04
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+          - os: windows-2025
+            target: win32-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      HULALA_CI_TARGET: ${{ matrix.target }}
+      HULALA_CI_VALIDATE_NPM: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_npm || false }}
+      HULALA_NO_OPEN: '1'
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Initialize the pinned development Bun
+        run: bun node_modules/bun/install.js
+      - run: bun scripts/workbench/ci.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: browser-${{ matrix.target }}
+          retention-days: 3
+          path: |
+            dist/ci/${{ matrix.target }}/reports/
+            dist/ci/${{ matrix.target }}/packages/*.tar.gz
+            dist/ci/${{ matrix.target }}/packages/*.sha256

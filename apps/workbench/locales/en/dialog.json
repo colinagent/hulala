@@ -1,0 +1,70 @@
+{
+  "unsaved": {
+    "title": "Close without saving?",
+    "body": "\"{{title}}\" has unsaved changes. Closing it now will discard those edits.",
+    "closeAnyway": "Close Anyway"
+  },
+  "rename": {
+    "title": "Rename",
+    "selected": "Rename selected entry",
+    "pathPrefix": "Rename:\n{{path}}"
+  },
+  "createWorkspace": {
+    "title": "New Workspace",
+    "description": "Create a Workspace directly inside the selected computer's hulala-workspace folder.",
+    "nameLabel": "Workspace name",
+    "namePlaceholder": "my-workspace",
+    "localTarget": "This computer · ~/hulala-workspace",
+    "remoteTarget": "Remote: {{host}} · ~/hulala-workspace",
+    "create": "Create",
+    "connectRemote": "Connect Remote",
+    "changeRemote": "Change Remote",
+    "useLocal": "Use This Computer"
+  },
+  "delete": {
+    "title": "Delete",
+    "moveToTrash": "Move to Trash",
+    "deletePermanently": "Delete Permanently",
+    "file": "Move file to Trash?\n\n{{path}}",
+    "folder": "Move folder to Trash?\n\n{{path}}\n\nAll contents will be moved too.",
+    "multi": "Move {{count}} items to Trash?",
+    "andMore": "...and {{count}} more",
+    "folderContentsToo": "Folder contents will be moved too."
+  },
+  "importConflict": {
+    "title": "Overwrite existing files?",
+    "body": "The drop target already contains {{count}} conflicting path(s).\n\nTarget: {{dir}}",
+    "more": "+ {{count}} more",
+    "overwrite": "Overwrite"
+  },
+  "remote": {
+    "alias": "Alias",
+    "user": "User",
+    "host": "Host",
+    "port": "Port",
+    "password": "Password",
+    "privateKey": "Private Key",
+    "passwordKeep": "Password (leave blank to keep saved password)",
+    "passphraseOptional": "Passphrase (optional)",
+    "passphraseKeep": "Passphrase (leave blank to keep saved passphrase)",
+    "choose": "Choose",
+    "saving": "Saving..."
+  },
+  "excalidraw": {
+    "edit": "Edit {{name}}",
+    "loading": "Loading drawing…",
+    "create": "{{name}} — click to create",
+    "empty": "Empty drawing — click to edit",
+    "editReference": "Edit Markdown reference",
+    "invalidPath": "Invalid drawing path. Use a workspace file ending in .excalidraw.",
+    "invalidFile": "This file is not a valid Excalidraw drawing.",
+    "readFailed": "Unable to read this drawing. Check the file and workspace connection.",
+    "saveFailed": "Unable to save. Your edits are still open; try again.",
+    "conflict": "The drawing changed elsewhere or has unsaved edits in another tab. Your edits have been kept here. Save a copy before reopening the original.",
+    "loadFailed": "Unable to load the drawing editor. Reopen the file to retry.",
+    "unsaved": "This drawing has unsaved changes.",
+    "localFile": "Saved to the referenced file in this workspace",
+    "saving": "Saving…",
+    "save": "Save"
+  }
+}

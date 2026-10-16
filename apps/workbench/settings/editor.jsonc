@@ -1,0 +1,74 @@
+{
+  // Configuration file schema version. Keep as 1 unless release notes say otherwise.
+  "version": 1,
+
+  // File extension to language id mapping for the text/markdown editor.
+  // Add entries such as "*.rs": "rust" or "*.sh": "shell" to improve highlighting.
+  "filesAssociations": {
+    "*.md": "markdown",
+    "*.markdown": "markdown",
+    "*.json": "json",
+    "*.jsonc": "json",
+    "*.jsonl": "plaintext",
+    "*.yml": "yaml",
+    "*.yaml": "yaml",
+    "*.js": "javascript",
+    "*.jsx": "javascript",
+    "*.mjs": "javascript",
+    "*.cjs": "javascript",
+    "*.ts": "typescript",
+    "*.tsx": "typescript",
+    "*.mts": "typescript",
+    "*.cts": "typescript",
+    "*.py": "python",
+    "*.go": "go",
+    "*.txt": "plaintext",
+    "*.epub": "book",
+    "*.pdf": "book"
+  },
+
+  // File extension to workbench editor type mapping.
+  // Use "markdown" for the rich markdown editor, or "text" for the plain text editor.
+  "workbenchEditorAssociations": {
+    "*.md": "markdown",
+    "*.markdown": "markdown",
+    "*.json": "text",
+    "*.jsonc": "text",
+    "*.jsonl": "text",
+    "*.yml": "text",
+    "*.yaml": "text",
+    "*.js": "text",
+    "*.jsx": "text",
+    "*.mjs": "text",
+    "*.cjs": "text",
+    "*.ts": "text",
+    "*.tsx": "text",
+    "*.mts": "text",
+    "*.cts": "text",
+    "*.py": "text",
+    "*.go": "text",
+    "*.txt": "text",
+    "*.epub": "book",
+    "*.pdf": "book"
+  },
+
+  // Glob patterns hidden from file explorers and quick-open results.
+  "filesExclude": {
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+
+  // Optional allow-list of extensions that can be opened. Empty array means “allow all known text files”.
+  "openableExtensions": [],
+
+  // Fallback language id when no association matches.
+  "defaultLanguage": "plaintext",
+
+  // Markdown live preview behavior.
+  "markdownLivePreview": {
+    // Show live rendered preview while editing markdown.
+    "enabled": true,
+    // Only render/focus the nearby editing range for better performance on large documents.
+    "focusRangeEnabled": true
+  }
+}

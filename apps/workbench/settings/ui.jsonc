@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "themeId": "system",
+  "fontSize": 13,
+  "fontFamily": "",
+  "sidebarFontSize": 14,
+  "markdownTextOffset": 60,
+  "markdownContentWidth": 882,
+  "documentOutlineWidth": 260,
+  "titlebarFontSize": 13,
+  "statusbarFontSize": 11,
+  "tabBarHeight": 32,
+  "tabBarFontSize": 13,
+  "showLineNumbers": true,
+  "activityPanelMaxHeight": 400,
+  "conversationComposerDockHeight": 160,
+  "markdownFontSize": {
+    "heading1": 1.8,
+    "heading2": 1.5,
+    "heading3": 1.25,
+    "heading4": 1.1
+  }
+}

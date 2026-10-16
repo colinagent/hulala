@@ -1,0 +1,19 @@
+{
+  // Configuration file schema version. Keep as 1 unless release notes say otherwise.
+  "version": 1,
+
+  // Keyboard shortcuts. Add new entries with a `key` chord and command id.
+  // Platform-specific overrides (`mac`, `linux`, `win`) can replace `key` on that OS.
+  "keybindings": [
+    {
+      // Open the settings UI/configuration directory.
+      "key": "cmd+,",
+      "command": "hulala.openSettings"
+    },
+    {
+      // Search files in the current Workspace. Browser tab and zoom keys stay native.
+      "key": "cmd+shift+f",
+      "command": "hulala.findInFiles"
+    }
+  ]
+}

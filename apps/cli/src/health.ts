@@ -1,6 +1,6 @@
 import { connect } from 'node:net'
 
-import { APP_HOST, APP_NAME, APP_PORT, HEALTH_URL } from './constants.js'
+import { APP_HOST, APP_NAME, APP_PORT, HEALTH_URL, VERSION } from './constants.js'
 
 export interface HealthState {
   name: typeof APP_NAME
@@ -8,11 +8,17 @@ export interface HealthState {
   pid: number
   startedAt: string
   workbench?: { state: string }
+  stateId?: string
+  installationId?: string
+  protocol?: number
 }
+
+/** Process-control credentials must never travel through a configured proxy. */
+export const localFetch = (url: string | URL, options: RequestInit = {}) => fetch(url, { ...options, proxy: false } as RequestInit)
 
 export async function probeHealth(url = HEALTH_URL, timeoutMs = 700): Promise<HealthState | undefined> {
   try {
-    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) })
+    const response = await localFetch(url, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) })
     if (!response.ok) return undefined
     const value = await response.json() as Partial<HealthState>
     if (value.name !== APP_NAME || typeof value.version !== 'string' || typeof value.pid !== 'number' || typeof value.startedAt !== 'string') {
@@ -42,7 +48,7 @@ export async function waitForHealth(timeoutMs = 45_000): Promise<HealthState | u
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const health = await probeHealth()
-    if (health !== undefined && (health.workbench === undefined || health.workbench.state === 'running')) return health
+    if (health?.version === VERSION && health.workbench?.state === 'running') return health
     await new Promise(resolve => setTimeout(resolve, 250))
   }
   return undefined

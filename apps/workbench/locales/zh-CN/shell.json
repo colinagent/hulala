@@ -1,0 +1,57 @@
+{
+  "landing": {
+    "openFolder": "打开文件夹",
+    "connectRemote": "连接远程"
+  },
+  "pinnedFile": "已固定文件",
+  "returnPinnedToEditor": "将 {{title}} 返回编辑器",
+  "editorPane": {
+    "moveRight": "移到右栏",
+    "moveMain": "移回主区",
+    "outline": "目录",
+    "activity": "Activity",
+    "dropRight": "移到右栏"
+  },
+  "noFolder": "未打开文件夹",
+  "connection": {
+    "connected": "已连接",
+    "connecting": "连接中…",
+    "reconnecting": "重新连接中…",
+    "disconnected": "已断开"
+  },
+  "dirPicker": {
+    "selectDirectory": "选择目录",
+    "saveFile": "保存文件",
+    "save": "保存",
+    "ok": "确定",
+    "close": "关闭",
+    "recent": "最近",
+    "saveAs": "另存为",
+    "working": "处理中…",
+    "switchDirectory": "切换目录",
+    "openFolder": "打开文件夹",
+    "subtitleLocal": "本地工作区",
+    "subtitleRemote": "远程工作区",
+    "subtitleNewLocalTab": "新建本地工作区标签"
+  },
+  "remote": {
+    "title": "Remote SSH",
+    "add": "添加",
+    "back": "返回",
+    "close": "关闭",
+    "searchPlaceholder": "搜索主机…",
+    "loading": "加载中…",
+    "noHosts": "未找到主机",
+    "edit": "编辑",
+    "delete": "删除",
+    "authKey": "密钥",
+    "authPassword": "密码"
+  },
+  "tab": {
+    "newTab": "新标签页",
+    "welcome": "欢迎",
+    "unsavedChanges": "有未保存的更改",
+    "desktopSettings": "桌面",
+    "settings": "设置"
+  }
+}
