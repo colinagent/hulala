@@ -1,6 +1,11 @@
 name: Browser workbench
 on:
   workflow_dispatch:
+    inputs:
+      validate_npm:
+        description: Also validate the unpublished npm/npx distribution
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'apps/cli/**'
@@ -74,6 +79,7 @@ jobs:
     timeout-minutes: 45
     env:
       HULALA_CI_TARGET: ${{ matrix.target }}
+      HULALA_CI_VALIDATE_NPM: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_npm || false }}
       HULALA_NO_OPEN: '1'
       DSH_TELEMETRY_DISABLED: '1'
     steps:

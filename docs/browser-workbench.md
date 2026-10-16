@@ -41,6 +41,10 @@ packages use versions such as `0.1.5-darwin-arm64`; the main `0.1.5` package
 locks all platform aliases to matching versions. Pack the generated staging
 packages, not the CLI source checkout.
 
+The default CI matrix validates the standalone Web packages. To prepare an npm
+publication, run the Browser workbench workflow manually with `validate_npm`
+enabled; this additionally checks global npm installation and npx cache removal.
+
 ## Source layout
 
 | Location | Responsibility |
