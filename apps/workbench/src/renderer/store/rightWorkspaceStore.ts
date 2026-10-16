@@ -1,5 +1,20 @@
 import { create } from 'zustand';
+import { sessionStore } from '../../platform/storage';
 import type { SshHost, WorkspaceTabKind } from './tabManagerStore';
+
+// sessionStorage scopes layout to this browser tab and Workspace, including
+// when the same Workspace is open in two separate tabs.
+const visibilityKey = typeof window === 'undefined'
+  ? null
+  : 'hulala.right-pane.open.' + window.location.pathname;
+let restoringVisibility = false;
+
+export function beginRightWorkspaceRestore(): () => void {
+  const saved = visibilityKey ? sessionStore.getItem(visibilityKey) : null;
+  restoringVisibility = saved === 'true' || saved === 'false';
+  if (restoringVisibility) useRightWorkspaceStore.setState({ open: saved === 'true' });
+  return () => { restoringVisibility = false; };
+}
 
 export type RightWorkspaceFileRef = {
   workspaceTabId: string;
@@ -59,7 +74,8 @@ export const useRightWorkspaceStore = create<RightWorkspaceState>((set) => ({
   activityPinned: false,
   setOpen: (open) => set({ open }),
   addFile: (ref) => set((state) => ({
-    open: true,
+    // Restoring retained files must not undo the user's collapsed layout.
+    open: restoringVisibility ? state.open : true,
     files: state.files.some((existing) => sameFile(existing, ref))
       ? state.files.map(existing => sameFile(existing, ref) ? { ...existing, ...ref } : existing)
       : [...state.files, ref],
@@ -103,3 +119,9 @@ export const useRightWorkspaceStore = create<RightWorkspaceState>((set) => ({
     };
   }),
 }));
+
+useRightWorkspaceStore.subscribe((state, previous) => {
+  if (visibilityKey && state.open !== previous.open) {
+    sessionStore.setItem(visibilityKey, String(state.open));
+  }
+});

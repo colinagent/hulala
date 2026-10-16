@@ -210,7 +210,7 @@ test('a new window choosing another folder leaves the original Workspace isolate
   await expect(page.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('workspace')
 })
 
-test('the right-side control toggles the pane and preserves its files without a sidebar duplicate', async ({ page }) => {
+test('the right-side control preserves visibility and files across reloads without a sidebar duplicate', async ({ page, context }) => {
   await page.goto(fixture.url)
   await expect(page).toHaveTitle('workspace · Hulala')
   await expect(page.locator('.sidebar-activity-rail .right-workspace-toggle')).toHaveCount(0)
@@ -229,6 +229,26 @@ test('the right-side control toggles the pane and preserves its files without a 
   await expect(right.locator('.cm-content')).toContainText('Original content.')
   await right.locator('.editor-tabbar').getByRole('button', { name: 'Close right workspace', exact: true }).click()
   await expect(right).not.toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Open right workspace', exact: true })).toBeVisible()
+  await expect(right).not.toBeVisible()
+  await page.getByRole('button', { name: 'Open right workspace', exact: true }).click()
+  await expect(right.locator('.cm-content')).toContainText('Original content.')
+  await page.reload()
+  await expect(right.locator('.cm-content')).toContainText('Original content.')
+
+  // Even two browser tabs on the same Workspace keep independent pane layouts.
+  const sibling = await context.newPage()
+  await sibling.goto(page.url())
+  await expect(sibling).toHaveTitle('workspace · Hulala')
+  await expect(sibling.locator('section[data-editor-pane="right"]')).not.toBeVisible()
+  await sibling.getByRole('button', { name: 'Open right workspace', exact: true }).click()
+  await right.getByRole('button', { name: 'Close right workspace', exact: true }).click()
+  await page.reload(); await sibling.reload()
+  await expect(page.getByRole('button', { name: 'Open right workspace', exact: true })).toBeVisible()
+  await expect(right).not.toBeVisible()
+  await expect(sibling.locator('section[data-editor-pane="right"]')).toBeVisible()
+  await sibling.close()
   await page.getByRole('button', { name: 'Open right workspace', exact: true }).click()
   await expect(right.locator('.cm-content')).toContainText('Original content.')
 

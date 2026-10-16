@@ -114,7 +114,9 @@ explicit named operations, not a shell bridge.
 The right pane can pin a file from another registered Workspace. Its source
 label remains visible; file operations, media resources and recovery drafts use
 the source connection. The page keeps its own Workspace and browser title.
-Reader positions and pane references survive reloads.
+Reader positions and pane references survive reloads. The right pane's expanded
+or collapsed state is saved in session storage for the current browser tab and
+Workspace; restoring its files does not reopen a collapsed pane.
 
 PDF export renders the existing Markdown view in a separate Chrome, Edge or
 Chromium process with a disposable profile. It uses a private process pipe,

@@ -33,6 +33,7 @@ import {
   WorkspaceStoreContext,
 } from './store/appStore';
 import {
+  beginRightWorkspaceRestore,
   rightWorkspaceFileKey,
   useRightWorkspaceStore,
 } from './store/rightWorkspaceStore';
@@ -1242,6 +1243,7 @@ export default function App() {
     }, APP_BOOTSTRAP_RENDER_TIMEOUT_MS);
 
     const init = async () => {
+      const finishRightWorkspaceRestore = beginRightWorkspaceRestore();
       try {
         const bootstrap = await window.hulala?.window?.getBootstrap();
         if (!mounted) {
@@ -1342,6 +1344,8 @@ export default function App() {
         window.clearTimeout(bootstrapRenderTimeout);
         console.error('Failed to initialize app:', error);
         revealApp();
+      } finally {
+        finishRightWorkspaceRestore();
       }
     };
 
