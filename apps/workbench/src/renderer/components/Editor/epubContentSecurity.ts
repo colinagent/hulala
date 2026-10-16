@@ -4,7 +4,8 @@
  * Keep publication scripts disabled with a CSP installed before the inert EPUB
  * document is serialized, while permitting our parent-owned reader listeners.
  */
-export function protectEpubDocument(document: Document): void {
+// epub.js swallows synchronous hook errors; a rejected promise stops rendering.
+export async function protectEpubDocument(document: Document): Promise<void> {
   const root = document.documentElement;
   const namespace = 'http://www.w3.org/1999/xhtml';
   if (root?.localName !== 'html' || (root.namespaceURI && root.namespaceURI !== namespace)) {
