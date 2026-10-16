@@ -210,6 +210,88 @@ test('a new window choosing another folder leaves the original Workspace isolate
   await expect(page.locator('.sidebar-root-header .ui-chrome-row-label')).toHaveText('workspace')
 })
 
+test('EPUB wheel pagination consumes trackpad motion without scrolling the workbench', async ({ page }) => {
+  const errors: string[] = []
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  let publicationScriptRequests = 0
+  await page.route('**/epub-fixture-script.js', route => {
+    publicationScriptRequests++
+    return route.fulfill({ contentType: 'text/javascript', body: 'parent.__hulalaEpubScriptRan = true' })
+  })
+  await page.goto(fixture.url)
+  await page.getByText('Reader QA.epub', { exact: true }).dblclick()
+  const iframe = page.locator('section[data-editor-pane="main"] iframe').first()
+  const frame = iframe.contentFrame()
+  await expect(frame.getByRole('heading', { name: 'Chapter 1', exact: true })).toBeVisible()
+  await expect(frame.locator('#op-book-saved-text-style')).toBeAttached()
+  await expect(page.getByText('Loading EPUB...', { exact: true })).not.toBeVisible()
+  const originalUrl = page.url()
+  const originalHeader = await page.locator('.sidebar-root-header').boundingBox()
+  expect(await page.evaluate(() => Reflect.get(window, '__hulalaEpubScriptRan'))).toBeUndefined()
+  await expect(frame.locator('script')).toHaveCount(0)
+
+  // All reader code executes in the parent, never in the publication document.
+  const consumed = await iframe.evaluate(element => {
+    const body = (element as HTMLIFrameElement).contentDocument!.body
+    const fire = (input: WheelEventInit) => {
+      const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...input })
+      body.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    return [fire({ deltaY: 0.5 }), fire({ deltaX: 3, deltaY: 3 }), fire({ deltaY: 1, ctrlKey: true }), fire({ deltaY: 1, metaKey: true })]
+  })
+  expect(consumed).toEqual([true, true, false, false])
+  // Allow the reader's initial pagination cooldown to expire before a new gesture.
+  await page.waitForTimeout(700)
+  await frame.getByRole('heading', { name: 'Chapter 1', exact: true }).hover()
+  await page.mouse.wheel(0, 120)
+  await expect(frame.getByRole('heading', { name: 'Chapter 2', exact: true })).toBeVisible()
+  // Momentum during the page-turn cooldown still belongs to the reader.
+  expect(await iframe.evaluate(element => {
+    const body = (element as HTMLIFrameElement).contentDocument!.body
+    const event = new WheelEvent('wheel', { deltaY: 2, bubbles: true, cancelable: true })
+    body.dispatchEvent(event)
+    return event.defaultPrevented
+  })).toBe(true)
+  await frame.getByRole('link', { name: 'Footnote test', exact: true }).click()
+  const footnote = frame.getByRole('dialog', { name: 'Footnote', exact: true })
+  await expect(footnote).toBeVisible()
+  await footnote.locator('.op-book-epub-footnote-content').hover()
+  await page.mouse.wheel(0, 120)
+  await expect.poll(() => footnote.locator('.op-book-epub-footnote-content').evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  await expect(frame.getByRole('heading', { name: 'Chapter 2', exact: true })).toBeVisible()
+  await footnote.getByRole('button', { name: 'Close footnote', exact: true }).click()
+  expect(await page.getByRole('button', { name: 'Next page', exact: true }).evaluate(button => {
+    const event = new WheelEvent('wheel', { deltaY: 0.5, bubbles: true, cancelable: true })
+    button.dispatchEvent(event)
+    return event.defaultPrevented
+  })).toBe(true)
+  await page.waitForTimeout(700)
+  await frame.getByRole('heading', { name: 'Chapter 2', exact: true }).hover()
+  await page.mouse.wheel(120, 0)
+  await expect(frame.getByRole('heading', { name: 'Chapter 3', exact: true })).toBeVisible()
+  await expect(page).toHaveURL(originalUrl)
+  expect(await page.locator('.sidebar-root-header').boundingBox()).toEqual(originalHeader)
+  expect(await page.evaluate(() => [window.scrollX, window.scrollY])).toEqual([0, 0])
+  expect(await page.locator('html').evaluate(el => getComputedStyle(el).overscrollBehavior)).toBe('none')
+  expect(await frame.locator('html').evaluate(el => getComputedStyle(el).overscrollBehavior)).toBe('none')
+  // The Safari event workaround must not enable scripts from an EPUB, including
+  // scripts/inline handlers inserted after the original document was sanitized.
+  await iframe.evaluate(element => {
+    const doc = (element as HTMLIFrameElement).contentDocument!
+    const script = doc.createElement('script')
+    script.textContent = 'parent.__hulalaEpubScriptRan = true'
+    doc.body.append(script)
+    const button = doc.createElement('button')
+    button.setAttribute('onclick', 'parent.__hulalaEpubScriptRan = true')
+    doc.body.append(button)
+    button.click()
+  })
+  expect(await page.evaluate(() => Reflect.get(window, '__hulalaEpubScriptRan'))).toBeUndefined()
+  expect(publicationScriptRequests).toBe(0)
+  expect(errors.filter(error => /passive|preventDefault/i.test(error))).toEqual([])
+})
+
 test('the right-side control preserves visibility and files across reloads without a sidebar duplicate', async ({ page, context }) => {
   await page.goto(fixture.url)
   await expect(page).toHaveTitle('workspace · Hulala')

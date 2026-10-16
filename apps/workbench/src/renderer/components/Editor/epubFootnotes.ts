@@ -361,6 +361,7 @@ export function ensureEpubFootnoteStyles(contents: Contents, palette: EpubFootno
       box-sizing: border-box !important;
       max-height: calc(min(54vh, 430px) - 38px) !important;
       overflow: auto !important;
+      overscroll-behavior: contain !important;
       padding: 13px 16px 15px !important;
       color: ${palette.text} !important;
       background: ${palette.body} !important;

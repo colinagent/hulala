@@ -10,6 +10,7 @@ import {
   showEpubFootnoteDialog,
 } from './epubFootnotes';
 import { normalizeMalformedEpubNonBreakingWhitespace } from './epubContentLayout';
+import { protectEpubDocument } from './epubContentSecurity';
 import { applyEpubContentFont, applyEpubReaderFont } from './epubReaderFont';
 import { resolveBookWheelMotion } from './bookWheelPagination';
 import {
@@ -501,6 +502,7 @@ function applyReaderTheme(
     html: {
       background: `${palette.body} !important`,
       color: `${palette.text} !important`,
+      'overscroll-behavior': 'none !important',
       // EPUB content lives in its own iframe, so it does not inherit the app
       // root's text rasterization. Keep glyph weight consistent with Markdown.
       '-webkit-font-smoothing': 'antialiased !important',
@@ -509,6 +511,7 @@ function applyReaderTheme(
     body: {
       background: `${palette.body} !important`,
       color: `${palette.text} !important`,
+      'overscroll-behavior': 'none !important',
       // Establish the same normal body weight as Markdown. Explicit publisher
       // weights on headings, strong text, or descendant classes still win.
       'font-weight': '400 !important',
@@ -755,15 +758,19 @@ export const EpubBookView: React.FC<EpubBookViewProps> = ({
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || isEditableEventTarget(event.target)) {
       return;
     }
+    const target = event.target as Element | null;
+    if (target?.closest?.('dialog[open]')) return;
+
+    // Both the reader and iframe document use non-passive listeners. Consume
+    // the entire gesture, including small/diagonal deltas and cooldown momentum,
+    // before Safari can chain it into viewport bounce or pull-to-refresh.
+    if (event.cancelable) event.preventDefault();
 
     const motion = resolveBookWheelMotion(event);
     if (!motion) {
       return;
     }
 
-    // epub.js paginated views already hide document overflow. Avoid
-    // preventDefault() here: an EPUB iframe may dispatch this handler through
-    // a passive listener, which turns a harmless page turn into a console error.
     const now = performance.now();
     if (now - lastWheelTurnRef.current < WHEEL_PAGE_COOLDOWN_MS) {
       wheelDeltaRef.current = 0;
@@ -1079,12 +1086,16 @@ export const EpubBookView: React.FC<EpubBookViewProps> = ({
           openAs: openMode,
           replacements: openMode === 'epub' ? 'blobUrl' : 'none',
         });
+        // Runs on the inert source document, before any iframe parses it.
+        book.spine.hooks.content.register(protectEpubDocument);
         book.on('openFailed', handleOpenFailed);
         rendition = book.renderTo(host, {
           width: '100%',
           height: '100%',
           flow: 'paginated',
-          allowScriptedContent: false,
+          // Publication scripts remain forbidden by protectEpubDocument's CSP.
+          // WebKit requires this sandbox flag for parent-owned wheel listeners.
+          allowScriptedContent: true,
           // Default is always one page per screen. Multi-page spreads are opt-in
           // only; never inherit rendition:spread=both from the package.
           spread: 'none',
@@ -1278,7 +1289,7 @@ export const EpubBookView: React.FC<EpubBookViewProps> = ({
   return (
     <div
       ref={rootRef}
-      className="relative h-full min-h-0"
+      className="relative h-full min-h-0 overflow-hidden overscroll-none"
       style={{ backgroundColor: readerPalette.body, color: readerPalette.text }}
     >
       {!ready ? (

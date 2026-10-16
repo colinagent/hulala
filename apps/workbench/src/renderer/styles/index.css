@@ -176,6 +176,12 @@
   font-family: var(--op-proportional-font-family);
 }
 
+/* Scrollable editors own their gestures; the surrounding workbench stays put. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   text-rendering: optimizeLegibility;
 }

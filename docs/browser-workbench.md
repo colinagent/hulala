@@ -118,6 +118,13 @@ Reader positions and pane references survive reloads. The right pane's expanded
 or collapsed state is saved in session storage for the current browser tab and
 Workspace; restoring its files does not reopen a collapsed pane.
 
+EPUB wheel/trackpad gestures paginate inside the reader without moving or
+refreshing the surrounding workbench. Footnotes retain their own scrolling.
+Before an EPUB section reaches its iframe, active elements and event attributes
+are removed and a script-denying CSP is inserted first in its head. This permits
+parent-owned reader event handlers in WebKit while keeping publication scripts,
+inline handlers, nested frames and plugins disabled.
+
 PDF export renders the existing Markdown view in a separate Chrome, Edge or
 Chromium process with a disposable profile. It uses a private process pipe,
 waits for complete document rendering, then publishes the PDF inside the source

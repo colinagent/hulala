@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { strToU8, zipSync } from 'fflate'
 import { startBrowserServer } from '../../apps/local-host/src/browser/server'
 
 const argument = (name: string) => { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1] }
@@ -40,6 +41,19 @@ const workspaces = join(root, 'workspaces'), workspace = join(workspaces, 'works
 await mkdir(workspace, { recursive: true }); await mkdir(second, { recursive: true })
 await writeFile(join(workspace, 'Browser QA.md'), '# Browser QA\n\nOriginal content.\n')
 await writeFile(join(second, 'Second.md'), '# Second Workspace\n')
+// A small authored EPUB exercises real iframe pagination without user books.
+await writeFile(join(workspace, 'Reader QA.epub'), zipSync({
+  mimetype: [strToU8('application/epub+zip'), { level: 0 }],
+  'META-INF/container.xml': strToU8('<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'),
+  'book.opf': strToU8('<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">hulala-reader-qa</dc:identifier><dc:title>Reader QA</dc:title><dc:language>en</dc:language></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' + [1, 2, 3].map(n => `<item id="chapter${n}" href="chapter${n}.xhtml" media-type="application/xhtml+xml"/>`).join('') + '</manifest><spine>' + [1, 2, 3].map(n => `<itemref idref="chapter${n}"/>`).join('') + '</spine></package>'),
+  'nav.xhtml': strToU8('<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc"><ol>' + [1, 2, 3].map(n => `<li><a href="chapter${n}.xhtml">Chapter ${n}</a></li>`).join('') + '</ol></nav></body></html>'),
+  ...Object.fromEntries([1, 2, 3].map(n => {
+    const footnote = n === 2
+      ? '<a href="#note" epub:type="noteref">Footnote test</a><aside id="note" epub:type="footnote">' + '<p>A long footnote retains its own native scroll area.</p>'.repeat(40) + '</aside>'
+      : ''
+    return [`chapter${n}.xhtml`, strToU8(`<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Chapter ${n}</title><script>parent.__hulalaEpubScriptRan = true</script><script src="/epub-fixture-script.js"></script></head><body onload="parent.__hulalaEpubScriptRan = true"><h1>Chapter ${n}</h1><p>Reader pagination fixture. Each gesture should turn the book without moving the workbench.</p>${footnote}</body></html>`)]
+  })),
+}))
 const handle = await startBrowserServer({ repositoryRoot, hulalaRoot: join(root, 'state'), workspaceRoot: workspaces, version: '0.1.4', port: 0, publicPort: 0,
   webDirectory: resolve(argument('--web') || join(repositoryRoot, 'apps/workbench/dist')), settingsDirectory: join(repositoryRoot, 'apps/workbench/settings') })
 const first = handle.registry.list()[0]!, worker = await handle.workers.get(first)
