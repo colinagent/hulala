@@ -433,7 +433,7 @@ body {
 }
 
 .editor-file-tabbar .editor-file-tab.tab-active-shell .ui-chrome-row-label {
-  color: var(--color-brand);
+  color: var(--color-highlight);
 }
 
 .editor-file-tabbar .editor-file-tab.tab-active-shell .tab-hover-bg-sync,
