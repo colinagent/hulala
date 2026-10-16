@@ -40,7 +40,7 @@ export function parseReleaseIndex(value: any): ReleaseIndex {
   }
   return value
 }
-export async function fetchReleaseIndex(endpoint = process.env.HULALA_RELEASE_INDEX_URL || 'https://github.com/colinagent/hulala/releases/download/browser-channels/browser-releases.json'): Promise<ReleaseIndex> {
+export async function fetchReleaseIndex(endpoint = process.env.HULALA_RELEASE_INDEX_URL || 'https://hulala.ai/web-releases.json'): Promise<ReleaseIndex> {
   const response = await fetch(downloadUrl(endpoint), { signal: AbortSignal.timeout(10000), headers: { accept: 'application/json' } })
   if (!response.ok) throw new Error(`Hulala release index is unavailable (HTTP ${response.status}). A local build can use --from with a verified package.`)
   const text = await response.text()

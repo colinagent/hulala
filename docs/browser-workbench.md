@@ -1,12 +1,14 @@
-# Browser workbench
+# Hulala Web
 
-The browser edition reuses Hulala's workbench UI and local Harness capabilities.
+The Web edition reuses Hulala's workbench UI and local Harness capabilities.
 The CLI starts the browser workbench at `http://hulala.localhost:3210`.
 Each Workspace has its own browser tab and an isolated Harness process; views
 of the same Workspace share that
-process. Download standalone packages from the [browser 0.1.5 release](https://github.com/colinagent/hulala/releases/tag/browser-v0.1.5). npm publication is pending.
+process. Download standalone packages from the [Web 0.1.5 release](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5). npm publication is pending.
 
 ## Development
+
+For installation on macOS or glibc Linux, run `curl -fsSL https://hulala.ai/install.sh | sh`, then open a new terminal and run `hulala`. Official packages are mirrored in the website's object storage. The Web update index is `https://hulala.ai/web-releases.json`; GitHub Releases provide an additional download location.
 
 Use the repository's pinned Bun version and lockfile:
 
@@ -335,7 +337,7 @@ bun scripts/workbench/release-assets.ts \
 
 Repeat `--package` for matching platform builds. This generates checksums, a
 browser channel index, and POSIX/PowerShell bootstrap installers. Browser tags
-use `browser-v<version>` and a separate `browser-channels` index, preserving
+use `web-v<version>` and a separate `web-channels` index, preserving
 Desktop release tags and latest metadata. Generated staging URLs are not a claim
 that assets have been published. Unsigned builds are not notarized or signed
 with a publisher certificate; do not disable operating-system protections to

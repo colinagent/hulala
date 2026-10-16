@@ -2,7 +2,7 @@
   <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala" width="128" />
   <h1>Hulala</h1>
   <p>Read, write, code, and keep working — in your browser, on your own machine.</p>
-  <p><a href="README.zh-CN.md">简体中文</a> · <a href="https://hulala.ai/">Website</a> · <a href="docs/browser-workbench.md">Browser edition</a></p>
+  <p><a href="README.zh-CN.md">简体中文</a> · <a href="https://hulala.ai/">Website</a> · <a href="docs/browser-workbench.md">Web edition</a></p>
 </div>
 
 Hulala is an Apache-2.0 browser workbench built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Run `hulala` after installation: it starts the local service, waits for the workbench, and opens **http://hulala.localhost:3210/**.
@@ -37,7 +37,15 @@ bun run start
 
 ## Installable packages
 
-Download the [browser edition 0.1.5](https://github.com/colinagent/hulala/releases/tag/browser-v0.1.5) for macOS, Linux or Windows. Verify your archive against the release's `SHASUMS256.txt`, extract it, then install as shown below. npm publication is pending. See [distribution details and validation](docs/browser-workbench.md).
+Install Hulala Web on macOS or glibc Linux:
+
+```sh
+curl -fsSL https://hulala.ai/install.sh | sh
+```
+
+Open a new terminal, then run `hulala`. The installer selects your platform and verifies its SHA-256 before installing. [Official installation page](https://hulala.ai/download/).
+
+Download the [Web edition 0.1.5](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5) for macOS, Linux or Windows. Verify your archive against the release's `SHASUMS256.txt`, extract it, then install as shown below. npm publication is pending. See [distribution details and validation](docs/browser-workbench.md).
 
 To build packages from source:
 

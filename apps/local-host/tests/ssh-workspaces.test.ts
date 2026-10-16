@@ -22,8 +22,10 @@ test.skipIf((!packages && !nativeRuntime && !releasePackage) || process.platform
   const trust = new SshTrust(join(root, 'local'))
   const oldIndex = process.env.HULALA_RELEASE_INDEX_URL
   let mirror: ReturnType<typeof Bun.serve> | undefined
+  let version = '0.1.4'
   if (releasePackage) {
     const manifest = await verifyPackage(releasePackage), archive = releasePackage + '.tar.gz'
+    version = manifest.version
     const sha256 = await fileSha256(archive), manifestSha256 = await fileSha256(join(releasePackage, 'manifest.json'))
     mirror = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch(request) {
       if (new URL(request.url).pathname === '/package.tar.gz') return new Response(Bun.file(archive))
@@ -31,7 +33,7 @@ test.skipIf((!packages && !nativeRuntime && !releasePackage) || process.platform
     } })
     process.env.HULALA_RELEASE_INDEX_URL = `http://127.0.0.1:${mirror.port}/index`
   }
-  const workers = new RemoteWorkspaceWorkers(hosts, trust, new SshPackages(packages || join(root, 'no-extra-platforms'), releasePackage ? undefined : nativeRuntime, releasePackage ? { root: join(root, 'local'), version: '0.1.4' } : undefined), '0.1.4')
+  const workers = new RemoteWorkspaceWorkers(hosts, trust, new SshPackages(packages || join(root, 'no-extra-platforms'), releasePackage ? undefined : nativeRuntime, releasePackage ? { root: join(root, 'local'), version } : undefined), version)
   try {
     await hosts.load(); await trust.load()
     const host = await hosts.save({ alias: 'Fixture SSH', hostname: '127.0.0.1', user: 'fixture', port: fixture.port, authMethod: 'password', password: 'fixture-password', rememberSecret: false })

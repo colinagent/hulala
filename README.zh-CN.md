@@ -2,7 +2,7 @@
   <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala" width="128" />
   <h1>Hulala</h1>
   <p>在自己的电脑上，通过浏览器阅读、写作、编程，持续工作。</p>
-  <p><a href="README.md">English</a> · <a href="https://hulala.ai/zh-CN/">官网</a> · <a href="docs/browser-workbench.md">浏览器版说明</a></p>
+  <p><a href="README.md">English</a> · <a href="https://hulala.ai/zh-CN/">官网</a> · <a href="docs/browser-workbench.md">Web 版说明</a></p>
 </div>
 
 Hulala 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的开源浏览器工作台，第一方代码采用 Apache-2.0。安装后输入 `hulala`，命令会启动本地服务，等待工作台就绪，然后打开 **http://hulala.localhost:3210/**。
@@ -37,7 +37,15 @@ bun run start
 
 ## 安装包
 
-下载适用于 macOS、Linux 或 Windows 的[浏览器版 0.1.5](https://github.com/colinagent/hulala/releases/tag/browser-v0.1.5)。使用发行页的 `SHASUMS256.txt` 校验压缩包，解压后按下方命令安装。npm 包尚未发布。完整目录、验证方法见[浏览器版说明](docs/browser-workbench.md)。
+macOS 或 glibc Linux 一行安装 Hulala Web：
+
+```sh
+curl -fsSL https://hulala.ai/install.sh | sh
+```
+
+安装完成后重新打开终端，运行 `hulala`。安装脚本会自动识别平台并校验安装包的 SHA-256。[官网安装说明](https://hulala.ai/zh-CN/download/)。
+
+下载适用于 macOS、Linux 或 Windows 的[Web 版 0.1.5](https://github.com/colinagent/hulala/releases/tag/web-v0.1.5)。使用发行页的 `SHASUMS256.txt` 校验压缩包，解压后按下方命令安装。npm 包尚未发布。完整目录、验证方法见[Web 版说明](docs/browser-workbench.md)。
 
 从源码构建安装包：
 

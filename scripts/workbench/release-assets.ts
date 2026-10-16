@@ -33,12 +33,12 @@ export async function stageReleaseAssets(packages: string[], output: string, bas
   const channel = version.includes('-') ? 'preview' : 'stable'
   const release: ReleaseIndex = { format: 1, product: 'hulala', channels: { [channel]: version }, releases: [{ version, dataFormat: manifests[0]!.dataFormat!, platforms }] }
   parseReleaseIndex(release)
-  await writeFile(join(staging, 'browser-releases.json'), JSON.stringify(release, null, 2) + '\n')
+  await writeFile(join(staging, 'web-releases.json'), JSON.stringify(release, null, 2) + '\n')
   await writeFile(join(staging, 'install.sh'), posixInstaller(assets), { mode: 0o755 })
   await writeFile(join(staging, 'install.ps1'), windowsInstaller(assets['win32-x64']))
-  files.push('browser-releases.json', 'install.sh', 'install.ps1')
+  files.push('web-releases.json', 'install.sh', 'install.ps1')
   await writeFile(join(staging, 'SHASUMS256.txt'), (await Promise.all(files.map(async file => await fileSha256(join(staging, file)) + '  ' + file))).join('\n') + '\n')
-  await writeFile(join(staging, 'STAGING.md'), `# Browser release staging\n\nVersion: ${version}\nTargets: ${manifests.map(item => item.target).join(', ')}\n\nThis command did not publish assets or change any channel. Review native test results, package inventories and licenses before publication. Browser releases use their own browser-v${version} tag and the browser-channels index; keep Desktop release tags and latest metadata unchanged.\n`)
+  await writeFile(join(staging, 'STAGING.md'), `# Web release staging\n\nVersion: ${version}\nTargets: ${manifests.map(item => item.target).join(', ')}\n\nThis command did not publish assets or change any channel. Review native test results, package inventories and licenses before publication. Web releases use their own web-v${version} tag and the web-channels index; keep Desktop release tags and latest metadata unchanged.\n`)
   return staging
 }
 if (import.meta.main) {
