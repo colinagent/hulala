@@ -289,6 +289,10 @@ body {
   box-shadow: none;
 }
 
+.sidebar-root-header {
+  border-bottom: 1px solid var(--op-faint-divider);
+}
+
 .editor-tabbar {
   --op-sg-substrate: var(--color-sidebar-bg);
   --op-sg-fill: color-mix(
@@ -372,10 +376,6 @@ body {
 
 /* File tabs use the connected rectangular treatment familiar from VS Code.
  * The shared tab shell remains pill-shaped for conversation and workspace UI. */
-.editor-file-tabbar {
-  border-bottom: 0;
-}
-
 .editor-file-tabbar .editor-file-tab-strip {
   height: 100%;
   align-self: stretch;

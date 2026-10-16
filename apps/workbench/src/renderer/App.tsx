@@ -1595,7 +1595,7 @@ export default function App() {
             direction="vertical"
             onResizeStart={handleSidebarResizeStart}
             activeColor="var(--color-brand)"
-            restingColor="var(--color-sidebar-bg)"
+            restingColor="var(--op-sidebar-resize-divider)"
             hoverDelayMs={RESIZE_DIVIDER_HOVER_DELAY_MS}
           />
         ) : null}

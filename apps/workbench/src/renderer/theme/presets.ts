@@ -77,8 +77,8 @@ export function applyBuiltInSurfaceOverrides(themeId: string, palette: BasePalet
     };
   }
   if (themeId === 'default-dark') {
-    // Lift the surrounding chrome from the darker editor base with white.
-    const chromeBg = mixHex(DEFAULT_DARK_BACKGROUND, '#ffffff', 12);
+    // Separate the chrome from the editor with borders, using one background.
+    const chromeBg = DEFAULT_DARK_BACKGROUND;
     const lighterBg = mixHex(DEFAULT_DARK_BACKGROUND, '#ffffff', 4);
     const borderShade = mixHex(DEFAULT_DARK_BACKGROUND, '#ffffff', 8);
     return {
