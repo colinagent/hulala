@@ -302,7 +302,7 @@ body {
   );
   position: relative;
   z-index: 10;
-  height: 28px;
+  height: var(--op-ui-tabbar-height);
   flex: 0 0 auto;
   background: var(--color-sidebar-bg);
   border-bottom: 1px solid var(--op-faint-divider);
@@ -354,7 +354,8 @@ body {
   line-height: 1.35;
 }
 
-.sidebar-root-header .sidebar-root-header-actions .icon-button-toolbar {
+.sidebar-root-header .sidebar-root-header-actions .icon-button-toolbar,
+.sidebar-workspace-toolbar .icon-button-toolbar {
   width: 18px;
   min-width: 18px;
   height: 18px;
@@ -429,6 +430,10 @@ body {
 
 .editor-file-tabbar .editor-file-tab:first-child.tab-active-shell {
   border-left: 0;
+}
+
+.editor-file-tabbar .editor-file-tab.tab-active-shell .ui-chrome-row-label {
+  color: var(--color-brand);
 }
 
 .editor-file-tabbar .editor-file-tab.tab-active-shell .tab-hover-bg-sync,

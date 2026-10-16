@@ -556,6 +556,7 @@ export function Sidebar({
       {sidebarPanelOpen ? (
       <div className="flex min-w-0 flex-1 flex-col">
         {view === 'workspace' && (
+          <>
           <div
             className="ui-tabbar sidebar-root-header flex shrink-0 items-center gap-1 overflow-hidden px-2 text-secondary-text"
             title={currentDir || undefined}
@@ -577,10 +578,15 @@ export function Sidebar({
                 Chat
               </button>
             </div>
-            <div className="sidebar-root-header-actions ml-auto flex shrink-0 items-center gap-0.5">
-              {workspaceToolbarActions}
-            </div>
           </div>
+          <div
+            role="toolbar"
+            aria-label="Workspace actions"
+            className="sidebar-workspace-toolbar flex h-8 shrink-0 items-center gap-1 px-2 text-secondary-text"
+          >
+            {workspaceToolbarActions}
+          </div>
+          </>
         )}
 
         {menuKind === 'switch' && contextMenuPosition && !isRemoteWorkspace && createPortal(

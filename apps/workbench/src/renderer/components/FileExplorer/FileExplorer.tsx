@@ -366,10 +366,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({ showHeader = true, s
 
   return (
     <div className="flex flex-col h-full">
-      {window.hulala?.kind === 'browser' && currentDir ? <div className="flex flex-wrap items-center gap-3 px-3 py-1 text-xs text-secondary-text">
-        <label className="cursor-pointer hover:text-link-text">Import files<input className="sr-only" type="file" multiple disabled={!connected || treeImport.importBusy} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; if (files.length) void treeImport.beginImportFromFiles(files, currentDir); }} /></label>
-        <label className="cursor-pointer hover:text-link-text">Import folder<input className="sr-only" type="file" multiple {...{ webkitdirectory: '' }} disabled={!connected || treeImport.importBusy} onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ''; if (files.length) void treeImport.beginImportFromFiles(files, currentDir); }} /></label>
-        {treeImport.importBusy ? <span role="status">{treeImport.progress ? `${treeImport.progress.name}: ${Math.round(100 * treeImport.progress.loaded / Math.max(1, treeImport.progress.total))}%` : 'Preparing import…'} <button type="button" className="underline" onClick={treeImport.cancelImport}>Cancel import</button></span> : null}
+      {window.hulala?.kind === 'browser' && treeImport.importBusy ? <div className="px-3 py-1 text-xs text-secondary-text">
+        <span role="status">{treeImport.progress ? `${treeImport.progress.name}: ${Math.round(100 * treeImport.progress.loaded / Math.max(1, treeImport.progress.total))}%` : 'Preparing import…'} <button type="button" className="underline" onClick={treeImport.cancelImport}>Cancel import</button></span>
       </div> : null}
       {showHeader ? (
         <div className="px-3 h-8 font-semibold uppercase tracking-wider text-secondary-text border-b border-border flex items-center justify-start">

@@ -61,8 +61,8 @@ const DEFAULT_DARK_BACKGROUND = DEFAULT_DARK_CORE.background;
 /** Keep product-specific surface choices scoped to the built-in theme. */
 export function applyBuiltInSurfaceOverrides(themeId: string, palette: BasePalette): BasePalette {
   if (themeId === 'default-light') {
-    // Paper chrome: 93% paper, 7% brand.
-    const chromeBg = mixHex(DEFAULT_LIGHT_BACKGROUND, palette.brand, 7);
+    // Keep the paper background continuous; borders separate the chrome.
+    const chromeBg = DEFAULT_LIGHT_BACKGROUND;
     const lighterBg = mixHex(DEFAULT_LIGHT_BACKGROUND, '#ffffff', 20);
     const borderShade = mixHex(DEFAULT_LIGHT_BACKGROUND, '#000000', 10);
     return {
