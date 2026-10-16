@@ -276,7 +276,7 @@ body {
 }
 
 .sidebar-activity-rail-items {
-  padding-top: var(--op-ui-chrome-row-button-size);
+  padding-top: 12px;
 }
 
 .sidebar-activity-rail-account {

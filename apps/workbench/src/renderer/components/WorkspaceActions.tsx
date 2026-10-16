@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from 'zustand';
+import { createPortal } from 'react-dom';
 import {
-  CloseButton,
   FolderIcon,
   PlusIcon,
   RemoteIcon,
@@ -11,19 +10,7 @@ import {
 import { IconButton } from './IconButton';
 import { PopupMenu, PopupMenuItem } from './PopupMenu';
 import { useDismissOnOutsideInteraction } from '../hooks/useDismissOnOutsideInteraction';
-import {
-  TAB_CLOSE_BUTTON_DELAYED_REVEAL_CLASS,
-  WORKSPACE_TAB_ITEM_FLEX_STYLE,
-  getTabCloseButtonClassName,
-} from './tabLayout';
-import {
-  OP_SG_CAPSULE,
-  OP_SG_CAPSULE_COMPACT_SHADOW,
-  OP_SG_ON_TITLEBAR,
-} from './staticGlassCapsule';
-import { getWorkspaceStore } from '../store/appStore';
-import { resolveHostLabel, type SshHost, type WorkspaceTab } from '../store/tabManagerStore';
-import { CompressibleTabStrip } from './CompressibleTabStrip';
+import { resolveHostLabel, type SshHost } from '../store/tabManagerStore';
 import {
   getSortedRemoteBuckets,
   useRecentWorkspacesStore,
@@ -45,90 +32,11 @@ function getPathBaseName(path: string | undefined): string {
   return parts[parts.length - 1] || normalized;
 }
 
-function shouldRegenerateWorkspaceTabLabel(label: string | undefined): boolean {
-  return !label || label === 'Untitled';
-}
-
-function useTabDisplayState(tab: WorkspaceTab): { label: string; workspacePath?: string } {
-  const store = getWorkspaceStore(tab.id);
-  const currentDir = useStore(store, (s) => s.currentDir);
-  const remoteHostLabel = useStore(store, (s) => s.remoteSession?.hostLabel ?? null);
-
-  if (tab.kind === 'remote') {
-    return {
-      label: remoteHostLabel ?? tab.label,
-      workspacePath: tab.workspacePath,
-    };
-  }
-
-  const workspacePath = tab.workspacePath || currentDir || undefined;
-  const label = shouldRegenerateWorkspaceTabLabel(tab.label)
-    ? getPathBaseName(workspacePath) || tab.label || 'Untitled'
-    : tab.label;
-  return { label, workspacePath };
-}
-
-function WorkspaceTabRow({
-  tab,
-  isActive,
-  shortcut,
-  onSelect,
-  onClose,
-}: {
-  tab: WorkspaceTab;
-  isActive: boolean;
-  shortcut: { label: string; aria: string } | null;
-  onSelect: () => void;
-  onClose: () => void;
-}) {
-  const { label } = useTabDisplayState(tab);
-  return (
-    <div
-      className={`workspace-tab-shell no-drag group relative flex items-center gap-1 px-2.5 text-secondary-text ${
-        isActive ? `is-active ${OP_SG_CAPSULE} ${OP_SG_ON_TITLEBAR} ${OP_SG_CAPSULE_COMPACT_SHADOW}` : ''
-      }`}
-      style={WORKSPACE_TAB_ITEM_FLEX_STYLE}
-      data-tab-strip-active={isActive ? 'true' : 'false'}
-    >
-      <button
-        type="button"
-        className="workspace-tab-label no-drag flex h-full min-w-0 flex-1 items-center gap-1.5"
-        onClick={onSelect}
-        title={shortcut ? `${label} (${shortcut.label})` : label}
-        aria-keyshortcuts={shortcut?.aria}
-      >
-        <span className="min-w-0 truncate">{label}</span>
-        {shortcut ? (
-          <span className="shrink-0 text-[11px] text-secondary-text opacity-70" aria-hidden="true">
-            {shortcut.label}
-          </span>
-        ) : null}
-      </button>
-      <CloseButton
-        className={getTabCloseButtonClassName(
-          'bg-secondary-bg',
-          `${TAB_CLOSE_BUTTON_DELAYED_REVEAL_CLASS} no-drag`,
-        )}
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
-        title="Close tab"
-        variant="inline"
-      />
-    </div>
-  );
-}
-
 function getLocalWorkspaceLabel(entry: LocalRecentWorkspace): string {
   return getPathBaseName(entry.path);
 }
 
-type WorkspaceTabsBarProps = {
-  tabs: WorkspaceTab[];
-  activeTabId: string;
-  onSelectTab: (tabId: string) => void;
-  onCloseTab: (tabId: string) => void;
+type WorkspaceActionsProps = {
   onCreateWorkspace: () => void;
   onNewFolder: () => void;
   onNewRemote: () => void;
@@ -141,7 +49,6 @@ type WorkspaceTabsBarProps = {
 const HOVER_LEAVE_MS = 120;
 const MAIN_MENU_WIDTH = 220;
 const RECENT_PANEL_WIDTH = 300;
-const MENU_PANEL_GAP = 4;
 const RECENT_LIST_MAX_H = 320;
 
 function RemoteRecentGroup({
@@ -181,11 +88,7 @@ function RemoteRecentGroup({
   );
 }
 
-export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
-  tabs,
-  activeTabId,
-  onSelectTab,
-  onCloseTab,
+export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
   onCreateWorkspace,
   onNewFolder,
   onNewRemote,
@@ -196,9 +99,10 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
 }) => {
   const { t } = useTranslation('menu');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuOpensLeft, setMenuOpensLeft] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ left: 50, top: 8 });
   const [submenuType, setSubmenuType] = useState<'folder' | 'remote' | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const hoverLeaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const recent = useRecentWorkspacesStore((s) => s.recent);
@@ -237,7 +141,7 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
   useDismissOnOutsideInteraction({
     active: menuOpen,
     onDismiss: closeMenu,
-    insideRefs: [menuRef],
+    insideRefs: [menuRef, triggerRef],
   });
 
   const handleRecentLocalClick = async (path: string) => {
@@ -255,29 +159,33 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
       setMenuOpen(false);
       return;
     }
-    const actionRect = menuRef.current?.getBoundingClientRect();
+    const actionRect = triggerRef.current?.getBoundingClientRect();
     if (actionRect) {
-      const totalMenuWidth = MAIN_MENU_WIDTH + MENU_PANEL_GAP + RECENT_PANEL_WIDTH;
-      setMenuOpensLeft(actionRect.left + totalMenuWidth > window.innerWidth - 8);
+      setMenuPosition({ left: actionRect.right + 6, top: actionRect.top });
     }
     setMenuOpen(true);
   };
 
   const newTabAction = (
-    <div ref={menuRef}>
+    <>
         <IconButton
-          size={24}
-          className={`no-drag text-xl ${menuOpen ? 'bg-hover-bg text-brand' : 'text-secondary-text'}`}
+          ref={triggerRef}
+          size={34}
+          className={`sidebar-activity-button${menuOpen ? ' is-active' : ''}`}
           onClick={handleToggleNewTabMenu}
           title={t('workspaceTab.newTab')}
           aria-label={t('workspaceTab.newTab')}
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
         >
-          +
+          <PlusIcon className="h-5 w-5" />
         </IconButton>
-        {menuOpen && (
+        {menuOpen && createPortal(
+          <div ref={menuRef} className="fixed z-50" style={menuPosition}>
           <PopupMenu
-            substrate="titlebar"
-            className={`absolute top-full mt-1 w-[220px] text-secondary-text no-drag z-50 ${menuOpensLeft ? 'right-0' : 'left-0'}`}
+            substrate="sidebar"
+            className="text-secondary-text"
+            style={{ width: MAIN_MENU_WIDTH }}
           >
             <div>
               <PopupMenuItem
@@ -313,10 +221,8 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
                 </PopupMenuItem>
                 {submenuType === 'folder' && (
                   <PopupMenu
-                    substrate="titlebar"
-                    className={`absolute top-0 z-[51] ${
-                      menuOpensLeft ? 'right-full mr-1' : 'left-full ml-1'
-                    }`}
+                    substrate="sidebar"
+                    className="absolute top-0 left-full ml-1 z-[51]"
                     style={{ width: RECENT_PANEL_WIDTH }}
                     onMouseEnter={clearHoverTimers}
                     onMouseLeave={() => {
@@ -374,10 +280,8 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
                 </PopupMenuItem>
                 {submenuType === 'remote' && (
                   <PopupMenu
-                    substrate="titlebar"
-                    className={`absolute top-0 z-[51] ${
-                      menuOpensLeft ? 'right-full mr-1' : 'left-full ml-1'
-                    }`}
+                    substrate="sidebar"
+                    className="absolute top-0 left-full ml-1 z-[51]"
                     style={{ width: RECENT_PANEL_WIDTH }}
                     onMouseEnter={clearHoverTimers}
                     onMouseLeave={() => {
@@ -405,32 +309,25 @@ export const WorkspaceTabsBar: React.FC<WorkspaceTabsBarProps> = ({
               </div>
             </div>
           </PopupMenu>
+          </div>,
+          document.body,
         )}
-    </div>
+    </>
   );
 
   return (
-    <div className="flex h-full w-full min-w-0 items-center">
-      <div className="h-full min-w-0 flex-1">
-        <div className="flex h-full items-center gap-2 px-3">
-          <span data-testid="workspace-name" className="min-w-0 flex-1 truncate" style={{ color: 'var(--color-highlight)' }}>
-            {tabs.find(tab => tab.id === activeTabId)?.label || 'Workspace'}
-          </span>
-          {newTabAction}
-        </div>
-      </div>
-      <div className="flex h-full shrink-0 items-center pr-3">
+    <>
+      {newTabAction}
         <IconButton
-          size={28}
-          className={`workspace-right-pane-toggle no-drag ${rightPaneOpen ? 'is-active' : ''}`}
+          size={34}
+          className={`sidebar-activity-button${rightPaneOpen ? ' is-active' : ''}`}
           onClick={onToggleRightPane}
           title={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
           aria-label={t(rightPaneOpen ? 'workspaceTab.hideRightWorkspace' : 'workspaceTab.showRightWorkspace')}
           aria-pressed={rightPaneOpen}
         >
-          <SidebarPanelToggleIcon className="h-[18px] w-[18px]" />
+          <SidebarPanelToggleIcon className="h-5 w-5" />
         </IconButton>
-      </div>
-    </div>
+    </>
   );
 };

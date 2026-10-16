@@ -16,7 +16,7 @@ import { CommandsEditor } from './components/Editor/CommandsEditor';
 import { ConversationSurface } from './components/Chat/ConversationSurface';
 import { ActivityPanel } from './components/Chat/ActivityPanel';
 import { ConversationComposerDock } from './components/Chat/ConversationComposerDock';
-import { WorkspaceTabsBar } from './components/WorkspaceTabsBar';
+import { WorkspaceActions } from './components/WorkspaceActions';
 import {
   RightWorkspaceTabBar,
   type RightWorkspaceFileTab,
@@ -81,7 +81,6 @@ import { formatStatusBarPathDisplay } from './utils/statusBarPath';
 import { countMarkdownWords } from './utils/markdownWordCount';
 import { normalizePosixPath } from './utils/markdownMedia';
 import {
-  closeWorkspaceTabWithDefaultFallback,
   resolveDefaultLocalWorkspacePath,
 } from './utils/workspaceClose';
 import { useToastStore } from './store/toastStore';
@@ -449,16 +448,6 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [sidePanelStatusOpen]);
-
-  const handleSelectWorkspaceTab = (tabId: string) => {
-    const targetWorkspace = getWorkspaceStore(tabId).getState();
-    const mainTabId = targetWorkspace.mainActiveTabId || targetWorkspace.activeTabId;
-    if (mainTabId) {
-      targetWorkspace.setActiveTab(mainTabId, { focusEditor: true });
-    }
-    setSidePanelStatusOpen(false);
-    setActiveWorkspaceTab(tabId);
-  };
 
   const pushWorkspaceTabsSession = async () => {
     if (!sessionSyncReadyRef.current || !window.hulala?.window?.updateWorkspaceTabsSession) {
@@ -851,25 +840,6 @@ export default function App() {
     if (activeTab.remoteHost) {
       await openRemoteWorkspace(activeTab.remoteHost, path);
     }
-  };
-
-  const handleCloseWorkspaceTab = async (tabId: string) => {
-    await closeWorkspaceTabWithDefaultFallback(tabId, {
-      workspaceTabs: useTabManagerStore.getState().tabs,
-      createWorkspaceTab: (init) => createWorkspaceTab(init),
-      getWorkspaceStore,
-      disconnectRemote: async (targetTabId) => {
-        if (rightFileRefs.some((ref) => ref.workspaceTabId === targetTabId)) return;
-        await window.hulala?.remote?.disconnect(targetTabId);
-      },
-      setWorkspaceActive,
-      removeWorkspaceStore: (targetTabId) => {
-        if (rightFileRefs.some((ref) => ref.workspaceTabId === targetTabId)) return;
-        removeWorkspaceStore(targetTabId);
-      },
-      closeWorkspaceTab,
-      resolveDefaultLocalWorkspacePath,
-    });
   };
 
   const closeDirectoryPicker = () => {
@@ -1585,34 +1555,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-editor-bg text-editor-fg">
-      {/* Title bar (drag region) */}
-      <div className="h-[35px] flex items-center ui-titlebar relative z-50">
-        <div className="flex items-stretch gap-2 flex-1 min-w-0 h-full" >
-          <div className="flex-1 min-w-0">
-            <WorkspaceTabsBar
-              tabs={workspaceTabs}
-              activeTabId={activeTabId}
-              onSelectTab={handleSelectWorkspaceTab}
-              onCloseTab={handleCloseWorkspaceTab}
-              onCreateWorkspace={handleOpenCreateWorkspace}
-              onNewFolder={handleNewFolderTab}
-              onNewRemote={handleNewRemoteTab}
-              onOpenRecentLocal={handleNewTabWithLocal}
-              onOpenRecentRemote={handleNewTabWithRemote}
-              rightPaneOpen={showRightPane}
-              onToggleRightPane={() => {
-                const nextOpen = !showRightPane;
-                if (nextOpen && rightPaneBlockedByUnavailableActivity) {
-                  setActivityPanelPinnedRight(false);
-                }
-                setRightPaneOpen(nextOpen);
-                if (!nextOpen) setSidePanelStatusOpen(false);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
@@ -1623,6 +1565,24 @@ export default function App() {
           }}
         >
           <Sidebar
+            workspaceActions={
+              <WorkspaceActions
+                onCreateWorkspace={handleOpenCreateWorkspace}
+                onNewFolder={handleNewFolderTab}
+                onNewRemote={handleNewRemoteTab}
+                onOpenRecentLocal={handleNewTabWithLocal}
+                onOpenRecentRemote={handleNewTabWithRemote}
+                rightPaneOpen={showRightPane}
+                onToggleRightPane={() => {
+                  const nextOpen = !showRightPane;
+                  if (nextOpen && rightPaneBlockedByUnavailableActivity) {
+                    setActivityPanelPinnedRight(false);
+                  }
+                  setRightPaneOpen(nextOpen);
+                  if (!nextOpen) setSidePanelStatusOpen(false);
+                }}
+              />
+            }
             onOpenSettings={() => openUnifiedSettings('general')}
             onOpenConfigFiles={openSettingsWorkspace}
             onSwitchLocal={handleSwitchLocalWorkspace}
