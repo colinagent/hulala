@@ -22,7 +22,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Component } from '@earendil-works/pi-tui'
 import type { PtyModule } from '../editor/pty.js'
 import { loadNodePty } from '../editor/pty.js'
-import { ENGLISH_INPUT_SOURCE, inputSource } from '../editor/inputSource.js'
 import { startNvimSession } from '../editor/nvimSession.js'
 import { paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
 import { startShellSession } from '../pane/shellSession.js'
@@ -135,6 +134,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const layout = ctx.hulalaLayout
   const overlays = ctx.hulalaOverlays
   const nvim = ctx.hulalaEditor
+  const ime = ctx.hulalaIme
   const { reducer } = ctx.hulalaViewModel
 
   /** Live column processes, keyed by kind. A hidden column keeps its process. */
@@ -155,10 +155,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
    * line by line, so it starts wider than the editor column does.
    */
   const ratios: Record<PaneKind, number> = { terminal: 0.55, editor: 0.5 }
-  /** Input source to put back when the editor gives the keyboard back. */
-  let savedInputSource: string | undefined
-  /** Invalidates a focus-time read whose pane was already left. */
-  let inputTicket = 0
 
   const rows = (): number => Math.max(1, terminal.rows - 1)
 
@@ -168,31 +164,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   }
 
   const ptyModule = (): PtyModule | undefined => config.pty ?? loadNodePty()
-
-  /**
-   * Switch the terminal to English while the editor has focus. Neovim runs in a
-   * pty and cannot reach the input method itself, and hiding the column keeps
-   * the process alive, so the client owns the switch. The shell keeps whatever
-   * the user is typing with.
-   */
-  const takeInputSource = (): void => {
-    const source = inputSource(nvim.ime)
-    if (source === undefined) return
-    const ticket = (inputTicket += 1)
-    void source.current().then(id => {
-      if (ticket !== inputTicket) return
-      savedInputSource = id
-      if (id !== ENGLISH_INPUT_SOURCE) source.select(ENGLISH_INPUT_SOURCE)
-    })
-  }
-
-  /** Put back the source the composer had before the editor took focus. */
-  const releaseInputSource = (): void => {
-    inputTicket += 1
-    if (savedInputSource === undefined) return
-    inputSource(nvim.ime)?.select(savedInputSource)
-    savedInputSource = undefined
-  }
 
   const dragDividerTo = (screenX: number): void => {
     const kind = visibleKind
@@ -233,7 +204,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     config.debug(`blurPane focused=${String(focused)} visible=${String(visibleKind)} overlays=${overlays.open}`)
     if (!focused) return
     focused = false
-    releaseInputSource()
     setPaging(true)
     setDividerHover(false)
     // Leaving the column returns to the conversation, bringing it back if it was
@@ -409,10 +379,10 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     lastKind = kind
     focused = true
     setPaging(false)
-    // The input source follows Neovim only: the shell takes whatever the user
-    // is already typing with.
-    if (kind === 'editor') takeInputSource()
-    else releaseInputSource()
+    // A column is a program reading raw keys, so it types in English: Neovim a
+    // normal-mode command, the shell a command line. Nothing ever switches the
+    // source back, so the composer keeps English until the user changes it.
+    ime.ensure()
     // Register before showing so the pane seat already holds this column when
     // the frame is rebuilt; registering alone does not paint a hidden sidebar.
     registerSeat(kind, runtime)
@@ -513,7 +483,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       runtime?.session.dispose()
     }
     runtimes.clear()
-    releaseInputSource()
   }
 
   ctx.effect(() => () => {
@@ -556,6 +525,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 /** Cordis object-form plugin. */
 export const panesPlugin = {
   name: 'hulala-panes',
-  inject: ['hulalaTerminal', 'hulalaRender', 'hulalaLayout', 'hulalaOverlays', 'hulalaEditor', 'hulalaViewModel'],
+  inject: ['hulalaTerminal', 'hulalaRender', 'hulalaLayout', 'hulalaOverlays', 'hulalaEditor', 'hulalaViewModel', 'hulalaIme'],
   apply,
 }

@@ -51,7 +51,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 export const VIEWPORT_PAGING_KEYS = ['tui.altScreen.pageUp', 'tui.altScreen.pageDown'] as const
 
 /** The hint every list shows for its two movement gestures. */
-export const LIST_MOVE_HINT = '↑↓/Ctrl-N/P 移动'
+export const LIST_MOVE_HINT = '↑↓/Ctrl-N/P move'
 
 /**
  * Whether one input event moves a list selection up or down.

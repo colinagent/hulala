@@ -45,7 +45,7 @@ export interface EditorConflict {
 export interface TuiEditor {
   /** The executable to start: the published binary, else `nvim` from `PATH`. */
   readonly command: string
-  /** macOS input-source helper, when the package ships one. */
+  /** macOS input-source helper: published in `bin/`, or built from the checkout. */
   readonly ime: string | undefined
   /** Theme resolved from the terminal palette. */
   readonly theme: EditorTheme

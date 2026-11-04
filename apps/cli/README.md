@@ -62,9 +62,9 @@ directory and a folded `all` section for the Host's other directories:
 ```
 ┌ ~/note/projects/hulala ┐┌ the conversation ───────────┐┌ Neovim ─────┐
 │ > search               ││                              ││             │
-│ + 新会话               ││                              ││             │
+│ + new session          ││                              ││             │
 │ ⠋ 修会话面板  3m      ││                              ││             │
-│ ▸ 侧栏焦点方案     1h  ││                              ││             │
+│   侧栏焦点方案    1h  ││                              ││             │
 │   调试 Host 连接   2d  ││                              ││             │
 │ ▸ all                  ││                              ││             │
 └────────────────────────┘└──────────────────────────────┘└─────────────┘
@@ -74,8 +74,9 @@ A running Session carries the same braille spinner the Web sidebar's ongoing
 dot stands for, including turns started from another terminal window or aimed at another
 Session; the title is the Host's `session-title` projection and the trailing
 label is the Web client's relative-time bucket (`now`, `5m`, `3h`, `2d`, `4mo`,
-`1y`). The open Session is marked with `▸`; the row under the keyboard uses the
-highlight colour and never a filled background. Blank Sessions are hidden
+`1y`). The open Session's title is painted in the brand colour — a text
+highlight, never a marker glyph, a filled row or a background change; the row
+under the keyboard uses the accent colour, never a filled background. Blank Sessions are hidden
 unless they are the open one.
 
 | Key | Behaviour |
@@ -300,7 +301,7 @@ installation or the user's own config:
 |---|---|
 | `$HULALA_HOME/bin/hulala` | the `hulala` command itself; a small script that starts the active version |
 | `$HULALA_HOME/bin/nvim` | the bundled binary, a real file published from the package |
-| `$HULALA_HOME/bin/ime` | macOS input-source helper (macOS only) |
+| `$HULALA_HOME/bin/ime` | macOS input-source helper (macOS only; built from the checkout when running from source) |
 | `$HULALA_HOME/runtime/editor/nvim/` | `$VIMRUNTIME` tree and tree-sitter parsers |
 | `$HULALA_HOME/runtime/editor/nvim-plugins/snacks.nvim/` | vendored plugin |
 | `$HULALA_HOME/config/editor/nvim/init.lua` | Hulala's config, written once and then left alone |
@@ -309,9 +310,19 @@ installation or the user's own config:
 Publication happens on the first open after an upgrade, keyed to the package
 digest, so rollback and pruning of old versions never break the editor. A
 package without a bundled Neovim falls back to `nvim` on `PATH`, which is what
-keeps `bun run dev` working. On macOS the client switches the input source to
-`com.apple.keylayout.ABC` while the editor column has focus and restores the
-previous source when focus returns to the composer or moves to the terminal.
+keeps `bun run dev` working. On macOS every panel switches the input source to
+`com.apple.keylayout.ABC` while it owns the keyboard: the Session rail (its
+filter box included), the editor column and the shell column all read keys as
+program input. The composer is never switched — not to English and not back — so
+whatever the user selects there by hand survives the round trip through the
+sidebar; only a panel that takes the keyboard afterwards selects English again.
+The switch runs through `$HULALA_HOME/bin/ime`. A release package ships it; a
+source checkout has no package to publish it from, so the client entry (`hulala`,
+and therefore `bun run start` and `bun run start:attach`) compiles
+`apps/cli/native/ime.c` into `$HULALA_HOME/bin` once, and again only when the C
+file changes. Without the helper nothing breaks: the panels simply keep whatever
+source the user has selected. A window whose terminal streams were injected (a
+test) leaves the input source alone, because changing it is machine-wide.
 
 The package requires Node.js 22.13+ on the target machine. The installer
 offers the extracted package to its own `hulala install`, which validates

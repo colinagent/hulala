@@ -300,3 +300,13 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 .release-links { display: flex; gap: 28px; justify-content: center; padding: 0 40px 90px; }.download-fallback { margin: 70px auto; max-width: 760px; padding: 60px 40px; text-align: center; }.download-fallback h2 { font-family: Georgia, "Times New Roman", serif; font-size: 42px; font-weight: 400; }.download-fallback p { color: var(--muted); line-height: 1.7; margin: 20px 0 30px; }
 .download-page[data-locale="zh"] .download-hero h1, .download-page[data-locale="zh"] .download-card h2, .download-page[data-locale="zh"] .install-notice h3, .download-page[data-locale="zh"] .download-fallback h2 { font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; }
 @media (max-width: 820px) { .download-hero { padding: 70px 18px 60px; }.download-grid, .notice-grid { grid-template-columns: 1fr; padding-left: 18px; padding-right: 18px; }.download-card { grid-template-columns: 1fr; }.download-action { max-width: none; }.download-checksum { grid-column: 1; }.release-links { align-items: center; flex-direction: column; } }
+
+/* Captured client frames: real screenshots, never a redrawn mock. */
+.screens-section { border-top: 1px solid var(--line); margin: 0 auto; max-width: 1440px; padding: 90px 40px 110px; }
+.screens-section > .section-label { margin: 0 0 28px; }
+.screens-main { margin: 0; }
+.screens-main img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
+.screens-pair { display: grid; gap: 22px; grid-template-columns: 1fr 1fr; margin-top: 22px; }
+.screens-pair img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
+.screens-section figcaption { color: var(--muted); font-size: 12px; line-height: 1.7; margin-top: 12px; }
+@media (max-width: 900px) { .screens-section { padding: 60px 18px 70px; } .screens-pair { grid-template-columns: 1fr; } }

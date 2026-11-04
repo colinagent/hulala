@@ -9,6 +9,7 @@ import { createTerminalKernel } from './tui/kernel.js'
 import { readCreatorMode, writeCreatorMode, creatorModePath } from '@hulala/runtime/creator'
 import { runPluginCommand } from './plugins/cli.js'
 import { resolvePaths } from './paths.js'
+import { publishImeHelper } from './tui/editor/imeHelper.js'
 
 function usage(): string {
   return [
@@ -113,6 +114,13 @@ async function runTerminal(args: string[]): Promise<number> {
     throw new Error(`Unknown option: ${argument}\n\n${usage()}`)
   }
   const attached = await attachHost()
+  // A packaged install ships `bin/ime` and `publishEditor` copies it beside the
+  // editor, so the input-source switch needs no help there. A source checkout
+  // has no package to copy from, and a window whose helper was never built looks
+  // exactly like a broken switch: build it here, once per change to the C file,
+  // before the window opens. It stays on this entry rather than in the window
+  // itself, so the tests that boot the client never write to a state root.
+  publishImeHelper(join(resolvePaths().data, 'bin'))
   // One window is one context: the transport is installed on it, the client
   // provides the backend on it, and closing the window disposes the whole tree.
   const kernel = createTerminalKernel()

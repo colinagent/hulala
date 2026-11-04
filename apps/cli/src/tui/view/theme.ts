@@ -29,6 +29,15 @@ function wrap(open: string, close: string) {
 const BRAND_RGB = [0x91, 0x80, 0x72] as const
 
 /**
+ * Current-location ink: the brand hue lifted for legibility on a dark terminal.
+ *
+ * Selection and current location are text, never a filled row, so the colour has
+ * to carry on its own against the default background — the brand ink itself is
+ * too muted for that at a 20-column rail.
+ */
+const HIGHLIGHT_RGB = [0xd8, 0xaa, 0x78] as const
+
+/**
  * Archived user message panel. A fixed dark chip with its own foreground, so
  * the block keeps the same contrast on light and dark terminals; the arrow is
  * muted like Claude Code's, the message body stays near-white.
@@ -126,6 +135,7 @@ export function faintCursorSgr(color: boolean, background: string, foreground: s
 function buildStyles(color: boolean): {
   dim: (text: string) => string
   accent: (text: string) => string
+  highlight: (text: string) => string
   brand: (text: string) => string
   userPanel: (text: string) => string
   userArrow: (text: string) => string
@@ -140,7 +150,7 @@ function buildStyles(color: boolean): {
 } {
   if (!color) {
     const identity = (text: string): string => text
-    return { dim: identity, accent: identity, brand: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
+    return { dim: identity, accent: identity, highlight: identity, brand: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
   }
   // The panel carries its own background and foreground. Inner styles (the
   // arrow) reset both, so re-open the panel after every nested reset to keep
@@ -149,6 +159,7 @@ function buildStyles(color: boolean): {
   return {
     dim: wrap('\u001b[2m', RESET),
     brand: wrap(fgOpen(BRAND_RGB), RESET),
+    highlight: wrap(fgOpen(HIGHLIGHT_RGB), RESET),
     accent: wrap('\u001b[36m', RESET),
     userPanel: (text: string): string => `${panelOpen}${text.split(RESET).join(`${RESET}${panelOpen}`)}${RESET}`,
     userArrow: wrap(fgOpen(USER_PANEL_ARROW), RESET),

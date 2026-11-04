@@ -95,20 +95,20 @@ export function sameDirectory(left: string | undefined, right: string): boolean 
 }
 
 /**
- * The label a row shows: the Host title, `新会话` for a Session with no history
- * yet, else a short id.
+ * The label a row shows: the Host title, `new session` for a Session with no
+ * history yet, else a short id.
  *
  * A title wins over the blank placeholder. The `blank` flag is the Host's view
- * at the moment the list was read, and this client's own `+ 新会话` row starts
- * out blank; testing blank first would keep a Session that has been talking
- * behind `新会话` until the whole list was read again.
+ * at the moment the list was read, and this client's own `+ new session` row
+ * starts out blank; testing blank first would keep a Session that has been
+ * talking behind `new session` until the whole list was read again.
  * @param session - the Session row to label.
  * @returns the row's plain text label.
  */
 export function sessionLabel(session: TerminalSession): string {
   const title = session.title?.trim() ?? ''
   if (title !== '') return title
-  if (session.blank) return '新会话'
+  if (session.blank) return 'new session'
   return `${session.sessionId.slice(0, 4)}…${session.sessionId.slice(-4)}`
 }
 
@@ -124,7 +124,7 @@ export interface RailState {
   readonly allExpanded: boolean
   /** The current directory's `More` row was taken: every row is shown. */
   readonly revealed: boolean
-  /** Session rows the rail can show at once, below the `+ 新会话` row. */
+  /** Session rows the rail can show at once, below the `+ new session` row. */
   readonly pageRows: number
   readonly now: number
 }
@@ -433,7 +433,7 @@ export class SessionRail implements Component {
     selected: boolean,
   ): string {
     if (row.kind === 'new') {
-      const label = '+ 新会话'
+      const label = '+ new session'
       return selected ? styles.accent(padEnd(label, width)) : padEnd(label, width)
     }
     if (row.kind === 'more') {
@@ -442,7 +442,10 @@ export class SessionRail implements Component {
     }
     const session = row.session
     const current = session.sessionId === state.currentId
-    const glyph = session.running ? spinnerFrame(state.now) : current ? '▸' : ' '
+    // The first column is the running indicator only. The open Session is marked
+    // by its title colour, never by a glyph: a persistent marker would compete
+    // with the row under the keyboard and with the tree chevrons.
+    const glyph = session.running ? spinnerFrame(state.now) : ' '
     const time = relativeTimeLabel(session.updatedAt, state.now)
     const timeWidth = visibleWidth(time)
     const titleWidth = Math.max(1, width - 2 - timeWidth - 1)
@@ -450,8 +453,9 @@ export class SessionRail implements Component {
     const gap = Math.max(0, width - 2 - visibleWidth(title) - timeWidth - 1)
     const plain = `${glyph} ${title}${' '.repeat(gap)} ${time}`
     if (selected) return styles.accent(plain)
-    const head = session.running ? styles.accent(glyph) : styles.dim(glyph)
-    return `${head} ${title}${' '.repeat(gap)} ${styles.dim(time)}`
+    const head = session.running ? styles.accent(glyph) : glyph
+    const label = current ? styles.highlight(title) : title
+    return `${head} ${label}${' '.repeat(gap)} ${styles.dim(time)}`
   }
 
   private allLine(

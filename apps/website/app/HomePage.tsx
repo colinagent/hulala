@@ -7,205 +7,217 @@ export type SiteLocale = "en" | "zh-CN";
 
 const translations = {
   en: {
-    footerSlogan: "Hulala. Growth in motion.",
-    nav: ["The practice", "The workspace", "Principles"],
-    cta: "Download Hulala",
+    footerSlogan: "Hulala. DeepSeek Harness for hackers.",
+    screens: {
+      label: "THE CLIENT, UNRETOUCHED",
+      conversation: "Session rail, conversation, tool rows and the composer.",
+      terminal: "Ctrl-T: your shell in the Session directory.",
+      editor: "Ctrl-F: Neovim beside the conversation.",
+    },
+    nav: ["The terminal", "The workspace", "What we refuse"],
+    cta: "Install Hulala",
     hero: {
-      kicker: "An AI workspace for the long run",
+      kicker: "The Hulala terminal client",
       titleLead: "Hulala",
-      titleAccent: "Growth in motion.",
-      subtitle: "Read. Write. Code. Keep going.",
-      lede: "Hulala is a quiet place for serious work—where daily reading becomes durable knowledge, writing sharpens thought, and code turns ideas into something useful.",
-      primary: "Download for desktop",
-      secondary: "Explore the practice",
-      availability: "Unsigned desktop preview · macOS & Windows",
+      titleAccent: "DeepSeek Harness for hackers.",
+      subtitle: "One TUI: Neovim, a real shell, a daemon you never babysit.",
+      lede: "Hulala runs DeepSeek Harness in your terminal. One Host daemon owns the state root, every window attaches to it, and closing a window detaches instead of stopping the turn.",
+      primary: "Install on macOS & Linux",
+      secondary: "See what is inside",
+      availability: "macOS & Linux · Node.js 22.13+ · no tmux",
     },
     note: {
-      header: "FIELD NOTES / 1184",
-      date: "29 AUG 2026",
-      label: "TODAY'S WORK",
-      titleLead: "A body of work,",
-      titleAccent: "still becoming.",
-      copy: "The ideas worth keeping rarely arrive complete. They are read into being, written into clarity, and tested in the real world.",
+      header: "WINDOWS ATTACHED / 4",
+      date: "RIGHT NOW",
+      label: "ONE DAEMON",
+      titleLead: "The window is gone.",
+      titleAccent: "The turn is not.",
+      copy: "A turn belongs to the Host, not to the window that asked for it. Close the terminal, open another, and the transcript is still being written.",
       logs: [
-        ["READ", "38 min", "12 notes kept"],
-        ["WROTE", "684 words", "2 ideas clarified"],
-        ["CODED", "3 files", "1 change shipped"],
+        ["WINDOWS", "4 attached", "1 daemon"],
+        ["TURNS", "1 running", "2 queued"],
+        ["PLUGINS", "17 loaded", "2 yours"],
       ],
-      saved: "All work saved in context",
-      day: "DAY 1,184 →",
+      saved: "One state root, one Host",
+      day: "STATE ROOT →",
     },
     conviction: {
       label: "A SIMPLE CONVICTION",
-      title: ["Real growth", "is never built in a burst."],
-      lines: ["It is built page by page.", "Paragraph by paragraph.", "Commit by commit."],
+      title: ["A terminal should not", "die with its window."],
+      lines: ["One daemon owns the state root.", "Every window is a client.", "Ctrl-Q detaches; it does not stop."],
     },
     practice: {
-      label: "01 / THE PRACTICE",
-      title: ["One enduring practice.", "Three forms."],
-      lede: "Reading, writing, and coding are not separate modes of productivity. They are how a curious person learns, thinks, and makes.",
+      label: "01 / THE TERMINAL",
+      title: ["One window.", "Three surfaces."],
+      lede: "The Session rail, the conversation, and one sidebar that is either your shell or Neovim — in one frame, driven by keys you already know.",
       items: [
-        ["Reading", "Enlarge the world available to you.", "Read across documents, notes, and code with an AI partner that helps you question carefully, connect ideas, and keep what matters.", "Documents · Codebases · Connected notes"],
-        ["Writing", "Discover what you actually think.", "Move from fragments to a point of view. Draft and revise in the same place you researched, without sanding away your own voice.", "Notes · Drafts · In-context editing"],
-        ["Coding", "Give an idea a working form.", "Understand a codebase, shape a plan, edit files, run commands, and examine the evidence with an agent inside your real workspace.", "Editor · Terminal · Git"],
+        ["Conversation", "The Agent Loop, streaming.", "Prompts, streaming output, approvals, questions and a model picker, straight from DeepSeek Harness's own surfaces.", "Ctrl-G · /sessions · /model"],
+        ["Shell", "Your shell, in the Session directory.", "A real pty with your rc files, aliases and PATH. Jobs keep running while the column is hidden.", "Ctrl-T · Ctrl-[ · Ctrl-]"],
+        ["Editor", "Neovim, bundled.", "The real Neovim with its own colours, keymaps and buffers, shipped as a real binary so nothing has to be installed.", "Ctrl-F · autosave · Ctrl-S"],
       ],
     },
     continuity: {
-      label: "02 / THE FLYWHEEL",
-      title: ["A body of work.", "Not a history", "of prompts."],
-      copy: "Hulala keeps the source material, conversation, edits, commands, and outcome attached to the workspace that produced them. Each turn of the flywheel begins with what you already know.",
+      label: "02 / THE DAEMON",
+      title: ["A Session that outlives", "the window that", "started it."],
+      copy: "The Host is a daemon, not a runner script. It owns the state root, keeps the turn going, and answers every client that attaches to it.",
       stages: [
-        ["READ", "Take in", "Meet an idea worth understanding."],
-        ["WRITE", "Think through", "Turn fragments into a point of view."],
-        ["CODE", "Make real", "Give the thought a working form."],
-        ["REPEAT", "Compound", "Let the outcome feed the next turn."],
+        ["ATTACH", "Find the Host", "A client reads endpoint.json, or starts one detached."],
+        ["RUN", "Send a turn", "The Agent Loop runs in the Host; every window sees the stream."],
+        ["DETACH", "Close the window", "Ctrl-Q detaches. The turn and its tools keep going."],
+        ["REATTACH", "Come back", "Resume the Session and read what finished without you."],
       ],
     },
     workspace: {
       label: "03 / THE WORKSPACE",
-      title: "Stay with the thought.",
-      lede: "Files, editor, terminal, Git, and your AI agent share one context—locally or on your own remote machine.",
-      treeTitle: "BODY OF WORK",
-      folders: ["commonplace", "reading-notes.md", "questions.md", "essays", "projects"],
-      documentLabel: "WORKING NOTE · 29 AUG 2026",
-      documentTitle: "Continuity is a form of intelligence.",
-      documentLede: "Good work deepens when each new effort can begin where the last one ended.",
-      documentCopy: "The value of an AI workspace is not how many answers it produces. It is whether our questions become better—and whether what we learn remains available to the work ahead.",
-      documentQuote: "Keep the thread. Let the idea take the time it needs.",
-      saved: "Saved locally",
-      partner: "AI PARTNER",
-      agentMessage: "Your notes return to one idea: continuity is what turns information into judgment.",
-      evidence: ["3 related notes", "2 earlier drafts", "1 working project"],
-      userMessage: "Show me where the argument becomes too abstract. Don't rewrite it yet.",
-      thinking: "Reading the full thread…",
-      composer: "Continue the work…",
+      title: "Stay in one frame.",
+      lede: "Files, the editor, the shell and the agent share one context, in one terminal window.",
+      treeTitle: "HULALA",
+      folders: ["apps", "scripts", "docs", "screens", "plugins"],
+      documentLabel: "INPUTSOURCE.TS",
+      documentTitle: "Every panel that reads keys asks for English.",
+      documentLede: "The composer never switches: it keeps the source you left there.",
+      documentCopy: "Ctrl-[ is byte-identical to Esc, so the client has to know whether the editor still has something to cancel before it takes the key for itself.",
+      documentQuote: "Preserve the source; hand it back when the panel leaves.",
+      saved: "Saved automatically",
+      partner: "AGENT",
+      agentMessage: "The column kept its process, so your buffer is exactly where you left it.",
+      evidence: ["3 changed files", "12 passing tests", "1 running turn"],
+      userMessage: "Open the editor on the file that switches the input source.",
+      thinking: "Reading apps/cli/src/tui/editor…",
+      composer: "Ask for the next change…",
     },
     principles: {
-      label: "04 / PRINCIPLES",
-      title: ["Built against", "distraction."],
-      lede: "Hulala is designed to support attention, continuity, and independent judgment—not another feed to keep up with.",
+      label: "04 / WHAT WE REFUSE",
+      title: ["Built against", "the babysitting."],
+      lede: "No multiplexer to remember, no runner script to keep alive, no private rival daemon, no second REST layer.",
       items: [
-        ["Depth over speed", "The answer is not the work. Understanding is."],
-        ["Continuity over novelty", "Keep the thread instead of starting over."],
-        ["Agency over automation", "AI should strengthen your judgment, not replace it."],
+        ["No tmux", "The Host is already a daemon. Attach, detach, reattach."],
+        ["One state root", "Windows share one Host, so a Session is never a per-window thing."],
+        ["Yours to rewrite", "Every panel is a plugin, and the contract only ever grows."],
       ],
     },
     meaning: {
       label: "WHY HULALA?",
-      title: ["Real growth is quiet", "for a long time.", "Then it moves."],
-      copy: "Hulala is the sound of that movement—the flywheel turning after roots have been built patiently through reading, writing, and making.",
+      title: ["The window is closed.", "The keyboard keeps", "clicking along."],
+      copy: "呼啦啦 is the sound of a terminal still working after you walked away: a turn finishing, a shell job landing, a Session waiting for you to reattach.",
     },
     trust: {
       label: "THE FOUNDATION",
       title: "Your work stays yours.",
-      copy: "Hulala is private and local-first. Your workspace, credentials, and agent tools remain under your control, without a Hulala account or hosted relay in the middle.",
-      items: ["Runs on your machine", "Works over direct SSH", "Uses the agents you trust"],
+      copy: "The Host runs on your machine under one state root, provider credentials stay in the owning Provider's store, and there is no Hulala account or hosted relay in the middle.",
+      items: ["Runs on your machine", "No account, no relay", "Uses the models you configured"],
     },
     closing: {
-      label: "DESKTOP PREVIEW",
-      title: ["Keep the flywheel", "turning."],
-      copy: "Build the reading, writing, and coding practice that compounds with you.",
+      label: "TERMINAL CLIENT",
+      title: ["Open a window.", "Leave it running."],
+      copy: "Install the client on macOS or Linux with one command, then run hulala wherever you work.",
     },
   },
   zh: {
-    footerSlogan: "呼啦啦，你的成长飞轮",
-    nav: ["长期实践", "工作空间", "设计原则"],
-    cta: "下载 Hulala",
+    footerSlogan: "呼啦啦，面向黑客的 DeepSeek Harness",
+    screens: {
+      label: "客户端原样截图",
+      conversation: "会话栏、对话、工具行和 composer。",
+      terminal: "Ctrl-T：会话目录里你自己的 shell。",
+      editor: "Ctrl-F：对话旁边的 Neovim。",
+    },
+    nav: ["终端", "工作空间", "我们不做什么"],
+    cta: "安装 Hulala",
     hero: {
-      kicker: "为长期成长而生的 AI 工作空间",
-      titleLead: "呼啦啦",
-      titleAccent: "你的成长飞轮",
-      subtitle: "阅读、写作、编程，持续前行",
-      lede: "Hulala 是一个安静、专注的工作空间：让每天的阅读沉淀为知识，让写作磨砺思想，让代码把想法变成真实而有用的作品。",
-      primary: "下载桌面版",
-      secondary: "了解成长飞轮",
-      availability: "未签名桌面预览版 · macOS 与 Windows",
+      kicker: "Hulala 终端客户端",
+      titleLead: "Hulala",
+      titleAccent: "面向黑客的 DeepSeek Harness",
+      subtitle: "一个 TUI：内置 Neovim、真实 shell，还有一个你永远不用看着的 daemon。",
+      lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host daemon 拥有 state root，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。",
+      primary: "在 macOS 与 Linux 上安装",
+      secondary: "看看里面有什么",
+      availability: "macOS 与 Linux · Node.js 22.13+ · 不需要 tmux",
     },
     note: {
-      header: "长期笔记 / 1184",
-      date: "2026 年 8 月 29 日",
-      label: "今日积累",
-      titleLead: "一生的作品，",
-      titleAccent: "仍在生长。",
-      copy: "值得留下的想法，很少一次成形。它们在阅读中萌芽，在写作中清晰，再到真实世界里经受检验。",
+      header: "已连窗口 / 4",
+      date: "就在此刻",
+      label: "一个 daemon",
+      titleLead: "窗口已经关了，",
+      titleAccent: "turn 还在跑。",
+      copy: "turn 属于 Host，不属于发起它的窗口。关掉终端、再开一个，transcript 还在继续写。",
       logs: [
-        ["阅读", "38 分钟", "留下 12 条笔记"],
-        ["写作", "684 字", "想清楚 2 个问题"],
-        ["编程", "3 个文件", "完成 1 次交付"],
+        ["窗口", "连了 4 个", "1 个 daemon"],
+        ["turn", "1 个在跑", "2 个排队"],
+        ["插件", "载入 17 个", "2 个是你的"],
       ],
-      saved: "所有工作已沉淀为上下文",
-      day: "第 1,184 天 →",
+      saved: "一个 state root，一个 Host",
+      day: "STATE ROOT →",
     },
     conviction: {
       label: "一个简单的信念",
-      title: ["真正的成长，", "从来不靠一阵爆发。"],
-      lines: ["它来自一页一页地读。", "一段一段地写。", "一次一次地提交。"],
+      title: ["终端不应该", "跟着窗口一起死。"],
+      lines: ["daemon 拥有 state root。", "每个窗口都是客户端。", "Ctrl-Q 只是断开，不是停。"],
     },
     practice: {
-      label: "01 / 长期实践",
-      title: ["同一种长期实践，", "三种表达方式。"],
-      lede: "阅读、写作和编程不是三个割裂的效率模式，而是一个好奇的人学习、思考和创造的完整过程。",
+      label: "01 / 终端",
+      title: ["一个窗口，", "三个面。"],
+      lede: "左边会话栏，中间对话，右边一个侧栏——要么是你的 shell，要么是 Neovim。全在一个帧里，用你熟悉的键切换。",
       items: [
-        ["阅读", "扩展你所能看见的世界。", "在文档、笔记和代码之间深入阅读。让 AI 帮你提出更好的问题、连接彼此的想法，并留下真正重要的内容。", "文档 · 代码库 · 关联笔记"],
-        ["写作", "发现自己真正相信什么。", "从零散片段走向清晰观点。在研究发生的地方起草和修改，同时保留属于你自己的声音。", "笔记 · 草稿 · 上下文编辑"],
-        ["编程", "让一个想法真正运转起来。", "理解代码库、制定计划、编辑文件、运行命令，并与 Agent 一起检验真实工作空间里的结果。", "编辑器 · 终端 · Git"],
+        ["对话", "Agent Loop 的原生面。", "prompt、流式输出、审批、提问和选模型，都是 DeepSeek Harness 自己的面，不是另抄一套。", "Ctrl-G · /sessions · /model"],
+        ["Shell", "会话目录里你自己的 shell。", "真实 pty，带着你的 rc、alias 和 PATH。列收起来，作业照样在跑。", "Ctrl-T · Ctrl-[ · Ctrl-]"],
+        ["编辑器", "内置 Neovim。", "真正的 Neovim，自己的配色、键位和缓冲区；以真实二进制发布，机器上什么都不用装。", "Ctrl-F · 自动保存 · Ctrl-S"],
       ],
     },
     continuity: {
-      label: "02 / 成长飞轮",
-      title: ["留下作品，", "而不是一段段", "消失的对话。"],
-      copy: "Hulala 把材料、对话、修改、命令和成果留在产生它们的工作空间里。成长飞轮的每一次转动，都从你已经积累的地方继续。",
+      label: "02 / daemon",
+      title: ["Session 比启动它的", "那个窗口活得", "更久。"],
+      copy: "Host 是 daemon，不是启动脚本。它拥有 state root，负责把 turn 跑完，并回应每一个连上来的客户端。",
       stages: [
-        ["阅读", "吸收", "遇见一个值得理解的想法。"],
-        ["写作", "思考", "让零散片段形成自己的观点。"],
-        ["编程", "创造", "让思想拥有可以运行的形态。"],
-        ["再来一次", "复利", "让成果成为下一次转动的起点。"],
+        ["AB", "找到 Host", "客户端读 endpoint.json，没有就 detached 起一个。"],
+        ["RUN", "送一个 turn", "Agent Loop 在 Host 里跑，每个窗口看到同一条流。"],
+        ["DST", "关掉窗口", "Ctrl-Q 只是断开，turn 和它的工具继续跑。"],
+        ["BACK", "再回来", "续上这个 Session，读你不在时跑完的部分。"],
       ],
     },
     workspace: {
       label: "03 / 工作空间",
-      title: "让思考保持连续。",
-      lede: "文件、编辑器、终端、Git 和 AI Agent 共享同一份上下文——无论在本机，还是你自己的远程机器。",
-      treeTitle: "我的长期作品",
-      folders: ["日常积累", "阅读笔记.md", "问题清单.md", "文章", "项目"],
-      documentLabel: "思考笔记 · 2026 年 8 月 29 日",
-      documentTitle: "连续性，本身就是一种智能。",
-      documentLede: "真正的好作品，总能从上一次停下的地方继续深入。",
-      documentCopy: "AI 工作空间的价值，不在于它给出了多少答案，而在于我们的提问是否越来越好，以及今天学到的东西能否继续服务于明天的创造。",
-      documentQuote: "保留那条线索，让想法拥有它所需要的时间。",
-      saved: "已保存到本地",
-      partner: "AI 伙伴",
-      agentMessage: "你的这些笔记都指向同一个核心：连续性让信息逐渐沉淀为判断力。",
-      evidence: ["3 条相关笔记", "2 篇早期草稿", "1 个进行中的项目"],
-      userMessage: "告诉我论述从哪里开始变得抽象，但先不要替我重写。",
-      thinking: "正在阅读完整脉络…",
-      composer: "继续这项工作…",
+      title: "留在一个帧里。",
+      lede: "文件、编辑器、shell 和 agent 共用一份上下文，就在一个终端窗口里。",
+      treeTitle: "HULALA",
+      folders: ["apps", "scripts", "docs", "screens", "plugins"],
+      documentLabel: "INPUTSOURCE.TS",
+      documentTitle: "每个读按键的面板都要求英文。",
+      documentLede: "composer 永远不切：你留在那里的输入法就是它用的。",
+      documentCopy: "Ctrl-[ 和 Esc 是同一个字节，所以客户端必须先知道编辑器还有没有东西可取消，才决定要不要把这颗键拿走。",
+      documentQuote: "保住输入源，面板离开时再还回去。",
+      saved: "已自动保存",
+      partner: "AGENT",
+      agentMessage: "列保留了自己的进程，所以缓冲区还在你离开时的位置。",
+      evidence: ["3 个改动文件", "12 个通过的测试", "1 个正在跑的 turn"],
+      userMessage: "在编辑器里打开那个切换输入源的文件。",
+      thinking: "正在读 apps/cli/src/tui/editor…",
+      composer: "接着改下一个…",
     },
     principles: {
-      label: "04 / 设计原则",
-      title: ["为专注而设计，", "与分心相反。"],
-      lede: "Hulala 支持专注、连续性和独立判断，而不是再制造一个需要你追赶的信息流。",
+      label: "04 / 我们不做什么",
+      title: ["我们反对", "伺候进程。"],
+      lede: "不用记多路复用器的快捷键，不用守着启动脚本，不会有偷偷起的第二个 daemon，也没有第二套 REST。",
       items: [
-        ["深度，而非速度", "答案不是工作本身，理解才是。"],
-        ["连续，而非追新", "保留线索，不要每次从零开始。"],
-        ["自主，而非代替", "AI 应该增强你的判断，而不是替代它。"],
+        ["不需要 tmux", "Host 本身就是 daemon。连上、断开、再连上。"],
+        ["一个 state root", "窗口共用一个 Host，Session 从来不是某个窗口的私产。"],
+        ["随便你改", "每个面板都是插件，契约只增不改。"],
       ],
     },
     meaning: {
       label: "为什么叫 HULALA？",
-      title: ["真正的成长，", "会安静很久。", "然后呼啦啦地转起来。"],
-      copy: "Hulala 是成长飞轮开始转动的声音。它不是捷径，而是阅读、写作和创造经过长期积累后，终于显现出来的力量。",
+      title: ["窗口已经关了，", "键盘还在那里", "呼啦啦地响。"],
+      copy: "呼啦啦是你走开之后终端还在工作的声音：一个 turn 跑完，一个 shell 作业落地，一个 Session 等着你重新连上。",
     },
     trust: {
       label: "基础原则",
       title: "你的工作，始终属于你。",
-      copy: "Hulala 私有且本地优先。工作空间、凭据和 Agent 工具始终由你控制，中间没有 Hulala 账户体系或云端中继。",
-      items: ["运行在你的机器上", "通过 SSH 直连远程机器", "使用你信任的 Agent"],
+      copy: "Host 运行在你自己的机器上，只有一个 state root；provider 凭据留在它自己的原生存储里，中间没有 Hulala 账户，也没有云端中继。",
+      items: ["运行在你的机器上", "不要账户，不要中继", "用你已经配好的模型"],
     },
     closing: {
-      label: "桌面预览版",
-      title: ["让成长飞轮，", "持续转动。"],
-      copy: "建立一套能够与你共同复利的阅读、写作与编程实践。",
+      label: "终端客户端",
+      title: ["开一个窗口，", "然后就让它跑着。"],
+      copy: "macOS 与 Linux 一行命令安装，然后在任何地方运行 hulala。",
     },
   },
 } as const;
@@ -282,6 +294,24 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         </div>
       </section>
 
+      <section className="screens-section" aria-label={isZh ? "Hulala 终端客户端截图" : "Hulala terminal client screenshots"}>
+        <p className="section-label">{t.screens.label}</p>
+        <figure className="screens-main">
+          <img src="/screens/01-conversation.png" alt={t.screens.conversation} width={1161} height={640} />
+          <figcaption>{t.screens.conversation}</figcaption>
+        </figure>
+        <div className="screens-pair">
+          <figure>
+            <img src="/screens/02-terminal.png" alt={t.screens.terminal} width={1161} height={640} />
+            <figcaption>{t.screens.terminal}</figcaption>
+          </figure>
+          <figure>
+            <img src="/screens/03-editor.png" alt={t.screens.editor} width={1161} height={640} />
+            <figcaption>{t.screens.editor}</figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section className="conviction">
         <p className="section-label">{t.conviction.label}</p>
         <h2>{t.conviction.title[0]}<br />{t.conviction.title[1]}</h2>
@@ -310,7 +340,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
           <h2>{t.continuity.title.map((line) => <span key={line}>{line}<br /></span>)}</h2>
           <p>{t.continuity.copy}</p>
         </div>
-        <div className="continuity-path" aria-label={isZh ? "成长飞轮" : "The growth flywheel"}>
+        <div className="continuity-path" aria-label={isZh ? "Host daemon 的生命周期" : "The Host daemon lifecycle"}>
           <div className="path-line" />
           {t.continuity.stages.map(([step, title, copy]) => <article key={step}><span>{step}</span><strong>{title}</strong><p>{copy}</p></article>)}
         </div>
@@ -319,7 +349,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
       <section className="workspace-section" id="workspace">
         <div className="workspace-heading"><p className="section-label">{t.workspace.label}</p><h2>{t.workspace.title}</h2><p>{t.workspace.lede}</p></div>
         <div className="workspace-window" aria-label={isZh ? "Hulala 桌面工作空间预览" : "Hulala desktop product preview"}>
-          <div className="window-bar"><span className="window-dots"><i /><i /><i /></span><span className="window-title"><img src={WEBSITE_LOGO_MARK_SRC} alt="" /> long-work</span><span className="window-state"><i /> LOCAL</span></div>
+          <div className="window-bar"><span className="window-dots"><i /><i /><i /></span><span className="window-title"><img src={WEBSITE_LOGO_MARK_SRC} alt="" /> hulala</span><span className="window-state"><i /> ATTACHED</span></div>
           <div className="workspace-body">
             <aside className="activity-rail"><img src={WEBSITE_LOGO_MARK_SRC} alt="" /><span className="active">▤</span><span>⌕</span><span>⌘</span><span>⑂</span><i /></aside>
             <aside className="file-tree"><p>{t.workspace.treeTitle}</p><div className="folder open">⌄ &nbsp;{t.workspace.folders[0]}</div><span>{t.workspace.folders[1]}</span><span>{t.workspace.folders[2]}</span><div className="folder">› &nbsp;{t.workspace.folders[3]}</div><div className="folder">› &nbsp;{t.workspace.folders[4]}</div></aside>
@@ -357,7 +387,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         <a className="button static-glass" href={downloadHref}>{t.cta} <span aria-hidden="true">↗</span></a>
       </section>
 
-      <footer><a className="brand" href={homeHref} aria-label="Hulala home"><img src={WEBSITE_LOGO_SRC} alt="" /><span>Hulala</span></a><p>{t.footerSlogan}</p><div><span>Desktop · macOS & Windows</span><span>hello@hulala.ai</span></div></footer>
+      <footer><a className="brand" href={homeHref} aria-label="Hulala home"><img src={WEBSITE_LOGO_SRC} alt="" /><span>Hulala</span></a><p>{t.footerSlogan}</p><div><span>Terminal · macOS & Linux</span><span>hello@hulala.ai</span></div></footer>
     </main>
   );
 }

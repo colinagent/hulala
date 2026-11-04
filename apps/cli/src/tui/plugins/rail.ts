@@ -69,6 +69,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   const { terminal, screen } = ctx.hulalaTerminal
   const { reducer } = ctx.hulalaViewModel
   const composer = ctx.hulalaComposer
+  const ime = ctx.hulalaIme
 
   let focused = false
   let query = ''
@@ -89,7 +90,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
       query,
       allExpanded,
       revealed,
-      // Rows between the header and the `all` row, minus the `+ 新会话` row.
+      // Rows between the header and the `all` row, minus the `+ new session` row.
       pageRows: pageRows(),
       now: Date.now(),
     }),
@@ -171,6 +172,10 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     }
     focused = true
     query = ''
+    // The rail owns the keyboard as keys, not as text — the filter box included:
+    // `j`, `n`, `r` and a title search are all typed in English, and composing
+    // Chinese there is a manual switch.
+    ime.ensure()
     rail.startEditing(session.id)
     layout.setRailVisible(true)
     screen.setFocus(rail)
@@ -258,6 +263,6 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
 /** Cordis object-form plugin. */
 export const railPlugin = {
   name: 'hulala-rail',
-  inject: ['hulalaRender', 'hulalaLayout', 'hulalaSession', 'hulalaTerminal', 'hulalaViewModel', 'hulalaComposer'],
+  inject: ['hulalaRender', 'hulalaLayout', 'hulalaSession', 'hulalaTerminal', 'hulalaViewModel', 'hulalaComposer', 'hulalaIme'],
   apply,
 }

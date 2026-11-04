@@ -127,7 +127,7 @@ test('a terminal pages its own history and marks the live screen in the last row
   scroll.back = 7
   const pane = new ScreenPane({ screen, scroll, rows: () => 3, color: false })
   const lines = pane.render(40)
-  expect(lines.at(-1)).toContain('历史 7 行')
+  expect(lines.at(-1)).toContain('history 7 lines')
   expect(screen.cursors).toEqual(['none'])
 
   pane.handleInput(PAGE_UP)

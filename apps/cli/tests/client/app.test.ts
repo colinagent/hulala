@@ -370,17 +370,17 @@ test('Ctrl-[ then Ctrl-N and Enter switches to the next Session in the rail', as
 test('Ctrl-G shows the rail and puts it away, and showing it takes the keyboard', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
-  await waitFor(() => plain(tty.painted()).includes('+ 新会话'), 'rail')
+  await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail')
   // The rail is on screen and the composer has the keyboard. Ctrl-G is not a
   // focus cycle: the first press puts the rail away instead of moving into it.
   const hiddenMark = tty.painted().length
   tty.input.write('\u0007')
-  await waitFor(() => !plain(tty.painted().slice(hiddenMark)).includes('+ 新会话'), 'rail hidden')
+  await waitFor(() => !plain(tty.painted().slice(hiddenMark)).includes('+ new session'), 'rail hidden')
   // A hidden rail comes back with the keyboard on the list, which `n` proves by
   // creating a Session instead of typing into the composer.
   const shownMark = tty.painted().length
   tty.input.write('\u0007')
-  await waitFor(() => plain(tty.painted().slice(shownMark)).includes('+ 新会话'), 'rail shown')
+  await waitFor(() => plain(tty.painted().slice(shownMark)).includes('+ new session'), 'rail shown')
   tty.input.write('n')
   await waitFor(() => fake.created.length === 1, 'new Session')
   tty.input.write('/quit\r')
@@ -399,7 +399,7 @@ test('Ctrl-G puts the rail away from the editor column and keeps Neovim focused'
   // keyboard: leaving the column is Ctrl-[, and this key only shows or hides.
   const mark = tty.painted().length
   tty.input.write('\u0007')
-  await waitFor(() => !plain(tty.painted().slice(mark)).includes('+ 新会话'), 'rail hidden')
+  await waitFor(() => !plain(tty.painted().slice(mark)).includes('+ new session'), 'rail hidden')
   tty.input.write('x')
   await waitFor(() => editor.writes().includes('x'), 'keys still reach nvim')
   tty.input.write('\u0011') // Ctrl-Q quits; Neovim is clean
@@ -417,7 +417,7 @@ test('Ctrl-D puts the conversation away beside the rail, and brings the draft ba
   tty.input.write('\u0004') // Ctrl-D: hide the conversation, keyboard lands on the rail
   await waitFor(() => !plain(tty.painted().slice(mark)).includes('history answer'), 'conversation hidden')
   // The keyboard moved onto the rail, whose rows now fill the frame.
-  await waitFor(() => plain(tty.painted().slice(mark)).includes('+ 新会话'), 'rail keeps the frame')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('+ new session'), 'rail keeps the frame')
   tty.input.write('\u0004') // Ctrl-D again: the conversation and its composer return
   await waitFor(() => plain(tty.painted().slice(mark)).includes('❯'), 'composer restored')
   tty.input.write('\r')
@@ -532,7 +532,7 @@ test('Ctrl-[ moves onto the rail before the first Session has opened', async () 
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
   const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
-  await waitFor(() => plain(text).includes('+ 新会话'), 'rail')
+  await waitFor(() => plain(text).includes('+ new session'), 'rail')
   input.write('\u001b')
   await new Promise(resolve => setTimeout(resolve, 120))
   input.write('/')
@@ -555,7 +555,7 @@ test('the rail shows the open directory, its Sessions and a background turn spin
   cleanups.push(() => { input.destroy(); output.destroy() })
   const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
   await waitFor(() => text.includes('history answer'), 'transcript')
-  await waitFor(() => plain(text).includes('+ 新会话'), 'rail rows')
+  await waitFor(() => plain(text).includes('+ new session'), 'rail rows')
   expect(plain(text)).toContain('/workspace')
   expect(plain(text)).toContain('search')
   expect(plain(text)).toContain('all')
@@ -579,7 +579,7 @@ test('the rail shows the open directory, its Sessions and a background turn spin
 
 test('a Session the rail started blank takes its title from the journal', async () => {
   const fake = fakeBackend()
-  // A Session created by `+ 新会话` carries the blank flag until the Host lists
+  // A Session created by `+ new session` carries the blank flag until the Host lists
   // it again, and the Host never sends a second summary for that transition.
   fake.setSessions([{ sessionId: 'session-1234', updatedAt: Date.now(), running: false, blank: true, cwd: '/workspace' }])
   const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
@@ -588,12 +588,12 @@ test('a Session the rail started blank takes its title from the journal', async 
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
   const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
-  await waitFor(() => plain(text).includes('新会话'), 'blank rail row')
+  await waitFor(() => plain(text).includes('new session'), 'blank rail row')
   fake.handlers?.onEvent({ type: 'user/message', seq: 3, time: Date.now(), data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'hi' }] } })
   fake.handlers?.onEvent({ type: 'session/title', seq: 4, time: Date.now(), data: { title: 'X Bio', source: { kind: 'fallback' } } })
   await waitFor(() => plain(text).includes('X Bio'), 'rail title')
   // A summary the Host published before the first prompt arrives late; it must
-  // neither clear the title nor put the row back behind `新会话`.
+  // neither clear the title nor put the row back behind `new session`.
   fake.listEvent({ kind: 'added', session: { sessionId: 'session-1234', updatedAt: Date.now(), running: false, blank: true, cwd: '/workspace' } })
   await new Promise(resolve => setTimeout(resolve, 80))
   expect(plain(text)).toContain('X Bio')

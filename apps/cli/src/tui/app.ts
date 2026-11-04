@@ -32,6 +32,7 @@ import { collect, spawnDetached } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
+import { imePlugin } from './plugins/ime.js'
 import { layoutPlugin } from './plugins/layout.js'
 import { panesPlugin } from './plugins/panes.js'
 import { overlaysPlugin } from './plugins/overlays.js'
@@ -127,6 +128,11 @@ function stringAt(value: unknown, ...path: readonly string[]): string | undefine
   return typeof current === 'string' ? current : undefined
 }
 
+/** Whether this window owns its terminal, as opposed to a test injecting streams. */
+function ownsTerminal(options: RunTerminalOptions): boolean {
+  return options.input === undefined && options.output === undefined
+}
+
 /**
  * Run the terminal client until the user detaches.
  * @returns process exit code.
@@ -150,6 +156,9 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(renderPlugin)
     await ctx.plugin(layoutPlugin)
     await ctx.plugin(editorPlugin)
+    // The input source is a window-wide fact: the rail and both sidebar columns
+    // ask it for English while they own the keyboard, so it loads before them.
+    await ctx.plugin(imePlugin, { live: ownsTerminal(options) })
     // Ordered by dependency: each row injects only what a row above it provides,
     // so no plugin spends its first tick pending on a later one.
     await ctx.plugin(overlaysPlugin, { color: colorEnabled(), debug: debugLog })
@@ -163,7 +172,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(updatePlugin, { ...(options.applyUpdate === undefined ? {} : { applyUpdate: options.applyUpdate }) })
     // Last: a user plugin may register into any service above.
     await ctx.plugin(userPluginsPlugin, { dataRoot: resolvePaths().data, debug: debugLog })
-    const production = options.input === undefined && options.output === undefined
+    const production = ownsTerminal(options)
     return await runInteractive({ ...options, kernel }, production)
   } finally {
     await kernel.dispose()

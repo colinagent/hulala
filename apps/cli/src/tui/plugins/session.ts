@@ -182,7 +182,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
           sessions = sessions.map(session => session.sessionId === id ? { ...session, title } : session)
         }
       }
-      // A human prompt ends the blank state the rail's own `+ 新会话` row started
+      // A human prompt ends the blank state the rail's own `+ new session` row started
       // in. The Host publishes no second list summary for that transition, so
       // the journal is where the client learns it; injected context and
       // recalled material are not the user speaking and do not count.

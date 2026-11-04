@@ -7,22 +7,22 @@ type PageKind = "home" | "download";
 const metadataCopy = {
   en: {
     home: {
-      title: "Hulala — Growth in motion.",
-      description: "The private AI workspace that turns reading, writing, and coding into a flywheel for long-term growth.",
+      title: "Hulala — DeepSeek Harness for hackers.",
+      description: "The terminal client for DeepSeek Harness: one Host daemon, many windows, Neovim and a real shell beside the conversation. macOS and Linux, one command.",
     },
     download: {
       title: "Install Hulala — Downloads",
-      description: "Install the Hulala terminal client with one command on macOS or Linux, or download Hulala Desktop. Verify SHA-256 and keep your work local.",
+      description: "Install the Hulala terminal client with one command on macOS or Linux, or download Hulala Desktop. Verify SHA-256 before installing.",
     },
   },
   "zh-CN": {
     home: {
-      title: "Hulala 呼啦啦｜你的成长飞轮",
-      description: "为长期成长而生的私有 AI 工作空间，让阅读沉淀为知识，让写作磨砺思想，让代码把想法变成作品。",
+      title: "Hulala 呼啦啦｜面向黑客的 DeepSeek Harness",
+      description: "DeepSeek Harness 的终端客户端：一个 Host daemon、多个窗口，对话旁边是 Neovim 和真实 shell。macOS 与 Linux，一行命令安装。",
     },
     download: {
       title: "安装 Hulala｜下载与安装说明",
-      description: "macOS、Linux 一行命令安装 Hulala 终端版，或下载 Hulala 桌面版。校验 SHA-256，让工作保留在本地。",
+      description: "macOS、Linux 一行命令安装 Hulala 终端版，或下载 Hulala 桌面版。校验 SHA-256 后再安装。",
     },
   },
 } as const;

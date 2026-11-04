@@ -7,6 +7,7 @@ import { buildTheme } from '../../src/tui/view/theme.js'
 
 const strip = (line: string): string => line
   .replace(/\u001b\[[0-9;]*m/gu, '')
+  .replace(/\u001b\][^\u0007]*\u0007/gu, '')
   .replace(/\u001b_pi:[^\u0007]*\u0007/gu, '')
 
 /** A component with a fixed intrinsic height, standing in for a chrome row. */
@@ -165,7 +166,9 @@ test('the side columns fill the frame when the conversation is put away', () => 
   expect(paneBox?.rect).toMatchObject({ x: 60, width: 40 })
   expect(frame.lines[3]).toContain('rail')
   expect(frame.lines[3]).toContain('nvim')
-  expect(frame.lines.at(-1)?.startsWith('status')).toBe(true)
+  // With the conversation put away the footer spans the frame: there is no
+  // conversation edge for the readings to line up with.
+  expect(frame.lines.at(-1)).toStartWith('status')
 })
 
 test('a lone side column owns the whole frame', () => {
@@ -234,7 +237,19 @@ test('the rail, the conversation and the editor each get their columns', () => {
   expect(conversation?.rect.width).toBe(68)
   expect(divider?.rect.x).toBe(87)
   expect(editor?.rect).toMatchObject({ x: 88, width: 32 })
-  expect(withEditor.lines.at(-1)?.startsWith('status')).toBe(true)
+  // The footer runs to the frame's right edge; the rail's rule ends it on the
+  // left, and the readings start exactly at the conversation's left edge.
+  const footer = withEditor.root.children[1]
+  const [gap, rule, statusBox] = footer?.children ?? []
+  expect(gap?.rect).toMatchObject({ x: 0, width: 18, height: 1 })
+  expect(rule?.rect).toMatchObject({ x: 18, width: 1, height: 1 })
+  expect(statusBox?.rect).toMatchObject({ x: 19, y: 23, height: 1 })
+  expect(rail?.rect.height).toBe(23)
+  expect(railDivider?.rect.height).toBe(23)
+  expect(divider?.rect.height).toBe(23)
+  const statusLine = strip(withEditor.lines.at(-1) ?? '')
+  expect(statusLine[18]).toBe('|')
+  expect(statusLine.slice(19)).toStartWith('status')
 
   // Without the editor the conversation takes everything the rail leaves.
   const alone = renderLayoutFrame(buildRailTerminalLayout(shared).root, 120, 24, () => undefined)

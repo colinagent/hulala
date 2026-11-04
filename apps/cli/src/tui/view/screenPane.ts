@@ -124,7 +124,7 @@ export class ScreenPane implements Component, Focusable {
   /** Bottom row while paging: where the viewport is and how to leave it. */
   private historyRow(width: number, lines: number): string {
     const styles = buildStyles(this.options.color)
-    const label = ` 历史 ${lines} 行 · Shift-PgDn 或任意键回到最新 `
+    const label = ` history ${lines} lines · Shift-PgDn or any key returns to the latest `
     const fitted = truncateToWidth(label, width, '…')
     const rule = '─'.repeat(Math.max(0, width - visibleWidth(fitted)))
     return styles.dim(rule + fitted)

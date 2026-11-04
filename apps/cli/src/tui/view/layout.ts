@@ -26,6 +26,7 @@ import {
   type TuiMouseEvent,
 } from '@earendil-works/pi-tui'
 
+
 export interface TerminalLayoutOptions {
   readonly transcript: Component
   /** Pending inbox rows directly above the composer; empty renders no lines. */
@@ -46,6 +47,36 @@ function chatEntries(options: TerminalLayoutOptions): NonNullable<ConstructorPar
     { component: options.pending, shrink: 1, minSize: 0 },
     ...(options.cwdBar === undefined ? [] : [{ component: options.cwdBar, shrink: 1, minSize: 0 }]),
   ]
+}
+
+/**
+ * A fixed-width blank column.
+ *
+ * The status row is not part of any column: it belongs to the client and keeps
+ * the model at the frame's right edge, but its readings must start under the
+ * conversation rather than under the Session rail. A blank column of the rail's
+ * width is what turns one full-width row into that alignment.
+ */
+class BlankColumn implements Component {
+  invalidate(): void {}
+  render(width: number): string[] {
+    return [' '.repeat(Math.max(0, width))]
+  }
+}
+
+/**
+ * One row of a full-height column rule.
+ *
+ * The footer is a row, not a column, but its rule has to line up with the
+ * divider above it and reach the terminal's bottom edge. Slicing the divider's
+ * own output keeps both — including its hover state — in the same place.
+ */
+class RuleRow implements Component {
+  constructor(private readonly source: Component) {}
+  invalidate(): void {}
+  render(): string[] {
+    return [this.source.render(1)[0] ?? ' ']
+  }
 }
 
 /** Left column that reports pointer presence while keeping normal mouse routing. */
@@ -194,8 +225,9 @@ export function buildTerminalLayout(options: TerminalLayoutOptions): TerminalLay
  *
  * The rail is a real column rather than an overlay: it has to stay readable
  * while the composer is being typed into, and a floating panel would hide the
- * transcript it is used to switch. The status bar spans all columns, exactly as
- * in the two-column layout.
+ * transcript it is used to switch. The status row runs the full width, but its
+ * readings start under the conversation: the rail never owns the client's
+ * footer.
  * @param options - the shared chat pieces, the rail, and the optional pane.
  * @returns the layout root, the transcript viewport, and the pane-width hook.
  */
@@ -226,9 +258,20 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
 
   const columns = new HStack(entries)
 
+  // The footer runs to the frame's right edge — the model label belongs there —
+  // but the rail never owns it: a blank column of the rail's width, then the
+  // rail's own divider, then the readings, which therefore start exactly at the
+  // conversation's left edge. The divider is drawn in the footer too, so the
+  // rule reaches the terminal's bottom row instead of stopping above it.
+  const statusRow = new HStack([
+    { component: new BlankColumn(), basis: railWidth, grow: 0, shrink: 0 },
+    { component: new RuleRow(options.railDivider), basis: SPLIT_GAP, grow: 0, shrink: 0 },
+    { component: options.statusBar, basis: 0, grow: 1, shrink: 1, minSize: 1 },
+  ])
+
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: options.statusBar, shrink: 0 },
+    { component: statusRow, shrink: 0 },
   ])
 
   /** Move the editor divider; without a pane this layout has nothing to resize. */

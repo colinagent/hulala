@@ -105,14 +105,14 @@ test('blank Sessions only appear while they are the open one', () => {
     ],
   }))
   expect(lists.current.map(entry => entry.sessionId)).toEqual(['session-fresh', 'session-filled'])
-  expect(sessionLabel(session({ sessionId: 'session-fresh', blank: true }))).toBe('新会话')
+  expect(sessionLabel(session({ sessionId: 'session-fresh', blank: true }))).toBe('new session')
   expect(sessionLabel(session({ sessionId: 'abcdefgh-1234' }))).toBe('abcd…1234')
 })
 
 test('a title outranks the blank placeholder', () => {
   // The Host titles a Session as soon as its first prompt lands, while the
   // client's own fresh row may still carry the blank flag from creation; the
-  // row has to rename itself from the journal instead of staying `新会话`.
+  // row has to rename itself from the journal instead of staying `new session`.
   expect(sessionLabel(session({ sessionId: 'session-fresh', blank: true, title: 'Hacker and Trader X Bio' })))
     .toBe('Hacker and Trader X Bio')
 })
@@ -151,20 +151,42 @@ test('the rail paints the path, the filter box, the rows and the folded `all`', 
   expect(lines).toHaveLength(12)
   expect(lines[0]).toBe('/workspace'.padEnd(20))
   expect(lines[1]).toBe('> search'.padEnd(20))
-  expect(lines[2]?.trimEnd()).toBe('+ 新会话')
-  expect(lines[3]).toStartWith('▸ 修 TUI 会话面板')
+  expect(lines[2]?.trimEnd()).toBe('+ new session')
+  expect(lines[3]).toStartWith('  修 TUI 会话面板')
   expect(lines[3]?.trimEnd()).toEndWith('3m')
   expect(lines[4]?.trimEnd()).toEndWith('2h')
   expect(lines[11]).toBe('▸ all'.padEnd(20))
   for (const line of lines) expect(visibleWidth(line)).toBe(20)
 })
 
-test('a running Session shows its spinner instead of the current marker', () => {
+test('a running Session shows its spinner in the marker column', () => {
   const test = harness({
     sessions: [session({ sessionId: 'session-current', title: 'running now', running: true })],
   })
   const lines = test.rail.render(20).map(strip)
   expect(lines[3]?.startsWith('⠋')).toBe(true)
+})
+
+test('the open Session is marked by its title colour, never by a glyph', () => {
+  const rail = new SessionRail({
+    state: () => state(),
+    rows: () => 12,
+    color: true,
+    onOpen: () => undefined,
+    onNew: () => undefined,
+    onQuery: () => undefined,
+    onAllExpanded: () => undefined,
+    onRevealed: () => undefined,
+    onRefresh: () => undefined,
+  })
+  const lines = rail.render(20)
+  const current = lines[3] ?? ''
+  const other = lines[4] ?? ''
+  expect(strip(current).startsWith('  修 TUI 会话面板')).toBe(true)
+  expect(current).not.toContain('▸')
+  // The title carries a foreground colour; a plain row only dims its time.
+  expect(current.slice(0, current.indexOf('修 TUI'))).toMatch(/\u001b\[38;[25];/)
+  expect(other).not.toMatch(/\u001b\[38;[25];/)
 })
 
 test('Ctrl-N, Ctrl-P and Vim j/k move the cursor like the arrows', () => {
@@ -220,7 +242,7 @@ test('the filter box takes typing, filters, and clears on Escape', () => {
   test.rail.handleInput('a')
   test.rail.handleInput('i')
   expect(test.queries).toEqual(['r', 'ra', 'rai'])
-  // Enter opens the first matching row, never the `+ 新会话` action.
+  // Enter opens the first matching row, never the `+ new session` action.
   test.rail.handleInput('\r')
   expect(test.created).toBe(0)
   expect(test.opened).toEqual([])
@@ -242,13 +264,13 @@ test('a long list scrolls so the cursor stays inside the window', () => {
   test.rail.selectCurrent('session-0')
   // 8 rows: path, filter, five list rows, `all`.
   const first = test.rail.render(20).map(strip)
-  expect(first[2]?.trimEnd()).toBe('+ 新会话')
-  expect(first[3]?.startsWith('▸ title 0')).toBe(true)
+  expect(first[2]?.trimEnd()).toBe('+ new session')
+  expect(first[3]?.startsWith('  title 0')).toBe(true)
   for (let press = 0; press < 6; press += 1) test.rail.handleInput('\u001b[B')
   const scrolled = test.rail.render(20).map(strip)
   expect(scrolled[7]).toBe('▸ all'.padEnd(20))
   expect(scrolled.slice(2, 7).some(line => line.includes('title 6'))).toBe(true)
-  expect(scrolled.slice(2, 7).some(line => line.startsWith('+ 新会话'))).toBe(false)
+  expect(scrolled.slice(2, 7).some(line => line.startsWith('+ new session'))).toBe(false)
 })
 
 test('entering the rail puts the cursor on the open Session', () => {
@@ -349,7 +371,7 @@ test('the More row is the row after the page, inside the scroll', () => {
   const test = harness({ sessions, currentId: 'session-0' }, 10)
   test.rail.selectCurrent('session-0')
   // 10 rows: header, filter, seven list rows and the `all` row. A short window
-  // shows fewer Sessions (6 fit below `+ 新会话`), so More follows row 6 and is
+  // shows fewer Sessions (6 fit below `+ new session`), so More follows row 6 and is
   // one line below the fold until the cursor walks down to it.
   const start = test.rail.render(24).map(strip)
   expect(start).toHaveLength(10)

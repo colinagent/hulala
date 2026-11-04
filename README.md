@@ -1,20 +1,92 @@
 <div align="center">
   <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala" width="128" />
   <h1>Hulala</h1>
-  <p>A local-first DeepSeek Harness workbench for the terminal.</p>
+  <p>DeepSeek Harness for hackers.</p>
+  <p>One TUI: Neovim, a real shell, a daemon you never have to babysit.</p>
   <p><a href="README.zh-CN.md">简体中文</a> · <a href="https://hulala.ai/">Website</a></p>
 </div>
 
-Hulala is built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+Hulala puts [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) in
+your terminal and leaves the whole client open: the engine is DSH's own Agent
+Loop, every panel is a plugin, and the agent can write plugins for the client it
+runs inside.
 
-One Host daemon owns one state root and runs the Harness engine. Every terminal
-window is a client that attaches to that process — open as many as you like, and
-closing one detaches instead of stopping anything. A running turn continues after
-the window that started it is gone.
+<p align="center">
+  <img src="assets/screens/01-conversation.png" alt="The Hulala terminal client: Session rail, the conversation with tool rows, and the composer" width="900" />
+</p>
 
-The Host exposes DSH's native `/connect` authentication, `/api` Remote calls and
-`/api/remote.mux` event streams. There is no second REST layer and no second
-Agent Runtime.
+## What you get
+
+- **Three columns, one window** — the Session rail on the left, the conversation
+  in the middle, and one sidebar on the right: the built-in terminal on `Ctrl+T`,
+  Neovim on `Ctrl+F`.
+- **Neovim and ripgrep included** — nothing to install. Every bundled binary is
+  a real file in `$HULALA_HOME/bin`, and `bin/` is appended to the children's
+  `PATH`, so your own tools still win.
+- **A real shell in the Session directory** — a full pty in the right column; jobs
+  and buffers survive when the column is hidden.
+- **No tmux, no runner script** — the Host is already a daemon. Every window is
+  a client that attaches to it; `Ctrl-Q` detaches and the turn keeps running.
+- **The Harness surfaces, not a copy** — streaming output, approvals, questions,
+  model selection, cancellation, `/connect`, `/api` and `/api/remote.mux`.
+- **A plugin is one `.mjs` file** — `hulala plugin new|check|list|disable`, no
+  build step and no `node_modules`.
+- **Creator mode** — the agent gains a read-only view of the client's own Cordis
+  surface and the tools to inspect it, so it can write a plugin for the client it
+  runs inside.
+
+One Host daemon owns one state root and runs the Harness engine; there is no
+second REST layer and no second Agent Runtime.
+
+## No tmux, no runner script
+
+`hulala` is not a program you launch per window and lose when the window closes.
+One Host daemon owns the state root; every terminal window is a client that
+attaches to that process, and any number of them can be open at once.
+
+```sh
+hulala host start        # the one Host for this state root, detached
+hulala                   # attach a window — do this in as many terminals as you like
+hulala host status       # what the daemon is doing
+hulala host stop         # the only thing that stops it
+```
+
+Clients discover the daemon through `endpoint.json` in the state root, so a
+second window never starts a private rival while a healthy Host answers. Closing
+a window (`Ctrl-Q`) detaches: the model call, the tool calls and the Session keep
+going, and the next window resumes where the work actually is. `tmux`, `nohup`
+and a bare `&` exist to fake exactly this; here it is what the program does by
+default, and `hulala host stop` is the explicit way to end it.
+
+<p align="center">
+  <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: the user's shell in the Session directory" width="440" />
+  <img src="assets/screens/03-editor.png" alt="The editor column: Neovim beside the conversation, buffers kept while the column is hidden" width="440" />
+</p>
+
+## Keyboard
+
+The frame is drivable without a mouse:
+
+| Keys | Does |
+|---|---|
+| `Ctrl-T` | open the built-in terminal in the right column; press again to close it |
+| `Ctrl-F` | open Neovim in the same column; press again to close it (it asks before dropping unwritten buffers) |
+| `Ctrl-[` / `Ctrl-]` | move the keyboard between the Session rail, the conversation and the painted column |
+| `Ctrl-G` | show or hide the Session rail |
+| `Ctrl-D` | put the conversation away while a column is open |
+| `Ctrl-Q` | detach: the window closes and the Host keeps running the turn |
+| `Esc` | stop the running turn; with nothing running, move into the rail |
+| `Ctrl-C` | stop the running turn; on an idle composer clear the draft, then quit |
+| `Enter` | send; while a turn runs, `Alt-Enter` queues the message as the next turn |
+| `Alt-Up` | take queued messages back into the composer |
+| `Ctrl-O` | expand the tool row under the pointer |
+| `Ctrl-S` | write the editor buffer now (it otherwise autosaves) |
+| `Shift-PgUp` / `Shift-PgDn` | page the terminal column's own history |
+| `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
+| `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/editor`, `/terminal`, `/cancel`, `/quit` |
+
+`/help` prints the same list inside the client, which is the version to trust if
+a key is swallowed by your terminal or input method.
 
 ## Clients
 
@@ -24,7 +96,6 @@ none answers) and opens the terminal client:
 ```sh
 hulala                              # terminal client
 hulala --resume <session-id>        # continue a saved Session
-hulala host start|stop|status       # manage the shared Host daemon
 hulala update                       # install the latest release
 hulala update --check               # report without installing
 ```
@@ -35,11 +106,11 @@ streaming output, approvals, questions, model selection and cancellation.
 **Website** — `apps/website` is the public download site; it does not embed an
 Agent Runtime.
 
-## The terminal client is a plugin host
+## Everything is a plugin
 
-One window is one Cordis `Context`. The kernel
-(`apps/cli/src/tui/kernel.ts`) owns only the `Context` and its disposal; every
-feature is a plugin under `apps/cli/src/tui/plugins/`:
+One window is one Cordis `Context`, and nothing above the kernel is fixed. The
+kernel (`apps/cli/src/tui/kernel.ts`) owns only the `Context` and its disposal;
+every feature is a plugin under `apps/cli/src/tui/plugins/`:
 
 ```text
 kernel            Context creation, plugin loading, disposal
@@ -104,7 +175,8 @@ Install one only from a source you would run directly.
 
 Off by default. When you turn it on, the Host gains a read-only view of its own
 Cordis surface and the agent gains the tools to inspect it — so the agent can
-write a plugin for your own terminal client.
+write a plugin for your own terminal client. This is the claim above taken
+literally: the thing you are talking to can extend the thing you are typing in.
 
 ```sh
 hulala creator on     # then: hulala host stop, so the Host restarts with it
@@ -121,9 +193,25 @@ from an existing profile; the capability disappears rather than idling.
 curl -fsSL https://hulala.ai/install.sh | sh
 ```
 
+Then, in any terminal:
+
+```sh
+hulala                  # attach to the Host on this machine
+hulala update           # install the latest release
+hulala update --check   # report without installing
+hulala rollback         # go back to the previous release
+hulala host stop        # stop the daemon (the only thing that does)
+```
+
 Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`. Windows is
 not implemented. Node.js 22.13+ is required on the machine; Neovim is not,
 because one is bundled.
+
+Everything Hulala writes lives under `$HULALA_HOME` (default `~/.hulala`):
+`config/`, `desktop/`, `server/`, `runtime/`, `logs/`, `cache/`, `transfers/`
+and `bin/`. The installer's only link outside that directory is the `hulala`
+command in a directory you already have on `PATH`; no shell profile is edited
+unless you pass `--add-to-path`.
 
 The release package is a self-contained Node install:
 
@@ -147,16 +235,18 @@ Harness installs for its own `grep` tool, so the editor's pickers and anything t
 model runs through `bash` never need ripgrep on the machine; that directory is
 appended to those child processes' `PATH`, so an installed `rg` still wins.
 
-`Ctrl+T` opens the built-in terminal — the user's shell in the Session directory —
-and `Ctrl+F` opens the editor column; the two share one sidebar and only the
-painted one is shown, but neither process is closed when the other is. Each key
-is a visibility toggle for its own column, so pressing it again closes it
-even when the composer has the keyboard. On macOS
-the input source switches to English while the editor has focus and back when
-focus returns to the composer or moves to the terminal. `Ctrl-[` / `Ctrl-]` move
-focus without closing the column, `Ctrl-D` puts the conversation away while a
-column is open, and `Ctrl-Q` exits. The sidebar keeps its process when hidden, so
-shell jobs and Neovim buffers survive. See `apps/cli/README.md`.
+The terminal and the editor columns share one sidebar: only the painted one is
+shown, and neither process is closed when the other is. A hidden column keeps its
+process, so shell jobs and Neovim buffers survive. See [Keyboard](#keyboard) for
+the keys and `apps/cli/README.md` for the full contract.
+
+On macOS every panel switches the input source to English
+(`com.apple.keylayout.ABC`) while it owns the keyboard — the Session rail and its
+filter box, the editor column, the shell column — because a panel reads keys as
+program input. The composer is never switched: it keeps exactly the source the
+user left there, including a manual switch to Chinese. The helper that does the
+switching is `bin/ime`, shipped by the release package and built from
+`apps/cli/native/ime.c` on the first start of a source checkout.
 
 ## Run from source
 

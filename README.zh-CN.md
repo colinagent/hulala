@@ -1,18 +1,80 @@
 <div align="center">
   <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala" width="128" />
   <h1>Hulala</h1>
-  <p>面向终端的本地优先 DeepSeek Harness 工作台。</p>
+  <p>面向黑客的 DeepSeek Harness。</p>
+  <p>一个 TUI：内置 Neovim、真实 shell，还有一个你永远不用看着的 daemon。</p>
   <p><a href="README.md">English</a> · <a href="https://hulala.ai/zh-CN/">官网</a></p>
 </div>
 
-Hulala 基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
+Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 放进终端，
+并把整个客户端交给你：引擎就是 DSH 自己的 Agent Loop，每个面板都是插件，agent 还能
+给它自己跑在里面的这个客户端写插件。
 
-一台机器上一个 Host daemon 拥有一个 state root 并运行 Harness 引擎。每个终端窗口
-都是连到那个进程的客户端——想开几个开几个，关掉只是断开，不会停下任何东西。正在跑
-的 turn 会继续，与启动它的窗口是否还在无关。
+<p align="center">
+  <img src="assets/screens/01-conversation.png" alt="Hulala 终端客户端：左侧会话栏、带工具行的对话，以及 composer" width="900" />
+</p>
 
-Host 使用 DSH 原生的 `/connect` 认证、`/api` Remote 调用和 `/api/remote.mux` 事件流，
-没有第二套 REST，也没有第二个 Agent Runtime。
+## 特性
+
+- **一个窗口三列** —— 左边会话栏，中间对话，右边一个侧栏：`Ctrl+T` 是内置终端，
+  `Ctrl+F` 是 Neovim。
+- **不需要 tmux，也不需要启动脚本** —— Host 本身就是 daemon。每个窗口都是连到它的
+  客户端，`Ctrl-Q` 只是断开，turn 继续跑。
+- **自带 Neovim 和 ripgrep** —— 什么都不用装。每个内置二进制都是 `$HULALA_HOME/bin`
+  下的真实文件，`bin/` 是追加到子进程 `PATH` 的，所以你自己装的工具仍然优先。
+- **会话目录里的真实 shell** —— 右列是一个完整 pty；列收起来，作业和缓冲区都还在。
+- **用的是 Harness 原生面，不是抄一套** —— 流式输出、审批、提问、选模型、取消，以及
+  `/connect`、`/api`、`/api/remote.mux`。
+- **插件就是一个 `.mjs` 文件** —— `hulala plugin new|check|list|disable`，没有构建步骤，
+  没有 `node_modules`。
+- **Creator mode** —— agent 拿到客户端自己 Cordis 面的只读视图和检查它的工具，于是它
+  能给自己跑在里面的这个客户端写插件。
+
+## 不需要 tmux
+
+`hulala` 不是那种每个窗口启动一个、关窗就没了的程序。一个 Host daemon 拥有 state root；
+每个终端窗口都是连到那个进程的客户端，想开几个开几个。
+
+```sh
+hulala host start        # 这个 state root 唯一的 Host，detached
+hulala                   # 附着窗口 —— 开几个终端都行
+hulala host status       # daemon 现在的状态
+hulala host stop         # 唯一能停掉它的东西
+```
+
+客户端通过 state root 里的 `endpoint.json` 找到 daemon，所以健康的 Host 在响应时，
+第二个窗口不会偷偷起一个自己的。关窗（`Ctrl-Q`）只是断开：模型调用、工具调用和
+Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`、裸 `&` 就是在手搜这件事；
+这里是程序默认的行为，而 `hulala host stop` 是明确的终止方式。
+
+<p align="center">
+  <img src="assets/screens/02-terminal.png" alt="内置终端列：会话目录里你自己的 shell" width="440" />
+  <img src="assets/screens/03-editor.png" alt="编辑器列：对话旁边的 Neovim，列隐藏时缓冲区仍然保留" width="440" />
+</p>
+
+## 快捷键
+
+整个帧不靠鼠标也能用：
+
+| 按键 | 作用 |
+|---|---|
+| `Ctrl-T` | 在右列打开内置终端；再按一次关掉 |
+| `Ctrl-F` | 在同一列打开 Neovim；再按一次关掉（未保存的缓冲区会先问你） |
+| `Ctrl-[` / `Ctrl-]` | 在会话栏、对话和已画出的列之间移动键盘 |
+| `Ctrl-G` | 显示或收起会话栏 |
+| `Ctrl-D` | 列打开时把对话收起来 |
+| `Ctrl-Q` | 断开：窗口关掉，Host 把 turn 继续跑完 |
+| `Esc` | 停掉正在跑的 turn；没有在跑时，进入会话栏 |
+| `Ctrl-C` | 停掉正在跑的 turn；composer 空闲时先清空草稿，再按一次退出 |
+| `Enter` | 发送；turn 在跑时用 `Alt-Enter` 排成下一个 turn |
+| `Alt-Up` | 把排队的消息取回 composer |
+| `Ctrl-O` | 展开当前指向的工具行 |
+| `Ctrl-S` | 立刻写编辑器缓冲区（平时自动保存） |
+| `Shift-PgUp` / `Shift-PgDn` | 翻终端列自己的历史 |
+| `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
+| `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/editor`、`/terminal`、`/cancel`、`/quit` |
+
+客户端里输入 `/help` 会印出同一张表——如果你的终端或输入法吃掉了某个键，以它为准。
 
 ## 客户端
 
@@ -21,7 +83,6 @@ Host 使用 DSH 原生的 `/connect` 认证、`/api` Remote 调用和 `/api/remo
 ```sh
 hulala                              # 终端客户端
 hulala --resume <session-id>        # 继续一个已有 Session
-hulala host start|stop|status       # 管理共享的 Host daemon
 hulala update                       # 安装最新版本
 hulala update --check               # 只看不装
 ```
@@ -30,10 +91,11 @@ hulala update --check               # 只看不装
 
 **官网** —— `apps/website` 是公开下载站，不内嵌 Agent Runtime。
 
-## 终端客户端是一个插件宿主
+## 一切皆插件
 
-一个窗口就是一个 Cordis `Context`。kernel（`apps/cli/src/tui/kernel.ts`）只拥有
-`Context` 本身和它的销毁；其余每个功能都是 `apps/cli/src/tui/plugins/` 下的插件：
+一个窗口就是一个 Cordis `Context`，kernel 之上没有什么是写死的。kernel
+（`apps/cli/src/tui/kernel.ts`）只拥有 `Context` 本身和它的销毁；其余每个功能都是
+`apps/cli/src/tui/plugins/` 下的插件：
 
 ```text
 kernel            Context 创建、插件装载、销毁
@@ -93,7 +155,8 @@ export function activate(tui) {
 ## Creator mode
 
 默认关闭。打开之后，Host 会多一份自己 Cordis 面的只读视图，agent 拿到检查它的工具
-——于是 agent 可以给你的终端客户端写插件。
+——于是 agent 可以给你的终端客户端写插件。上面那句话在这里是字面意思：你正在对话的
+东西，能扩展你正在打字的东西。
 
 ```sh
 hulala creator on     # 然后 hulala host stop，让 Host 带着它重启
@@ -110,8 +173,23 @@ hulala creator off    # 把这项能力从组合里移除
 curl -fsSL https://hulala.ai/install.sh | sh
 ```
 
+然后在任意终端：
+
+```sh
+hulala                  # 连上本机的 Host
+hulala update           # 装最新版本
+hulala update --check   # 只看不装
+hulala rollback         # 回到上一个版本
+hulala host stop        # 停掉 daemon（唯一能停掉它的东西）
+```
+
 支持 `darwin-arm64`、`darwin-x64`、`linux-x64`、`linux-arm64`。Windows 尚未实现。
 机器需要 Node.js 22.13+；不需要 Neovim，因为包里自带一个。
+
+Hulala 写的一切都在 `$HULALA_HOME`（默认 `~/.hulala`）下：`config/`、`desktop/`、
+`server/`、`runtime/`、`logs/`、`cache/`、`transfers/`、`bin/`。安装器在这个目录之外
+只写一个链接：你 `PATH` 里已有目录中的 `hulala` 命令；不传 `--add-to-path` 就不改
+任何 shell 配置文件。
 
 发布包是自包含的 Node 安装：
 
@@ -134,10 +212,14 @@ hulala-<version>-<target>/
 不需要机器上装了 ripgrep；那个目录是**追加**到子进程 `PATH` 的，所以已安装的 `rg`
 仍然优先。
 
-`Ctrl+T` 打开内置终端——Session 目录下的用户 shell；`Ctrl+F` 打开编辑器列。macOS 上
-编辑器获得焦点时输入法切到英文，焦点回到 composer 时切回去。`Ctrl-[` 回到 composer
-但不关列，列隐藏时进程保留，所以 shell 作业和 Neovim 缓冲区都还在。详见
-`apps/cli/README.md`。
+终端列和编辑器列共用同一个侧栏：只显示画出来的那一个，另一个的进程不会因此结束。
+列隐藏时进程一律保留，所以 shell 作业和 Neovim 缓冲区都还在。按键见
+[快捷键](#快捷键)，完整规则见 `apps/cli/README.md`。
+
+macOS 上每个面板拿到键盘时都会把输入法切成英文（`com.apple.keylayout.ABC`）：左侧
+会话列表（含它的过滤框）、编辑器列、终端列，因为这些面板把按键当程序输入。composer
+永远不自动切，你在那里选的是什么就是什么（包括手动切到中文）。切换用的 `bin/ime`
+由发布包提供；从源码运行时第一次启动会从 `apps/cli/native/ime.c` 编译出来。
 
 ## 从源码运行
 
