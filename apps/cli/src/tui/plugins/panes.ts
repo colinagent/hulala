@@ -157,7 +157,8 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
    */
   const ratios: Record<PaneKind, number> = { terminal: 1 / 3, editor: 1 / 3 }
 
-  const rows = (): number => Math.max(1, terminal.rows - 1)
+  // The frame owns the last two rows: the bottom rule and the status row.
+  const rows = (): number => Math.max(1, terminal.rows - 2)
 
   const columns = (kind: PaneKind): number => {
     const wanted = Math.round(terminal.columns * ratios[kind])
