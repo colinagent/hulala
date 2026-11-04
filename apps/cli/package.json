@@ -1,0 +1,71 @@
+{
+  "name": "hulala",
+  "version": "0.2.0",
+  "description": "Launch the local-first Hulala Agent workbench with one npx command.",
+  "type": "module",
+  "bin": {
+    "hulala": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "vendor/",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test tests",
+    "typecheck": "tsc --noEmit",
+    "prepack": "bun scripts/release-only.ts",
+    "build:client": "bun scripts/build-client.ts"
+  },
+  "devDependencies": {
+    "@hulala/plugin-sdk": "workspace:*",
+    "@types/bun": "1.3.14",
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "esbuild": "0.28.2",
+    "tsx": "^4.20.0",
+    "typescript": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "GPL-3.0-only",
+  "homepage": "https://hulala.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colinagent/hulala.git",
+    "directory": "apps/cli"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-remotes": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-settings-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-user-questions": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-util-workspace-path": "0.2.1-rc.5",
+    "@earendil-works/pi-tui": "1.4.0",
+    "@hulala/distribution": "workspace:*",
+    "@hulala/host-client": "workspace:*",
+    "@hulala/runtime": "workspace:*",
+    "@xterm/headless": "6.0.0",
+    "tar-stream": "3.2.2",
+    "ws": "8.21.1"
+  },
+  "optionalDependencies": {
+    "node-pty": "1.2.0-beta.15"
+  }
+}

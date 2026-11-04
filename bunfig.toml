@@ -1,0 +1,3 @@
+[install]
+# Cordis plugins share service extensions and one runtime module graph.
+linker = "hoisted"

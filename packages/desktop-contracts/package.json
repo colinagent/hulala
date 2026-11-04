@@ -1,0 +1,26 @@
+{
+  "name": "@hulala/desktop-contracts",
+  "version": "0.1.4",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./paths": "./src/paths.ts",
+    "./release-manifest": "./src/releaseManifest.ts",
+    "./version": "./src/version.ts",
+    "./hostdaemon": "./src/hostDaemon.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "zod": "4.4.3",
+    "@hulala/host-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "5.9.3"
+  }
+}

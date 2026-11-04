@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hulala-website",
+  "main": "./worker.cloudflare.ts",
+  "account_id": "ceb146b8e4c1a7305cfd46ccd7c2ce10",
+  "compatibility_date": "2026-10-17",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "hulala.ai", "custom_domain": true, "zone_id": "dc9bb59c19832baddd23b82bec1745e9" },
+    { "pattern": "www.hulala.ai", "custom_domain": true, "zone_id": "dc9bb59c19832baddd23b82bec1745e9" }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "directory": "./dist/cloudflare",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

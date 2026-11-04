@@ -1,0 +1,20 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "hulala-downloads",
+  "main": "downloads/worker.ts",
+  "account_id": "ceb146b8e4c1a7305cfd46ccd7c2ce10",
+  "compatibility_date": "2026-05-22",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "downloads.hulala.ai", "custom_domain": true, "zone_id": "dc9bb59c19832baddd23b82bec1745e9" }],
+  "r2_buckets": [{ "binding": "RELEASES", "bucket_name": "hulala-downloads" }],
+  "durable_objects": { "bindings": [{ "name": "QUOTA", "class_name": "DownloadQuota" }] },
+  "migrations": [{ "tag": "download-quota-v1", "new_sqlite_classes": ["DownloadQuota"] }],
+  "assets": {
+    "directory": "dist/downloads",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "observability": { "enabled": false }
+}

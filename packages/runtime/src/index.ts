@@ -1,0 +1,211 @@
+import { createRequire } from 'node:module'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:net'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
+import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
+
+export interface RuntimePaths {
+  root: string
+  configDir: string
+  dataDir: string
+  workspaceDir: string
+  runtimeDir: string
+  logsDir: string
+  cacheDir: string
+}
+
+export interface StartRuntimeOptions {
+  host?: '127.0.0.1'
+  port?: number
+  paths?: Partial<RuntimePaths> & { root?: string }
+  patch: PatchOptions[]
+  version?: string
+  startupTimeoutMs?: number
+  environment?: Record<string, string | undefined>
+  stdout?: 'inherit' | 'pipe'
+  stderr?: 'inherit' | 'pipe'
+}
+
+export type RuntimeState = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
+
+export interface RuntimeHandle {
+  readonly host: '127.0.0.1'
+  readonly port: number
+  readonly url: string
+  readonly paths: RuntimePaths
+  state(): RuntimeState
+  stop(): Promise<void>
+  exited: Promise<number>
+}
+
+export function resolveRuntimePaths(
+  input: Partial<RuntimePaths> & { root?: string } = {},
+): RuntimePaths {
+  const root = resolve(input.root ?? process.env.HULALA_HOME ?? join(homedir(), '.hulala'))
+  return {
+    root,
+    configDir: resolve(input.configDir ?? join(root, 'config')),
+    dataDir: resolve(input.dataDir ?? join(root, 'server')),
+    workspaceDir: resolve(input.workspaceDir ?? join(root, 'workspace')),
+    runtimeDir: resolve(input.runtimeDir ?? join(root, 'runtime')),
+    logsDir: resolve(input.logsDir ?? join(root, 'logs')),
+    cacheDir: resolve(input.cacheDir ?? join(root, 'cache')),
+  }
+}
+
+export async function ensureRuntimePaths(paths: RuntimePaths): Promise<void> {
+  await Promise.all(Object.entries(paths)
+    .filter(([name]) => name !== 'root')
+    .map(([, path]) => mkdir(path, { recursive: true, mode: 0o700 })))
+}
+
+/**
+ * The Hulala Host is one DSH process with one native Agent Loop.
+ *
+ * There is no Hulala runtime selector, no proxy plugin, and no Pi/Codex/Claude
+ * loop in this composition: the Host is DeepSeek Harness itself.
+ * @returns the patch layers that disable the unused upstream rows and insert
+ *   the native Agent Loop plus authorization.
+ */
+export function createNativeHarnessPatch(): PatchOptions[] {
+  return [
+    { id: 'agent-loop', disabled: true },
+    // DeepSeek's optional PTC stack imports Node-only stripTypeScriptTypes.
+    { id: 'ptc-runtime', disabled: true },
+    { id: 'workflow-ptc', disabled: true },
+    { id: 'tool-workflow', disabled: true },
+    { insert: [
+      { id: 'authorization', name: '@deepseek-ai/dsh-authorization' },
+      { id: 'agent-loop-runtime', name: '@deepseek-ai/dsh-agent-loop' },
+    ] },
+  ]
+}
+
+export async function reserveLoopbackPort(): Promise<number> {
+  const server = createServer()
+  await new Promise<void>((resolveReady, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolveReady)
+  })
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('unable to reserve loopback port')
+  await new Promise<void>((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose()))
+  return address.port
+}
+
+async function waitForHealth(url: string, process: Bun.Subprocess, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (process.exitCode !== null) throw new Error(`Harness exited during startup with code ${process.exitCode}`)
+    try {
+      const response = await fetch(`${url}/api/hulala/health`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(500),
+      })
+      if (response.ok) return
+    } catch {
+      // Runtime is still starting.
+    }
+    await Bun.sleep(100)
+  }
+  throw new Error(`Harness did not become ready within ${timeoutMs}ms`)
+}
+
+/**
+ * The executable that hosts one child Harness process. DSH 0.2.1 profile boot
+ * reaches Node's internal module loader through an N-API addon, which Bun
+ * cannot run, so the child Runtime must be a Node process.
+ * @returns the configured Node executable, or the current process when it is Node.
+ */
+export function harnessNodeExecutable(environment: NodeJS.ProcessEnv = process.env): string {
+  if (process.versions.node !== undefined && process.versions.bun === undefined) return process.execPath
+  return environment.HULALA_NODE_EXECUTABLE?.trim() || 'node'
+}
+
+export function harnessWebCommand(
+  executable: string,
+  dshBin: string,
+  patchPath: string,
+  host: '127.0.0.1',
+  port: number,
+): string[] {
+  return [
+    executable,
+    dshBin,
+    'web',
+    '--patch', patchPath,
+    '--host', host,
+    '--port', String(port),
+    '--no-open',
+  ]
+}
+
+export async function startHarnessRuntime(options: StartRuntimeOptions): Promise<RuntimeHandle> {
+  const host = options.host ?? '127.0.0.1'
+  const port = options.port ?? await reserveLoopbackPort()
+  const paths = resolveRuntimePaths(options.paths)
+  await ensureRuntimePaths(paths)
+
+  const temporaryRoot = await mkdtemp(join(paths.runtimeDir, 'profile-'))
+  const patchPath = join(temporaryRoot, 'profile.patch.json')
+  await writeFile(patchPath, JSON.stringify(options.patch), { encoding: 'utf8', mode: 0o600 })
+
+  const require = createRequire(import.meta.url)
+  const dshBin = require.resolve('@deepseek-ai/dsh/lib/bin.js')
+  let currentState: RuntimeState = 'starting'
+  const child = Bun.spawn(harnessWebCommand(harnessNodeExecutable(), dshBin, patchPath, host, port), {
+    stdin: 'ignore',
+    stdout: options.stdout ?? 'inherit',
+    stderr: options.stderr ?? 'inherit',
+    env: {
+      ...process.env,
+      ...options.environment,
+      HULALA_HOME: paths.root,
+      DSH_HOME: join(paths.configDir, 'harness'),
+      HULALA_CONFIG_DIR: paths.configDir,
+      HULALA_DATA_DIR: paths.dataDir,
+      HULALA_WORKSPACE_DIR: paths.workspaceDir,
+      HULALA_RUNTIME_DIR: paths.runtimeDir,
+      HULALA_LOGS_DIR: paths.logsDir,
+      HULALA_CACHE_DIR: paths.cacheDir,
+      HULALA_VERSION: options.version ?? process.env.HULALA_VERSION ?? '0.1.0',
+    },
+  })
+  const url = `http://${host}:${port}`
+  const exited = child.exited.then(async code => {
+    currentState = currentState === 'stopping' ? 'stopped' : code === 0 ? 'stopped' : 'failed'
+    await rm(temporaryRoot, { recursive: true, force: true })
+    return code
+  })
+
+  try {
+    await waitForHealth(url, child, options.startupTimeoutMs ?? 15_000)
+    currentState = 'running'
+  } catch (error) {
+    currentState = 'failed'
+    child.kill()
+    await exited.catch(() => undefined)
+    throw error
+  }
+
+  return {
+    host,
+    port,
+    url,
+    paths,
+    state: () => currentState,
+    exited,
+    async stop() {
+      if (currentState === 'stopped' || currentState === 'failed') return
+      currentState = 'stopping'
+      child.kill('SIGTERM')
+      const forced = Bun.sleep(5_000).then(() => {
+        if (child.exitCode === null) child.kill('SIGKILL')
+      })
+      await Promise.race([exited, forced])
+      await exited
+    },
+  }
+}

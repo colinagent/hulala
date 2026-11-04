@@ -1,0 +1,36 @@
+{
+  "name": "@hulala/desktop-server",
+  "version": "0.1.4",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "bin": {
+    "hulala-desktop-server": "./src/main.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "build": "bun scripts/build-server.ts",
+    "build:bundles": "bun scripts/build-bundles.ts",
+    "check:bundle": "bun scripts/check-binary-bundle.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-api-remotes": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-fs": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-host-webserver": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-subprocess": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.5",
+    "@hulala/desktop-contracts": "workspace:*",
+    "@hulala/runtime": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "5.9.3"
+  }
+}

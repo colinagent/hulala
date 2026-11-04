@@ -1,0 +1,60 @@
+# Build Hulala (terminal client + embedded Host) on each supported platform and
+# publish the archives to a GitHub Release for `hulala-v*` tags.
+# Platforms: Apple + Linux only (Windows packaging is not implemented yet).
+name: Hulala release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'hulala-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-x64
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Package Hulala
+        run: bun scripts/release/packageRelease.ts --target ${{ matrix.target }} --output dist/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hulala-${{ matrix.target }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/hulala-v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
