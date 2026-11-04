@@ -29,7 +29,7 @@ export const USAGE_HINTS: readonly UsageHint[] = [
   { keys: 'Ctrl-T', text: 'terminal in the Session directory' },
   { keys: 'Ctrl-F', text: 'Neovim in the right column' },
   { keys: 'Ctrl-[ Ctrl-]', text: 'move between rail, chat and column' },
-  { keys: 'Ctrl-Q', text: 'detach — the Host keeps running the turn' },
+  { keys: 'Ctrl-Q', text: 'detach; the Host keeps running the turn' },
   { keys: 'Esc', text: 'stop the running turn' },
   { keys: 'Ctrl-O', text: 'expand the tool row under the pointer' },
   { keys: 'Alt-Enter', text: 'queue a follow-up while a turn runs' },

@@ -131,13 +131,13 @@ test('the editor column splits the width without touching the composer height', 
   expect(frame.lines).toHaveLength(24)
   expect(columns?.rect.height).toBe(23) // 24 - band; the editor reaches the top
   expect(status?.rect.height).toBe(1)
-  // One gap column between the two columns, and the status bar spans both.
-  const [conversation, divider, pane] = columns?.children ?? []
+  // One blank column on each side of the divider, and the band spans both.
+  const [conversation, , divider, , pane] = columns?.children ?? []
   expect(divider?.rect.width).toBe(1)
   expect(divider?.rect.x).toBe(50)
-  expect(conversation?.rect.width).toBe(50)
-  expect(pane?.rect.width).toBe(49)
-  expect(pane?.rect.x).toBe(51) // one divider column, then the pane
+  expect(conversation?.rect.width).toBe(49)
+  expect(pane?.rect.width).toBe(48)
+  expect(pane?.rect.x).toBe(52) // a gap, the divider, a gap, then the pane
   expect(pane?.rect.height).toBe(23) // 24 - band
   // The composer keeps its three rows inside the narrower left column.
   const leftChildren = conversation?.children ?? []
@@ -165,11 +165,11 @@ test('setPaneWidth moves the divider without rebuilding the transcript', () => {
 
   layout.setPaneWidth(60)
   const after = renderLayoutFrame(layout.root, 100, 24, () => undefined)
-  const [conversation, divider, pane] = after.root.children[0]?.children ?? []
-  expect(conversation?.rect.width).toBe(39)
+  const [conversation, , divider, , pane] = after.root.children[0]?.children ?? []
+  expect(conversation?.rect.width).toBe(38)
   expect(divider?.rect.x).toBe(39)
-  expect(pane?.rect.width).toBe(60)
-  expect(pane?.rect.x).toBe(40)
+  expect(pane?.rect.width).toBe(59)
+  expect(pane?.rect.x).toBe(41)
   // The same ScrollView instance survives, so a drag never loses scroll state.
   expect(after.root.children[0]?.children[0]?.children[0]?.component).toBe(scrollBefore)
   expect(scrollBefore).toBe(layout.transcriptScroll)
@@ -186,10 +186,10 @@ test('the side columns fill the frame when the conversation is put away', () => 
   const [columns, status] = frame.root.children
   expect(status?.rect.height).toBe(1)
   // The pane keeps its width and the rail absorbs the rest of the frame.
-  const [railBox, divider, paneBox] = columns?.children ?? []
-  expect(railBox?.rect).toMatchObject({ x: 0, width: 59 })
+  const [railBox, , divider, , paneBox] = columns?.children ?? []
+  expect(railBox?.rect).toMatchObject({ x: 0, width: 58 })
   expect(divider?.rect).toMatchObject({ x: 59, width: 1 })
-  expect(paneBox?.rect).toMatchObject({ x: 60, width: 40 })
+  expect(paneBox?.rect).toMatchObject({ x: 61, width: 39 })
   expect(frame.lines[3]).toContain('rail')
   expect(frame.lines[3]).toContain('nvim')
   // With the conversation put away the footer spans the frame: there is no
@@ -222,9 +222,9 @@ test('the side columns still resize the editor divider', () => {
   })
   layout.setPaneWidth(50)
   const frame = renderLayoutFrame(layout.root, 100, 24, () => undefined)
-  const [railBox, divider, paneBox] = frame.root.children[0]?.children ?? []
-  expect(railBox?.rect.width).toBe(49)
-  expect(divider?.rect.x).toBe(49)
+  const [railBox, , divider, , paneBox] = frame.root.children[0]?.children ?? []
+  expect(railBox?.rect.width).toBe(47)
+  expect(divider?.rect.x).toBe(48)
   expect(paneBox?.rect).toMatchObject({ x: 50, width: 50 })
 })
 
@@ -257,11 +257,12 @@ test('the rail, the conversation and the editor each get their columns', () => {
     railDivider: slab('|', 24),
   }
   const withEditor = renderLayoutFrame(buildRailTerminalLayout({ ...shared, pane }).root, 120, 24, () => undefined)
-  const [rail, railDivider, conversation, divider, editor] = withEditor.root.children[0]?.children ?? []
+  // rail | gap | divider | gap | conversation | gap | divider | gap | editor
+  const [rail, , railDivider, , conversation, , divider, , editor] = withEditor.root.children[0]?.children ?? []
   expect(rail?.rect).toMatchObject({ x: 0, width: 18 })
-  expect(railDivider?.rect).toMatchObject({ x: 18, width: 1 })
-  expect(conversation?.rect.width).toBe(68)
-  expect(divider?.rect.x).toBe(87)
+  expect(railDivider?.rect).toMatchObject({ x: 19, width: 1 })
+  expect(conversation?.rect.width).toBe(64)
+  expect(divider?.rect.x).toBe(86)
   expect(editor?.rect).toMatchObject({ x: 88, width: 32 })
   // The band is one surface across the whole frame, from the first column to the
   // last, and it is one row tall.
@@ -272,7 +273,7 @@ test('the rail, the conversation and the editor each get their columns', () => {
 
   // Without the editor the conversation takes everything the rail leaves.
   const alone = renderLayoutFrame(buildRailTerminalLayout(shared).root, 120, 24, () => undefined)
-  expect(alone.root.children[0]?.children?.map(child => child.rect.width)).toEqual([18, 1, 101])
+  expect(alone.root.children[0]?.children?.map(child => child.rect.width)).toEqual([18, 1, 1, 1, 99])
 })
 
 test('the rail layout still resizes the editor divider', () => {
@@ -293,7 +294,7 @@ test('the rail layout still resizes the editor divider', () => {
   layout.setPaneWidth(40)
   const frame = renderLayoutFrame(layout.root, 120, 24, () => undefined)
   const pane = frame.root.children[0]?.children?.at(-1)
-  expect(pane?.rect).toMatchObject({ x: 80, width: 40 })
+  expect(pane?.rect).toMatchObject({ x: 81, width: 39 })
 })
 
 test('the rail carries the path instead of the row above the composer', () => {
@@ -310,7 +311,7 @@ test('the rail carries the path instead of the row above the composer', () => {
   const withoutBar = renderLayoutFrame(buildRailTerminalLayout(shared).root, 120, 20, () => undefined)
   expect(withBar.lines.some(line => line.includes('cwd'))).toBe(true)
   expect(withoutBar.lines.some(line => line.includes('cwd'))).toBe(false)
-  const conversation = (frame: typeof withBar) => frame.root.children[0]?.children?.[2]?.children ?? []
+  const conversation = (frame: typeof withBar) => frame.root.children[0]?.children?.[4]?.children ?? []
   // transcript, pending, (cwd), composer
   expect(conversation(withBar)).toHaveLength(4)
   expect(conversation(withoutBar)).toHaveLength(3)

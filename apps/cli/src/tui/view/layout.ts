@@ -56,6 +56,14 @@ function chatEntries(options: TerminalLayoutOptions): NonNullable<ConstructorPar
   ]
 }
 
+/** A one-column spacer the layout can size; a wrapper would hide a layout node. */
+class BlankColumn implements Component {
+  invalidate(): void {}
+  render(width: number): string[] {
+    return [' '.repeat(Math.max(0, width))]
+  }
+}
+
 /** Left column that reports pointer presence while keeping normal mouse routing. */
 class ConversationColumn extends VStack {
   constructor(children: ConstructorParameters<typeof VStack>[0], private readonly onPointer: () => void) {
@@ -221,15 +229,21 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
   const pane = options.pane
   let paneWidth = pane === undefined ? 0 : Math.max(SPLIT_MIN_SIZE, Math.round(pane.width))
 
+  // The rule is a separator, so neither the rail nor the conversation starts in
+  // the cell where it is drawn: one blank column on each side of every divider.
   const entries: NonNullable<ConstructorParameters<typeof HStack>[0]> = [
-    { component: options.rail, basis: railWidth, grow: 0, shrink: 0 },
+    { component: options.rail, basis: Math.max(RAIL_MIN_SIZE, railWidth - 1), grow: 0, shrink: 0 },
+    { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
     { component: options.railDivider, basis: SPLIT_GAP, shrink: 0 },
+    { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
     { component: conversation, basis: 0, grow: 1, shrink: 1, minSize: RAIL_CONVERSATION_MIN },
   ]
   if (pane !== undefined) {
     entries.push(
+      { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
       { component: pane.divider, basis: SPLIT_GAP },
-      { component: pane.component, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
+      { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
+      { component: pane.component, basis: Math.max(SPLIT_MIN_SIZE, paneWidth - 1), grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
     )
   }
 
@@ -250,7 +264,7 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
     if (next === paneWidth) return
     paneWidth = next
     columns.removeChild(pane.component)
-    columns.addChild(pane.component, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
+    columns.addChild(pane.component, { basis: Math.max(SPLIT_MIN_SIZE, paneWidth - 1), grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
   }
 
   return { root, transcriptScroll, setPaneWidth }
@@ -277,9 +291,11 @@ export function buildSideColumnsLayout(options: SideColumnsLayoutOptions): SideC
     : pane === undefined
       ? [{ component: rail.component, basis: 0, grow: 1, shrink: 1, minSize: 1 }]
       : [
-          { component: rail.component, basis: Math.max(RAIL_MIN_SIZE, Math.round(rail.width)), grow: 1, shrink: 1, minSize: RAIL_MIN_SIZE },
+          { component: rail.component, basis: Math.max(RAIL_MIN_SIZE, Math.round(rail.width) - 1), grow: 1, shrink: 1, minSize: RAIL_MIN_SIZE },
+          { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
           { component: rail.divider, basis: SPLIT_GAP, shrink: 0 },
-          { component: pane.component, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
+          { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
+          { component: pane.component, basis: Math.max(SPLIT_MIN_SIZE, paneWidth - 1), grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
         ])
 
   // Even with the conversation put away the frame keeps its status band: the
@@ -328,8 +344,10 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
 
   const columns = new HStack([
     { component: conversation, basis: 0, grow: 1, shrink: 1, minSize: SPLIT_MIN_SIZE },
+    { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
     { component: options.divider, basis: SPLIT_GAP },
-    { component: options.pane, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
+    { component: new BlankColumn(), basis: SPLIT_GAP, grow: 0, shrink: 0 },
+    { component: options.pane, basis: Math.max(SPLIT_MIN_SIZE, paneWidth - 1), grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
   ])
 
   const root = new VStack([
@@ -347,7 +365,7 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
     if (next === paneWidth) return
     paneWidth = next
     columns.removeChild(options.pane)
-    columns.addChild(options.pane, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
+    columns.addChild(options.pane, { basis: Math.max(SPLIT_MIN_SIZE, paneWidth - 1), grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
   }
 
   return { root, transcriptScroll, setPaneWidth }
