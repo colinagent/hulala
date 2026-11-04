@@ -69,9 +69,10 @@ export class StatusBar implements Component {
     const hintBudget = Math.max(0, Math.min(centreStart - 1, modelStart - 1))
     const hintText = hintBudget >= 6 ? truncateLeftText(hint, hintBudget) : ''
 
-    // Style the three segments without breaking the band's fill: the band
-    // wrapper re-opens its own background after every nested reset.
-    const styled = `${hintText === '' ? '' : styles.dim(hintText)}` +
+    // All three slots carry the band's own ink. A hint is no less important
+    // than a reading, and dimming it was the only thing that made the row look
+    // like two different surfaces.
+    const styled = `${hintText}` +
       `${' '.repeat(Math.max(0, centreStart - visibleWidth(hintText)))}` +
       `${fitted}` +
       `${' '.repeat(Math.max(0, modelStart - centreStart - readingsWidth))}` +
