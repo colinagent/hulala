@@ -46,3 +46,13 @@ from the source repository at build time.
 - Commit: `1603abdf0b3d2082f8d39c6fe2cbde11cc419fa2`
 - Use: the editor's EPUB reader (`:Reader book.epub`)
 - License: MIT; vendored under `apps/cli/vendor/reader.nvim/`
+
+## libghostty-vt (Ghostty)
+
+- Project: [ghostty-org/ghostty](https://github.com/ghostty-org/ghostty)
+- Commit: `c7f68a7f48c6a5b357689eb8c2328bc2dab5d8ed`
+- Use: the terminal engine behind the terminal and editor columns of the TUI
+- Build: `zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseFast`,
+  optimised with `wasm-opt -O3`
+- License: MIT; the compiled module is vendored as `apps/cli/vendor/ghostty-vt.wasm`
+  (digest in `ghostty-vt.SHA256`) and shipped as `runtime/ghostty-vt.wasm`

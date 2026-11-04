@@ -5,6 +5,7 @@
  *   bin/hulala                 Node ESM CLI/TUI entry
  *   server/hulala-host.mjs     Host wrapper (the real Host lives in runtime/)
  *   runtime/host.mjs           compiled Node Host
+ *   runtime/ghostty-vt.wasm    terminal engine for the two side columns
  *   runtime/node_modules/      DSH engine and native dependencies
  *   bin/nvim                   bundled Neovim binary for this platform
  *   bin/ime                    macOS input-source helper (darwin targets only)
@@ -81,6 +82,9 @@ await mkdir(join(staging, 'server'), { recursive: true })
 await writeFile(join(staging, 'server', 'hulala-host.mjs'), "import('../runtime/host.mjs')\n", { mode: 0o600 })
 await mkdir(join(staging, 'runtime'), { recursive: true })
 await copyFile(join(repositoryRoot, 'apps/server/dist/hulala-desktop-server.mjs'), join(staging, 'runtime', 'host.mjs'))
+// One module for every platform: the client loads it beside the bundle, so the
+// terminal column needs no native build and no per-architecture binary.
+await copyFile(join(repositoryRoot, 'apps/cli/vendor/ghostty-vt.wasm'), join(staging, 'runtime', 'ghostty-vt.wasm'))
 
 const runtimeManifest = JSON.parse(await readFile(join(repositoryRoot, 'packages/runtime/package.json'), 'utf8')) as { dependencies?: Record<string, string> }
 const serverManifest = JSON.parse(await readFile(join(repositoryRoot, 'apps/server/package.json'), 'utf8')) as { dependencies?: Record<string, string> }

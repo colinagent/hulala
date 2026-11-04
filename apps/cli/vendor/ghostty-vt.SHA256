@@ -1,0 +1,12 @@
+ac3768f026faf40f40e5c3ecd30a49f8b2de84ba047eb0953fdd254f8309e9cf  ghostty-vt.wasm
+
+libghostty-vt, the terminal engine behind the TUI's terminal and editor columns.
+
+Origin: ghostty-org/ghostty @ c7f68a7f48c6a5b357689eb8c2328bc2dab5d8ed (tip, 2026-11-04)
+Build:  zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseFast
+        then wasm-opt -O3 --strip-dwarf (simd128 and bulk-memory enabled)
+Source: https://tip.files.ghostty.org/c7f68a7f48c6a5b357689eb8c2328bc2dab5d8ed/ghostty-vt.wasm
+License: MIT (see THIRD_PARTY_NOTICES.md)
+
+apps/cli/src/tui/pane/ghosttyVt.ts loads this file at run time; `bun run check:wasm`
+verifies the digest so a stale or swapped module cannot ship unnoticed.

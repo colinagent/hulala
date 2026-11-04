@@ -6,15 +6,15 @@
  * it would in a plain terminal; the client sits in the middle as an ordinary
  * terminal emulator.
  *
- * - bytes from the pty are fed into `@xterm/headless`, which parses escape
- *   sequences into cells (the same package, and the same major version, that
- *   the Host already uses for terminal screen recovery);
- * - a render pass reads those cells back out as ANSI-styled lines, which
- *   `ScreenPane` hands to pi-tui.
+ * - bytes from the pty are fed into libghostty-vt (`ghostty-vt.wasm`), which
+ *   parses them into a screen model — the same engine family as the terminal the
+ *   client runs inside;
+ * - a render pass reads the visible viewport back as styled lines, and
+ *   `ScreenPane` hands them to pi-tui.
  *
  * No VT parsing happens here on purpose: width handling, SGR, alternate screens
- * and reflow are xterm's job. Rendering is driven by output rather than by a
- * timer, so an idle process produces no frames at all.
+ * and reflow belong to the engine. Rendering is driven by output rather than by
+ * a timer, so an idle process produces no frames at all.
  *
  * There is history only where the column asked for it: the terminal pages back
  * through output that scrolled off, while the editor has its own buffers and
@@ -23,8 +23,8 @@
  * @module hulala-cli/tui/pane/screenSession
  */
 import { CURSOR_MARKER, renderFakeCursor } from '@earendil-works/pi-tui'
-import { Terminal, type IBufferCell } from '@xterm/headless'
 import type { PtyModule, PtyProcess } from '../editor/pty.js'
+import { GhosttyVt } from './ghosttyVt.js'
 
 const RESET = '\u001b[0m'
 
@@ -67,44 +67,18 @@ export interface ScreenSessionOptions {
   readonly onExit: (exitCode: number) => void
 }
 
-/** Build one SGR parameter list for a cell, or `''` for plain default text. */
-function cellSgr(cell: IBufferCell): string {
-  let sgr = ''
-  if (cell.isBold() !== 0) sgr += ';1'
-  if (cell.isDim() !== 0) sgr += ';2'
-  if (cell.isItalic() !== 0) sgr += ';3'
-  if (cell.isUnderline() !== 0) sgr += ';4'
-  if (cell.isBlink() !== 0) sgr += ';5'
-  if (cell.isInverse() !== 0) sgr += ';7'
-  if (cell.isStrikethrough() !== 0) sgr += ';9'
-  const fg = cell.getFgColor()
-  if (cell.isFgRGB()) sgr += `;38;2;${(fg >> 16) & 0xff};${(fg >> 8) & 0xff};${fg & 0xff}`
-  else if (cell.isFgPalette()) sgr += `;38;5;${fg}`
-  const bg = cell.getBgColor()
-  if (cell.isBgRGB()) sgr += `;48;2;${(bg >> 16) & 0xff};${(bg >> 8) & 0xff};${bg & 0xff}`
-  else if (cell.isBgPalette()) sgr += `;48;5;${bg}`
-  return sgr
-}
-
 export class ScreenSession {
-  private readonly screen: Terminal
+  private readonly vt: GhosttyVt
   private readonly child: PtyProcess
   private readonly history: boolean
+  private readonly encoder = new TextEncoder()
   private disposed = false
-  private background: string | undefined
-  private backgroundRevision = -1
-  /** Bumped whenever the parsed screen changes, so caches can key on it. */
-  private revision = 0
+  private height: number
 
   private constructor(options: ScreenSessionOptions) {
-    const history = (options.scrollback ?? 0) > 0
-    this.history = history
-    this.screen = new Terminal({
-      cols: options.cols,
-      rows: options.rows,
-      allowProposedApi: true,
-      scrollback: options.scrollback ?? 0,
-    })
+    this.history = (options.scrollback ?? 0) > 0
+    this.height = options.rows
+    this.vt = new GhosttyVt(options.cols, options.rows)
     this.child = options.pty.spawn(options.command, [...options.args], {
       name: 'xterm-256color',
       cols: options.cols,
@@ -114,19 +88,15 @@ export class ScreenSession {
     })
     this.child.onData(data => {
       if (this.disposed) return
-      // Parse first, then repaint: `write` is queued, so reading straight after
-      // it would show the previous frame.
-      this.screen.write(data, () => {
-        if (this.disposed) return
-        this.revision += 1
-        options.onScreen()
-      })
+      // Parsing is synchronous: by the time the callback returns the screen model
+      // already holds the new frame, so the repaint reads what the program wrote.
+      this.vt.write(this.encoder.encode(data))
+      options.onScreen()
     })
     this.child.onExit(event => {
       if (this.disposed) return
       this.disposed = true
-      // The caller drops the pane, but the parse model is ours to release.
-      this.screen.dispose()
+      this.vt.dispose()
       options.onExit(event.exitCode)
     })
   }
@@ -149,70 +119,33 @@ export class ScreenSession {
   /** Resize both the pty and the screen model; no-op when unchanged. */
   resize(cols: number, rows: number): void {
     if (this.disposed) return
-    if (this.screen.cols === cols && this.screen.rows === rows) return
-    this.screen.resize(cols, rows)
+    if (this.vt.columns === cols && this.height === rows) return
+    this.vt.resize(cols, rows)
+    this.height = rows
     this.child.resize(cols, rows)
-    this.revision += 1
   }
 
   /**
    * ANSI background the program paints most of its cells with, or `''` for the
-   * terminal default. The split divider uses it so the column reads as the
-   * program's left edge instead of a third colour between the two sides.
+   * terminal default.
    *
-   * The most common background wins rather than the cell at (0,0): an open
-   * file tree or a floating window owns the top-left corner, and its background
-   * is not the program's own. Cached briefly, because this runs while painting.
+   * The split divider uses it so the column reads as the program's left edge
+   * instead of a third colour between the two sides. The engine reports the
+   * terminal's effective background, which is what a program that recolours the
+   * screen through OSC 11 (Neovim) sets.
    * @returns an SGR background sequence, possibly empty.
    */
   backgroundAnsi(): string {
     if (this.disposed) return ''
-    if (this.background !== undefined && this.backgroundRevision === this.revision) return this.background
-    const buffer = this.screen.buffer.active
-    const rows = this.screen.rows
-    const cols = this.screen.cols
-    const counts = new Map<string, number>()
-    for (let y = 0; y < rows; y += 2) {
-      const line = buffer.getLine(buffer.viewportY + y)
-      if (line === undefined) continue
-      for (let x = 0; x < cols; x += 2) {
-        const cell = line.getCell(x)
-        if (cell === undefined) continue
-        // Only cells the program painted explicitly count: the majority that
-        // carry no background already render in the terminal's own colour,
-        // which is what the conversation beside them uses.
-        if (cell.isBgDefault()) continue
-        const value = cell.getBgColor()
-        const key = cell.isBgRGB() ? `r${value}` : `p${value}`
-        counts.set(key, (counts.get(key) ?? 0) + 1)
-      }
-    }
-    let best = 'default'
-    let bestCount = 0
-    for (const [key, count] of counts) {
-      if (count > bestCount) {
-        bestCount = count
-        best = key
-      }
-    }
-    let ansi = ''
-    if (best.startsWith('r')) {
-      const rgb = Number(best.slice(1))
-      ansi = `\u001b[48;2;${(rgb >> 16) & 0xff};${(rgb >> 8) & 0xff};${rgb & 0xff}m`
-    } else if (best.startsWith('p')) {
-      ansi = `\u001b[48;5;${Number(best.slice(1))}m`
-    }
-    this.background = ansi
-    this.backgroundRevision = this.revision
-    return ansi
+    return this.vt.backgroundAnsi()
   }
 
   /**
    * Visible screen rows as ANSI strings, exactly one per requested row.
    *
    * The viewport is wherever paging left it, so a scrolled-back row shows
-   * history instead of the live screen. New output does not move it: `viewportY`
-   * is an absolute buffer offset, which is what makes reading history while a
+   * history instead of the live screen. New output does not move it: the engine
+   * keeps the viewport offset, which is what makes reading history while a
    * command still runs possible.
    *
    * The program's cell under the cursor is drawn as a reverse-video block
@@ -227,56 +160,18 @@ export class ScreenSession {
    */
   renderScreen(width: number, height: number, cursor: CursorKind, faintSgr: string): string[] {
     if (this.disposed) return []
-    const buffer = this.screen.buffer.active
-    const cursorX = Math.max(0, Math.min(width - 1, buffer.cursorX))
-    const cursorY = Math.max(0, Math.min(height - 1, buffer.cursorY - buffer.viewportY))
-    const lines: string[] = []
-    for (let y = 0; y < height; y += 1) {
-      const line = buffer.getLine(buffer.viewportY + y)
-      if (line === undefined) {
-        lines.push(' '.repeat(width))
-        continue
-      }
-      let text = ''
-      let open = ''
-      let marked = false
-      for (let x = 0; x < width; x += 1) {
-        const cell = line.getCell(x)
-        if (cell === undefined) break
-        // A wide glyph owns its cell and reports width 2; the cell after it
-        // reports width 0 and must not emit a second copy of the character.
-        if (cell.getWidth() === 0) continue
-        const sgr = cellSgr(cell)
-        if (sgr !== open) {
-          text += `${RESET}${sgr === '' ? '' : `\u001b[${sgr.slice(1)}m`}`
-          open = sgr
+    this.resize(width, height)
+    const where = cursor === 'none' ? undefined : this.vt.cursor()
+    const ink = cursor === 'none'
+      ? undefined
+      : {
+          draw: (text: string): string => {
+            if (cursor === 'focused') return CURSOR_MARKER + renderFakeCursor(text === '' ? ' ' : text)
+            if (faintSgr === '') return RESET + HOLLOW_CURSOR
+            return `${RESET}${faintSgr}${text === '' ? ' ' : text}${RESET}`
+          },
         }
-        const chars = cell.getChars() || ' '
-        if (cursor !== 'none' && !marked && y === cursorY && x >= cursorX) {
-          if (cursor === 'dim') {
-            // Half-opacity block, or the hollow glyph when colour is disabled.
-            // The reset matters: the following cell may be default-coloured and
-            // would otherwise inherit the block's colours.
-            text += faintSgr === '' ? RESET + HOLLOW_CURSOR : `${RESET}${faintSgr}${chars}${RESET}`
-          } else {
-            // The marker lets pi-tui resolve the fake cursor to reverse video
-            // and keeps the cell's position available for the IME.
-            text += CURSOR_MARKER + renderFakeCursor(chars)
-          }
-          marked = true
-          // The cursor cell no longer carries the program's own SGR, so the next
-          // cell must restate its attributes.
-          open = ''
-          continue
-        }
-        text += chars
-      }
-      // Cursor past the last cell of the row: there is no cell to draw on, so
-      // only the marker can place the terminal cursor.
-      if (cursor === 'focused' && !marked && y === cursorY) text += CURSOR_MARKER
-      lines.push(text + RESET)
-    }
-    return lines
+    return this.vt.renderRows(width, height, where, ink)
   }
 
   /**
@@ -287,7 +182,7 @@ export class ScreenSession {
    */
   alternateScreen(): boolean {
     if (this.disposed) return false
-    return this.screen.buffer.active.type !== 'normal'
+    return this.vt.alternateScreen()
   }
 
   /**
@@ -301,8 +196,8 @@ export class ScreenSession {
    */
   scrollable(): boolean {
     if (this.disposed || !this.history) return false
-    const buffer = this.screen.buffer.active
-    return buffer.type === 'normal' && buffer.baseY > 0
+    const bar = this.vt.scrollbar()
+    return !this.vt.alternateScreen() && bar.total > bar.length
   }
 
   /**
@@ -312,12 +207,9 @@ export class ScreenSession {
    */
   scrollPages(pages: number): boolean {
     if (!this.scrollable()) return false
-    const buffer = this.screen.buffer.active
-    const before = buffer.viewportY
-    this.screen.scrollPages(pages)
-    if (this.screen.buffer.active.viewportY === before) return false
-    this.revision += 1
-    return true
+    const before = this.vt.scrolledBack()
+    this.vt.scrollDelta(pages * Math.max(1, this.height))
+    return this.vt.scrolledBack() !== before
   }
 
   /**
@@ -326,32 +218,29 @@ export class ScreenSession {
    */
   follow(): boolean {
     if (this.disposed || !this.history) return false
-    const buffer = this.screen.buffer.active
-    if (buffer.viewportY >= buffer.baseY) return false
-    this.screen.scrollToBottom()
-    this.revision += 1
+    if (this.vt.scrolledBack() === 0) return false
+    this.vt.scrollToBottom()
     return true
   }
 
   /**
-   * Lines between the top of the viewport and the bottom of the buffer.
+   * Lines between the top of the viewport and the live screen's bottom.
    * @returns 0 while the pane shows the live screen.
    */
   scrolledBack(): number {
-    if (this.disposed || !this.history) return 0
-    const buffer = this.screen.buffer.active
-    return Math.max(0, buffer.baseY - buffer.viewportY)
+    if (this.disposed) return 0
+    return this.vt.scrolledBack()
   }
 
-  /** Stop the program and release the screen model. */
+  /** Stop the child and release the screen model. */
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.vt.dispose()
     try {
       this.child.kill()
     } catch {
-      // The process may already be gone; disposal must stay total.
+      // The process is already gone; nothing left to stop.
     }
-    this.screen.dispose()
   }
 }

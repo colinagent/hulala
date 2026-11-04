@@ -61,7 +61,6 @@
     "@hulala/distribution": "workspace:*",
     "@hulala/host-client": "workspace:*",
     "@hulala/runtime": "workspace:*",
-    "@xterm/headless": "6.0.0",
     "tar-stream": "3.2.2",
     "ws": "8.21.1"
   },
