@@ -27,6 +27,7 @@ import { editorThemeFromTerminal } from './editor/editorTheme.js'
 import type { PtyModule } from './editor/pty.js'
 import { resolvePaths } from '../paths.js'
 import { checkForUpdate, updateNotice, type UpdateInfo } from '../update/check.js'
+import { collect, spawnDetached } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
@@ -96,9 +97,7 @@ function colorEnabled(): boolean {
 async function defaultApplyUpdate(): Promise<{ ok: boolean; message: string }> {
   const entry = process.argv[1]
   if (entry === undefined) return { ok: false, message: 'cannot locate the hulala entry point' }
-  const child = Bun.spawn([process.execPath, entry, 'update'], { stdout: 'pipe', stderr: 'pipe', env: { ...process.env } })
-  const [stdout, stderr] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()])
-  const code = await child.exited
+  const { code, stdout, stderr } = await collect(process.execPath, [entry, 'update'])
   const lines = (stdout + stderr).split('\n').map(line => line.trim()).filter(line => line !== '')
   const tail = lines.slice(-2).join(' · ')
   if (code === 0) return { ok: true, message: tail === '' ? 'release installed' : tail }
@@ -110,7 +109,7 @@ function restartClient(dataRoot: string, resume: string | undefined): void {
   const launcher = join(dataRoot, 'bin', 'hulala')
   const args = [launcher, ...(resume === undefined ? [] : ['--resume', resume])]
   try {
-    Bun.spawn([process.execPath, ...args], { stdio: ['inherit', 'inherit', 'inherit'], env: { ...process.env } })
+    spawnDetached(process.execPath, args, 'inherit')
   } catch {
     // Restarting is a convenience; failing to spawn leaves the new release
     // installed and the user can run `hulala` themselves.

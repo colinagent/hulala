@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { VERSION } from '../constants.js'
 import { resolvePaths } from '../paths.js'
+import { spawnDetached } from '../spawn.js'
 import { downloadArchive, unpackRelease, fileSha256 } from '@hulala/distribution/archive'
 import { compareVersions, selectRelease } from '@hulala/distribution/channels'
 import { releaseTarget } from '@hulala/distribution/targets'
@@ -181,12 +182,12 @@ export async function runDistributionCommand(command: string, args: string[]): P
       // `hulala update` reads, so the user never waits on 150 MB in the foreground.
       const entry = process.argv[1]
       if (entry === undefined) throw new Error('Cannot start the background download from this entry point')
-      const child = Bun.spawn(
-        [process.execPath, entry, 'update', '--download-only', ...(input.version === undefined ? [] : ['--version', input.version])],
-        { detached: true, stdio: ['ignore', 'ignore', 'ignore'], env: { ...process.env } },
+      const child = spawnDetached(
+        process.execPath,
+        [entry, 'update', '--download-only', ...(input.version === undefined ? [] : ['--version', input.version])],
+        'ignore',
       )
-      child.unref()
-      console.log(`Downloading the next release in the background (pid ${child.pid}).`)
+      console.log(`Downloading the next release in the background (pid ${child.pid ?? 'unknown'}).`)
       console.log('Run `hulala update` again when it finishes; it installs from the download without starting over.')
       return 0
     }
