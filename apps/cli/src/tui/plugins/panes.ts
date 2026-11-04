@@ -151,10 +151,11 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   let conflictTimer: ReturnType<typeof setInterval> | undefined
   let dividerHovered = false
   /**
-   * Width share per column, kept across closing and resizes. A terminal is read
-   * line by line, so it starts wider than the editor column does.
+   * Width share per column, kept across closing and resizes. Both columns start
+   * at a third of the terminal: the conversation keeps two thirds of the reading
+   * width, and the divider still drags both ways.
    */
-  const ratios: Record<PaneKind, number> = { terminal: 0.55, editor: 0.5 }
+  const ratios: Record<PaneKind, number> = { terminal: 1 / 3, editor: 1 / 3 }
 
   const rows = (): number => Math.max(1, terminal.rows - 1)
 

@@ -237,18 +237,15 @@ test('the rail, the conversation and the editor each get their columns', () => {
   expect(conversation?.rect.width).toBe(68)
   expect(divider?.rect.x).toBe(87)
   expect(editor?.rect).toMatchObject({ x: 88, width: 32 })
-  // The footer runs to the frame's right edge; the rail's rule ends it on the
-  // left, and the readings start exactly at the conversation's left edge.
+  // The footer is one bar across the whole frame, and the readings inside it
+  // start exactly at the conversation's left edge.
   const footer = withEditor.root.children[1]
-  const [gap, rule, statusBox] = footer?.children ?? []
-  expect(gap?.rect).toMatchObject({ x: 0, width: 18, height: 1 })
-  expect(rule?.rect).toMatchObject({ x: 18, width: 1, height: 1 })
-  expect(statusBox?.rect).toMatchObject({ x: 19, y: 23, height: 1 })
+  expect(footer?.rect).toMatchObject({ x: 0, width: 120, y: 23, height: 1 })
   expect(rail?.rect.height).toBe(23)
   expect(railDivider?.rect.height).toBe(23)
   expect(divider?.rect.height).toBe(23)
   const statusLine = strip(withEditor.lines.at(-1) ?? '')
-  expect(statusLine[18]).toBe('|')
+  expect(statusLine.slice(0, 19).trim()).toBe('')
   expect(statusLine.slice(19)).toStartWith('status')
 
   // Without the editor the conversation takes everything the rail leaves.
