@@ -116,7 +116,25 @@ export function rasterizeFrame(input: FrameInput): { width: number; height: numb
   const cursor = vt.cursor()
   const lines = vt.renderRows(cols, rows, cursor, { draw: (text: string) => text })
 
-  const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  /** Blend two CSS colours; used to render faint text on a filled band. */
+function mix(fg: string, bg: string, amount = 0.45): string {
+  const parse = (value: string): [number, number, number] => {
+    const rgb = /rgb\((\d+),(\d+),(\d+)\)/u.exec(value)
+    if (rgb !== null) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+    const hex = /#([0-9a-f]{6})/iu.exec(value)
+    if (hex !== null) {
+      const n = Number.parseInt(hex[1]!, 16)
+      return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+    }
+    return [217, 214, 208]
+  }
+  const [r1, g1, b1] = parse(fg)
+  const [r2, g2, b2] = parse(bg)
+  const blend = (a: number, b: number): number => Math.round(a * (1 - amount) + b * amount)
+  return `rgb(${blend(r1, r2)},${blend(g1, g2)},${blend(b1, b2)})`
+}
+
+const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
   const spans: string[] = []
   for (let row = 0; row < lines.length; row += 1) {
@@ -130,9 +148,12 @@ export function rasterizeFrame(input: FrameInput): { width: number; height: numb
       const rule = text === '\u2502' || text === '\u258f' || text === '\u2500' || text === '\u2015'
       if (rule) {
         const vertical = text !== '\u2500' && text !== '\u2015'
+        // Rules are drawn as boxes, so the dim opacity the text spans use has to
+        // be stated here too: a dim rule is a fainter line, not a narrower one.
+        const dim = cell.dim ? ';opacity:.62' : ''
         const style = vertical
-          ? `left:${(col * CELL).toFixed(2)}px;top:${(row * LINE).toFixed(2)}px;width:1px;height:${LINE}px;background:${cell.fg}`
-          : `left:${(col * CELL).toFixed(2)}px;top:${(row * LINE + LINE / 2).toFixed(2)}px;width:${(width * CELL).toFixed(2)}px;height:1px;background:${cell.fg}`
+          ? `left:${(col * CELL).toFixed(2)}px;top:${(row * LINE).toFixed(2)}px;width:1px;height:${LINE}px;background:${cell.fg}${dim}`
+          : `left:${(col * CELL).toFixed(2)}px;top:${(row * LINE + LINE / 2).toFixed(2)}px;width:${(width * CELL).toFixed(2)}px;height:1px;background:${cell.fg}${dim}`
         spans.push(`<span style="${style}"></span>`)
         col += width
         continue
@@ -149,7 +170,7 @@ export function rasterizeFrame(input: FrameInput): { width: number; height: numb
           cell.bold ? 'font-weight:600' : '',
           cell.italic ? 'font-style:italic' : '',
           cell.underline ? 'text-decoration:underline' : '',
-          cell.dim ? 'opacity:.62' : '',
+          cell.dim ? (cell.bg ? `color:${mix(cell.fg, cell.bg)}` : 'opacity:.62') : '',
         ].filter(Boolean).join(';')
         spans.push(`<span style="${styles}">${esc(text)}</span>`)
       }

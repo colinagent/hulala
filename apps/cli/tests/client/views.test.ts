@@ -10,31 +10,58 @@ import { emptyMetrics } from '../../src/tui/data/viewModel.js'
 import type { TranscriptItem } from '../../src/tui/data/viewModel.js'
 import type { TerminalSession } from '../../src/tui/data/remote.js'
 
+const NO_HINT = { keys: 'Ctrl-G', text: 'show or hide the Session rail' }
+
 test('StatusBar never carries the version', () => {
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek', model: 'chat' },
     metrics: { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, decodeMs: 0 },
     disconnected: false,
-  }), false)
+  }), false, () => NO_HINT)
   const line = bar.render(80)[0] ?? ''
   expect(line).not.toContain('hulala v')
-  expect(line.trimStart().startsWith('deepseek/chat')).toBe(true)
+  expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
   expect(visibleWidth(line)).toBe(80)
 })
 
-test('StatusBar holds the working directory at the far left', () => {
+test('StatusBar centres the readings between the hint and the model', () => {
   const bar = new StatusBar(() => ({
-    cwd: '/Users/colin/note/projects/hulala',
-    home: '/Users/colin',
     model: { provider: 'deepseek', model: 'chat' },
     metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
     disconnected: false,
-  }), false)
+  }), false, () => NO_HINT)
   const line = bar.render(100)[0] ?? ''
-  expect(line.startsWith('~/note/projects/hulala')).toBe(true)
-  expect(line).toContain('80 tok/s')
-  expect(line.endsWith('deepseek/chat'))
+  const at = line.indexOf('80 tok/s')
+  expect(at).toBeGreaterThan(20)
+  // The band is one row across the frame: the reading sits mid-terminal, not
+  // under a column and not at the left edge.
+  expect(Math.abs(at + '80 tok/s · 480 tok'.length / 2 - 50)).toBeLessThan(4)
+  expect(line).not.toContain('~/')
+  expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
   expect(visibleWidth(line)).toBe(100)
+})
+
+test('StatusBar puts the rotating hint in the left slot', () => {
+  const bar = new StatusBar(() => ({
+    metrics: emptyMetrics(),
+    disconnected: false,
+  }), false, () => NO_HINT)
+  const line = bar.render(100)[0] ?? ''
+  expect(line.startsWith(' Ctrl-G — show or hide the Session rail')).toBe(true)
+})
+
+test('StatusBar paints the whole row as one band', () => {
+  const bar = new StatusBar(() => ({
+    model: { provider: 'deepseek', model: 'chat' },
+    metrics: emptyMetrics(),
+    disconnected: false,
+  }), true)
+  const line = bar.render(60)[0] ?? ''
+  // A background of its own is the whole point: the footer needs no rule.
+  expect(line).toContain('\u001b[48;')
+  expect(line).toContain('\u001b[38;')
+  expect(visibleWidth(line)).toBe(60)
+  expect(line).toContain('deepseek/chat')
 })
 
 test('StatusBar keeps the update hint after a reading arrives', () => {
@@ -46,7 +73,7 @@ test('StatusBar keeps the update hint after a reading arrives', () => {
   }), false)
   const line = bar.render(80)[0] ?? ''
   expect(line).toContain('update 0.1.9')
-  expect(line.endsWith('deepseek/chat')).toBe(true)
+  expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
   expect(visibleWidth(line)).toBe(80)
 })
 
@@ -55,7 +82,12 @@ test('StatusBar shows the context percentage over the window', () => {
     metrics: { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, decodeMs: 0, contextTokens: 142_000, contextLimit: 1_000_000 },
     disconnected: false,
   }), false)
-  expect(bar.render(80)[0]?.startsWith('14.2%/1.0M')).toBe(true)
+  const line = bar.render(80)[0] ?? ''
+  expect(line).toContain('14.2%/1.0M')
+  // Centred: the reading starts left of the middle and crosses it.
+  const at = line.indexOf('14.2%/1.0M')
+  expect(at).toBeLessThan(40)
+  expect(at + '14.2%/1.0M'.length).toBeGreaterThan(40)
 })
 
 test('StatusBar shows disconnected state on the left', () => {

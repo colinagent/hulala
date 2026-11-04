@@ -73,7 +73,7 @@ export function columnRule(rows: () => number, color: boolean): Component {
   const styles = buildStyles(color)
   return {
     invalidate: () => undefined,
-    render: () => Array.from({ length: Math.max(1, rows()) }, () => styles.dim('▏')),
+    render: () => Array.from({ length: Math.max(1, rows()) }, () => styles.separator('▏')),
   }
 }
 
@@ -88,8 +88,9 @@ export function splitDivider(options: SplitDividerOptions): SplitDivider {
   // Block glyphs are drawn at the cell edge by the terminal, unlike `│` which
   // is centred in its cell. The cell carries the editor background, so a
   // left-edge block puts the rule exactly on the column boundary instead of a
-  // half cell inside the editor. Hover thickens the block.
-  const divider = new Divider(options, styles.dim('▏'), styles.accent('▎'))
+  // half cell inside the editor. Hover thickens the block and lifts it to the
+  // accent, which is the drag affordance.
+  const divider = new Divider(options, styles.separator('▏'), styles.accent('▎'))
   const setHovered = (hovered: boolean): void => {
     divider.setHovered(hovered)
     options.onHover(hovered)

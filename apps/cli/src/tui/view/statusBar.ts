@@ -1,11 +1,15 @@
 /**
- * Footer row under the composer: readings on the left, the model on the right.
+ * Footer row under the columns: readings on the left, the model on the right.
  *
- * The working directory holds the far left — the rail no longer prints it above
- * its own list — then the readings: context occupancy (`14.2%/1.0M`), decode
- * speed (`269 tok/s`) and session tokens (`118M tok`). Nothing stands in for
- * them: an empty row until the first provider report is honest, and the version
- * is not something the footer has to carry.
+ * The row is the frame's bottom band — a full-width surface in the status
+ * colour — rather than a rule under the composer. That is what lets the column
+ * dividers stop above it: a horizontal rule here would meet every divider, and
+ * the band separates the footer from the columns without drawing a line at all.
+ * The readings: context occupancy
+ * (`14.2%/1.0M`), decode speed (`269 tok/s`) and session tokens (`118M tok`).
+ * Nothing stands in for them: an empty band until the first provider report is
+ * honest, and the version is not something the footer has to carry. The working
+ * directory is the rail's header, not the band's.
  *
  * @module hulala-cli/tui/view/statusBar
  */
@@ -14,13 +18,10 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import { formatTokens, tokensPerSecond } from '../data/viewModel.js'
 import type { TerminalMetrics } from '../data/remote.js'
 import { buildStyles } from './theme.js'
-import { padEnd, shortenPath, truncateLeftText } from './pathText.js'
+import { padEnd, truncateLeftText } from './pathText.js'
+import { hintLine, usageHint, type UsageHint } from './hints.js'
 
 export interface StatusState {
-  /** Working directory of the open Session, shown at the far left. */
-  cwd?: string
-  /** Home directory, so the path shortens the way the rail used to show it. */
-  home?: string
   metrics: TerminalMetrics
   model?: { provider: string; model: string }
   disconnected: boolean
@@ -32,6 +33,8 @@ export class StatusBar implements Component {
   constructor(
     private readonly state: () => StatusState,
     private readonly color: boolean,
+    /** The hint for the left slot; defaults to the clock-driven rotation. */
+    private readonly hint: () => UsageHint = () => usageHint(Date.now()),
   ) {}
 
   invalidate(): void {}
@@ -39,42 +42,58 @@ export class StatusBar implements Component {
   render(width: number): string[] {
     const styles = buildStyles(this.color)
     const state = this.state()
+    // The band's edges are visible, so its text keeps one cell of surface on
+    // either side. Below eight columns there is no room for a gutter.
+    const gutter = width >= 8 ? 1 : 0
+    const usable = Math.max(1, width - gutter * 2)
+    const band = (text: string): string[] => [
+      styles.band(`${' '.repeat(gutter)}${padEnd(text, usable)}${' '.repeat(gutter)}`),
+    ]
 
-    if (state.disconnected) {
-      return [padEnd(styles.dim('disconnected — reconnecting…'), width)]
-    }
+    if (state.disconnected) return band('disconnected — reconnecting…')
 
-    const pathText = state.cwd === undefined ? '' : shortenPath(state.cwd, Math.max(8, Math.floor(width / 2)))
+    const readings = this.readings(state)
+    const modelText = state.model === undefined ? '' : `${state.model.provider}/${state.model.model}`
+    const modelWidth = Math.min(usable, visibleWidth(modelText))
+    const modelStart = Math.max(0, usable - modelWidth)
 
-    const readingsParts: string[] = []
+    // Centred readings: the band is one line across the frame, so the numbers
+    // sit in the middle of the terminal rather than of any column.
+    const room = Math.max(1, usable - modelWidth - (modelWidth > 0 ? 1 : 0))
+    const fitted = truncateLeftText(readings, room)
+    const readingsWidth = visibleWidth(fitted)
+    const centreStart = Math.max(0, Math.floor((usable - readingsWidth) / 2))
 
-    // Context occupancy: only once the provider reports a context window.
+    // The hint owns whatever is left of the readings, and never overlaps them.
+    const hint = hintLine(this.hint())
+    const hintBudget = Math.max(0, Math.min(centreStart - 1, modelStart - 1))
+    const hintText = hintBudget >= 6 ? truncateLeftText(hint, hintBudget) : ''
+
+    // Style the three segments without breaking the band's fill: the band
+    // wrapper re-opens its own background after every nested reset.
+    const styled = `${hintText === '' ? '' : styles.dim(hintText)}` +
+      `${' '.repeat(Math.max(0, centreStart - visibleWidth(hintText)))}` +
+      `${fitted}` +
+      `${' '.repeat(Math.max(0, modelStart - centreStart - readingsWidth))}` +
+      `${modelText}`
+    return band(styled)
+  }
+
+  /** The readings line: context occupancy, speed, tokens, update hint. */
+  private readings(state: StatusState): string {
+    const parts: string[] = []
     const contextTokens = state.metrics.contextTokens ?? 0
     const contextLimit = state.metrics.contextLimit
     if (contextLimit !== undefined && contextLimit > 0) {
       const percent = ((contextTokens / contextLimit) * 100).toFixed(1).replace(/\.0$/, '')
-      readingsParts.push(`${percent}%/${formatTokens(contextLimit)}`)
+      parts.push(`${percent}%/${formatTokens(contextLimit)}`)
     }
-
     const speed = tokensPerSecond(state.metrics)
-    if (speed !== undefined) readingsParts.push(`${Math.round(speed)} tok/s`)
-
+    if (speed !== undefined) parts.push(`${Math.round(speed)} tok/s`)
     const total = state.metrics.inputTokens + state.metrics.cacheReadTokens + state.metrics.outputTokens
-    if (total > 0) readingsParts.push(`${formatTokens(total)} tok`)
-
-    const readings = readingsParts.join(' · ')
-    // The update hint stays after the one-time transcript notice scrolls away.
-    const base = state.update === undefined ? readings : (readings === '' ? '' : `${readings} · `) + `update ${state.update}`
-    const modelText = state.model === undefined ? '' : `${state.model.provider}/${state.model.model}`
-    const modelWidth = visibleWidth(modelText)
-    const pathWidth = pathText === '' ? 0 : visibleWidth(pathText) + 1
-    const leftMax = Math.max(1, width - pathWidth - modelWidth - (modelWidth > 0 ? 2 : 0))
-    const fitted = truncateLeftText(base, leftMax)
-    const pathStyled = pathText === '' ? '' : `${styles.dim(pathText)}${fitted === '' ? '' : ' '}`
-    const left = `${pathStyled}${base === '' ? '' : styles.dim(fitted === '' ? '' : fitted)}`
-    const modelStyled = modelText === '' ? '' : styles.dim(modelText)
-    const used = pathWidth + (fitted === '' ? 0 : visibleWidth(fitted))
-    const pad = Math.max(0, width - used - modelWidth)
-    return [padEnd(left + ' '.repeat(pad) + modelStyled, width)]
+    if (total > 0) parts.push(`${formatTokens(total)} tok`)
+    const line = parts.join(' · ')
+    if (state.update === undefined) return line
+    return line === '' ? `update ${state.update}` : `${line} · update ${state.update}`
   }
 }

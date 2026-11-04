@@ -10,6 +10,11 @@
  * pi-tui's reverse-video block. Without focus the cell is rewritten as the same
  * ghost block so the column still shows where its cursor is.
  *
+ * The two rules are inset by the body's padding instead of spanning the column.
+ * They belong to the composer, not to the frame: a rule that reached the column
+ * edge would touch the divider the layout draws beside it, and this client keeps
+ * every line clear of every other line.
+ *
  * @module hulala-cli/tui/view/promptEditor
  */
 import { readdir } from 'node:fs/promises'
@@ -50,6 +55,24 @@ export interface PromptEditorOptions extends EditorOptions {
    * to a hollow glyph.
    */
   faintCursor?: () => string
+}
+
+/**
+ * Blank `inset` cells off each end of a styled one-line rule.
+ *
+ * The base editor colours a whole border line as one run, so trimming visible
+ * cells only has to step around the leading SGR and the trailing reset; the
+ * blanked cells stay inside that run and are just background.
+ * @param line - one border line from the base editor.
+ * @param inset - cells to blank at each end.
+ * @returns the line, inset from both edges.
+ */
+function insetRule(line: string, inset: number): string {
+  const open = /^(?:\u001b\[[0-9;]*m)+/u.exec(line)?.[0] ?? ''
+  const close = /(?:\u001b\[[0-9;]*m)+$/u.exec(line.slice(open.length))?.[0] ?? ''
+  const body = line.slice(open.length, line.length - close.length)
+  if (body.length <= inset * 2) return line
+  return `${open}${' '.repeat(inset)}${body.slice(inset, body.length - inset)}${' '.repeat(inset)}${close}`
 }
 
 export class PromptEditor extends Editor {
@@ -115,6 +138,15 @@ export class PromptEditor extends Editor {
     if (width >= 5 && base.length > 1) {
       const arrow = this.color ? '\u001b[36m❯\u001b[0m ' : '❯ '
       base[1] = arrow + (base[1] ?? '').slice(2)
+    }
+    // Both rules stop at the body's own gutter instead of the column edge. The
+    // rules are the composer's, not the column's: a full-width rule would run
+    // into the frame's dividers at both ends, and the transcript's own rows put
+    // their content in this same column.
+    const inset = Math.min(this.getPaddingX(), Math.max(0, Math.floor((width - 1) / 2)))
+    if (inset > 0 && base.length > 2) {
+      base[0] = insetRule(base[0] ?? '', inset)
+      base[base.length - 1] = insetRule(base[base.length - 1] ?? '', inset)
     }
     return [...menu, ...base]
   }

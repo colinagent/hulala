@@ -15,6 +15,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { CwdBar } from '../view/cwdBar.js'
+import { HINT_INTERVAL_MS } from '../view/hints.js'
 import { PendingMessages } from '../view/pendingMessages.js'
 import { StatusBar } from '../view/statusBar.js'
 import { Transcript } from '../view/transcript.js'
@@ -57,13 +58,18 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   // puts its queued-message block; empty lists render no lines at all.
   const pending = new PendingMessages(config.color)
   const statusBar = new StatusBar(() => ({
-    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
-    ...(home === undefined ? {} : { home }),
     ...(session.model === undefined ? {} : { model: session.model }),
     metrics: reducer.metrics,
     disconnected: session.disconnected,
     ...(updater.available === undefined ? {} : { update: updater.available.latestVersion }),
   }), config.color)
+
+  // The band's usage hint rotates on its own; while the client is idle this is
+  // the only reason the frame repaints.
+  ctx.effect(() => {
+    const timer = setInterval(() => { render.request() }, HINT_INTERVAL_MS)
+    return () => { clearInterval(timer) }
+  }, 'hulala: status hints')
 
   layout.register('main', { id: 'transcript', component: transcript })
   layout.register('dock.pending', { id: 'pending', component: pending })

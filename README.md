@@ -88,6 +88,10 @@ The frame is drivable without a mouse:
 `/help` prints the same list inside the client, which is the version to trust if
 a key is swallowed by your terminal or input method.
 
+The footer is one band across the bottom: a rotating usage hint on the left, the
+context and token readings in the middle, the model on the right, and the
+working directory at the top of the Session rail.
+
 ## Clients
 
 **Terminal** — `hulala` attaches to the local Host (starting a detached one when

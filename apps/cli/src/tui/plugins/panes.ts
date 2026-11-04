@@ -157,7 +157,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
    */
   const ratios: Record<PaneKind, number> = { terminal: 1 / 3, editor: 1 / 3 }
 
-  // The frame owns the last two rows: the bottom rule and the status row.
+  // The frame owns the last two rows: the status band and its air row.
   const rows = (): number => Math.max(1, terminal.rows - 2)
 
   const columns = (kind: PaneKind): number => {

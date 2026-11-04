@@ -3,9 +3,10 @@
  *
  * Only ANSI color/styling lives here; cursor movement and rendering are owned
  * entirely by pi-tui. Selected/current text uses foreground highlight, never a
- * background block (product UI rule). The one exception is an archived user
- * message: that is message content rather than selection state, so it is drawn
- * as a full-width panel like Claude Code's transcript rows.
+ * background block (product UI rule). Two full-width background panels are not
+ * selection state and are therefore allowed: an archived user message, which is
+ * message content drawn like Claude Code's transcript rows, and the status band,
+ * which is the frame's own bottom row rather than any column's content.
  *
  * @module hulala-cli/tui/view/theme
  */
@@ -45,6 +46,28 @@ const HIGHLIGHT_RGB = [0xd8, 0xaa, 0x78] as const
 const USER_PANEL_BG = [0x37, 0x37, 0x37] as const
 const USER_PANEL_TEXT = [0xe8, 0xe8, 0xe8] as const
 const USER_PANEL_ARROW = [0x9a, 0x9a, 0x9a] as const
+
+/**
+ * Status band: the frame's bottom row, a step lighter than the page.
+ *
+ * The band is the reason the frame needs no bottom rule: a full-width row that
+ * is visibly its own surface separates the footer from the columns without
+ * drawing a horizontal line that the column dividers would meet. The ink is a
+ * step below the page's foreground so the readings stay legible without
+ * competing with the conversation above them.
+ */
+const BAND_BG = [0x34, 0x3a, 0x44] as const
+const BAND_TEXT = [0xbc, 0xc1, 0xca] as const
+
+/**
+ * Column divider ink: one step fainter than the composer's rules.
+ *
+ * A divider is a 1/8-cell block, so how thin it is belongs to the terminal and
+ * the font; the one weight the client owns is contrast. Sitting a step below
+ * `dim` keeps the split readable without letting it compete with the input box,
+ * which is the line the eye should find first.
+ */
+const SEPARATOR_RGB = [0x5c, 0x63, 0x70] as const
 
 const RESET = '\u001b[0m'
 
@@ -137,6 +160,8 @@ function buildStyles(color: boolean): {
   accent: (text: string) => string
   highlight: (text: string) => string
   brand: (text: string) => string
+  band: (text: string) => string
+  separator: (text: string) => string
   userPanel: (text: string) => string
   userArrow: (text: string) => string
   error: (text: string) => string
@@ -150,18 +175,21 @@ function buildStyles(color: boolean): {
 } {
   if (!color) {
     const identity = (text: string): string => text
-    return { dim: identity, accent: identity, highlight: identity, brand: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
+    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
   }
-  // The panel carries its own background and foreground. Inner styles (the
-  // arrow) reset both, so re-open the panel after every nested reset to keep
-  // the row continuous to the terminal edge.
-  const panelOpen = `${bgOpen(USER_PANEL_BG)}${fgOpen(USER_PANEL_TEXT)}`
+  // A panel carries its own background and foreground. Inner styles reset both,
+  // so re-open the panel after every nested reset to keep the row continuous to
+  // the terminal edge.
+  const panel = (open: string) => (text: string): string =>
+    `${open}${text.split(RESET).join(`${RESET}${open}`)}${RESET}`
   return {
     dim: wrap('\u001b[2m', RESET),
     brand: wrap(fgOpen(BRAND_RGB), RESET),
     highlight: wrap(fgOpen(HIGHLIGHT_RGB), RESET),
     accent: wrap('\u001b[36m', RESET),
-    userPanel: (text: string): string => `${panelOpen}${text.split(RESET).join(`${RESET}${panelOpen}`)}${RESET}`,
+    band: panel(`${bgOpen(BAND_BG)}${fgOpen(BAND_TEXT)}`),
+    separator: wrap(fgOpen(SEPARATOR_RGB), RESET),
+    userPanel: panel(`${bgOpen(USER_PANEL_BG)}${fgOpen(USER_PANEL_TEXT)}`),
     userArrow: wrap(fgOpen(USER_PANEL_ARROW), RESET),
     error: wrap('\u001b[31m', RESET),
     warn: wrap('\u001b[33m', RESET),

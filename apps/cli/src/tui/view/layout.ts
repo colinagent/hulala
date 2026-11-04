@@ -16,6 +16,13 @@
  * top rule, input line and bottom rule even on a very short terminal; its
  * neighbours are the ones that give way.
  *
+ * There is no frame rule row. The composer's two rules stop short of its column
+ * edges (`PromptEditor`), so they never touch a divider, and the columns all end
+ * on the row above the status band — a full-width row with its own background,
+ * which separates itself from the frame without drawing a line. A rule row under
+ * the columns would put a horizontal line against every divider again, which is
+ * the one thing this frame avoids.
+ *
  * @module hulala-cli/tui/view/layout
  */
 import {
@@ -50,35 +57,25 @@ function chatEntries(options: TerminalLayoutOptions): NonNullable<ConstructorPar
 }
 
 /**
- * The frame's bottom rule: the composer's own bottom line, continued.
+ * The status band with a row of air above its text.
  *
- * Every column ends on this one line and the vertical dividers stop on it, so
- * the columns read as panes of one window rather than three stacked boxes. It is
- * drawn with the same dim styling the composer's border uses, which is what
- * makes the conversation's segment and the others look like one line.
+ * The band is a filled surface, and text sitting directly under the composer's
+ * bottom rule reads as if it were pressed against it. One band-coloured blank
+ * row gives the text the same gutter the band already has at its sides, without
+ * drawing a line the column dividers would meet.
  */
-class BottomRule implements Component {
-  invalidate(): void {}
-  render(width: number): string[] {
-    return [`\u001b[2m${'\u2500'.repeat(Math.max(0, width))}\u001b[0m`]
-  }
-}
-
-/**
- * A column with the frame's bottom rule under it.
- *
- * The rule has to sit on one row across the frame, so each column reserves that
- * row for itself instead of letting its content run to the last line. The
- * conversation needs no wrapper: its composer already draws the segment.
- */
-class RuledColumn implements Component {
-  constructor(private readonly body: Component, private readonly rule: Component) {}
+class StatusBand implements Component {
+  constructor(private readonly bar: Component) {}
   invalidate(): void {
-    this.body.invalidate()
-    this.rule.invalidate()
+    this.bar.invalidate()
   }
   render(width: number): string[] {
-    return [...this.body.render(width), ...this.rule.render(width)]
+    const [line = ''] = this.bar.render(width)
+    // The band's fill and ink are the first line's own SGR run; nothing here
+    // needs to know which colours they are.
+    const open = /^(?:\u001b\[[0-9;]*m)+/u.exec(line)?.[0] ?? ''
+    const blank = `${open}${' '.repeat(Math.max(0, width))}${open === '' ? '' : '\u001b[0m'}`
+    return [blank, line]
   }
 }
 
@@ -212,7 +209,7 @@ export function buildTerminalLayout(options: TerminalLayoutOptions): TerminalLay
   const dock = new VStack([
     ...chatEntries(options),
     { component: options.editor, shrink: 1, minSize: COMPOSER_MIN_SIZE },
-    { component: options.statusBar, shrink: 1, minSize: 0 },
+    { component: new StatusBand(options.statusBar), shrink: 1, minSize: 0 },
   ])
 
   const root = new VStack([
@@ -228,9 +225,9 @@ export function buildTerminalLayout(options: TerminalLayoutOptions): TerminalLay
  *
  * The rail is a real column rather than an overlay: it has to stay readable
  * while the composer is being typed into, and a floating panel would hide the
- * transcript it is used to switch. The status row runs the full width, but its
- * readings start under the conversation: the rail never owns the client's
- * footer.
+ * transcript it is used to switch. The status band is the frame's own bottom
+ * row: the rail and the pane end above it and the band carries the whole footer,
+ * from the working directory at the far left to the model at the right edge.
  * @param options - the shared chat pieces, the rail, and the optional pane.
  * @returns the layout root, the transcript viewport, and the pane-width hook.
  */
@@ -247,28 +244,26 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
   const pane = options.pane
   let paneWidth = pane === undefined ? 0 : Math.max(SPLIT_MIN_SIZE, Math.round(pane.width))
 
-  const rule = new BottomRule()
   const entries: NonNullable<ConstructorParameters<typeof HStack>[0]> = [
-    { component: new RuledColumn(options.rail, rule), basis: railWidth, grow: 0, shrink: 0 },
-    { component: new RuledColumn(options.railDivider, rule), basis: SPLIT_GAP, shrink: 0 },
+    { component: options.rail, basis: railWidth, grow: 0, shrink: 0 },
+    { component: options.railDivider, basis: SPLIT_GAP, shrink: 0 },
     { component: conversation, basis: 0, grow: 1, shrink: 1, minSize: RAIL_CONVERSATION_MIN },
   ]
-  const ruledPane = pane === undefined ? undefined : new RuledColumn(pane.component, rule)
   if (pane !== undefined) {
     entries.push(
-      { component: new RuledColumn(pane.divider, rule), basis: SPLIT_GAP },
-      { component: ruledPane!, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
+      { component: pane.divider, basis: SPLIT_GAP },
+      { component: pane.component, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
     )
   }
 
   const columns = new HStack(entries)
 
-  // One status row under the frame's bottom rule, running the whole width from
-  // the terminal's first column: the working directory sits at the far left, the
-  // readings follow it and the model label keeps the right edge.
+  // The status band is the frame's bottom row: the working directory sits at the
+  // far left, the readings follow it and the model label keeps the right edge.
+  // The columns end above it, so no divider is drawn against it.
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: options.statusBar, shrink: 0 },
+    { component: new StatusBand(options.statusBar), shrink: 0 },
   ])
 
   /** Move the editor divider; without a pane this layout has nothing to resize. */
@@ -277,8 +272,8 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
     const next = Math.max(SPLIT_MIN_SIZE, Math.round(width))
     if (next === paneWidth) return
     paneWidth = next
-    columns.removeChild(ruledPane!)
-    columns.addChild(ruledPane!, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
+    columns.removeChild(pane.component)
+    columns.addChild(pane.component, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
   }
 
   return { root, transcriptScroll, setPaneWidth }
@@ -289,8 +284,9 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
  *
  * The status bar stays: it belongs to the client rather than to the transcript,
  * and the turn clock and update hint have to stay visible while the transcript
- * is put away. The rail becomes the flexible column because a hidden transcript
- * is not a reading column whose width needs protecting.
+ * is put away. It is the frame's bottom band, so the columns end above it. The
+ * rail becomes the flexible column because a hidden transcript is not a reading
+ * column whose width needs protecting.
  * @param options - whichever side columns exist, and the status row.
  * @returns the layout root and the pane-width hook.
  */
@@ -309,13 +305,11 @@ export function buildSideColumnsLayout(options: SideColumnsLayoutOptions): SideC
           { component: pane.component, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
         ])
 
-  // Even with the conversation put away the frame keeps its bottom line: the
-  // side columns end on it and the status row sits under it, as it does when the
-  // conversation is on screen.
+  // Even with the conversation put away the frame keeps its status band: the
+  // side columns end above it, as they do when the conversation is on screen.
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: new BottomRule(), shrink: 0 },
-    { component: options.statusBar, shrink: 0 },
+    { component: new StatusBand(options.statusBar), shrink: 0 },
   ])
 
   /** Move the divider; a lone column has no second width to trade against. */
@@ -355,19 +349,15 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
 
   let paneWidth = Math.max(SPLIT_MIN_SIZE, Math.round(options.paneWidth))
 
-  // The composer's bottom line continues across the editor column too, so the
-  // frame reads the same with one side column as with two.
-  const rule = new BottomRule()
-  const ruledPane = new RuledColumn(options.pane, rule)
   const columns = new HStack([
     { component: conversation, basis: 0, grow: 1, shrink: 1, minSize: SPLIT_MIN_SIZE },
-    { component: new RuledColumn(options.divider, rule), basis: SPLIT_GAP },
-    { component: ruledPane, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
+    { component: options.divider, basis: SPLIT_GAP },
+    { component: options.pane, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
   ])
 
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: options.statusBar, shrink: 0 },
+    { component: new StatusBand(options.statusBar), shrink: 0 },
   ])
 
   /**
@@ -379,8 +369,8 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
     const next = Math.max(SPLIT_MIN_SIZE, Math.round(width))
     if (next === paneWidth) return
     paneWidth = next
-    columns.removeChild(ruledPane)
-    columns.addChild(ruledPane, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
+    columns.removeChild(options.pane)
+    columns.addChild(options.pane, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
   }
 
   return { root, transcriptScroll, setPaneWidth }

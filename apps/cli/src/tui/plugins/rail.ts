@@ -80,8 +80,8 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   let timerMs = 0
   let lastCwd = session.cwd
 
-  // Two rows belong to the frame: the bottom rule and the status row under it.
-  const pageRows = (): number => Math.max(1, (terminal.rows - 2) - 3)
+  // Two rows belong to the frame: the status band and the row of air above it.
+  const pageRows = (): number => Math.max(1, (terminal.rows - 2) - 4)
 
   const rail = new SessionRail({
     state: () => ({
@@ -91,11 +91,11 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
       query,
       allExpanded,
       revealed,
-      // Rows between the filter box and the `all` row, minus the `+ new session` row.
+      // Rows between the header and the `all` row, minus the `+ new session` row.
       pageRows: pageRows(),
       now: Date.now(),
     }),
-    rows: () => Math.max(3, terminal.rows - 2),
+    rows: () => Math.max(4, terminal.rows - 2),
     color: config.color,
     focused: () => focused,
     onOpen: id => { void session.open(id).finally(() => blur()) },
