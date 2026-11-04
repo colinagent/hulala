@@ -52,12 +52,12 @@ const USER_PANEL_ARROW = [0x9a, 0x9a, 0x9a] as const
  *
  * The band is the reason the frame needs no bottom rule: a full-width row that
  * is visibly its own surface separates the footer from the columns without
- * drawing a horizontal line that the column dividers would meet. The ink is a
- * step below the page's foreground so the readings stay legible without
- * competing with the conversation above them.
+ * drawing a horizontal line that the column dividers would meet. One ink carries
+ * every slot — hint, readings, model — a step below the page's foreground so the
+ * footer stays legible without competing with the conversation above it.
  */
 const BAND_BG = [0x34, 0x3a, 0x44] as const
-const BAND_TEXT = [0xbc, 0xc1, 0xca] as const
+const BAND_TEXT = [0xa8, 0xad, 0xb7] as const
 
 /**
  * Column divider ink: one step fainter than the composer's rules.
