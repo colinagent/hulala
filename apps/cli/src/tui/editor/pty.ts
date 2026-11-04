@@ -1,12 +1,12 @@
 /**
  * `node-pty` loader for the columns beside the transcript.
  *
- * The TUI ships as one Node ESM bundle, but `node-pty` is a native module, so it
+ * The client ships as one Node ESM bundle, but `node-pty` is a native module, so it
  * can never be inlined. Three install layouts are supported, in order:
  *
  * 1. normal resolution — the repo workspaces and `npm i -g hulala` both put it
  *    next to the bundle;
- * 2. the packaged TUI archive, which already installs `node-pty` under
+ * 2. the packaged release archive, which already installs `node-pty` under
  *    `runtime/node_modules` for the Host's subprocess provider
  *    (`scripts/release/packageRelease.ts` lists it in `trustedDependencies`), so the
  *    terminal and editor columns cost no extra platform package;
@@ -14,7 +14,7 @@
  *    the built-in `Bun.spawn({ terminal })` pty is adapted instead.
  *
  * Resolution is deliberately dynamic: a build-time import of a native module
- * would either fail the bundle or pin the TUI to one platform.
+ * would either fail the bundle or pin the client to one platform.
  *
  * @module hulala-cli/tui/editor/pty
  */
@@ -126,7 +126,7 @@ export function loadNodePty(): PtyModule | undefined {
   const bun = bunPty()
   if (bun !== undefined) return bun
   // Normal resolution walks up from this file, which covers the repo
-  // workspaces and a global npm install. The packaged TUI archive keeps its
+  // workspaces and a global npm install. The packaged release archive keeps its
   // dependencies in a sibling `runtime/` directory instead.
   return loadFrom(dirname(fileURLToPath(import.meta.url)))
     ?? loadFrom(packageRoot())

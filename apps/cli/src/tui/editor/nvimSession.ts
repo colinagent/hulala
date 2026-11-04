@@ -25,7 +25,7 @@ import { ScreenSession } from '../pane/screenSession.js'
 /**
  * Report Neovim's mode to the client through a small file.
  *
- * `Ctrl-[` is the same byte as `Esc`, so the TUI has to know whether the editor
+ * `Ctrl-[` is the same byte as `Esc`, so the client has to know whether the editor
  * still has something to cancel (insert, visual, command-line, operator-pending)
  * before it takes the key for focus switching. `--cmd` runs before the user's
  * config, which matters because Hulala's `init.lua` is written once and never

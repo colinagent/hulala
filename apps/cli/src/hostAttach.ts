@@ -40,7 +40,7 @@ function daemonRoots(paths = resolvePaths()): { server: string, logs: string } {
   return { server: join(paths.data, 'server'), logs: paths.logs }
 }
 
-/** Packaged TUI root: `bin/hulala` + `server/hulala-host.mjs` + `runtime/`. */
+/** Packaged release root: `bin/hulala` + `server/hulala-host.mjs` + `runtime/`. */
 function packageRoot(): string | undefined {
   const configured = process.env.HULALA_PACKAGE_ROOT?.trim()
   if (configured !== undefined && configured !== '') return configured

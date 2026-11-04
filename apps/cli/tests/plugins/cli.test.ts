@@ -36,7 +36,7 @@ describe('hulala plugin', () => {
   test('an empty directory lists nothing and says where to put one', async () => {
     const result = await capture(() => listPlugins(root))
     expect(result.code).toBe(0)
-    expect(result.out).toContain('No TUI plugins')
+    expect(result.out).toContain('No plugins')
     expect(result.out).toContain(pluginsRoot(root))
   })
 

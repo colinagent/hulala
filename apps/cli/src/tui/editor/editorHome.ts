@@ -11,7 +11,7 @@
  * - `<data>/bin/rg` — the ripgrep binary the editor's pickers call, taken from
  *   the `@vscode/ripgrep` package the Harness already installs, so `rg` never
  *   depends on the user's package manager;
- * - `<data>/bin/ime` — the macOS input-source helper the TUI calls when the
+ * - `<data>/bin/ime` — the macOS input-source helper the client calls when the
  *   editor column takes focus (source: `apps/cli/native/ime.c`);
  * - `<data>/runtime/editor/nvim/share/nvim/runtime` — its runtime tree, handed
  *   to the process as `$VIMRUNTIME` (off-tree binaries cannot find it alone);

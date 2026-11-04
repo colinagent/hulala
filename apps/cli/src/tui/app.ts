@@ -73,14 +73,14 @@ export interface RunTerminalOptions {
 }
 
 /**
- * Append one diagnostic line when `HULALA_DEBUG_TUI` is set.
+ * Append one diagnostic line when `HULALA_DEBUG_CLIENT` is set.
  *
  * Logging is best effort by design: the client must never fail a turn because a
  * log directory is read-only.
  * @param message - the line to record.
  */
 function debugLog(message: string): void {
-  if (process.env.HULALA_DEBUG_TUI === undefined) return
+  if (process.env.HULALA_DEBUG_CLIENT === undefined) return
   try {
     appendFileSync(join(resolvePaths().data, 'logs', 'tui-debug.log'), `${new Date().toISOString()} ${message}\n`)
   } catch {
@@ -266,7 +266,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     await kernel.dispose().catch(() => undefined)
     if (exitProcess) {
       // Explicit exit, like pi's interactive mode: the Host connection or a
-      // resumed stdin can otherwise keep the event loop alive after the TUI
+      // resumed stdin can otherwise keep the event loop alive after the client
       // has restored the terminal.
       process.exit(code)
     } else {

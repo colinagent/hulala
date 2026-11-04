@@ -7,7 +7,7 @@
  * plugins, same file tree.
  *
  * The one thing it does own is paging a session that keeps history. A shell is
- * read, not just typed into, and the TUI runs in the alternate screen where the
+ * read, not just typed into, and the client runs in the alternate screen where the
  * outer terminal's scrollback is unavailable — so the pane keeps its own
  * history and pages it, while an editor (no history) passes every key through.
  * Typing always returns to the live screen, and the bottom row then says where

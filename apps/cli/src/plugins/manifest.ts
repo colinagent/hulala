@@ -7,7 +7,7 @@
  * field with the wrong type.
  *
  * The field mirrors DSH's `dsh.client` and `dsh.bundle` declarations. A package
- * may carry both — a TUI plugin and a Host bundle are different surfaces of the
+ * may carry both — a client plugin and a Host bundle are different surfaces of the
  * same plugin — so this reads only its own key and leaves the rest alone.
  *
  * @module hulala-cli/plugins/manifest

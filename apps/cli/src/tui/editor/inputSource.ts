@@ -1,7 +1,7 @@
 /**
  * The macOS keyboard input source, through the packaged `ime` helper.
  *
- * Neovim inside the TUI cannot reach the input method: the switch belongs to
+ * Neovim inside the client cannot reach the input method: the switch belongs to
  * the terminal application, not to the pty child. So the client does it when
  * the editor column takes focus and puts the previous source back when focus
  * returns to the composer — including when `Ctrl-F` only hides the pane and

@@ -1,7 +1,7 @@
 /**
  * Injectable terminal adapter for pi-tui.
  *
- * `ProcessTerminal` hard-codes `process.stdin/stdout`, which makes the TUI
+ * `ProcessTerminal` hard-codes `process.stdin/stdout`, which makes the client
  * untestable with injected streams. This minimal `Terminal` implementation owns
  * raw mode, stdin framing (via pi-tui's `StdinBuffer`), resize notifications,
  * and the escape-sequence surface pi-tui's renderer calls. It skips Kitty

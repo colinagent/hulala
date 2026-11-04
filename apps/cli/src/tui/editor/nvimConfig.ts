@@ -1,7 +1,7 @@
 /**
  * The Neovim config Hulala writes on first use.
  *
- * Kept as a string rather than a second file on disk so the single-file TUI
+ * Kept as a string rather than a second file on disk so the single-file client
  * bundle carries it: `ensureEditorConfig()` writes it to
  * `<data>/config/editor/nvim/init.lua`, which Neovim then reads as its own
  * `$XDG_CONFIG_HOME/nvim/init.lua`. Writing it once (never overwriting) means a

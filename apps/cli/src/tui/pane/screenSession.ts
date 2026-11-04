@@ -3,7 +3,7 @@
  *
  * Both columns beside the transcript are this class: the editor's Neovim and
  * the user's shell. The process owns its colours, keymaps and output exactly as
- * it would in a plain terminal; the TUI sits in the middle as an ordinary
+ * it would in a plain terminal; the client sits in the middle as an ordinary
  * terminal emulator.
  *
  * - bytes from the pty are fed into `@xterm/headless`, which parses escape

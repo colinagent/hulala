@@ -1,7 +1,7 @@
 /**
  * Editor colours derived from the terminal's own palette.
  *
- * The TUI paints no background of its own: the conversation is drawn in the
+ * The client paints no background of its own: the conversation is drawn in the
  * terminal's default colours, so "the editor matches Hulala" can only mean "the
  * editor matches the terminal". Neovim therefore gets a generated theme instead
  * of a bundled colorscheme: the UI asks the terminal for its default foreground,

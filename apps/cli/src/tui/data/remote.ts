@@ -1,7 +1,7 @@
 /**
  * DSH Remote client and transport-neutral contracts.
  *
- * The TUI never imports Cordis, the Host, or DSH directly: it consumes this
+ * The client never imports Cordis, the Host, or DSH directly: it consumes this
  * narrow backend. The real attachment maps Host frames into these contracts,
  * and the interactive surface can be tested with a fake Host.
  *

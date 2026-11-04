@@ -106,7 +106,7 @@ export function listPlugins(dataRoot: string): number {
   }
   for (const problem of directory.problems) rows.push(`${problem.id.padEnd(24)} ${'—'.padEnd(10)} invalid  ${problem.message}`)
   if (rows.length === 0) {
-    process.stdout.write(`No TUI plugins. Add one under ${pluginsRoot(dataRoot)}.\n`)
+    process.stdout.write(`No plugins. Add one under ${pluginsRoot(dataRoot)}.\n`)
     return 0
   }
   process.stdout.write(`${rows.join('\n')}\n`)
@@ -151,13 +151,13 @@ export function newPlugin(dataRoot: string, id: string): number {
     version: '0.1.0',
     private: true,
     type: 'module',
-    description: `A Hulala TUI plugin: ${id}.`,
+    description: `A Hulala plugin: ${id}.`,
     hulala: { tui: { apiVersion: PLUGIN_API_VERSION, entry: './index.js' } },
   }, null, 2)}\n`)
   // No imports: the whole API arrives as the `activate` argument. That is what
   // makes a plugin a single file the client can load from a directory.
   writeFileSync(join(directory, 'index.js'), `/**
- * ${id} — a Hulala TUI plugin.
+ * ${id} — a Hulala plugin.
  *
  * \`activate\` receives the client's API. Register seats and commands; return a
  * function to undo anything you set up outside those.
