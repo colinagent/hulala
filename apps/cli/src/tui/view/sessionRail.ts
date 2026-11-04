@@ -318,12 +318,13 @@ export class SessionRail implements Component {
     const styles = buildStyles(this.options.color)
     const state = this.options.state()
     const rows = this.rowsOf(state)
-    const height = Math.max(4, this.options.rows())
-    const listArea = Math.max(1, height - 3)
+    const height = Math.max(3, this.options.rows())
+    // The filter box and the `all` row are the rail's only chrome; the working
+    // directory now lives at the far left of the frame's status bar.
+    const listArea = Math.max(1, height - 2)
     this.clampWindow(rows.length, listArea)
 
     const lines: string[] = []
-    lines.push(padEnd(styles.dim(shortenPath(state.cwd, width)), width))
     lines.push(this.filterLine(state, styles, width))
     const focused = this.options.focused?.() ?? this.focused
     for (let index = 0; index < listArea; index += 1) {

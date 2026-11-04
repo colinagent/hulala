@@ -59,7 +59,9 @@ function harness(overrides: Partial<RailState> = {}, rows = 12): Harness {
   const folds: boolean[] = []
   const reveals: boolean[] = []
   const result: Harness = { rail: undefined as unknown as SessionRail, opened, created: 0, queries, folds, reveals, refreshed: 0 }
-  let current = state({ pageRows: Math.max(1, rows - 4), ...overrides })
+  // The rail's own chrome is the filter box and the `all` row (the path moved to
+  // the status bar), so the page is three rows short of the window.
+  let current = state({ pageRows: Math.max(1, rows - 3), ...overrides })
   result.rail = new SessionRail({
     state: () => current,
     rows: () => rows,
@@ -145,16 +147,15 @@ test('a query searches the current directory first and stays inside it while `al
   expect(unfolded.foreign.map(entry => entry.sessionId)).toEqual(['there-1'])
 })
 
-test('the rail paints the path, the filter box, the rows and the folded `all`', () => {
+test('the rail paints the filter box, the rows and the folded `all`', () => {
   const test = harness()
   const lines = test.rail.render(20).map(strip)
   expect(lines).toHaveLength(12)
-  expect(lines[0]).toBe('/workspace'.padEnd(20))
-  expect(lines[1]).toBe('> search'.padEnd(20))
-  expect(lines[2]?.trimEnd()).toBe('+ new session')
-  expect(lines[3]).toStartWith('  修 TUI 会话面板')
-  expect(lines[3]?.trimEnd()).toEndWith('3m')
-  expect(lines[4]?.trimEnd()).toEndWith('2h')
+  expect(lines[0]).toBe('> search'.padEnd(20))
+  expect(lines[1]?.trimEnd()).toBe('+ new session')
+  expect(lines[2]).toStartWith('  修 TUI 会话面板')
+  expect(lines[2]?.trimEnd()).toEndWith('3m')
+  expect(lines[3]?.trimEnd()).toEndWith('2h')
   expect(lines[11]).toBe('▸ all'.padEnd(20))
   for (const line of lines) expect(visibleWidth(line)).toBe(20)
 })
@@ -164,7 +165,7 @@ test('a running Session shows its spinner in the marker column', () => {
     sessions: [session({ sessionId: 'session-current', title: 'running now', running: true })],
   })
   const lines = test.rail.render(20).map(strip)
-  expect(lines[3]?.startsWith('⠋')).toBe(true)
+  expect(lines[2]?.startsWith('⠋')).toBe(true)
 })
 
 test('the open Session is marked by its title colour, never by a glyph', () => {
@@ -180,8 +181,8 @@ test('the open Session is marked by its title colour, never by a glyph', () => {
     onRefresh: () => undefined,
   })
   const lines = rail.render(20)
-  const current = lines[3] ?? ''
-  const other = lines[4] ?? ''
+  const current = lines[2] ?? ''
+  const other = lines[3] ?? ''
   expect(strip(current).startsWith('  修 TUI 会话面板')).toBe(true)
   expect(current).not.toContain('▸')
   // The title carries a foreground colour; a plain row only dims its time.
@@ -262,15 +263,15 @@ test('a long list scrolls so the cursor stays inside the window', () => {
   // Keep the page larger than the list here: this test is about the window.
   const test = harness({ sessions, currentId: 'session-0', pageRows: 30 }, 8)
   test.rail.selectCurrent('session-0')
-  // 8 rows: path, filter, five list rows, `all`.
+  // 8 rows: filter, five list rows, `all`.
   const first = test.rail.render(20).map(strip)
-  expect(first[2]?.trimEnd()).toBe('+ new session')
-  expect(first[3]?.startsWith('  title 0')).toBe(true)
+  expect(first[1]?.trimEnd()).toBe('+ new session')
+  expect(first[2]?.startsWith('  title 0')).toBe(true)
   for (let press = 0; press < 6; press += 1) test.rail.handleInput('\u001b[B')
   const scrolled = test.rail.render(20).map(strip)
   expect(scrolled[7]).toBe('▸ all'.padEnd(20))
-  expect(scrolled.slice(2, 7).some(line => line.includes('title 6'))).toBe(true)
-  expect(scrolled.slice(2, 7).some(line => line.startsWith('+ new session'))).toBe(false)
+  expect(scrolled.slice(1, 7).some(line => line.includes('title 6'))).toBe(true)
+  expect(scrolled.slice(1, 7).some(line => line.startsWith('+ new session'))).toBe(false)
 })
 
 test('entering the rail puts the cursor on the open Session', () => {
@@ -370,16 +371,16 @@ test('the More row is the row after the page, inside the scroll', () => {
   }))
   const test = harness({ sessions, currentId: 'session-0' }, 10)
   test.rail.selectCurrent('session-0')
-  // 10 rows: header, filter, seven list rows and the `all` row. A short window
-  // shows fewer Sessions (6 fit below `+ new session`), so More follows row 6 and is
-  // one line below the fold until the cursor walks down to it.
+  // 10 rows: filter, seven list rows and the `all` row. A short window shows
+  // fewer Sessions (7 fit below `+ new session`), so More follows row 7 and is one
+  // line below the fold until the cursor walks down to it.
   const start = test.rail.render(24).map(strip)
   expect(start).toHaveLength(10)
   expect(start[8]?.trimEnd()).not.toContain('More')
   expect(start[9]?.trimEnd()).toBe('▸ all')
-  for (let step = 0; step < 6; step += 1) test.rail.handleInput('j')
+  for (let step = 0; step < 7; step += 1) test.rail.handleInput('j')
   const scrolled = test.rail.render(24).map(strip)
-  expect(scrolled[8]?.trimEnd()).toBe('↓ More · 39')
+  expect(scrolled[8]?.trimEnd()).toBe('↓ More · 38')
   expect(scrolled[9]?.trimEnd()).toBe('▸ all')
   // Enter right there reveals the rest; the row becomes Less in the same slot.
   test.rail.handleInput('\r')

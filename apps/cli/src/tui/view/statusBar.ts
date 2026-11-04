@@ -1,11 +1,11 @@
 /**
  * Footer row under the composer: readings on the left, the model on the right.
  *
- * The readings are context occupancy (`14.2%/1.0M`), decode speed
- * (`269 tok/s`) and session tokens (`118M tok`). Until the first provider
- * report arrives there is nothing to show, so the version stands in as a
- * placeholder — the footer is the only place it is visible now that the title
- * row is gone — and it disappears the moment a reading exists.
+ * The working directory holds the far left — the rail no longer prints it above
+ * its own list — then the readings: context occupancy (`14.2%/1.0M`), decode
+ * speed (`269 tok/s`) and session tokens (`118M tok`). Nothing stands in for
+ * them: an empty row until the first provider report is honest, and the version
+ * is not something the footer has to carry.
  *
  * @module hulala-cli/tui/view/statusBar
  */
@@ -14,10 +14,13 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import { formatTokens, tokensPerSecond } from '../data/viewModel.js'
 import type { TerminalMetrics } from '../data/remote.js'
 import { buildStyles } from './theme.js'
-import { padEnd, truncateLeftText } from './pathText.js'
-import { VERSION } from '../../constants.js'
+import { padEnd, shortenPath, truncateLeftText } from './pathText.js'
 
 export interface StatusState {
+  /** Working directory of the open Session, shown at the far left. */
+  cwd?: string
+  /** Home directory, so the path shortens the way the rail used to show it. */
+  home?: string
   metrics: TerminalMetrics
   model?: { provider: string; model: string }
   disconnected: boolean
@@ -41,6 +44,8 @@ export class StatusBar implements Component {
       return [padEnd(styles.dim('disconnected — reconnecting…'), width)]
     }
 
+    const pathText = state.cwd === undefined ? '' : shortenPath(state.cwd, Math.max(8, Math.floor(width / 2)))
+
     const readingsParts: string[] = []
 
     // Context occupancy: only once the provider reports a context window.
@@ -58,17 +63,18 @@ export class StatusBar implements Component {
     if (total > 0) readingsParts.push(`${formatTokens(total)} tok`)
 
     const readings = readingsParts.join(' · ')
-    // No reading yet: the version holds the space until one arrives. An update
-    // hint stays here after the one-time transcript notice scrolls away.
-    const base = readings === '' ? `hulala v${VERSION}` : readings
-    const leftText = state.update === undefined ? base : `${base} · update ${state.update}`
+    // The update hint stays after the one-time transcript notice scrolls away.
+    const base = state.update === undefined ? readings : (readings === '' ? '' : `${readings} · `) + `update ${state.update}`
     const modelText = state.model === undefined ? '' : `${state.model.provider}/${state.model.model}`
     const modelWidth = visibleWidth(modelText)
-    const leftMax = Math.max(1, width - modelWidth - (modelWidth > 0 ? 2 : 0))
-    const fitted = truncateLeftText(leftText, leftMax)
-    const styled = readings === '' ? styles.brand(fitted) : styles.dim(fitted)
+    const pathWidth = pathText === '' ? 0 : visibleWidth(pathText) + 1
+    const leftMax = Math.max(1, width - pathWidth - modelWidth - (modelWidth > 0 ? 2 : 0))
+    const fitted = truncateLeftText(base, leftMax)
+    const pathStyled = pathText === '' ? '' : `${styles.dim(pathText)}${fitted === '' ? '' : ' '}`
+    const left = `${pathStyled}${base === '' ? '' : styles.dim(fitted === '' ? '' : fitted)}`
     const modelStyled = modelText === '' ? '' : styles.dim(modelText)
-    const pad = Math.max(0, width - visibleWidth(fitted) - modelWidth)
-    return [padEnd(styled + ' '.repeat(pad) + modelStyled, width)]
+    const used = pathWidth + (fitted === '' ? 0 : visibleWidth(fitted))
+    const pad = Math.max(0, width - used - modelWidth)
+    return [padEnd(left + ' '.repeat(pad) + modelStyled, width)]
   }
 }

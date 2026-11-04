@@ -10,29 +10,31 @@ import { emptyMetrics } from '../../src/tui/data/viewModel.js'
 import type { TranscriptItem } from '../../src/tui/data/viewModel.js'
 import type { TerminalSession } from '../../src/tui/data/remote.js'
 
-test('StatusBar falls back to the version until a reading exists', () => {
+test('StatusBar never carries the version', () => {
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek', model: 'chat' },
     metrics: { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, decodeMs: 0 },
     disconnected: false,
   }), false)
   const line = bar.render(80)[0] ?? ''
-  expect(line.startsWith('hulala v')).toBe(true)
-  expect(line.endsWith('deepseek/chat')).toBe(true)
+  expect(line).not.toContain('hulala v')
+  expect(line.trimStart().startsWith('deepseek/chat')).toBe(true)
   expect(visibleWidth(line)).toBe(80)
 })
 
-test('StatusBar drops the version once a reading arrives', () => {
+test('StatusBar holds the working directory at the far left', () => {
   const bar = new StatusBar(() => ({
+    cwd: '/Users/colin/note/projects/hulala',
+    home: '/Users/colin',
     model: { provider: 'deepseek', model: 'chat' },
     metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
     disconnected: false,
   }), false)
-  const line = bar.render(80)[0] ?? ''
-  expect(line).not.toContain('hulala v')
-  expect(line).toContain('80 tok/s') // speed
-  expect(line).toContain('480 tok') // total tokens
-  expect(line.endsWith('deepseek/chat')).toBe(true) // model right
+  const line = bar.render(100)[0] ?? ''
+  expect(line.startsWith('~/note/projects/hulala')).toBe(true)
+  expect(line).toContain('80 tok/s')
+  expect(line.endsWith('deepseek/chat'))
+  expect(visibleWidth(line)).toBe(100)
 })
 
 test('StatusBar keeps the update hint after a reading arrives', () => {

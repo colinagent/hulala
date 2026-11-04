@@ -57,6 +57,8 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   // puts its queued-message block; empty lists render no lines at all.
   const pending = new PendingMessages(config.color)
   const statusBar = new StatusBar(() => ({
+    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...(home === undefined ? {} : { home }),
     ...(session.model === undefined ? {} : { model: session.model }),
     metrics: reducer.metrics,
     disconnected: session.disconnected,

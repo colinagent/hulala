@@ -50,21 +50,6 @@ function chatEntries(options: TerminalLayoutOptions): NonNullable<ConstructorPar
 }
 
 /**
- * A fixed-width blank column.
- *
- * The status row is not part of any column: it belongs to the client and keeps
- * the model at the frame's right edge, but its readings must start under the
- * conversation rather than under the Session rail. A blank column of the rail's
- * width is what turns one full-width row into that alignment.
- */
-class BlankColumn implements Component {
-  invalidate(): void {}
-  render(width: number): string[] {
-    return [' '.repeat(Math.max(0, width))]
-  }
-}
-
-/**
  * The frame's bottom rule: the composer's own bottom line, continued.
  *
  * Every column ends on this one line and the vertical dividers stop on it, so
@@ -278,18 +263,12 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
 
   const columns = new HStack(entries)
 
-  // One status row under the frame's bottom rule. It spans the whole width — it
-  // is the frame's footer, not a column's — but its readings begin at the
-  // conversation's left edge, and the model label keeps the right one.
+  // One status row under the frame's bottom rule, running the whole width from
+  // the terminal's first column: the working directory sits at the far left, the
+  // readings follow it and the model label keeps the right edge.
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    {
-      component: new HStack([
-        { component: new BlankColumn(), basis: railWidth + SPLIT_GAP, grow: 0, shrink: 0 },
-        { component: options.statusBar, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-      ]),
-      shrink: 0,
-    },
+    { component: options.statusBar, shrink: 0 },
   ])
 
   /** Move the editor divider; without a pane this layout has nothing to resize. */
