@@ -80,8 +80,8 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   let timerMs = 0
   let lastCwd = session.cwd
 
-  // Two rows belong to the frame: the status band and the row of air above it.
-  const pageRows = (): number => Math.max(1, (terminal.rows - 2) - 4)
+  // One row belongs to the frame: the status band under the columns.
+  const pageRows = (): number => Math.max(1, (terminal.rows - 1) - 4)
 
   const rail = new SessionRail({
     state: () => ({
@@ -95,7 +95,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
       pageRows: pageRows(),
       now: Date.now(),
     }),
-    rows: () => Math.max(4, terminal.rows - 2),
+    rows: () => Math.max(4, terminal.rows - 1),
     color: config.color,
     focused: () => focused,
     onOpen: id => { void session.open(id).finally(() => blur()) },
@@ -105,7 +105,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     onRevealed: (next: boolean) => { revealed = next; render.request() },
     onRefresh: () => { void session.refresh() },
   })
-  const divider = columnRule(() => Math.max(1, terminal.rows - 2), config.color)
+  const divider = columnRule(() => Math.max(1, terminal.rows - 1), config.color)
 
   layout.register('rail', {
     id: 'sessions',

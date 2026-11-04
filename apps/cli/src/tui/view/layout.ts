@@ -56,29 +56,6 @@ function chatEntries(options: TerminalLayoutOptions): NonNullable<ConstructorPar
   ]
 }
 
-/**
- * The status band with a row of air above its text.
- *
- * The band is a filled surface, and text sitting directly under the composer's
- * bottom rule reads as if it were pressed against it. One band-coloured blank
- * row gives the text the same gutter the band already has at its sides, without
- * drawing a line the column dividers would meet.
- */
-class StatusBand implements Component {
-  constructor(private readonly bar: Component) {}
-  invalidate(): void {
-    this.bar.invalidate()
-  }
-  render(width: number): string[] {
-    const [line = ''] = this.bar.render(width)
-    // The band's fill and ink are the first line's own SGR run; nothing here
-    // needs to know which colours they are.
-    const open = /^(?:\u001b\[[0-9;]*m)+/u.exec(line)?.[0] ?? ''
-    const blank = `${open}${' '.repeat(Math.max(0, width))}${open === '' ? '' : '\u001b[0m'}`
-    return [blank, line]
-  }
-}
-
 /** Left column that reports pointer presence while keeping normal mouse routing. */
 class ConversationColumn extends VStack {
   constructor(children: ConstructorParameters<typeof VStack>[0], private readonly onPointer: () => void) {
@@ -209,7 +186,7 @@ export function buildTerminalLayout(options: TerminalLayoutOptions): TerminalLay
   const dock = new VStack([
     ...chatEntries(options),
     { component: options.editor, shrink: 1, minSize: COMPOSER_MIN_SIZE },
-    { component: new StatusBand(options.statusBar), shrink: 1, minSize: 0 },
+    { component: options.statusBar, shrink: 1, minSize: 0 },
   ])
 
   const root = new VStack([
@@ -263,7 +240,7 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
   // The columns end above it, so no divider is drawn against it.
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: new StatusBand(options.statusBar), shrink: 0 },
+    { component: options.statusBar, shrink: 0 },
   ])
 
   /** Move the editor divider; without a pane this layout has nothing to resize. */
@@ -309,7 +286,7 @@ export function buildSideColumnsLayout(options: SideColumnsLayoutOptions): SideC
   // side columns end above it, as they do when the conversation is on screen.
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: new StatusBand(options.statusBar), shrink: 0 },
+    { component: options.statusBar, shrink: 0 },
   ])
 
   /** Move the divider; a lone column has no second width to trade against. */
@@ -357,7 +334,7 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
 
   const root = new VStack([
     { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-    { component: new StatusBand(options.statusBar), shrink: 0 },
+    { component: options.statusBar, shrink: 0 },
   ])
 
   /**

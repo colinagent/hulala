@@ -157,8 +157,8 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
    */
   const ratios: Record<PaneKind, number> = { terminal: 1 / 3, editor: 1 / 3 }
 
-  // The frame owns the last two rows: the status band and its air row.
-  const rows = (): number => Math.max(1, terminal.rows - 2)
+  // The frame owns the last row: the status band under the columns.
+  const rows = (): number => Math.max(1, terminal.rows - 1)
 
   const columns = (kind: PaneKind): number => {
     const wanted = Math.round(terminal.columns * ratios[kind])

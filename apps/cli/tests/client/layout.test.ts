@@ -41,16 +41,15 @@ test('a long transcript never takes height away from the composer', () => {
   const frame = renderLayoutFrame(layout.root, 60, 20, () => undefined)
   const [transcript, dock] = frame.root.children
   expect(frame.lines).toHaveLength(20)
-  expect(transcript?.rect.height).toBe(13) // 20 - dock; the transcript reaches the top
-  expect(dock?.rect.height).toBe(7) // pending + cwd + composer + band (air row + row)
-  expect(dock?.children.map(child => child.rect.height)).toEqual([1, 1, 3, 2])
-  expect(frame.lines.slice(-7)).toEqual([
+  expect(transcript?.rect.height).toBe(14) // 20 - dock; the transcript reaches the top
+  expect(dock?.rect.height).toBe(6) // pending + cwd + composer + band
+  expect(dock?.children.map(child => child.rect.height)).toEqual([1, 1, 3, 1])
+  expect(frame.lines.slice(-6)).toEqual([
     'pending'.padEnd(60),
     'cwd'.padEnd(60),
     'composer'.padEnd(60),
     'composer'.padEnd(60),
     'composer'.padEnd(60),
-    ' '.repeat(60), // the band's air row
     'status'.padEnd(60),
   ])
 })
@@ -66,8 +65,7 @@ test('the composer keeps both rules around the arrow when the transcript is long
   // Fill the terminal the way a few turns of a Session do.
   const frame = renderLayoutFrame(layout.root, 80, 30, () => undefined)
   const rows = frame.lines.map(strip)
-  // The band is two rows (air, then text), the composer the three above it.
-  const composerRows = rows.slice(-5, -2)
+  const composerRows = rows.slice(-4, -1)
   expect(composerRows).toHaveLength(3)
   // The rules stop at the body's gutter on both sides: they belong to the
   // composer, and a rule that reached the column edge would touch a divider.
@@ -90,15 +88,15 @@ test('the columns end on the last row above the status band', () => {
   const frame = renderLayoutFrame(layout.root, 120, 24, () => undefined)
   const rows = frame.lines.map(strip)
   const [columns, status] = frame.root.children
-  // The band and its air row are the only rows the columns do not own.
-  expect(columns?.rect.height).toBe(22)
-  expect(status?.rect.height).toBe(2)
+  // The band is the only row the columns do not own.
+  expect(columns?.rect.height).toBe(23)
+  expect(status?.rect.height).toBe(1)
   expect(rows.at(-1)?.startsWith('status')).toBe(true)
   // There is no frame rule row: the only horizontal lines are the composer's,
   // and they are inset inside the conversation column.
   expect(rows.some(row => /^─+$/u.test(row))).toBe(false)
-  expect(rows.at(-3)).toContain('  ─')
-  expect(rows.at(-3)?.endsWith('  ')).toBe(true)
+  expect(rows.at(-2)).toContain('  ─')
+  expect(rows.at(-2)?.endsWith('  ')).toBe(true)
 })
 
 test('a short terminal drops chrome rows instead of clipping the composer', () => {
@@ -131,8 +129,8 @@ test('the editor column splits the width without touching the composer height', 
   const frame = renderLayoutFrame(layout.root, 100, 24, () => undefined)
   const [columns, status] = frame.root.children
   expect(frame.lines).toHaveLength(24)
-  expect(columns?.rect.height).toBe(22) // 24 - band (air row + row); the editor reaches the top
-  expect(status?.rect.height).toBe(2)
+  expect(columns?.rect.height).toBe(23) // 24 - band; the editor reaches the top
+  expect(status?.rect.height).toBe(1)
   // One gap column between the two columns, and the status bar spans both.
   const [conversation, divider, pane] = columns?.children ?? []
   expect(divider?.rect.width).toBe(1)
@@ -140,10 +138,10 @@ test('the editor column splits the width without touching the composer height', 
   expect(conversation?.rect.width).toBe(50)
   expect(pane?.rect.width).toBe(49)
   expect(pane?.rect.x).toBe(51) // one divider column, then the pane
-  expect(pane?.rect.height).toBe(22) // 24 - band (air row + row)
+  expect(pane?.rect.height).toBe(23) // 24 - band
   // The composer keeps its three rows inside the narrower left column.
   const leftChildren = conversation?.children ?? []
-  expect(leftChildren.map(child => child.rect.height)).toEqual([17, 1, 1, 3])
+  expect(leftChildren.map(child => child.rect.height)).toEqual([18, 1, 1, 3])
   const row = strip(frame.lines[5] ?? '')
   expect(row).toContain('line') // the transcript still paints the left column
   expect(row).toContain('nvim') // and the editor paints the right one
@@ -186,7 +184,7 @@ test('the side columns fill the frame when the conversation is put away', () => 
     statusBar: slab('status', 1),
   }).root, 100, 24, () => undefined)
   const [columns, status] = frame.root.children
-  expect(status?.rect.height).toBe(2)
+  expect(status?.rect.height).toBe(1)
   // The pane keeps its width and the rail absorbs the rest of the frame.
   const [railBox, divider, paneBox] = columns?.children ?? []
   expect(railBox?.rect).toMatchObject({ x: 0, width: 59 })
@@ -266,9 +264,9 @@ test('the rail, the conversation and the editor each get their columns', () => {
   expect(divider?.rect.x).toBe(87)
   expect(editor?.rect).toMatchObject({ x: 88, width: 32 })
   // The band is one surface across the whole frame, from the first column to the
-  // last, with a row of air above its text.
+  // last, and it is one row tall.
   const footer = withEditor.root.children[1]
-  expect(footer?.rect).toMatchObject({ x: 0, width: 120, y: 22, height: 2 })
+  expect(footer?.rect).toMatchObject({ x: 0, width: 120, y: 23, height: 1 })
   const statusLine = strip(withEditor.lines.at(-1) ?? '')
   expect(statusLine.trim()).toStartWith('status')
 
