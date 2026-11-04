@@ -1,7 +1,7 @@
 {
   "name": "@hulala/monorepo",
   "version": "0.2.2",
-  "description": "Hulala \u2014 a local-first DeepSeek Harness workbench and terminal client.",
+  "description": "Hulala — a local-first DeepSeek Harness workbench and terminal client.",
   "private": true,
   "license": "GPL-3.0-only",
   "packageManager": "bun@1.4.2",
@@ -52,6 +52,7 @@
     "bun": ">=1.4.2"
   },
   "patchedDependencies": {
-    "@deepseek-ai/dsh-subprocess-local@0.2.1-rc.5": "patches/@deepseek-ai%2Fdsh-subprocess-local@0.2.1-rc.5.patch"
+    "@deepseek-ai/dsh-subprocess-local@0.2.1-rc.5": "patches/@deepseek-ai%2Fdsh-subprocess-local@0.2.1-rc.5.patch",
+    "@earendil-works/pi-tui@1.4.0": "patches/@earendil-works%2Fpi-tui@1.4.0.patch"
   }
 }
