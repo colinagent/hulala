@@ -25,12 +25,12 @@ import { VStack, type Component } from '@earendil-works/pi-tui'
 import type { SeatId } from '@hulala/plugin-sdk'
 import {
   buildRailTerminalLayout,
+  buildSideColumnsLayout,
   buildSplitTerminalLayout,
   buildTerminalLayout,
   railFits,
   railWidthFor,
   SPLIT_MIN_SIZE,
-  type SplitTerminalLayout,
 } from '../view/layout.js'
 
 declare module '@deepseek-ai/cordis' {
@@ -76,6 +76,20 @@ export interface TuiLayout {
   readonly railWanted: boolean
   /** The rail is drawn at this width. */
   readonly railShown: boolean
+  /**
+   * Show the conversation column, or put it away with `Ctrl-D`.
+   *
+   * A hidden conversation is refused while neither side column is drawn: the
+   * frame never becomes empty. The seat registrations stay in place, so
+   * revealing the conversation restores the same transcript, composer and
+   * draft.
+   * @param visible - whether the conversation should be drawn.
+   */
+  setConversationVisible(visible: boolean): void
+  /** The conversation is asked for. */
+  readonly conversationWanted: boolean
+  /** The conversation is drawn; always true when both side columns are away. */
+  readonly conversationShown: boolean
   /** Show a registered column seat as the right column, or clear it. */
   setPane(id: string | undefined): void
   /** The right column currently drawn, if any. */
@@ -116,8 +130,12 @@ export function apply(ctx: Context): void {
   const listeners = new Set<() => void>()
   let railWanted = true
   let railShown = false
+  let conversationWanted = true
+  let conversationShown = true
   let paneId: string | undefined
-  let split: SplitTerminalLayout | undefined
+  // The frame in use when there are side columns; `setPaneWidth` is the only
+  // part of either builder the layout needs after the tree is installed.
+  let split: { readonly root: Component; setPaneWidth(width: number): void } | undefined
 
   const entriesOf = (seat: SeatId): Array<SeatEntry | ColumnSeatEntry> => [...(seats.get(seat)?.values() ?? [])]
 
@@ -138,75 +156,95 @@ export function apply(ctx: Context): void {
   }
 
   const rebuild = (): void => {
-    for (const seat of REQUIRED) {
-      if (contentOf(seat) === undefined) return
-    }
-    const main = contentOf('main')!
-    const pending = contentOf('dock.pending')
-    const cwdBar = contentOf('dock.cwd')
-    const editor = contentOf('dock.input')!
-    const statusBar = contentOf('dock.status')!
-
     const rail = column('rail')
     const pane = column('pane')
     const paneShown = paneId === undefined ? undefined : pane
     railShown = railWanted && rail !== undefined && railFits(terminal.columns, paneShown !== undefined)
+    // One column always stays: a conversation put away while both side columns
+    // are gone would leave an empty frame and a keyboard with nowhere to go.
+    conversationShown = conversationWanted || (!railShown && paneShown === undefined)
 
-    // A seat that is optional still has to render something in the dock shape,
-    // and pi-tui takes the component, so an absent pending row is a zero-row
-    // spacer rather than a special case in the builder.
-    const pendingOrBlank = pending ?? BLANK
-
-    if (paneShown !== undefined) {
-      split = railShown
-        ? buildRailTerminalLayout({
-            transcript: main,
-            pending: pendingOrBlank,
-            editor,
-            statusBar,
-            rail: rail!.component,
-            railWidth: railWidthFor(terminal.columns),
-            railDivider: rail!.divider,
-            pane: {
-              component: paneShown.component,
-              width: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
-              divider: paneShown.divider,
-              onConversationPointer: () => paneShown.onConversationPointer?.(),
-            },
-          })
-        : buildSplitTerminalLayout({
-            transcript: main,
-            pending: pendingOrBlank,
-            // The rail carries the path; only a rail-less frame needs the row.
-            ...(cwdBar === undefined ? {} : { cwdBar }),
-            editor,
-            statusBar,
-            pane: paneShown.component,
-            divider: paneShown.divider,
-            paneWidth: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
-            onConversationPointer: () => paneShown.onConversationPointer?.(),
-          })
-    } else if (railShown) {
-      split = buildRailTerminalLayout({
-        transcript: main,
-        pending: pendingOrBlank,
-        editor,
-        statusBar,
-        rail: rail!.component,
-        railWidth: railWidthFor(terminal.columns),
-        railDivider: rail!.divider,
-      })
-    } else {
-      split = undefined
-      screen.setLayoutRoot(buildTerminalLayout({
-        transcript: main,
-        pending: pendingOrBlank,
-        ...(cwdBar === undefined ? {} : { cwdBar }),
-        editor,
-        statusBar,
-      }).root)
+    const statusBar = contentOf('dock.status')
+    if (statusBar === undefined) return
+    if (conversationShown) {
+      for (const seat of REQUIRED) {
+        if (contentOf(seat) === undefined) return
+      }
     }
-    if (split !== undefined) screen.setLayoutRoot(split.root)
+
+    if (!conversationShown) {
+      split = buildSideColumnsLayout({
+        ...(railShown
+          ? { rail: { component: rail!.component, divider: rail!.divider, width: railWidthFor(terminal.columns) } }
+          : {}),
+        ...(paneShown === undefined
+          ? {}
+          : { pane: { component: paneShown.component, divider: paneShown.divider, width: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())) } }),
+        statusBar,
+      })
+      screen.setLayoutRoot(split.root)
+    } else {
+      const main = contentOf('main')!
+      const pending = contentOf('dock.pending')
+      const cwdBar = contentOf('dock.cwd')
+      const editor = contentOf('dock.input')!
+
+      // A seat that is optional still has to render something in the dock shape,
+      // and pi-tui takes the component, so an absent pending row is a zero-row
+      // spacer rather than a special case in the builder.
+      const pendingOrBlank = pending ?? BLANK
+
+      if (paneShown !== undefined) {
+        split = railShown
+          ? buildRailTerminalLayout({
+              transcript: main,
+              pending: pendingOrBlank,
+              editor,
+              statusBar,
+              rail: rail!.component,
+              railWidth: railWidthFor(terminal.columns),
+              railDivider: rail!.divider,
+              pane: {
+                component: paneShown.component,
+                width: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
+                divider: paneShown.divider,
+                onConversationPointer: () => paneShown.onConversationPointer?.(),
+              },
+            })
+          : buildSplitTerminalLayout({
+              transcript: main,
+              pending: pendingOrBlank,
+              // The rail carries the path; only a rail-less frame needs the row.
+              ...(cwdBar === undefined ? {} : { cwdBar }),
+              editor,
+              statusBar,
+              pane: paneShown.component,
+              divider: paneShown.divider,
+              paneWidth: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
+              onConversationPointer: () => paneShown.onConversationPointer?.(),
+            })
+      } else if (railShown) {
+        split = buildRailTerminalLayout({
+          transcript: main,
+          pending: pendingOrBlank,
+          editor,
+          statusBar,
+          rail: rail!.component,
+          railWidth: railWidthFor(terminal.columns),
+          railDivider: rail!.divider,
+        })
+      } else {
+        split = undefined
+        screen.setLayoutRoot(buildTerminalLayout({
+          transcript: main,
+          pending: pendingOrBlank,
+          ...(cwdBar === undefined ? {} : { cwdBar }),
+          editor,
+          statusBar,
+        }).root)
+      }
+      if (split !== undefined) screen.setLayoutRoot(split.root)
+    }
     for (const listener of listeners) listener()
     render.request(true)
   }
@@ -255,6 +293,17 @@ export function apply(ctx: Context): void {
     },
     get railWanted() { return railWanted },
     get railShown() { return railShown },
+    setConversationVisible: (visible: boolean) => {
+      if (conversationWanted === visible) return
+      // Refuse the request itself, not just this rebuild: keeping it would hide
+      // the conversation the moment a side column appeared, which is not what
+      // the key meant while nothing was open.
+      if (!visible && !railShown && paneId === undefined) return
+      conversationWanted = visible
+      rebuild()
+    },
+    get conversationWanted() { return conversationWanted },
+    get conversationShown() { return conversationShown },
     setPane: (id: string | undefined) => {
       if (paneId === id) return
       paneId = id

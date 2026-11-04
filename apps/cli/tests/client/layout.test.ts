@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Component, TUI } from '@earendil-works/pi-tui'
 import { renderLayoutFrame } from '@earendil-works/pi-tui/dist/layout.js'
-import { buildRailTerminalLayout, buildSplitTerminalLayout, buildTerminalLayout, railFits, railWidthFor } from '../../src/tui/view/layout.js'
+import { buildRailTerminalLayout, buildSideColumnsLayout, buildSplitTerminalLayout, buildTerminalLayout, railFits, railWidthFor } from '../../src/tui/view/layout.js'
 import { PromptEditor } from '../../src/tui/view/promptEditor.js'
 import { buildTheme } from '../../src/tui/view/theme.js'
 
@@ -146,6 +146,57 @@ test('setPaneWidth moves the divider without rebuilding the transcript', () => {
   // The same ScrollView instance survives, so a drag never loses scroll state.
   expect(after.root.children[0]?.children[0]?.children[0]?.component).toBe(scrollBefore)
   expect(scrollBefore).toBe(layout.transcriptScroll)
+})
+
+test('the side columns fill the frame when the conversation is put away', () => {
+  const rail = { component: slab('rail', 24), width: 18, divider: slab('|', 24) }
+  const pane = { component: slab('nvim', 24), width: 40, divider: slab('|', 24) }
+  const frame = renderLayoutFrame(buildSideColumnsLayout({
+    rail,
+    pane,
+    statusBar: slab('status', 1),
+  }).root, 100, 24, () => undefined)
+  const [columns, status] = frame.root.children
+  expect(status?.rect.height).toBe(1)
+  // The pane keeps its width and the rail absorbs the rest of the frame.
+  const [railBox, divider, paneBox] = columns?.children ?? []
+  expect(railBox?.rect).toMatchObject({ x: 0, width: 59 })
+  expect(divider?.rect).toMatchObject({ x: 59, width: 1 })
+  expect(paneBox?.rect).toMatchObject({ x: 60, width: 40 })
+  expect(frame.lines[3]).toContain('rail')
+  expect(frame.lines[3]).toContain('nvim')
+  expect(frame.lines.at(-1)?.startsWith('status')).toBe(true)
+})
+
+test('a lone side column owns the whole frame', () => {
+  const railOnly = buildSideColumnsLayout({ rail: { component: slab('rail', 24), width: 18, divider: slab('|', 24) }, statusBar: slab('status', 1) })
+  const railFrame = renderLayoutFrame(railOnly.root, 80, 24, () => undefined)
+  expect(railFrame.root.children[0]?.children).toHaveLength(1)
+  expect(railFrame.root.children[0]?.children?.[0]?.rect.width).toBe(80)
+
+  const paneOnly = buildSideColumnsLayout({ pane: { component: slab('nvim', 24), width: 40, divider: slab('|', 24) }, statusBar: slab('status', 1) })
+  const paneFrame = renderLayoutFrame(paneOnly.root, 80, 24, () => undefined)
+  expect(paneFrame.root.children[0]?.children).toHaveLength(1)
+  expect(paneFrame.root.children[0]?.children?.[0]?.rect.width).toBe(80)
+
+  // Dragging is meaningless without a second column to trade width against.
+  railOnly.setPaneWidth(20)
+  const after = renderLayoutFrame(railOnly.root, 80, 24, () => undefined)
+  expect(after.root.children[0]?.children?.[0]?.rect.width).toBe(80)
+})
+
+test('the side columns still resize the editor divider', () => {
+  const layout = buildSideColumnsLayout({
+    rail: { component: slab('rail', 24), width: 18, divider: slab('|', 24) },
+    pane: { component: slab('nvim', 24), width: 40, divider: slab('|', 24) },
+    statusBar: slab('status', 1),
+  })
+  layout.setPaneWidth(50)
+  const frame = renderLayoutFrame(layout.root, 100, 24, () => undefined)
+  const [railBox, divider, paneBox] = frame.root.children[0]?.children ?? []
+  expect(railBox?.rect.width).toBe(49)
+  expect(divider?.rect.x).toBe(49)
+  expect(paneBox?.rect).toMatchObject({ x: 50, width: 50 })
 })
 
 test('the rail keeps a narrow share and yields to the editor on a narrow terminal', () => {

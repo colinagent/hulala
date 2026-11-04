@@ -90,3 +90,68 @@ test('ScreenPane pads a blank screen instead of collapsing rows', () => {
   expect(lines[0]).toBe(' '.repeat(10))
 })
 
+
+/** History state the pane can page; tests move it directly. */
+class FakeScroll {
+  back = 0
+  readonly pages: number[] = []
+  followCalls = 0
+  count = 0
+
+  scrollable(): boolean { return this.count > 0 }
+  scrollPages(pages: number): boolean {
+    this.pages.push(pages)
+    const next = Math.max(0, Math.min(this.count, this.back - pages * 5))
+    if (next === this.back) return false
+    this.back = next
+    return true
+  }
+
+  follow(): boolean {
+    this.followCalls += 1
+    if (this.back === 0) return false
+    this.back = 0
+    return true
+  }
+
+  scrolledBack(): number { return this.back }
+}
+
+const PAGE_UP = '\u001b[5~'
+const PAGE_DOWN = '\u001b[6~'
+
+test('a terminal pages its own history and marks the live screen in the last row', () => {
+  const screen = new FakeScreen()
+  const scroll = new FakeScroll()
+  scroll.count = 20
+  scroll.back = 7
+  const pane = new ScreenPane({ screen, scroll, rows: () => 3, color: false })
+  const lines = pane.render(40)
+  expect(lines.at(-1)).toContain('历史 7 行')
+  expect(screen.cursors).toEqual(['none'])
+
+  pane.handleInput(PAGE_UP)
+  pane.handleInput(PAGE_DOWN)
+  expect(scroll.pages).toEqual([-1, 1])
+  // Paging never reaches the program.
+  expect(screen.inputs).toEqual([])
+})
+
+test('typing in a scrolled-back terminal returns to the live screen first', () => {
+  const screen = new FakeScreen()
+  const scroll = new FakeScroll()
+  scroll.count = 20
+  scroll.back = 4
+  const pane = new ScreenPane({ screen, scroll, rows: () => 3, color: false })
+  pane.handleInput('x')
+  expect(scroll.followCalls).toBe(1)
+  expect(screen.inputs).toEqual(['x'])
+})
+
+test('an editor without history passes the paging keys to the program', () => {
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false })
+  pane.handleInput(PAGE_UP)
+  pane.handleInput(PAGE_DOWN)
+  expect(screen.inputs).toEqual([PAGE_UP, PAGE_DOWN])
+})

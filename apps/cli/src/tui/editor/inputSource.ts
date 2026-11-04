@@ -4,8 +4,8 @@
  * Neovim inside the client cannot reach the input method: the switch belongs to
  * the terminal application, not to the pty child. So the client does it when
  * the editor column takes focus and puts the previous source back when focus
- * returns to the composer — including when `Ctrl-F` only hides the pane and
- * Neovim keeps running.
+ * returns to the composer or moves to the built-in terminal — Neovim keeps
+ * running in both cases, so the switch cannot be tied to its lifecycle.
  *
  * Calls are asynchronous on purpose: spawning the helper costs a few tens of
  * milliseconds and no keystroke should wait for that.

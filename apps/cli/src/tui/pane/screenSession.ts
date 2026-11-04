@@ -16,8 +16,9 @@
  * and reflow are xterm's job. Rendering is driven by output rather than by a
  * timer, so an idle process produces no frames at all.
  *
- * There is no history: the one column runs an editor with its own buffers and
- * scrolling, so the pane never pages and no key is held back for it.
+ * There is history only where the column asked for it: the terminal pages back
+ * through output that scrolled off, while the editor has its own buffers and
+ * scrolling and never needs the pane to keep any.
  *
  * @module hulala-cli/tui/pane/screenSession
  */
@@ -58,6 +59,8 @@ export interface ScreenSessionOptions {
   readonly cwd: string
   readonly cols: number
   readonly rows: number
+  /** Lines of history kept above the live screen; 0 disables scrolling. */
+  readonly scrollback?: number
   /** Called after output has been parsed and the screen changed. */
   readonly onScreen: () => void
   /** Called once the child process is gone. */
@@ -86,6 +89,7 @@ function cellSgr(cell: IBufferCell): string {
 export class ScreenSession {
   private readonly screen: Terminal
   private readonly child: PtyProcess
+  private readonly history: boolean
   private disposed = false
   private background: string | undefined
   private backgroundRevision = -1
@@ -93,10 +97,13 @@ export class ScreenSession {
   private revision = 0
 
   private constructor(options: ScreenSessionOptions) {
+    const history = (options.scrollback ?? 0) > 0
+    this.history = history
     this.screen = new Terminal({
       cols: options.cols,
       rows: options.rows,
       allowProposedApi: true,
+      scrollback: options.scrollback ?? 0,
     })
     this.child = options.pty.spawn(options.command, [...options.args], {
       name: 'xterm-256color',
@@ -203,6 +210,11 @@ export class ScreenSession {
   /**
    * Visible screen rows as ANSI strings, exactly one per requested row.
    *
+   * The viewport is wherever paging left it, so a scrolled-back row shows
+   * history instead of the live screen. New output does not move it: `viewportY`
+   * is an absolute buffer offset, which is what makes reading history while a
+   * command still runs possible.
+   *
    * The program's cell under the cursor is drawn as a reverse-video block
    * (`renderFakeCursor` + `CURSOR_MARKER`, pi-tui's composer-cursor mechanism).
    * A column without focus draws the same cell as a ghost of it instead, so both
@@ -265,6 +277,70 @@ export class ScreenSession {
       lines.push(text + RESET)
     }
     return lines
+  }
+
+  /**
+   * Whether a full-screen program owns the column, i.e. the screen is the
+   * alternate screen. Those programs (`fzf`, a pager, an editor in the shell)
+   * use `Esc` themselves, so the client must not take it for focus switching.
+   * @returns true while the program paints the alternate screen.
+   */
+  alternateScreen(): boolean {
+    if (this.disposed) return false
+    return this.screen.buffer.active.type !== 'normal'
+  }
+
+  /**
+   * Whether paging keys belong to this pane rather than to the program.
+   *
+   * True only for a session started with history, on the normal screen, with
+   * something behind the live screen. A full-screen program (`less`, `top`)
+   * owns the alternate screen and keeps its own `PageUp`, and an editor with no
+   * history passes every key straight through.
+   * @returns true when `scrollPages` would do something.
+   */
+  scrollable(): boolean {
+    if (this.disposed || !this.history) return false
+    const buffer = this.screen.buffer.active
+    return buffer.type === 'normal' && buffer.baseY > 0
+  }
+
+  /**
+   * Page the viewport through history.
+   * @param pages - negative scrolls back, positive forward.
+   * @returns true when the viewport moved, so the caller repaints.
+   */
+  scrollPages(pages: number): boolean {
+    if (!this.scrollable()) return false
+    const buffer = this.screen.buffer.active
+    const before = buffer.viewportY
+    this.screen.scrollPages(pages)
+    if (this.screen.buffer.active.viewportY === before) return false
+    this.revision += 1
+    return true
+  }
+
+  /**
+   * Return to the live screen, which is what any typing should do.
+   * @returns true when the viewport moved.
+   */
+  follow(): boolean {
+    if (this.disposed || !this.history) return false
+    const buffer = this.screen.buffer.active
+    if (buffer.viewportY >= buffer.baseY) return false
+    this.screen.scrollToBottom()
+    this.revision += 1
+    return true
+  }
+
+  /**
+   * Lines between the top of the viewport and the bottom of the buffer.
+   * @returns 0 while the pane shows the live screen.
+   */
+  scrolledBack(): number {
+    if (this.disposed || !this.history) return 0
+    const buffer = this.screen.buffer.active
+    return Math.max(0, buffer.baseY - buffer.viewportY)
   }
 
   /** Stop the program and release the screen model. */

@@ -1,17 +1,19 @@
 /**
- * The right column: one child program in a pty, rendered as terminal cells.
+ * The sidebar: one child program in a pty, rendered as terminal cells.
  *
- * Today that program is always Hulala's Neovim, but nothing here assumes it: the
- * column is a `ScreenSession` (pty bytes → `@xterm/headless` cells →
- * `ScreenPane` lines) plus the geometry and focus that go with it. The editor's
- * own files, environment and reported state live in the editor plugin; this one
- * owns the *process*, and therefore owns its lifetime.
+ * The column shows either the built-in terminal (`Ctrl-T`) or Hulala's Neovim
+ * (`Ctrl-F`); at most one is painted at a time, but neither process is the
+ * other's casualty. Switching columns, losing focus to the composer and hiding
+ * the sidebar all keep the shell's jobs and Neovim's buffers alive. A process
+ * ends when it exits on its own, when `Ctrl-F` asks Neovim to leave, when the
+ * Session changes, or when the window closes.
  *
- * That ownership is the reason it is a plugin. A pty is the one resource in this
- * client that survives everything else: closing the column keeps it alive on
- * purpose, switching Sessions must kill it, and a window that ends for any
- * reason must not leave a `node-pty` child behind. Here the rule is one
- * `ctx.effect`, which is the only form of cleanup that cannot be forgotten.
+ * That ownership is the reason this is a plugin. A pty is the one resource in this
+ * client that survives everything else: hiding the sidebar or losing focus keeps
+ * both processes alive on purpose, switching Sessions must kill them, and a
+ * window that ends for any reason must not leave a `node-pty` child behind. Here
+ * the rule is one `ctx.effect`, which is the only form of cleanup that cannot be
+ * forgotten.
  *
  * @module hulala-cli/tui/plugins/panes
  */
@@ -22,7 +24,8 @@ import type { PtyModule } from '../editor/pty.js'
 import { loadNodePty } from '../editor/pty.js'
 import { ENGLISH_INPUT_SOURCE, inputSource } from '../editor/inputSource.js'
 import { startNvimSession } from '../editor/nvimSession.js'
-import { editorOwnsEscape } from '../pane/focus.js'
+import { paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
+import { startShellSession } from '../pane/shellSession.js'
 import type { ScreenSession } from '../pane/screenSession.js'
 import { faintCursorSgr } from '../view/theme.js'
 import { columnRule, splitDivider } from '../view/splitDivider.js'
@@ -32,7 +35,7 @@ import { ConfirmOverlay, type ConfirmChoice } from '../view/overlays/confirm.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** The right column's process and focus. */
+    /** The sidebar's processes, geometry and focus. */
     hulalaPanes: TuiPanes
   }
 }
@@ -41,54 +44,70 @@ declare module '@deepseek-ai/cordis' {
 const MIN_SPLIT_COLUMNS = 82
 
 /** The column's identity in the frame and in diagnostics. */
-const PANE_ID = 'editor'
+const SIDEBAR_ID = 'sidebar'
 
 /** A running column: its process and the view that paints it. */
 interface PaneRuntime {
+  readonly kind: PaneKind
   readonly session: ScreenSession
   readonly view: ScreenPane
 }
 
-/** What the client asks the column for. */
+/** What the client asks the sidebar for. */
 export interface TuiPanes {
-  /** A process is running (the column may still be hidden). */
+  /** At least one column has a live process (it may be hidden). */
   readonly running: boolean
-  /** The column is on screen at this terminal width. */
+  /** The column the sidebar is showing, if any. */
+  readonly visible: PaneKind | undefined
+  /** The visible column is painted at this terminal width. */
   readonly shown: boolean
-  /** The keyboard is in the column. */
+  /** The keyboard is in the visible column. */
   readonly focused: boolean
   /**
-   * Run the column in `cwd`, reusing a live process.
+   * Run `kind` in `cwd`, reusing a live process.
    * @returns true when a process is running afterwards.
    */
-  open(cwd: string): boolean
-  /** Reach the column, or close it when the keyboard is already there. */
-  toggle(cwd: string): void
-  /** Move the keyboard into the column, starting it if needed. */
-  focus(cwd: string): void
-  /** Hide the column; the process keeps running. */
+  open(kind: PaneKind, cwd: string): boolean
+  /**
+   * `Ctrl-T` / `Ctrl-F`: open `kind` and focus it, or put the sidebar away when
+   * that same column is already painted.
+   *
+   * Visibility only, decided on which column is painted and never on where the
+   * keyboard is: a painted terminal is hidden and a painted editor is asked to
+   * leave even when the composer or the rail has the keyboard. Moving focus into
+   * an open column is `Ctrl-]`.
+   */
+  toggle(kind: PaneKind, cwd: string): void
+  /** Show `kind` and put the keyboard there, starting it if needed. */
+  focus(kind: PaneKind, cwd: string): void
+  /**
+   * The column `Ctrl-]` should focus without starting a program: the visible
+   * one, else the last closed one whose process is still alive.
+   */
+  switchable(): PaneKind | undefined
+  /** Hide the sidebar; both processes keep running. */
   close(): void
-  /** Move the keyboard back to the composer. */
+  /** Move the keyboard back to the composer; the sidebar stays visible. */
   blur(): void
-  /** Kill the process and hide the column. */
-  drop(): void
-  /** Drop and hide, e.g. because the Session (and so the directory) changed. */
+  /** Kill one column's process and hide the sidebar if that column is shown. */
+  drop(kind: PaneKind): void
+  /** Drop both columns and hide, e.g. because the Session changed. */
   reset(): void
-  /** Drop without repainting: the window is going away. */
+  /** Drop both without repainting: the window is going away. */
   dispose(): void
-  /** Write a key into the running process. */
+  /** Write a key into the visible column's process. */
   input(data: string): void
   /** Whether the focused program keeps `Ctrl-[` (the same byte as `Esc`). */
   ownsEscape(): boolean
-  /** Ask the program to leave, settling a refusal with a dialog. */
+  /** Ask Neovim to leave, settling a refusal with a dialog. */
   leave(): Promise<boolean>
-  /** The one-column drag target the frame draws beside the column. */
+  /** The one-column drag target the frame draws beside the sidebar. */
   readonly divider: Component
   /** The rule the rail layout draws between rail and conversation. */
   readonly railDivider: Component
   setDividerHover(hovered: boolean): void
   dragDividerTo(screenX: number): void
-  /** The component focus returns to when the column lets go. */
+  /** The component focus returns to when a column lets go. */
   setComposer(composer: Component): void
 }
 
@@ -100,7 +119,7 @@ export interface PanesPluginConfig {
   readonly debug: (message: string) => void
 }
 
-/** Whether a path is a plain local directory an editor can open. */
+/** Whether a path is a plain local directory a process can start in. */
 function isLocalDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory()
@@ -109,7 +128,7 @@ function isLocalDirectory(path: string): boolean {
   }
 }
 
-/** Provide the right column. */
+/** Provide the sidebar. */
 export function apply(ctx: Context, config: PanesPluginConfig): void {
   const { terminal, screen, setPaging } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
@@ -118,32 +137,43 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const nvim = ctx.hulalaEditor
   const { reducer } = ctx.hulalaViewModel
 
-  let runtime: PaneRuntime | undefined
+  /** Live column processes, keyed by kind. A hidden column keeps its process. */
+  const runtimes = new Map<PaneKind, PaneRuntime>()
+  /** Seat removal per kind; replaced when another column takes the seat. */
+  const seats = new Map<PaneKind, () => void>()
+  /** The column painted in the sidebar; it stays visible when the composer has focus. */
+  let visibleKind: PaneKind | undefined
+  /** The column shown most recently, so `Ctrl-]` can reopen it. */
+  let lastKind: PaneKind | undefined
+  /** The keyboard is in the visible column. */
   let focused = false
   let composer: Component | undefined
-  let seat: (() => void) | undefined
   let conflictTimer: ReturnType<typeof setInterval> | undefined
   let dividerHovered = false
-  /** Width share of the column, kept across closing and resizes. */
-  let ratio = 0.5
-  /** Input source to put back when the column loses focus. */
+  /**
+   * Width share per column, kept across closing and resizes. A terminal is read
+   * line by line, so it starts wider than the editor column does.
+   */
+  const ratios: Record<PaneKind, number> = { terminal: 0.55, editor: 0.5 }
+  /** Input source to put back when the editor gives the keyboard back. */
   let savedInputSource: string | undefined
   /** Invalidates a focus-time read whose pane was already left. */
   let inputTicket = 0
 
   const rows = (): number => Math.max(1, terminal.rows - 1)
 
-  const columns = (): number => {
-    const wanted = Math.round(terminal.columns * ratio)
+  const columns = (kind: PaneKind): number => {
+    const wanted = Math.round(terminal.columns * ratios[kind])
     return Math.max(SPLIT_MIN_SIZE, Math.min(terminal.columns - SPLIT_MIN_SIZE - 1, wanted))
   }
 
   const ptyModule = (): PtyModule | undefined => config.pty ?? loadNodePty()
 
   /**
-   * Switch the terminal to English while the column has focus. The program runs
-   * in a pty and cannot reach the input method itself, and hiding the column
-   * keeps the process alive, so the client owns the switch.
+   * Switch the terminal to English while the editor has focus. Neovim runs in a
+   * pty and cannot reach the input method itself, and hiding the column keeps
+   * the process alive, so the client owns the switch. The shell keeps whatever
+   * the user is typing with.
    */
   const takeInputSource = (): void => {
     const source = inputSource(nvim.ime)
@@ -156,7 +186,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     })
   }
 
-  /** Put back the source the composer had before the column took focus. */
+  /** Put back the source the composer had before the editor took focus. */
   const releaseInputSource = (): void => {
     inputTicket += 1
     if (savedInputSource === undefined) return
@@ -165,11 +195,13 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   }
 
   const dragDividerTo = (screenX: number): void => {
+    const kind = visibleKind
+    if (kind === undefined) return
     const width = terminal.columns
     if (width <= 0) return
     // The pointer is on the divider column, so the column starts one cell after.
-    ratio = Math.min(0.75, Math.max(0.25, (width - screenX - 1) / width))
-    layout.resizePane(columns())
+    ratios[kind] = Math.min(0.75, Math.max(0.25, (width - screenX - 1) / width))
+    layout.resizePane(columns(kind))
     render.request()
   }
 
@@ -185,73 +217,87 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const divider = splitDivider({
     rows,
     color: config.color,
-    background: () => runtime?.session.backgroundAnsi() ?? '',
+    background: () => {
+      const runtime = visibleKind === undefined ? undefined : runtimes.get(visibleKind)
+      return runtime?.session.backgroundAnsi() ?? ''
+    },
     onDrag: dragDividerTo,
     onHover: setDividerHover,
   })
   const railDivider = columnRule(rows, config.color)
 
+  /** The visible column's runtime, if one is painted. */
+  const visibleRuntime = (): PaneRuntime | undefined => visibleKind === undefined ? undefined : runtimes.get(visibleKind)
+
   const blur = (): void => {
-    config.debug(`blurPane focused=${String(focused)} visible=${String(layout.paneId)}`)
+    config.debug(`blurPane focused=${String(focused)} visible=${String(visibleKind)} overlays=${overlays.open}`)
     if (!focused) return
     focused = false
     releaseInputSource()
     setPaging(true)
     setDividerHover(false)
+    // Leaving the column returns to the conversation, bringing it back if it was
+    // put away with `Ctrl-D`: the composer has to be on screen to take the
+    // keyboard. The sidebar itself stays open.
+    if (!layout.conversationShown) layout.setConversationVisible(true)
     if (composer !== undefined) screen.setFocus(composer)
     render.request()
   }
 
   const close = (): void => {
-    config.debug(`closePane visible=${String(layout.paneId)} focused=${String(focused)} overlays=${overlays.open}`)
+    config.debug(`closePane visible=${String(visibleKind)} focused=${String(focused)} overlays=${overlays.open}`)
     if (layout.paneId === undefined) return
+    const hadFocus = focused
+    if (visibleKind !== undefined) lastKind = visibleKind
     blur()
+    visibleKind = undefined
     layout.setPane(undefined)
-    screen.setFocus(composer!)
-  }
-
-  const drop = (): void => {
-    config.debug(`dropPane visible=${String(layout.paneId)} focused=${String(focused)} overlays=${overlays.open}`)
-    if (runtime === undefined) return
-    const gone = runtime.session
-    runtime = undefined
-    seat?.()
-    seat = undefined
-    // The process is this plugin's, so killing it is this plugin's too: `drop`
-    // runs both when the program exited on its own (nothing to kill) and when
-    // the client abandons it (everything to kill).
-    gone.dispose()
-    if (conflictTimer !== undefined) {
-      clearInterval(conflictTimer)
-      conflictTimer = undefined
-    }
-    nvim.clearMarkers()
-    // The process can exit while its dialog is still up (a slow quit beats the
-    // grace period); settle it instead of leaving the keyboard disabled.
-    overlays.cancelEditorModals()
-    if (layout.paneId === PANE_ID) close()
+    // `blur()` brings a hidden conversation back when the sidebar had the
+    // keyboard. Without focus, the rail keeps the keyboard it had; a frame with
+    // no side column left restores the conversation in the layout itself.
+    if (hadFocus) screen.setFocus(composer!)
     render.request()
   }
 
-  const mount = (session: ScreenSession): void => {
-    const view = new ScreenPane({
-      screen: session,
-      rows,
-      color: config.color,
-      faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
-      onPointer: () => divider.setHovered(false),
-    })
-    runtime = { session, view }
-    // The frame shows whatever the pane seat holds; opening the column is the
-    // pty's business, showing it is the layout's.
-    seat?.()
-    seat = layout.register('pane', {
-      id: PANE_ID,
-      component: view,
+  /** Put a runtime's view in the pane seat, replacing whichever column was there. */
+  const registerSeat = (kind: PaneKind, runtime: PaneRuntime): void => {
+    seats.get(kind)?.()
+    seats.set(kind, layout.register('pane', {
+      id: SIDEBAR_ID,
+      component: runtime.view,
       divider: divider.component,
-      width: columns,
+      width: () => columns(kind),
       onConversationPointer: () => divider.setHovered(false),
-    })
+    }))
+  }
+
+  /**
+   * Forget a column whose process exited.
+   * @param kind - the column that is gone.
+   */
+  const drop = (kind: PaneKind): void => {
+    config.debug(`dropPane kind=${kind} visible=${String(visibleKind)} focused=${String(focused)} overlays=${overlays.open}`)
+    const runtime = runtimes.get(kind)
+    if (runtime === undefined) return
+    runtimes.delete(kind)
+    seats.get(kind)?.()
+    seats.delete(kind)
+    // The process is this plugin's, so killing it is this plugin's too: `drop`
+    // runs both when the program exited on its own (nothing to kill) and when
+    // the client abandons it (everything to kill).
+    runtime.session.dispose()
+    if (kind === 'editor') {
+      if (conflictTimer !== undefined) {
+        clearInterval(conflictTimer)
+        conflictTimer = undefined
+      }
+      nvim.clearMarkers()
+      // The process can exit while its dialog is still up (a slow quit beats the
+      // grace period); settle it instead of leaving the keyboard disabled.
+      overlays.cancelEditorModals()
+    }
+    if (visibleKind === kind) close()
+    render.request()
   }
 
   /**
@@ -270,77 +316,136 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     render.request()
     void answer.then(choice => {
       if (choice === 'later') return
-      runtime?.session.input(choice === 'keep' ? '\u001b:write!\r' : '\u001b:edit!\r')
+      runtimes.get('editor')?.session.input(choice === 'keep' ? '\u001b:write!\r' : '\u001b:edit!\r')
     })
   }
 
-  const open = (cwd: string): boolean => {
-    if (runtime !== undefined) return true
+  const mount = (kind: PaneKind, session: ScreenSession): PaneRuntime => {
+    const view = new ScreenPane({
+      screen: session,
+      // Only a shell needs the column's own history; Neovim owns its scrolling.
+      ...(kind === 'terminal' ? { scroll: session } : {}),
+      rows,
+      color: config.color,
+      faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
+      onScroll: () => { if (visibleKind === kind) render.request() },
+      onPointer: () => divider.setHovered(false),
+    })
+    const runtime: PaneRuntime = { kind, session, view }
+    runtimes.set(kind, runtime)
+    return runtime
+  }
+
+  /** Report why a column cannot start, naming the column the key chose. */
+  const unavailable = (kind: PaneKind, reason: string): false => {
+    reducer.addNotice(`${kind} unavailable: ${reason}`)
+    render.repaint()
+    return false
+  }
+
+  const open = (kind: PaneKind, cwd: string): boolean => {
+    config.debug(`openPane kind=${kind} cwd=${cwd} running=${String(runtimes.has(kind))}`)
+    if (runtimes.has(kind)) return true
     const pty = ptyModule()
     if (pty === undefined) {
       // Only when this runtime has no pty at all (no Bun and no node-pty).
-      reducer.addNotice('editor unavailable: no pty backend in this install')
-      render.repaint()
-      return false
+      return unavailable(kind, 'no pty backend in this install')
     }
-    if (!isLocalDirectory(cwd)) {
-      reducer.addNotice(`editor unavailable: ${cwd} is not a local directory`)
-      render.repaint()
-      return false
-    }
+    if (!isLocalDirectory(cwd)) return unavailable(kind, `${cwd} is not a local directory`)
     if (terminal.columns < MIN_SPLIT_COLUMNS) {
-      reducer.addNotice(`editor needs a terminal at least ${MIN_SPLIT_COLUMNS} columns wide`)
-      render.repaint()
-      return false
+      return unavailable(kind, `the sidebar needs at least ${MIN_SPLIT_COLUMNS} columns`)
     }
-    try {
-      nvim.prepare()
-    } catch (caught) {
-      reducer.addNotice(`editor unavailable: ${caught instanceof Error ? caught.message : String(caught)}`)
-      render.repaint()
-      return false
+    if (kind === 'editor') {
+      try {
+        nvim.prepare()
+      } catch (caught) {
+        return unavailable(kind, caught instanceof Error ? caught.message : String(caught))
+      }
+      nvim.resetMode()
+      const session = startNvimSession({
+        pty,
+        command: nvim.command,
+        // Resolved after publishing, so the editor's `rg` is the copy in `<data>/bin`.
+        env: nvim.environment(),
+        cwd,
+        cols: columns('editor'),
+        rows: rows(),
+        onScreen: () => { if (visibleKind === 'editor') render.request() },
+        onExit: (exitCode) => {
+          config.debug(`paneExit kind=editor code=${exitCode}`)
+          drop('editor')
+        },
+      })
+      if (conflictTimer === undefined) conflictTimer = setInterval(checkConflict, 1_000)
+      mount('editor', session)
+    } else {
+      try {
+        const session = startShellSession({
+          pty,
+          cwd,
+          cols: columns('terminal'),
+          rows: rows(),
+          onScreen: () => { if (visibleKind === 'terminal') render.request() },
+          onExit: (exitCode) => {
+            config.debug(`paneExit kind=terminal code=${exitCode}`)
+            drop('terminal')
+          },
+        })
+        mount('terminal', session)
+      } catch (caught) {
+        // A missing or unusable `$SHELL` throws from the pty spawn.
+        return unavailable(kind, caught instanceof Error ? caught.message : String(caught))
+      }
     }
-    nvim.resetMode()
-    const session = startNvimSession({
-      pty,
-      command: nvim.command,
-      // Resolved after publishing, so the editor's `rg` is the copy in `<data>/bin`.
-      env: nvim.environment(),
-      cwd,
-      cols: columns(),
-      rows: rows(),
-      onScreen: () => { if (layout.paneId === PANE_ID) render.request() },
-      onExit: () => { drop() },
-    })
-    if (conflictTimer === undefined) conflictTimer = setInterval(checkConflict, 1_000)
-    mount(session)
     return true
   }
 
-  const focus = (cwd: string): void => {
-    if (!open(cwd)) return
+  const focus = (kind: PaneKind, cwd: string): void => {
+    config.debug(`focusPane kind=${kind} overlay=${overlays.open}`)
+    if (!open(kind, cwd)) return
+    const runtime = runtimes.get(kind)
+    if (runtime === undefined) return
+    visibleKind = kind
+    lastKind = kind
     focused = true
     setPaging(false)
-    takeInputSource()
-    layout.setPane(PANE_ID)
-    if (runtime !== undefined) screen.setFocus(runtime.view)
+    // The input source follows Neovim only: the shell takes whatever the user
+    // is already typing with.
+    if (kind === 'editor') takeInputSource()
+    else releaseInputSource()
+    // Register before showing so the pane seat already holds this column when
+    // the frame is rebuilt; registering alone does not paint a hidden sidebar.
+    registerSeat(kind, runtime)
+    layout.setPane(SIDEBAR_ID)
+    screen.setFocus(runtime.view)
     render.repaint()
   }
 
-  const toggle = (cwd: string): void => {
-    if (layout.paneId === PANE_ID && focused) {
-      // Closing can lose unwritten buffers, so it asks the program first; the
-      // process exiting is what drops the column.
-      void leave()
+  const toggle = (kind: PaneKind, cwd: string): void => {
+    // The key is a visibility toggle for its own column: whoever has the keyboard
+    // does not matter. A painted terminal hides (and keeps its jobs), a painted
+    // editor is asked to leave (it can lose unwritten buffers). Moving the
+    // keyboard into a column that is still open is `Ctrl-]`. A column the layout
+    // cannot paint (a terminal narrowed below the split minimum) is re-opened
+    // instead, because there is nothing on screen to close.
+    if (visibleKind === kind && layout.paneId !== undefined) {
+      if (kind === 'editor') void leave()
+      else close()
       return
     }
-    focus(cwd)
+    focus(kind, cwd)
   }
 
-  /** Resolve once the program is gone. */
+  /** The column `Ctrl-]` can focus without starting a program. */
+  const switchable = (): PaneKind | undefined => paneForSwitch(
+    { visible: visibleKind, last: lastKind },
+    kind => runtimes.has(kind),
+  )
+
+  /** Resolve once Neovim is gone. */
   const gone = async (graceMs: number): Promise<boolean> => {
     const deadline = Date.now() + graceMs
-    while (runtime !== undefined) {
+    while (runtimes.has('editor')) {
       if (Date.now() >= deadline) {
         // Give a committed quit a long finish window; never show a dialog for it.
         if (!nvim.leaveCommitted()) return false
@@ -352,7 +457,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   }
 
   /**
-   * End the column, asking only when Neovim refuses to leave.
+   * End the editor column, asking only when Neovim refuses to leave.
    *
    * `:qa` is the question: Neovim exits when every buffer can be written and
    * refuses (E37) when one cannot — an unnamed draft, a read-only file, a
@@ -364,9 +469,10 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const leave = async (): Promise<boolean> => {
     let failedSave = false
     for (;;) {
-      if (runtime === undefined) return true
+      const editor = runtimes.get('editor')
+      if (editor === undefined) return true
       nvim.resetLeave()
-      runtime.session.input('\u001b:qa\r')
+      editor.session.input('\u001b:qa\r')
       // Neovim writes on quit (`QuitPre`), so a clean editor can take a second
       // to leave; only a refusal needs the dialog.
       if (await gone(failedSave ? 1500 : 1200)) return true
@@ -376,7 +482,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
         { value: 'cancel' },
       )
       if (choice === 'cancel') return false
-      const session = runtime?.session
+      const session = runtimes.get('editor')?.session
       if (session === undefined) return true
       if (choice === 'discard') {
         session.input('\u001b:qa!\r')
@@ -389,47 +495,55 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 
   const reset = (): void => {
     close()
-    drop()
+    for (const kind of [...runtimes.keys()]) drop(kind)
   }
 
-  ctx.effect(() => () => {
+  /** Stop every process without repainting: the window is going away. */
+  const dispose = (): void => {
     if (conflictTimer !== undefined) {
       clearInterval(conflictTimer)
       conflictTimer = undefined
     }
-    // Killing here rather than through `drop`: the UI is about to stop, so the
-    // exit handler must not try to repaint or refocus.
-    runtime?.session.dispose()
-    runtime = undefined
-    seat?.()
-    seat = undefined
-    layout.setPane(undefined)
+    focused = false
+    visibleKind = undefined
+    for (const kind of [...runtimes.keys()]) {
+      const runtime = runtimes.get(kind)
+      seats.get(kind)?.()
+      seats.delete(kind)
+      runtime?.session.dispose()
+    }
+    runtimes.clear()
     releaseInputSource()
-  }, 'hulala: pane process')
+  }
+
+  ctx.effect(() => () => {
+    dispose()
+    layout.setPane(undefined)
+  }, 'hulala: pane processes')
 
   ctx.provide('hulalaPanes', {
-    get running() { return runtime !== undefined },
-    get shown() { return layout.paneId === PANE_ID },
+    get running() { return runtimes.size > 0 },
+    get visible() { return visibleKind },
+    get shown() { return layout.paneId === SIDEBAR_ID },
     get focused() { return focused },
     open,
     toggle,
     focus,
+    switchable,
     close,
     blur,
     drop,
     reset,
-    dispose: () => {
-      if (conflictTimer !== undefined) {
-        clearInterval(conflictTimer)
-        conflictTimer = undefined
-      }
-      runtime?.session.dispose()
-      runtime = undefined
-      seat?.()
-      seat = undefined
+    dispose,
+    input: (data: string) => { visibleRuntime()?.session.input(data) },
+    ownsEscape: () => {
+      const runtime = focused ? visibleRuntime() : undefined
+      if (runtime === undefined) return false
+      return paneOwnsEscape(runtime.kind, {
+        editorMode: runtime.kind === 'editor' ? nvim.mode() : undefined,
+        alternateScreen: runtime.kind === 'terminal' && runtime.session.alternateScreen(),
+      })
     },
-    input: (data: string) => { runtime?.session.input(data) },
-    ownsEscape: () => focused && runtime !== undefined && editorOwnsEscape(nvim.mode()),
     leave,
     get divider() { return divider.component },
     get railDivider() { return railDivider },

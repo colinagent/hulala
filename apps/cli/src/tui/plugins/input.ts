@@ -11,7 +11,21 @@
  * `Ctrl-[` is the hard case, and the reason this is not just a key table: it is
  * the same byte as `Esc`, so it cannot simply be taken. It moves focus only when
  * the focused program has nothing to cancel, which the editor reports through its
- * mode file.
+ * mode file and the terminal through the alternate screen.
+ *
+ * `Ctrl-T` and `Ctrl-F` name the two sidebar columns: the built-in terminal and
+ * Neovim. Each is a visibility toggle for its own column: pressing the key while
+ * that column is painted closes the sidebar (the terminal hides and keeps its
+ * jobs, Neovim is asked to leave) wherever the keyboard is, and pressing the
+ * other column's key swaps which one is painted, keeping both processes alive.
+ * `Ctrl-G` works the same way for the rail — a shown rail is put away, a hidden
+ * one comes back with the keyboard on it — and never a focus cycle: moving
+ * between the rail, the conversation and the sidebar is `Ctrl-[`/`Ctrl-]` only.
+ *
+ * `Ctrl-D` puts the conversation column away or brings it back, and `Ctrl-Q` is
+ * the exit key (the slot pi gives `Ctrl-D`). Both are taken before any column
+ * sees the key, because a column may be the only thing left on screen when the
+ * conversation is hidden.
  *
  * @module hulala-cli/tui/plugins/input
  */
@@ -86,11 +100,60 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     render.repaint()
   }
 
+  /**
+   * `Ctrl-D`: put the conversation column away, or bring it back.
+   *
+   * Hiding is only allowed while a side column remains. The rail and the
+   * sidebar are what the user hides the conversation *for*, so one of them has
+   * to be on screen; otherwise the frame would lose the transcript, the composer
+   * and the keyboard's home at once. The seat registrations stay in place, so the
+   * draft and the scroll position survive the round trip.
+   */
+  const toggleConversation = (): void => {
+    if (layout.conversationShown) {
+      if (!layout.railShown && layout.paneId === undefined) {
+        reducer.addNotice('open the Session rail or a sidebar column before hiding the conversation')
+        render.repaint()
+        return
+      }
+      layout.setConversationVisible(false)
+      // The composer left the frame with the conversation. A column that already
+      // owns the keyboard keeps it, so hiding from the rail or the sidebar does
+      // not move focus; the composer's keyboard goes to a column still painted.
+      if (panes.focused || rails.focused) return
+      if (panes.visible !== undefined) panes.focus(panes.visible, session.cwd)
+      else rails.focus()
+      return
+    }
+    layout.setConversationVisible(true)
+    // Coming back lands in the composer, without closing the side column that
+    // held the keyboard.
+    if (panes.focused) panes.blur()
+    else if (rails.focused) rails.blur()
+    else screen.setFocus(editor)
+    render.repaint()
+  }
+
   const listener = (data: string): { consume: boolean } | undefined => {
     config.debug(`input ${JSON.stringify(data)} active=${String(panes.focused)} overlays=${overlays.open}`)
     // A modal owns the keyboard: its own keys (the Session picker's search, an
     // approval's y/n) must not also drive the columns behind it.
     if (overlays.open > 0) return undefined
+
+    // The exit key, in the slot pi gives `Ctrl-D`. It always answers, and the
+    // shutdown asks a dirty editor before leaving.
+    if (matchesKey(data, 'ctrl+q')) {
+      quit()
+      return { consume: true }
+    }
+
+    // Show or put away the conversation column. The composer is hidden with it,
+    // so this has to answer from the rail and the editor as well; the two side
+    // columns are the only way back and the only reason the frame stays usable.
+    if (matchesKey(data, 'ctrl+d')) {
+      toggleConversation()
+      return { consume: true }
+    }
 
     // The rail owns the keyboard while it has focus. Only keys belonging to the
     // whole client are taken here; everything else falls through to
@@ -101,7 +164,14 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
         return { consume: true }
       }
       if (matchesKey(data, 'ctrl+t')) {
-        panes.toggle(session.cwd)
+        // Leaving the rail first keeps its focus flag in step with the keyboard.
+        rails.blur()
+        panes.toggle('terminal', session.cwd)
+        return { consume: true }
+      }
+      if (matchesKey(data, 'ctrl+f')) {
+        rails.blur()
+        panes.toggle('editor', session.cwd)
         return { consume: true }
       }
       if (matchesKey(data, 'ctrl+]')) {
@@ -144,12 +214,27 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
         // Neovim still gets the key so its normal-mode `<esc>` mapping (clear the
         // search highlight) runs. The shell does not: readline would keep the key
         // pending as a meta prefix for whatever is typed next.
-        if (panes.focused) panes.input('\u001b')
+        if (panes.visible === 'editor') panes.input('\u001b')
         panes.blur()
         return { consume: true }
       }
       if (matchesKey(data, 'ctrl+t')) {
-        panes.toggle(session.cwd)
+        panes.toggle('terminal', session.cwd)
+        return { consume: true }
+      }
+      if (matchesKey(data, 'ctrl+f')) {
+        panes.toggle('editor', session.cwd)
+        return { consume: true }
+      }
+      if (matchesKey(data, 'ctrl+g')) {
+        // The rail is a column, not the program's: a painted rail is put away
+        // while the program keeps the keyboard, and a hidden one is shown and
+        // takes it, so focus has to leave the program first.
+        if (layout.railShown) rails.toggle()
+        else {
+          panes.blur()
+          rails.toggle()
+        }
         return { consume: true }
       }
       return undefined
@@ -189,8 +274,9 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return { consume: true }
     }
     if (matchesKey(data, 'ctrl+]')) {
-      if (panes.running) {
-        panes.focus(session.cwd)
+      const kind = panes.switchable()
+      if (kind !== undefined) {
+        panes.focus(kind, session.cwd)
         return { consume: true }
       }
       // Nothing to switch to: the key stays the composer's word jump.
@@ -213,11 +299,18 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return { consume: true }
     }
     if (matchesKey(data, 'ctrl+t')) {
-      panes.toggle(session.cwd)
+      panes.toggle('terminal', session.cwd)
       return { consume: true }
     }
-    // Show or put away the session rail; showing it also takes the keyboard, so
-    // one key both reveals the list and lands the cursor on it.
+    if (matchesKey(data, 'ctrl+f')) {
+      panes.toggle('editor', session.cwd)
+      return { consume: true }
+    }
+    // Show or put away the session rail. The key is a visibility toggle and
+    // nothing else: a rail already on screen goes away even though the composer
+    // has the keyboard, and one that is hidden comes back with the keyboard on
+    // the list so it is usable straight away. Moving between columns is
+    // `Ctrl-[` / `Ctrl-]`.
     if (matchesKey(data, 'ctrl+g')) {
       rails.toggle()
       return { consume: true }
@@ -229,13 +322,6 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       }
       void interrupt()
       return { consume: true }
-    }
-    if (matchesKey(data, 'ctrl+d')) {
-      if (editor.getText() === '') {
-        quit()
-        return { consume: true }
-      }
-      return undefined
     }
     return undefined
   }

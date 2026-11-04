@@ -15,10 +15,20 @@ The terminal client performs the DSH `/connect?token=...` exchange for a signed
 Cookie, then uses the native `/api` Remote calls and `/api/remote.mux` event
 streams. It does not start a private Agent Runtime and there is no second REST
 surface. `/help` inside the client lists `/sessions`, `/new`, `/model`,
-`/cancel`, `/status` and `/quit`.
+`/cancel`, `/status`, `/editor`, `/terminal` and `/quit`.
 
 The frame has three columns: the Session rail on the left, the conversation in
-the middle and — on `Ctrl-T` — Neovim on the right.
+the middle, and one sidebar column on the right — the built-in terminal on
+`Ctrl-T`, Neovim on `Ctrl-F`. The two sidebar columns keep separate processes
+and only one is painted at a time. Each column key opens its column and takes
+the keyboard, and closes it again when that column is already painted, wherever
+the keyboard is. `Ctrl-[` / `Ctrl-]` move focus between the rail, the
+conversation and the sidebar without closing anything. `Ctrl-D` puts the
+conversation away and
+brings it back. It only hides while the rail or a sidebar column is on screen,
+so the frame never loses its last column; hiding it gives the sidebar the space
+the conversation had. `Ctrl-Q` exits, in the slot pi gives `Ctrl-D`, and still asks a dirty
+Neovim before leaving.
 
 ## Interrupting a turn
 
@@ -30,13 +40,18 @@ the input first and then quits on the second press. `/cancel` sends the same
 request.
 
 An `Esc` press belongs elsewhere in two cases. While the completion menu is open
-it only closes the menu, and while a column has focus it belongs to the program —
-both because `Esc` and `Ctrl-[` are one key. With no turn running, `Esc` is the
+it only closes the menu, and while a column has focus it belongs to the program
+whenever the program has something to cancel — a full-screen terminal program, or
+Neovim outside normal mode. Both cases exist because `Esc` and `Ctrl-[` are one
+key. With no turn running, `Esc` is the
 leftward move into the Session rail, keeping whatever draft the composer holds;
 inside the rail it returns to the composer (clearing the filter first). With the
 rail put away, a second `Esc` within half a second opens the searchable Session
-picker (`/sessions`) instead. `Ctrl-G` always reaches the rail, which is the
-fallback for terminals or input methods that swallow `Esc`.
+picker (`/sessions`) instead. `Ctrl-G` shows or puts away the rail, and a hidden
+rail comes back with the keyboard on the list; it stays the fallback for
+terminals or input methods that swallow `Esc`. It only ever shows or hides —
+moving the keyboard between the rail, the conversation and a column is `Ctrl-[`
+/ `Ctrl-]`.
 
 ## The Session rail
 
@@ -65,9 +80,9 @@ unless they are the open one.
 
 | Key | Behaviour |
 |---|---|
-| `Ctrl-G` | move the keyboard into a visible rail, show a hidden one, and put away a focused one |
+| `Ctrl-G` | show or put away the rail; a hidden rail comes back with the keyboard on the list |
 | `Esc` / `Ctrl-[` | from the composer: move into the rail (a draft stays where it was); inside the rail: back to the composer |
-| `Ctrl-]` | from the rail: back to the composer; from the composer: into an already-running editor |
+| `Ctrl-]` | from the rail: back to the composer; from the composer: into the painted column |
 | `↑`/`↓`, `j`/`k`, `Ctrl-P`/`Ctrl-N` | move the cursor |
 | `Enter` | open the Session (on the `all` row: fold or unfold it) |
 | `n` | create a Session in the open Session's directory and switch to it |
@@ -86,11 +101,11 @@ past the page pulls it out far enough to stay visible (up to 50 rows), and a
 filter shows every match instead of a page.
 
 The rail is a reading aid, so it stays narrow: `clamp(18, 15%, 24)` columns.
-Three columns need 86 columns of terminal (conversation 34, Neovim 32); below
-that, opening the editor column hides the rail for as long as Neovim is open and
-brings it back when the editor closes, so a 80-column terminal still gets a
-usable editor. `/sessions` stays as the searchable picker and still searches
-Session content.
+Three columns need 86 columns of terminal (conversation 34, sidebar column 32);
+below that, opening a sidebar column hides the rail for as long as that column
+is open and brings it back when the sidebar closes, so an 80-column terminal
+still gets a usable terminal or editor. `/sessions` stays as the searchable
+picker and still searches Session content.
 
 ## Steering and queueing
 
@@ -198,24 +213,54 @@ for other versions are deleted after a successful install; a newer cached
 release wins over the one the index advertises, and an unreachable index falls
 back to whatever is already downloaded.
 
-## The editor column beside the transcript
+## The built-in terminal
 
-One column can sit beside the conversation, and it is Neovim:
+`Ctrl-T` shows the user's own shell in a pty, started in the Session's
+directory. It is deliberately their environment — their `PATH`, rc files,
+aliases and git credentials — unlike the editor column, which runs Hulala's
+bundled Neovim with isolated `XDG_*` homes.
 
 | Key | Behaviour |
 |---|---|
-| `Ctrl+T` | open the editor column and focus it; press it again to close |
+| `Ctrl-T` | open and focus the terminal; press it again to hide the column wherever the keyboard is (the shell keeps running) |
+| `Ctrl-F` | switch the sidebar to Neovim; the shell keeps running in the background |
+| `Ctrl-[` / `Ctrl-]` | move focus between the terminal and the composer without hiding it |
+| `Shift-PgUp` / `Shift-PgDn` | page the terminal's own history (plain `PageUp`/`PageDown` where the terminal cannot report the modifier) |
+| `/terminal` | same as `Ctrl-T` |
+
+The column keeps 1000 lines of history, because a shell is read as much as it is
+typed into: the outer terminal's scrollback is unavailable in the alternate
+screen. Any other key returns to the live screen first and then reaches the
+shell. A full-screen program (`less`, `top`, `fzf`) owns the alternate screen,
+so it keeps `Esc` and its paging keys to itself; on the normal screen `Ctrl-[`
+returns to the composer. Hiding the terminal with `Ctrl-T` or `Ctrl-D` leaves
+the shell and its jobs alive, and `Ctrl-]` reopens the last column while it is
+still running. The key is a visibility toggle for its own column: it hides the
+terminal even when the composer has the keyboard, and `Ctrl-]` is what moves
+focus back into it without hiding anything.
+
+## The editor column beside the transcript
+
+`Ctrl-F` shows Neovim in the same sidebar; `Ctrl-T` is the other content:
+
+| Key | Behaviour |
+|---|---|
+| `Ctrl-F` | open the editor column and focus it; press it again to close it wherever the keyboard is |
+| `Ctrl-T` | switch the sidebar back to the built-in terminal |
 | `Ctrl-[` / `Ctrl-]` | move focus between the column and the composer without closing it |
 | `Ctrl+S` | save the current file (works in insert and visual mode too) |
-| `/editor` | same as `Ctrl+T` |
+| `/editor` | same as `Ctrl-F` |
 
 Closing asks Neovim to leave first: it exits when everything can be written, and
 when a buffer cannot be written the client asks — `[s] 保存全部` / `[d] 放弃改动`
-/ `[Esc] 取消` — instead of killing the process. Files are saved automatically a
+/ `[Esc] 取消` — instead of killing the process. As with `Ctrl-T`, the key
+closes the column wherever the keyboard is; `Ctrl-]` moves focus into it without
+closing anything. Files are saved automatically a
 second after you stop typing, and immediately when the buffer is left or the
-client quits, so the disk the agent reads stays current. `Ctrl+W` and `Ctrl+F`
-are not intercepted: Neovim's window prefix and page-down work as usual. `:q`
-inside Neovim closes the column on its own.
+client quits, so the disk the agent reads stays current. `Ctrl-W` is still
+Neovim's window prefix; `Ctrl-T` and `Ctrl-F` belong to the two column keys, so
+Neovim's `<C-t>` and `<C-f>` are the one pair the sidebar takes. `:q` inside
+Neovim closes the column on its own.
 
 The focused cell is drawn as a filled block; the composer keeps its cursor on
 screen as a ghost of itself while a column has the keyboard (the cursor colour
@@ -242,12 +287,11 @@ mode (`HULALA_NVIM_MODE_FILE`, written by a `ModeChanged` autocommand) and keeps
 mode, when there is nothing to cancel, `Ctrl-[` moves focus back to the
 composer.
 
-## Editor column
+## The bundled editor
 
-`Ctrl+T` (or `/editor`) opens a Neovim split beside the transcript and moves
-focus into it; `Ctrl-[` returns to the conversation (and then to the rail)
-without closing the split, and `Ctrl+T` again closes it after asking about
-unwritten buffers. The editor ships with the
+`Ctrl-F` (or `/editor`) opens the Neovim column described above and moves focus
+into it; `Ctrl-[` leaves it to the conversation without closing it, and `Ctrl-F`
+again closes it after asking about unwritten buffers. The editor ships with the
 client — the archive's `bin/nvim`, its runtime
 tree and the vendored `snacks.nvim` file tree — so nothing depends on a Neovim
 installation or the user's own config:
@@ -266,8 +310,8 @@ Publication happens on the first open after an upgrade, keyed to the package
 digest, so rollback and pruning of old versions never break the editor. A
 package without a bundled Neovim falls back to `nvim` on `PATH`, which is what
 keeps `bun run dev` working. On macOS the client switches the input source to
-`com.apple.keylayout.ABC` while the column has focus and restores the previous
-source when focus returns to the composer.
+`com.apple.keylayout.ABC` while the editor column has focus and restores the
+previous source when focus returns to the composer or moves to the terminal.
 
 The package requires Node.js 22.13+ on the target machine. The installer
 offers the extracted package to its own `hulala install`, which validates

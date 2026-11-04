@@ -81,6 +81,38 @@ export interface SplitTerminalLayout extends TerminalLayout {
   setPaneWidth(paneWidth: number): void
 }
 
+/** One of the two columns that can outlive a hidden conversation. */
+export interface SideColumn {
+  readonly component: Component
+  /** One-column rule the frame draws beside the column. */
+  readonly divider: Component
+  /** Width asked for; the pane keeps it while the rail takes the rest. */
+  readonly width: number
+}
+
+/**
+ * What is left when the conversation column is put away with `Ctrl-D`.
+ *
+ * There is no transcript to grow, so the columns that remain share the width
+ * themselves: the pane keeps the width its divider was dragged to and the rail
+ * absorbs everything else. With a single column there is nothing to divide and
+ * that column simply fills the frame.
+ */
+export interface SideColumnsLayoutOptions {
+  /** Left session rail; absent while it is put away or too wide to fit. */
+  readonly rail?: SideColumn
+  /** Right editor column; absent while it is closed. */
+  readonly pane?: SideColumn
+  readonly statusBar: Component
+}
+
+/** The column frame with no conversation, and the divider hook that survives it. */
+export interface SideColumnsLayout {
+  readonly root: Component
+  /** Move the divider; a lone column has nothing to resize. */
+  setPaneWidth(paneWidth: number): void
+}
+
 /** Right-hand editor column, present only while the editor is open. */
 export interface RailPane {
   readonly component: Component
@@ -210,6 +242,49 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
   }
 
   return { root, transcriptScroll, setPaneWidth }
+}
+
+/**
+ * The two side columns with no conversation between them.
+ *
+ * The status bar stays: it belongs to the client rather than to the transcript,
+ * and the turn clock and update hint have to stay visible while the transcript
+ * is put away. The rail becomes the flexible column because a hidden transcript
+ * is not a reading column whose width needs protecting.
+ * @param options - whichever side columns exist, and the status row.
+ * @returns the layout root and the pane-width hook.
+ */
+export function buildSideColumnsLayout(options: SideColumnsLayoutOptions): SideColumnsLayout {
+  const rail = options.rail
+  const pane = options.pane
+  let paneWidth = pane === undefined ? 0 : Math.max(SPLIT_MIN_SIZE, Math.round(pane.width))
+
+  const columns = new HStack(rail === undefined
+    ? [{ component: pane!.component, basis: 0, grow: 1, shrink: 1, minSize: 1 }]
+    : pane === undefined
+      ? [{ component: rail.component, basis: 0, grow: 1, shrink: 1, minSize: 1 }]
+      : [
+          { component: rail.component, basis: Math.max(RAIL_MIN_SIZE, Math.round(rail.width)), grow: 1, shrink: 1, minSize: RAIL_MIN_SIZE },
+          { component: rail.divider, basis: SPLIT_GAP, shrink: 0 },
+          { component: pane.component, basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE },
+        ])
+
+  const root = new VStack([
+    { component: columns, basis: 0, grow: 1, shrink: 1, minSize: 1 },
+    { component: options.statusBar, shrink: 0 },
+  ])
+
+  /** Move the divider; a lone column has no second width to trade against. */
+  const setPaneWidth = (width: number): void => {
+    if (rail === undefined || pane === undefined) return
+    const next = Math.max(SPLIT_MIN_SIZE, Math.round(width))
+    if (next === paneWidth) return
+    paneWidth = next
+    columns.removeChild(pane.component)
+    columns.addChild(pane.component, { basis: paneWidth, grow: 0, shrink: 1, minSize: SPLIT_MIN_SIZE })
+  }
+
+  return { root, setPaneWidth }
 }
 
 /**

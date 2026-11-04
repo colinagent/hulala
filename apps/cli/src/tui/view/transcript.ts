@@ -33,6 +33,7 @@ import { RunningRow } from './runningRow.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
 import { ToolRowView } from './toolRow.js'
 import { UserMessage } from './userMessage.js'
+import { brandBannerLines } from './brandBanner.js'
 
 /** Session roots every tool row relativizes against. */
 export interface TranscriptRoots {
@@ -44,6 +45,8 @@ export class Transcript implements Component {
   private items: TranscriptItem[] = []
   private readonly components = new WeakMap<TranscriptItem, Component>()
   private readonly markdowns = new WeakMap<TranscriptItem, Markdown>()
+  /** Text last pushed into each assistant's `Markdown`, so a frame rewrites only what moved. */
+  private readonly syncedText = new WeakMap<TranscriptItem, string>()
   /** Per-row overrides; the global toggles act as the baseline they flip. */
   private readonly flipped = new Set<TranscriptItem>()
   private hovered: TranscriptItem | undefined
@@ -91,18 +94,30 @@ export class Transcript implements Component {
 
   invalidate(): void {}
 
-  /** Refresh streaming components after a delta or attempt end. */
-  updateStreaming(): void {
-    const last = this.items[this.items.length - 1]
-    if (last !== undefined && last.kind === 'assistant') {
-      this.markdowns.get(last)?.setText(last.streaming ? `${last.text}▌` : last.text)
-    }
+  /**
+   * Mirror an assistant item's current text into its cached `Markdown`.
+   *
+   * The reducer mutates the item in place — every delta grows `text`, and the
+   * durable message settles it — while the component WeakMap keeps the object
+   * it was built for. Without this the transcript would keep showing the first
+   * delta of the answer, caret and all, after the turn ended.
+   */
+  private syncAssistant(item: TranscriptItem & { kind: 'assistant' }): void {
+    const markdown = this.markdowns.get(item)
+    if (markdown === undefined) return
+    const text = item.streaming ? `${item.text}▌` : item.text
+    if (this.syncedText.get(item) === text) return
+    markdown.setText(text)
+    this.syncedText.set(item, text)
   }
 
   render(width: number): string[] {
+    // Home screen: nothing said yet, so the banner stands in for the transcript.
+    if (this.items.length === 0 && this.runningStartedAt === undefined) return brandBannerLines(width)
     const lines: string[] = []
     this.ranges = []
     for (const item of this.items) {
+      if (item.kind === 'assistant') this.syncAssistant(item)
       const component = this.componentFor(item)
       const rendered = component.render(width)
       this.ranges.push({ item, start: lines.length, end: lines.length + rendered.length })
@@ -174,8 +189,10 @@ export class Transcript implements Component {
       case 'assistant': {
         // The same two-column edge every step row's gutter uses, so message
         // text and row icons share one left margin.
-        const markdown = new Markdown(item.streaming ? `${item.text}▌` : item.text, 2, 0, this.markdownTheme, undefined, { renderLatex: false })
+        const text = item.streaming ? `${item.text}▌` : item.text
+        const markdown = new Markdown(text, 2, 0, this.markdownTheme, undefined, { renderLatex: false })
         this.markdowns.set(item, markdown)
+        this.syncedText.set(item, text)
         return markdown
       }
       case 'tool':

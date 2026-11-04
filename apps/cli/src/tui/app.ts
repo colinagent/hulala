@@ -14,6 +14,7 @@
  */
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { deleteKittyImage } from '@earendil-works/pi-tui'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
@@ -38,6 +39,7 @@ import { renderPlugin } from './plugins/render.js'
 import { sessionPlugin } from './plugins/session.js'
 import { updatePlugin } from './plugins/update.js'
 import { railPlugin } from './plugins/rail.js'
+import { brandBannerImageId } from './view/brandBanner.js'
 import { inputPlugin } from './plugins/input.js'
 import { lifecyclePlugin } from './plugins/lifecycle.js'
 import { commandsPlugin } from './plugins/commands.js'
@@ -243,6 +245,12 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
 
   const shutdown = async (code: number): Promise<void> => {
     if (!lifecycle.beginClose()) return
+    // The banner is a terminal image layer, not text, and an image outlives the
+    // alternate screen it was painted in: it has to be named for deletion twice,
+    // once while the alternate screen still owns it and once after the terminal
+    // is back, because a terminal may move images across that switch.
+    const logoId = brandBannerImageId()
+    if (logoId !== undefined) terminal.write(deleteKittyImage(logoId))
     // Columns are killed here rather than through a normal close: the UI is
     // about to stop, so their exit handlers must not repaint or refocus.
     panes.dispose()
@@ -252,6 +260,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     // else, so the order is the caller's to decide. `stop()` is idempotent, and
     // the terminal plugin's own effect is the fallback for every other exit.
     ui.stop()
+    if (logoId !== undefined) terminal.write(deleteKittyImage(logoId))
     // The terminal is back to its normal buffer by now, so the new client can
     // take it over: that is what makes `/update` feel like a restart rather than
     // "quit and run it again".
@@ -309,7 +318,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     void commands.submit(text, commands.modeFor(gesture))
   }
 
-  // Global keys that pi-tui does not own (Esc and Ctrl-C/D/F/L/O/T/W/]/[).
+  // Global keys that pi-tui does not own (Esc, Ctrl-C/D/F/L/O/Q/T/W/]/[).
   // Backend subscriptions.
   backend.onApproval(async request => {
     const outcome = await overlays.showApproval(request)

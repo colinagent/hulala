@@ -7,6 +7,7 @@ import { Transcript } from '../../src/tui/view/transcript.js'
 import { RunningRow, formatRunDuration } from '../../src/tui/view/runningRow.js'
 import { ResumeOverlay } from '../../src/tui/view/overlays/resume.js'
 import { emptyMetrics } from '../../src/tui/data/viewModel.js'
+import type { TranscriptItem } from '../../src/tui/data/viewModel.js'
 import type { TerminalSession } from '../../src/tui/data/remote.js'
 
 test('StatusBar falls back to the version until a reading exists', () => {
@@ -92,6 +93,24 @@ test('Transcript renders user, assistant markdown, and error items', () => {
   expect(lines.some(line => line.includes('❯ hello'))).toBe(true)
   expect(lines.some(line => line.includes('bold'))).toBe(true)
   expect(lines.some(line => line.includes('! boom'))).toBe(true)
+})
+
+test('a streaming assistant item rewrites its markdown as it grows and settles', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work' }))
+  const item: TranscriptItem = { kind: 'assistant', text: '你', streaming: true, time: 0 }
+  transcript.setItems([item])
+  expect(transcript.render(60)[0]).toContain('你▌')
+
+  // Deltas mutate the same item object; the cached Markdown has to follow it.
+  item.text = '你问的应该是 Ghostty 的标签页切换。'
+  expect(transcript.render(60)[0]).toContain('你问的应该是 Ghostty 的标签页切换。▌')
+
+  // The durable message settles the same item with the complete answer.
+  item.text = '你问的应该是 **Ghostty**（终端模拟器）的标签页切换。'
+  item.streaming = false
+  const settled = transcript.render(60).join('\n')
+  expect(settled).toContain('Ghostty')
+  expect(settled).not.toContain('▌')
 })
 
 test('ResumeOverlay marks running sessions and hides blank sessions on empty query', () => {

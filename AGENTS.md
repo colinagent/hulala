@@ -39,7 +39,9 @@
 - One Host daemon owns one state root. Terminal windows and any other client
   discover it through `endpoint.json` and attach; closing a client
   detaches instead of stopping the Host. Only an explicit user action starts or
-  stops a Host, and there is no login autostart.
+  stops a Host, and there is no login autostart. `bun run start` in a source
+  checkout is that explicit dev action: it stops the Host, rebuilds it from the
+  working tree, and starts the client; `bun run start:attach` only attaches.
 - The terminal client is bundled into the CLI; it must not spawn a private
   second Runtime or a DSH profile.
 

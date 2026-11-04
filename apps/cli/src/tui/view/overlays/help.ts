@@ -18,7 +18,7 @@ const COMMANDS: readonly string[] = [
   '/rename <title>       rename the current Session',
   '/cancel               cancel the running turn',
   '/status               show Session and turn state',
-  '/editor               打开或关闭编辑列（等同 Ctrl-T）',
+  '/editor, /terminal    打开/关闭 Neovim、内置终端列（同 Ctrl-F / Ctrl-T）',
   '/quit                 detach (the Host keeps running)',
 ]
 
@@ -26,9 +26,9 @@ const KEYS: readonly string[] = [
   'Enter 提交（回合运行中则插话）· Alt-Enter 排队 · Alt-Up 回收待发消息 · Ctrl-J 换行',
   '↑/↓ 或 Ctrl-N/P 上下（历史/列表）· Tab 补全',
   'Esc 取消当前回合 · 空闲时进左侧会话栏（草稿保留）',
-  'Ctrl-C 取消/退出 · Ctrl-L 重绘 · Ctrl-O 展开/折叠工具输出',
-  'Ctrl-T 编辑器列（关闭前会问要不要保存）',
-  'Ctrl-G 进/收会话栏 · Ctrl-[ / Ctrl-] 会话↔对话↔编辑器',
+  'Ctrl-C 取消/退出 · Ctrl-Q 退出 · Ctrl-L 重绘 · Ctrl-O 展开/折叠工具输出',
+  'Ctrl-D 隐藏/显示对话栏 · Ctrl-T 开/关终端列 · Ctrl-F 开/关 Neovim 列',
+  'Ctrl-G 开/关会话栏 · Ctrl-[ / Ctrl-] 会话↔对话↔侧栏（只移光标）',
   '会话栏：↑↓/j k/Ctrl-N P 移动 · Enter 切换 · n 新建 · / 搜索 · ←/→ 展开 all · r 刷新 · Esc 回输入框',
   '会话栏最多先列 30 个：More 行上 Enter 展开其余（Less 收回）',
   '鼠标点击行首 ▸ 展开/折叠该行',

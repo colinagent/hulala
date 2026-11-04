@@ -150,8 +150,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         reducer.addNotice(`session ${session.id ?? '-'}`)
         reducer.addNotice(`cwd     ${session.cwd}`)
         reducer.addNotice(`model   ${session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`}`)
-        reducer.addNotice(`pane    ${layout.paneId === undefined ? '-' : `${layout.paneId}${panes.focused ? ' (focus)' : ''}`}`)
+        reducer.addNotice(`pane    ${panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ' (focus)' : ''}`}`)
         reducer.addNotice(`rail    ${layout.railWanted ? (rail.focused ? 'visible (focus)' : 'visible') : 'hidden'}`)
+        reducer.addNotice(`chat    ${layout.conversationShown ? 'visible' : 'hidden'}`)
         reducer.addNotice(`turn    ${reducer.busy ? 'running' : 'idle'}`)
         repaint()
         return
@@ -170,7 +171,11 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         await updater.install()
         return
       case 'editor':
-        panes.toggle(session.cwd)
+        panes.toggle('editor', session.cwd)
+        return
+      case 'terminal':
+      case 'shell':
+        panes.toggle('terminal', session.cwd)
         return
       default: {
         const contributed = extra.get(command)

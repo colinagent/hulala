@@ -148,11 +148,15 @@ model runs through `bash` never need ripgrep on the machine; that directory is
 appended to those child processes' `PATH`, so an installed `rg` still wins.
 
 `Ctrl+T` opens the built-in terminal — the user's shell in the Session directory —
-and `Ctrl+F` opens the editor column; on macOS the input source switches to
-English while the editor has focus and back when focus returns to the composer.
-`Ctrl-[` returns to the composer without closing the column, and the column keeps
-its process when hidden, so shell jobs and Neovim buffers survive. See
-`apps/cli/README.md`.
+and `Ctrl+F` opens the editor column; the two share one sidebar and only the
+painted one is shown, but neither process is closed when the other is. Each key
+is a visibility toggle for its own column, so pressing it again closes it
+even when the composer has the keyboard. On macOS
+the input source switches to English while the editor has focus and back when
+focus returns to the composer or moves to the terminal. `Ctrl-[` / `Ctrl-]` move
+focus without closing the column, `Ctrl-D` puts the conversation away while a
+column is open, and `Ctrl-Q` exits. The sidebar keeps its process when hidden, so
+shell jobs and Neovim buffers survive. See `apps/cli/README.md`.
 
 ## Run from source
 
@@ -163,9 +167,15 @@ boots through Node's internal module loader.
 git clone https://github.com/colinagent/hulala.git
 cd hulala
 bun install --frozen-lockfile
-bun run build
 bun run start
 ```
+
+`bun run start` is the development entry: it stops the Host for this
+`HULALA_HOME`, rebuilds `apps/server` from the working tree, and starts the
+terminal client, so the Host always runs the current checkout. There is no
+version comparison — the source and the installed release share the package
+version. Because it replaces the shared daemon, other clients attached to that
+Host disconnect; use `bun run start:attach` when you only want to attach.
 
 Useful commands:
 
@@ -174,6 +184,7 @@ bun run check           # check:patches → typecheck → test → build
 bun run check:patches   # prove every patchedDependencies entry is applied
 bun run typecheck
 bun run test
+bun run start:attach   # attach to the running Host without rebuilding it
 bun run host:build
 bun run website:build
 ```
