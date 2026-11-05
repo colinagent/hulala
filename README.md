@@ -15,6 +15,8 @@ runs inside.
   <img src="assets/screens/01-conversation.png" alt="The Hulala terminal client: Session rail, the conversation with tool rows, and the composer" width="900" />
 </p>
 
+<p align="center"><sub>The frame: the Session rail, the conversation with its tool rows, the pending inbox and the composer.</sub></p>
+
 ## What you get
 
 - **Three columns, one window** — the Session rail on the left, the conversation
@@ -62,13 +64,19 @@ default, and `hulala host stop` is the explicit way to end it.
   <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: the user's shell in the Session directory" width="900" />
 </p>
 
+<p align="center"><sub><code>Ctrl-T</code>: the built-in terminal — your shell in the Session directory, with its own scrollback.</sub></p>
+
 <p align="center">
   <img src="assets/screens/03-editor.png" alt="The editor column: Neovim beside the conversation, buffers kept while the column is hidden" width="900" />
 </p>
 
+<p align="center"><sub><code>Ctrl-F</code>: Neovim beside the conversation — the real editor, its buffers kept while the column is hidden.</sub></p>
+
 <p align="center">
   <img src="assets/screens/04-files.png" alt="The editor column on the Session directory: the real file tree with README.md open beside it" width="900" />
 </p>
+
+<p align="center"><sub>The same column on the Session directory: the bundled file tree, with <code>README.md</code> opened from it.</sub></p>
 
 `Ctrl-F` opens the editor on the Session directory, so it is also the file tree:
 the bundled explorer (`apps/cli/vendor/snacks.nvim`) replaces netrw, and picking
