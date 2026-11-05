@@ -26,21 +26,6 @@ const translations = {
       secondary: "See what is inside",
       availability: "macOS & Linux · Node.js 22.13+ · no tmux",
     },
-    note: {
-      header: "WINDOWS ATTACHED / 4",
-      date: "RIGHT NOW",
-      label: "ONE DAEMON",
-      titleLead: "The window is gone.",
-      titleAccent: "The turn is not.",
-      copy: "A turn belongs to the Host, not to the window that asked for it. Close the terminal, open another, and the transcript is still being written.",
-      logs: [
-        ["WINDOWS", "4 attached", "1 daemon"],
-        ["TURNS", "1 running", "2 queued"],
-        ["PLUGINS", "17 loaded", "2 yours"],
-      ],
-      saved: "One state root, one Host",
-      day: "STATE ROOT →",
-    },
     conviction: {
       label: "A SIMPLE CONVICTION",
       title: ["A terminal should not", "die with its window."],
@@ -132,21 +117,6 @@ const translations = {
       primary: "在 macOS 与 Linux 上安装",
       secondary: "看看里面有什么",
       availability: "macOS 与 Linux · Node.js 22.13+ · 不需要 tmux",
-    },
-    note: {
-      header: "已连窗口 / 4",
-      date: "就在此刻",
-      label: "一个 daemon",
-      titleLead: "窗口已经关了，",
-      titleAccent: "turn 还在跑。",
-      copy: "turn 属于 Host，不属于发起它的窗口。关掉终端、再开一个，transcript 还在继续写。",
-      logs: [
-        ["窗口", "连了 4 个", "1 个 daemon"],
-        ["turn", "1 个在跑", "2 个排队"],
-        ["插件", "载入 17 个", "2 个是你的"],
-      ],
-      saved: "一个 state root，一个 Host",
-      day: "STATE ROOT →",
     },
     conviction: {
       label: "一个简单的信念",
@@ -273,33 +243,13 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
           <p className="availability">{t.hero.availability}</p>
         </div>
 
-        <div className="field-note" aria-label={isZh ? "Hulala 每日积累记录" : "A daily practice record in Hulala"}>
-          <div className="field-note-head">
-            <span className="note-brand"><img src={WEBSITE_LOGO_MARK_SRC} alt="" /> HULALA</span>
-            <span>{t.note.header}</span>
-            <span>{t.note.date}</span>
-          </div>
-          <div className="field-note-body">
-            <aside className="year-index" aria-hidden="true"><span>2021</span><i /><span>2022</span><i /><span>2023</span><i /><span>2024</span><i /><span>2025</span><i /><strong>2026</strong></aside>
-            <div className="note-page">
-              <p className="note-label">{t.note.label}</p>
-              <h2>{t.note.titleLead}<br /><em>{t.note.titleAccent}</em></h2>
-              <p>{t.note.copy}</p>
-              <div className="practice-log">
-                {t.note.logs.map(([label, value, detail]) => <div key={label}><span>{label}</span><strong>{value}</strong><i>{detail}</i></div>)}
-              </div>
-              <div className="note-footer"><span><i /> {t.note.saved}</span><span>{t.note.day}</span></div>
-            </div>
-          </div>
-        </div>
+        <figure className="hero-shot">
+          <img src="/screens/01-conversation.png" alt={t.screens.conversation} width={1161} height={640} />
+        </figure>
       </section>
 
       <section className="screens-section" aria-label={isZh ? "Hulala 终端客户端截图" : "Hulala terminal client screenshots"}>
         <p className="section-label">{t.screens.label}</p>
-        <figure className="screens-main">
-          <img src="/screens/01-conversation.png" alt={t.screens.conversation} width={1161} height={640} />
-          <figcaption>{t.screens.conversation}</figcaption>
-        </figure>
         <div className="screens-pair">
           <figure>
             <img src="/screens/02-terminal.png" alt={t.screens.terminal} width={1161} height={640} />

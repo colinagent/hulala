@@ -310,3 +310,8 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 .screens-pair img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
 .screens-section figcaption { color: var(--muted); font-size: 12px; line-height: 1.7; margin-top: 12px; }
 @media (max-width: 900px) { .screens-section { padding: 60px 18px 70px; } .screens-pair { grid-template-columns: 1fr; } }
+
+/* The hero's product shot: the client's own pixels, framed like the section below. */
+.hero-shot { margin: 0; }
+.hero-shot img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; box-shadow: 0 18px 48px rgba(15, 36, 31, .18); }
+@media (max-width: 900px) { .hero-shot { margin-top: 35px; } }
