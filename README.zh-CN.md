@@ -55,6 +55,13 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
   <img src="assets/screens/03-editor.png" alt="编辑器列：对话旁边的 Neovim，列隐藏时缓冲区仍然保留" width="900" />
 </p>
 
+<p align="center">
+  <img src="assets/screens/04-files.png" alt="编辑器列开在会话目录上：内置文件树，带缓冲区列表和 git 状态" width="900" />
+</p>
+
+`Ctrl-F` 是在会话目录上打开编辑器，所以它同时也是文件树：内置的浏览器
+（`apps/cli/vendor/snacks.nvim`）替代了 netrw，选中文件就在同一列里打开。
+
 ## 快捷键
 
 整个帧不靠鼠标也能用：

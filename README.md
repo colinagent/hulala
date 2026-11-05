@@ -66,6 +66,14 @@ default, and `hulala host stop` is the explicit way to end it.
   <img src="assets/screens/03-editor.png" alt="The editor column: Neovim beside the conversation, buffers kept while the column is hidden" width="900" />
 </p>
 
+<p align="center">
+  <img src="assets/screens/04-files.png" alt="The editor column on the Session directory: the vendored file tree, with the buffer list and git status" width="900" />
+</p>
+
+`Ctrl-F` opens the editor on the Session directory, so it is also the file tree:
+the bundled explorer (`apps/cli/vendor/snacks.nvim`) replaces netrw, and picking
+a file opens it in the same column.
+
 ## Keyboard
 
 The frame is drivable without a mouse:

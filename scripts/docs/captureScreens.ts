@@ -66,6 +66,31 @@ const EDITOR_LINES: string[] = [
   `${S.grey} 23 ${R}${D}~${R}`,
 ]
 
+/** The vendored file tree (`snacks.nvim` explorer) on the repository root. */
+const TREE_LINES: string[] = [
+  `${D}~/note/projects/hulala${R}`,
+  `${S.blue}▾ apps${R}`,
+  `  ${S.blue}▾ cli${R}`,
+  `    ${S.blue}▸ src${R}`,
+  `    ${S.blue}▸ tests${R}`,
+  `${D}  ▸ server${R}`,
+  `${S.blue}▾ packages${R}`,
+  `    ${S.green}◆ runtime${R}`,
+  `${D}    ◆ host-client${R}`,
+  `${D}    ◆ tui-plugin${R}`,
+  `${S.blue}▾ scripts${R}`,
+  `    ${S.blue}▸ docs${R}`,
+  `    ${S.blue}▸ release${R}`,
+  `${S.blue}▾ docs${R}`,
+  `    ${D}architecture.md${R}`,
+  `    ${D}release.md${R}`,
+  `${S.yellow}● README.md${R}`,
+  `  ${D}package.json${R}`,
+  `  ${D}bun.lock${R}`,
+  `  ${D}tsconfig.base.json${R}`,
+  `  ${D}AGENTS.md${R}`,
+]
+
 /** The editor's statusline, pinned to the pane's last row. */
 function statusline(cols: number): string {
   const left = ' NORMAL  inputSource.ts'
@@ -79,10 +104,17 @@ function scriptedPty(): PtyModule {
   return {
     spawn(file: string, _args: string[], options: PtySpawnOptions): PtyProcess {
       const isEditor = /nvim/.test(file)
+      const tree = TREE && isEditor
       let deliver: ((data: string) => void) | undefined
       let cols = options.cols
       let rows = options.rows
       const paint = (): void => {
+        if (tree) {
+          const lines = TREE_LINES.slice(0, Math.max(1, rows - 1))
+          while (lines.length < rows - 1) lines.push('')
+          deliver?.(`\u001b[H\u001b[2J${lines.join('\r\n')}\u001b[${rows};1H${' '.repeat(cols)}`)
+          return
+        }
         if (isEditor) {
           const code = EDITOR_LINES.slice(0, Math.max(1, rows - 1))
           while (code.length < rows - 1) code.push('')
@@ -222,11 +254,15 @@ const all = (): Buffer => Buffer.concat(chunks)
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** Frames to capture: the key that opens the column, and the file it lands in. */
-const SHOTS: Array<{ name: string; key?: string }> = [
-  { name: '01-conversation' },
-  { name: '02-terminal', key: '\u0014' },
-  { name: '03-editor', key: '\u0006' },
-]
+const TREE = process.argv.includes('--tree')
+
+const SHOTS: Array<{ name: string; key?: string }> = TREE
+  ? [{ name: '04-files', key: '\u0006' }]
+  : [
+      { name: '01-conversation' },
+      { name: '02-terminal', key: '\u0014' },
+      { name: '03-editor', key: '\u0006' },
+    ]
 
 async function main(): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'hulala-screens-'))
