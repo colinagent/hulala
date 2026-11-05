@@ -14,7 +14,7 @@ const translations = {
       terminal: "Ctrl-T: your shell in the Session directory.",
       editor: "Ctrl-F: Neovim beside the conversation.",
     },
-    nav: ["The terminal", "The workspace", "What we refuse"],
+    nav: ["The terminal", "The screens", "What we refuse"],
     cta: "Install Hulala",
     hero: {
       kicker: "The Hulala terminal client",
@@ -52,25 +52,6 @@ const translations = {
         ["REATTACH", "Come back", "Resume the Session and read what finished without you."],
       ],
     },
-    workspace: {
-      label: "03 / THE WORKSPACE",
-      title: "Stay in one frame.",
-      lede: "Files, the editor, the shell and the agent share one context, in one terminal window.",
-      treeTitle: "HULALA",
-      folders: ["apps", "scripts", "docs", "screens", "plugins"],
-      documentLabel: "INPUTSOURCE.TS",
-      documentTitle: "Every panel that reads keys asks for English.",
-      documentLede: "The composer never switches: it keeps the source you left there.",
-      documentCopy: "Ctrl-[ is byte-identical to Esc, so the client has to know whether the editor still has something to cancel before it takes the key for itself.",
-      documentQuote: "Preserve the source; hand it back when the panel leaves.",
-      saved: "Saved automatically",
-      partner: "AGENT",
-      agentMessage: "The column kept its process, so your buffer is exactly where you left it.",
-      evidence: ["3 changed files", "12 passing tests", "1 running turn"],
-      userMessage: "Open the editor on the file that switches the input source.",
-      thinking: "Reading apps/cli/src/tui/editor…",
-      composer: "Ask for the next change…",
-    },
     principles: {
       label: "04 / WHAT WE REFUSE",
       title: ["Built against", "the babysitting."],
@@ -106,7 +87,7 @@ const translations = {
       terminal: "Ctrl-T：会话目录里你自己的 shell。",
       editor: "Ctrl-F：对话旁边的 Neovim。",
     },
-    nav: ["终端", "工作空间", "我们不做什么"],
+    nav: ["终端", "截图", "我们不做什么"],
     cta: "安装 Hulala",
     hero: {
       kicker: "Hulala 终端客户端",
@@ -143,25 +124,6 @@ const translations = {
         ["DST", "关掉窗口", "Ctrl-Q 只是断开，turn 和它的工具继续跑。"],
         ["BACK", "再回来", "续上这个 Session，读你不在时跑完的部分。"],
       ],
-    },
-    workspace: {
-      label: "03 / 工作空间",
-      title: "留在一个帧里。",
-      lede: "文件、编辑器、shell 和 agent 共用一份上下文，就在一个终端窗口里。",
-      treeTitle: "HULALA",
-      folders: ["apps", "scripts", "docs", "screens", "plugins"],
-      documentLabel: "INPUTSOURCE.TS",
-      documentTitle: "每个读按键的面板都要求英文。",
-      documentLede: "composer 永远不切：你留在那里的输入法就是它用的。",
-      documentCopy: "Ctrl-[ 和 Esc 是同一个字节，所以客户端必须先知道编辑器还有没有东西可取消，才决定要不要把这颗键拿走。",
-      documentQuote: "保住输入源，面板离开时再还回去。",
-      saved: "已自动保存",
-      partner: "AGENT",
-      agentMessage: "列保留了自己的进程，所以缓冲区还在你离开时的位置。",
-      evidence: ["3 个改动文件", "12 个通过的测试", "1 个正在跑的 turn"],
-      userMessage: "在编辑器里打开那个切换输入源的文件。",
-      thinking: "正在读 apps/cli/src/tui/editor…",
-      composer: "接着改下一个…",
     },
     principles: {
       label: "04 / 我们不做什么",
@@ -207,7 +169,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         </a>
         <nav aria-label={isZh ? "主要导航" : "Primary navigation"}>
           <a href="#practice">{t.nav[0]}</a>
-          <a href="#workspace">{t.nav[1]}</a>
+          <a href="#screens">{t.nav[1]}</a>
           <a href="#principles">{t.nav[2]}</a>
         </nav>
         <div className="header-actions">
@@ -248,7 +210,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         </figure>
       </section>
 
-      <section className="screens-section" aria-label={isZh ? "Hulala 终端客户端截图" : "Hulala terminal client screenshots"}>
+      <section className="screens-section" id="screens" aria-label={isZh ? "Hulala 终端客户端截图" : "Hulala terminal client screenshots"}>
         <p className="section-label">{t.screens.label}</p>
         <div className="screens-pair">
           <figure>
@@ -293,27 +255,6 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         <div className="continuity-path" aria-label={isZh ? "Host daemon 的生命周期" : "The Host daemon lifecycle"}>
           <div className="path-line" />
           {t.continuity.stages.map(([step, title, copy]) => <article key={step}><span>{step}</span><strong>{title}</strong><p>{copy}</p></article>)}
-        </div>
-      </section>
-
-      <section className="workspace-section" id="workspace">
-        <div className="workspace-heading"><p className="section-label">{t.workspace.label}</p><h2>{t.workspace.title}</h2><p>{t.workspace.lede}</p></div>
-        <div className="workspace-window" aria-label={isZh ? "Hulala 桌面工作空间预览" : "Hulala desktop product preview"}>
-          <div className="window-bar"><span className="window-dots"><i /><i /><i /></span><span className="window-title"><img src={WEBSITE_LOGO_MARK_SRC} alt="" /> hulala</span><span className="window-state"><i /> ATTACHED</span></div>
-          <div className="workspace-body">
-            <aside className="activity-rail"><img src={WEBSITE_LOGO_MARK_SRC} alt="" /><span className="active">▤</span><span>⌕</span><span>⌘</span><span>⑂</span><i /></aside>
-            <aside className="file-tree"><p>{t.workspace.treeTitle}</p><div className="folder open">⌄ &nbsp;{t.workspace.folders[0]}</div><span>{t.workspace.folders[1]}</span><span>{t.workspace.folders[2]}</span><div className="folder">› &nbsp;{t.workspace.folders[3]}</div><div className="folder">› &nbsp;{t.workspace.folders[4]}</div></aside>
-            <div className="editor">
-              <div className="editor-tabs"><span>{t.workspace.folders[1]}</span><span className="active">continuity.md</span><span>index.ts</span></div>
-              <div className="document"><p className="document-label">{t.workspace.documentLabel}</p><h3>{t.workspace.documentTitle}</h3><p className="document-lede">{t.workspace.documentLede}</p><hr /><p>{t.workspace.documentCopy}</p><blockquote>{t.workspace.documentQuote}</blockquote></div>
-              <div className="editor-footer"><span>Markdown</span><span>{t.workspace.saved}</span></div>
-            </div>
-            <aside className="agent-pane">
-              <div className="agent-head"><span>{t.workspace.partner}</span><b>DeepSeek ▾</b></div>
-              <div className="agent-thread"><div className="agent-message">{t.workspace.agentMessage}</div><div className="agent-evidence">{t.workspace.evidence.map((item) => <span key={item}>{item}</span>)}</div><div className="agent-message user">{t.workspace.userMessage}</div><div className="agent-thinking"><i /> {t.workspace.thinking}</div></div>
-              <div className="composer"><span>{t.workspace.composer}</span><b>↑</b></div>
-            </aside>
-          </div>
         </div>
       </section>
 
