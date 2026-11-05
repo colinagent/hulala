@@ -61,26 +61,20 @@ and a bare `&` exist to fake exactly this; here it is what the program does by
 default, and `hulala host stop` is the explicit way to end it.
 
 <p align="center">
-  <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: the user's shell in the Session directory" width="900" />
+  <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: a shell in the Session directory" width="900" />
   <br />
   <sub><code>Ctrl-T</code>: the built-in terminal — your shell in the Session directory, with its own scrollback.</sub>
 </p>
 
 <p align="center">
-  <img src="assets/screens/03-editor.png" alt="The editor column: Neovim beside the conversation, buffers kept while the column is hidden" width="900" />
+  <img src="assets/screens/03-files.png" alt="The editor column on the Session directory: the real file tree with a file open beside it" width="900" />
   <br />
-  <sub><code>Ctrl-F</code>: Neovim beside the conversation — the real editor, its buffers kept while the column is hidden.</sub>
-</p>
-
-<p align="center">
-  <img src="assets/screens/04-files.png" alt="The editor column on the Session directory: the real file tree with bunfig.toml open beside it" width="900" />
-  <br />
-  <sub>The same column on the Session directory: the bundled file tree, with <code>bunfig.toml</code> opened from it.</sub>
+  <sub><code>Ctrl-F</code>: Neovim on the Session directory — the bundled file tree, a file opened from it, and buffers kept while the column is hidden.</sub>
 </p>
 
 `Ctrl-F` opens the editor on the Session directory, so it is also the file tree:
 the bundled explorer (`apps/cli/vendor/snacks.nvim`) replaces netrw, and picking
-a file opens it in the same column.
+a file opens it beside the tree in the same column.
 
 ## Keyboard
 

@@ -434,11 +434,11 @@ export class SessionRail implements Component {
   ): string {
     if (row.kind === 'new') {
       const label = '+ new session'
-      return selected ? styles.accent(padEnd(label, width)) : padEnd(label, width)
+      return selected ? styles.selected(padEnd(label, width)) : padEnd(label, width)
     }
     if (row.kind === 'more') {
       const label = row.revealed ? '↑ Less' : `↓ More · ${row.hidden}`
-      return selected ? styles.accent(padEnd(label, width)) : padEnd(styles.dim(label), width)
+      return selected ? styles.selected(padEnd(label, width)) : padEnd(styles.dim(label), width)
     }
     const session = row.session
     const current = session.sessionId === state.currentId
@@ -452,7 +452,7 @@ export class SessionRail implements Component {
     const title = clip(sessionLabel(session), titleWidth)
     const gap = Math.max(0, width - 2 - visibleWidth(title) - timeWidth - 1)
     const plain = `${glyph} ${title}${' '.repeat(gap)} ${time}`
-    if (selected) return styles.accent(plain)
+    if (selected) return styles.selected(plain)
     const head = session.running ? styles.accent(glyph) : glyph
     const label = current ? styles.highlight(title) : title
     return `${head} ${label}${' '.repeat(gap)} ${styles.dim(time)}`
@@ -465,7 +465,7 @@ export class SessionRail implements Component {
     selected: boolean,
   ): string {
     const label = `${state.allExpanded ? '▾' : '▸'} all`
-    if (selected) return styles.accent(padEnd(label, width))
+    if (selected) return styles.selected(padEnd(label, width))
     return padEnd(styles.dim(label), width)
   }
 }

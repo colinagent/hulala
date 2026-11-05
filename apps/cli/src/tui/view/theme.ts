@@ -69,6 +69,15 @@ const BAND_TEXT = [0xa8, 0xad, 0xb7] as const
  */
 const SEPARATOR_RGB = [0x5c, 0x63, 0x70] as const
 
+/**
+ * The row under the keyboard in a list.
+ *
+ * The rail marks the open Session with ink; the row you are *on* is a band. Two
+ * different questions — which Session is open, and where the keyboard is — read
+ * as two different signals rather than one colour doing both jobs.
+ */
+const SELECTED_BG = [0x3a, 0x3f, 0x4a] as const
+
 const RESET = '\u001b[0m'
 
 function supportsTrueColor(): boolean {
@@ -162,6 +171,7 @@ function buildStyles(color: boolean): {
   brand: (text: string) => string
   band: (text: string) => string
   separator: (text: string) => string
+  selected: (text: string) => string
   userPanel: (text: string) => string
   userArrow: (text: string) => string
   error: (text: string) => string
@@ -175,7 +185,7 @@ function buildStyles(color: boolean): {
 } {
   if (!color) {
     const identity = (text: string): string => text
-    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
+    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, selected: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
   }
   // A panel carries its own background and foreground. Inner styles reset both,
   // so re-open the panel after every nested reset to keep the row continuous to
@@ -189,6 +199,7 @@ function buildStyles(color: boolean): {
     accent: wrap('\u001b[36m', RESET),
     band: panel(`${bgOpen(BAND_BG)}${fgOpen(BAND_TEXT)}`),
     separator: wrap(fgOpen(SEPARATOR_RGB), RESET),
+    selected: panel(bgOpen(SELECTED_BG)),
     userPanel: panel(`${bgOpen(USER_PANEL_BG)}${fgOpen(USER_PANEL_TEXT)}`),
     userArrow: wrap(fgOpen(USER_PANEL_ARROW), RESET),
     error: wrap('\u001b[31m', RESET),

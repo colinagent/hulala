@@ -1,15 +1,15 @@
 /**
  * Capture the README and website screenshots under `assets/screens/`.
  *
- * The frames come from the real client: `runTerminalClient` runs with a fake
- * Host and a scripted pty, so layout, wrapping and colour are the shipped code
- * and nothing here redraws the product. The fake Host supplies a plausible
- * transcript and Session list; the scripted pty paints the two sidebar columns,
- * which are ordinary pty programs, so a script stands in for the shell and for
- * Neovim without either process being started.
+ * Every frame is the real client attached to a fake Host: the transcript comes
+ * from scripted events, but the sidebar columns are real processes (the user's
+ * shell, and Neovim with the bundled explorer), so nothing is redrawn here.
  *
- *   bun scripts/docs/captureScreens.ts          # conversation, terminal, editor
- *   bun scripts/docs/captureScreens.ts --tree   # the real file tree (real Neovim)
+ *   bun scripts/docs/captureScreens.ts          # conversation and terminal
+ *   bun scripts/docs/captureScreens.ts --tree   # editor column with the file tree
+ *
+ * The capture runs against a private state root, because the editor writes its
+ * Neovim config once and you want the current one, not the developer's.
  *
  * Rasterizing needs a local Chrome, so this is developer tooling, not a release
  * step. Run it from the repository root.
@@ -20,13 +20,17 @@ import { PassThrough } from 'node:stream'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { runTerminalClient } from '../../apps/cli/src/tui/app.ts'
 import type { PtyModule, PtyProcess, PtySpawnOptions } from '../../apps/cli/src/tui/editor/pty.ts'
 import type { TerminalBackend, TerminalSession, TerminalSessionEvent, TerminalSessionHandlers } from '../../apps/cli/src/tui/data/remote.ts'
 import { rasterizeFrame } from './rasterizeFrame.ts'
 import { terminalReply } from './terminalTheme.ts'
 
 // The tree shot gets a wider frame: a third of it has to hold whole names.
+// A private state root: the editor writes its Neovim config once and never
+// rewrites it, so the capture needs a fresh home to pick up the current theme —
+// and it must not touch the developer's own installation.
+process.env.HULALA_HOME = mkdtempSync(join(tmpdir(), 'hulala-screens-home-'))
+
 const COLS = process.argv.includes('--tree') ? 190 : 132
 const ROWS = process.argv.includes('--tree') ? 34 : 28
 const CWD = '/Users/colin/note/projects/hulala'
@@ -40,92 +44,6 @@ const S = {
   blue: '\u001b[38;2;130;150;200m',
   yellow: '\u001b[38;2;200;175;120m',
   grey: '\u001b[38;2;115;117;122m',
-}
-
-/** A Neovim screen: the vendored editor's colours on a plausible file. */
-const EDITOR_LINES: string[] = [
-  `${S.grey}  1 ${R}${D}/**${R}`,
-  `${S.grey}  2 ${R}${D} * Every panel that reads keys asks for English.${R}`,
-  `${S.grey}  3 ${R}${D} * The composer never does.${R}`,
-  `${S.grey}  4 ${R}${D} */${R}`,
-  `${S.grey}  5 ${R}${S.blue}import${R} { spawn } ${S.blue}from${R} ${S.green}'node:child_process'${R}`,
-  `${S.grey}  6 ${R}`,
-  `${S.grey}  7 ${R}${S.blue}export interface${R} InputSource {`,
-  `${S.grey}  8 ${R}  readonly id: string`,
-  `${S.grey}  9 ${R}  readonly label: string`,
-  `${S.grey} 10 ${R}}`,
-  `${S.grey} 11 ${R}`,
-  `${S.grey} 12 ${R}${S.blue}const${R} ENGLISH = ${S.green}'com.apple.keylayout.ABC'${R}`,
-  `${S.grey} 13 ${R}`,
-  `${S.grey} 14 ${R}${S.blue}export function${R} ${S.yellow}switchTo${R}(target: InputSource) {`,
-  `${S.grey} 15 ${R}  ${S.blue}if${R} (target.id === ENGLISH) ${S.blue}return${R}`,
-  `${S.grey} 16 ${R}  ${D}// bin/ime ships with the release${R}`,
-  `${S.grey} 17 ${R}  spawn(imePath(), [target.id])`,
-  `${S.grey} 18 ${R}}`,
-  `${S.grey} 19 ${R}`,
-  `${S.grey} 20 ${R}${D}// Ctrl-[ is byte-identical to Esc${R}`,
-  `${S.grey} 21 ${R}${S.blue}export const${R} owns = (f: boolean) => f`,
-  `${S.grey} 22 ${R}`,
-  `${S.grey} 23 ${R}${D}~${R}`,
-]
-
-/** The editor's statusline, pinned to the pane's last row. */
-function statusline(cols: number): string {
-  const left = ' NORMAL  inputSource.ts'
-  const right = '10:4 utf-8 '
-  const pad = Math.max(1, cols - left.length - right.length)
-  return `\u001b[48;2;38;40;45m\u001b[38;2;210;208;202m${left}${' '.repeat(pad)}${right}${R}`
-}
-
-/** A pty whose program paints a scripted screen instead of running one. */
-function scriptedPty(): PtyModule {
-  return {
-    spawn(file: string, _args: string[], options: PtySpawnOptions): PtyProcess {
-      const isEditor = /nvim/.test(file)
-      let deliver: ((data: string) => void) | undefined
-      let cols = options.cols
-      let rows = options.rows
-      const paint = (): void => {
-        if (isEditor) {
-          const code = EDITOR_LINES.slice(0, Math.max(1, rows - 1))
-          while (code.length < rows - 1) code.push('')
-          deliver?.(`\u001b[H\u001b[2J${code.join('\r\n')}\u001b[${rows};1H${statusline(cols)}`)
-          return
-        }
-        const shell = [
-          `${D}~/note/projects/hulala${R}`,
-          `${S.brand}❯${R} git status --short`,
-          `${S.yellow} M${R} apps/cli/src/tui/plugins/panes.ts`,
-          `${S.yellow} M${R} apps/cli/src/tui/plugins/rail.ts`,
-          `${S.yellow}??${R} scripts/docs/captureScreens.ts`,
-          '',
-          `${S.brand}❯${R} bun run test apps/cli/tests/client`,
-          `${D}bun test v1.4.2 (79e5c1e0)${R}`,
-          '',
-          `${D}apps/cli/tests/client/focus.test.ts:${R}`,
-          `${S.green}✓${R} Ctrl-T opens the terminal and focuses it ${D}[1.32ms]${R}`,
-          `${S.green}✓${R} Ctrl-F swaps the sidebar to the editor ${D}[0.88ms]${R}`,
-          `${S.green}✓${R} hiding a column keeps its process ${D}[0.41ms]${R}`,
-          '',
-          `${D} 3 pass${R}`,
-          `${D} 0 fail${R}`,
-          `${D}Ran 3 tests across 1 file. [0.21s]${R}`,
-          '',
-          `${S.brand}❯${R} `,
-        ]
-        deliver?.(`\u001b[H\u001b[2J${shell.slice(0, rows).join('\r\n')}`)
-      }
-      const timer = setTimeout(paint, 60)
-      return {
-        pid: 1,
-        onData(handler) { deliver = handler },
-        onExit() {},
-        write() {},
-        resize(nextCols: number, nextRows: number) { cols = nextCols; rows = nextRows; paint() },
-        kill() { clearTimeout(timer) },
-      }
-    },
-  }
 }
 
 const sessions: TerminalSession[] = [
@@ -238,21 +156,21 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 /** Frames to capture: the key that opens the column, and the file it lands in. */
 const TREE = process.argv.includes('--tree')
 
-const SHOTS: Array<{ name: string; keys?: string[] }> = TREE
-  ? [{ name: '04-files', keys: ['\u0006', `${'\u001b[B'.repeat(16)}\r`] }]
+const SHOTS: Array<{ name: string; keys?: string[]; wait?: number }> = TREE
+  ? [{ name: '03-files', keys: ['\u0006', `${'\u001b[B'.repeat(16)}\r`], wait: 6000 }]
   : [
       { name: '01-conversation' },
-      { name: '02-terminal', keys: ['\u0014'] },
-      { name: '03-editor', keys: ['\u0006'] },
+      // The shell is the user's own: its prompt and rc files need a moment
+      // before it can take a command.
+      { name: '02-terminal', keys: ['\u0014', 'ls\r'], wait: 3000 },
     ]
 
 async function main(): Promise<void> {
+  const { runTerminalClient } = await import('../../apps/cli/src/tui/app.ts')
   const dir = mkdtempSync(join(tmpdir(), 'hulala-screens-'))
   void runTerminalClient({
     backend: fakeBackend(), cwd: CWD, input, output, resume: 'session-a',
-    // The tree shot is the real editor: the vendored snacks explorer is what the
-    // screenshot is meant to show, so nothing here paints over it.
-    ...(TREE ? {} : { pty: scriptedPty() }),
+
     updateCheck: async () => undefined,
   })
   await wait(1400)
@@ -262,7 +180,7 @@ async function main(): Promise<void> {
         input.write(key)
         // The editor needs real time to start Neovim, paint its explorer and
         // open the file the tree lands on.
-        await wait(TREE ? (index === 0 ? 6000 : 1600) : 900)
+        await wait(shot.wait ?? 900)
       }
     }
     const ansiPath = join(dir, `${shot.name}.ansi`)

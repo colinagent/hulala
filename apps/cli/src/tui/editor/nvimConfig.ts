@@ -111,6 +111,9 @@ vim.opt.shada = { "!", "'100", "<50", "s10", "h", "%" }
 
 local highlights = {
   Normal = { fg = fg, bg = bg },
+  -- The file tree and the pickers are one tinted surface of their own: a step
+  -- away from the editor, and the same whether the tree is a float or a window
+  -- beside a file. Only the row under the keyboard changes shade.
   NormalFloat = { fg = fg, bg = theme_value("pmenu", bg) },
   FloatBorder = { fg = theme_value("border", fg), bg = theme_value("pmenu", bg) },
   FloatTitle = { fg = theme_value("title", fg), bg = theme_value("pmenu", bg) },
@@ -167,6 +170,26 @@ local highlights = {
 for group, spec in pairs(highlights) do
   vim.api.nvim_set_hl(0, group, spec)
 end
+
+-- The file tree and the pickers mark the row under the keyboard with ink, not
+-- with a filled band: a background here would be a second surface inside a
+-- column that is meant to read as one, and this client reserves background
+-- blocks for panels, never for selection.
+vim.api.nvim_set_hl(0, "HulalaTree", { fg = fg, bg = theme_value("pmenu", bg) })
+vim.api.nvim_set_hl(0, "HulalaTreeCursor", { bg = theme_value("pmenuSelected", bg) })
+
+local function tree_window(win)
+  local filetype = vim.bo[vim.api.nvim_win_get_buf(win)].filetype
+  if not filetype:match("^snacks_picker") and filetype ~= "snacks_explorer" then return end
+  -- One surface for the whole column, whatever the tree is: the float it opens
+  -- as, and the window it becomes next to an opened file. The selected entry is
+  -- the only row allowed a different background.
+  vim.wo[win].winhighlight = "Normal:HulalaTree,NormalFloat:HulalaTree,EndOfBuffer:HulalaTree,SignColumn:HulalaTree,CursorLine:HulalaTreeCursor,SnacksPickerCursorLine:HulalaTreeCursor"
+end
+
+vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter" }, {
+  callback = function(event) tree_window(event.win) end,
+})
 
 -- Bundled tree-sitter parsers, published next to the editor's runtime tree.
 local parsers = vim.env.HULALA_NVIM_PARSERS
