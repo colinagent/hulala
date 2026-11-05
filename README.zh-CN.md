@@ -32,17 +32,17 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 
 ## 不需要 tmux
 
-`hulala` 不是那种每个窗口启动一个、关窗就没了的程序。一个 Host 守护进程拥有 state root；
+`hulala` 不是那种每个窗口启动一个、关窗就没了的程序。一个 Host 守护进程拥有状态根目录；
 每个终端窗口都是连到那个进程的客户端，想开几个开几个。
 
 ```sh
-hulala host start        # 这个 state root 唯一的 Host，detached
+hulala host start        # 这个状态根目录唯一的 Host，detached
 hulala                   # 附着窗口 —— 开几个终端都行
 hulala host status       # 守护进程现在的状态
 hulala host stop         # 唯一能停掉它的东西
 ```
 
-客户端通过 state root 里的 `endpoint.json` 找到守护进程，所以健康的 Host 在响应时，
+客户端通过状态根目录里的 `endpoint.json` 找到守护进程，所以健康的 Host 在响应时，
 第二个窗口不会偷偷起一个自己的。关窗（`Ctrl-Q`）只是断开：模型调用、工具调用和
 Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`、裸 `&` 就是在手搜这件事；
 这里是程序默认的行为，而 `hulala host stop` 是明确的终止方式。
@@ -167,7 +167,7 @@ hulala creator status
 hulala creator off    # 把这项能力从组合里移除
 ```
 
-开关是 `<state root>/config/creator.json`。关掉时会从已有 profile 里删掉那些行——
+开关是 `<状态根目录>/config/creator.json`。关掉时会从已有 profile 里删掉那些行——
 能力是消失，不是闲置。
 
 ## 安装
@@ -260,7 +260,7 @@ apps/server    Hulala Host 守护进程壳（DSH webServer + connection）
 apps/website   官网和下载元数据
 packages/runtime             DSH 组合（一个原生 Agent Loop）
 packages/host-client         发现、detached 启动、共享客户端契约
-packages/desktop-contracts   Host/client 线协议与 state root 路径
+packages/desktop-contracts   Host/client 线协议与状态根目录路径
 packages/tui-plugin          终端客户端插件契约
 packages/distribution        安装、更新与回滚
 ```

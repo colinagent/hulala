@@ -94,7 +94,7 @@ const translations = {
       titleLead: "Hulala",
       titleAccent: "面向 hacker 的 DeepSeek Harness",
       subtitle: "一个 TUI：内置 Neovim、真实 shell，还有一个你永远不用看着的守护进程。",
-      lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host 守护进程拥有 state root，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。",
+      lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host 守护进程拥有状态根目录，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。",
       primary: "在 macOS 与 Linux 上安装",
       secondary: "看看里面有什么",
       availability: "macOS 与 Linux · Node.js 22.13+ · 不需要 tmux",
@@ -102,7 +102,7 @@ const translations = {
     conviction: {
       label: "一个简单的信念",
       title: ["终端不应该", "跟着窗口一起死。"],
-      lines: ["守护进程拥有 state root。", "每个窗口都是客户端。", "Ctrl-Q 只是断开，不是停。"],
+      lines: ["守护进程拥有状态根目录。", "每个窗口都是客户端。", "Ctrl-Q 只是断开，不是停。"],
     },
     practice: {
       label: "01 / 终端",
@@ -117,7 +117,7 @@ const translations = {
     continuity: {
       label: "02 / 守护进程",
       title: ["Session 比启动它的", "那个窗口活得", "更久。"],
-      copy: "Host 是守护进程，不是启动脚本。它拥有 state root，负责把 turn 跑完，并回应每一个连上来的客户端。",
+      copy: "Host 是守护进程，不是启动脚本。它拥有状态根目录，负责把 turn 跑完，并回应每一个连上来的客户端。",
       stages: [
         ["AB", "找到 Host", "客户端读 endpoint.json，没有就 detached 起一个。"],
         ["RUN", "送一个 turn", "Agent Loop 在 Host 里跑，每个窗口看到同一条流。"],
@@ -131,7 +131,7 @@ const translations = {
       lede: "不用记多路复用器的快捷键，不用守着启动脚本，不会有偷偷起的第二个守护进程，也没有第二套 REST。",
       items: [
         ["不需要 tmux", "Host 本身就是守护进程。连上、断开、再连上。"],
-        ["一个 state root", "窗口共用一个 Host，Session 从来不是某个窗口的私产。"],
+        ["一个状态根目录", "窗口共用一个 Host，Session 从来不是某个窗口的私产。"],
         ["随便你改", "每个面板都是插件，契约只增不改。"],
       ],
     },
@@ -143,7 +143,7 @@ const translations = {
     trust: {
       label: "基础原则",
       title: "你的工作，始终属于你。",
-      copy: "Host 运行在你自己的机器上，只有一个 state root；provider 凭据留在它自己的原生存储里，中间没有 Hulala 账户，也没有云端中继。",
+      copy: "Host 运行在你自己的机器上，只有一个状态根目录；provider 凭据留在它自己的原生存储里，中间没有 Hulala 账户，也没有云端中继。",
       items: ["运行在你的机器上", "不要账户，不要中继", "用你已经配好的模型"],
     },
     closing: {
