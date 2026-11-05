@@ -59,8 +59,11 @@ and a bare `&` exist to fake exactly this; here it is what the program does by
 default, and `hulala host stop` is the explicit way to end it.
 
 <p align="center">
-  <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: the user's shell in the Session directory" width="440" />
-  <img src="assets/screens/03-editor.png" alt="The editor column: Neovim beside the conversation, buffers kept while the column is hidden" width="440" />
+  <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: the user's shell in the Session directory" width="900" />
+</p>
+
+<p align="center">
+  <img src="assets/screens/03-editor.png" alt="The editor column: Neovim beside the conversation, buffers kept while the column is hidden" width="900" />
 </p>
 
 ## Keyboard

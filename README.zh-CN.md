@@ -48,8 +48,11 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
 这里是程序默认的行为，而 `hulala host stop` 是明确的终止方式。
 
 <p align="center">
-  <img src="assets/screens/02-terminal.png" alt="内置终端列：会话目录里你自己的 shell" width="440" />
-  <img src="assets/screens/03-editor.png" alt="编辑器列：对话旁边的 Neovim，列隐藏时缓冲区仍然保留" width="440" />
+  <img src="assets/screens/02-terminal.png" alt="内置终端列：会话目录里你自己的 shell" width="900" />
+</p>
+
+<p align="center">
+  <img src="assets/screens/03-editor.png" alt="编辑器列：对话旁边的 Neovim，列隐藏时缓冲区仍然保留" width="900" />
 </p>
 
 ## 快捷键
