@@ -8,7 +8,8 @@
  * which are ordinary pty programs, so a script stands in for the shell and for
  * Neovim without either process being started.
  *
- *   bun scripts/docs/captureScreens.ts
+ *   bun scripts/docs/captureScreens.ts          # conversation, terminal, editor
+ *   bun scripts/docs/captureScreens.ts --tree   # the real file tree (real Neovim)
  *
  * Rasterizing needs a local Chrome, so this is developer tooling, not a release
  * step. Run it from the repository root.
@@ -23,9 +24,11 @@ import { runTerminalClient } from '../../apps/cli/src/tui/app.ts'
 import type { PtyModule, PtyProcess, PtySpawnOptions } from '../../apps/cli/src/tui/editor/pty.ts'
 import type { TerminalBackend, TerminalSession, TerminalSessionEvent, TerminalSessionHandlers } from '../../apps/cli/src/tui/data/remote.ts'
 import { rasterizeFrame } from './rasterizeFrame.ts'
+import { terminalReply } from './terminalTheme.ts'
 
-const COLS = 132
-const ROWS = 28
+// The tree shot gets a wider frame: a third of it has to hold whole names.
+const COLS = process.argv.includes('--tree') ? 190 : 132
+const ROWS = process.argv.includes('--tree') ? 34 : 28
 const CWD = '/Users/colin/note/projects/hulala'
 const OUT = 'assets/screens'
 
@@ -66,31 +69,6 @@ const EDITOR_LINES: string[] = [
   `${S.grey} 23 ${R}${D}~${R}`,
 ]
 
-/** The vendored file tree (`snacks.nvim` explorer) on the repository root. */
-const TREE_LINES: string[] = [
-  `${D}~/note/projects/hulala${R}`,
-  `${S.blue}▾ apps${R}`,
-  `  ${S.blue}▾ cli${R}`,
-  `    ${S.blue}▸ src${R}`,
-  `    ${S.blue}▸ tests${R}`,
-  `${D}  ▸ server${R}`,
-  `${S.blue}▾ packages${R}`,
-  `    ${S.green}◆ runtime${R}`,
-  `${D}    ◆ host-client${R}`,
-  `${D}    ◆ tui-plugin${R}`,
-  `${S.blue}▾ scripts${R}`,
-  `    ${S.blue}▸ docs${R}`,
-  `    ${S.blue}▸ release${R}`,
-  `${S.blue}▾ docs${R}`,
-  `    ${D}architecture.md${R}`,
-  `    ${D}release.md${R}`,
-  `${S.yellow}● README.md${R}`,
-  `  ${D}package.json${R}`,
-  `  ${D}bun.lock${R}`,
-  `  ${D}tsconfig.base.json${R}`,
-  `  ${D}AGENTS.md${R}`,
-]
-
 /** The editor's statusline, pinned to the pane's last row. */
 function statusline(cols: number): string {
   const left = ' NORMAL  inputSource.ts'
@@ -104,17 +82,10 @@ function scriptedPty(): PtyModule {
   return {
     spawn(file: string, _args: string[], options: PtySpawnOptions): PtyProcess {
       const isEditor = /nvim/.test(file)
-      const tree = TREE && isEditor
       let deliver: ((data: string) => void) | undefined
       let cols = options.cols
       let rows = options.rows
       const paint = (): void => {
-        if (tree) {
-          const lines = TREE_LINES.slice(0, Math.max(1, rows - 1))
-          while (lines.length < rows - 1) lines.push('')
-          deliver?.(`\u001b[H\u001b[2J${lines.join('\r\n')}\u001b[${rows};1H${' '.repeat(cols)}`)
-          return
-        }
         if (isEditor) {
           const code = EDITOR_LINES.slice(0, Math.max(1, rows - 1))
           while (code.length < rows - 1) code.push('')
@@ -248,7 +219,18 @@ const input = Object.assign(new PassThrough(), {
 })
 const output = Object.assign(new PassThrough(), { isTTY: true, columns: COLS, rows: ROWS })
 const chunks: Buffer[] = []
-output.on('data', (chunk: Buffer | string) => { chunks.push(Buffer.from(chunk)) })
+let seen = 0
+output.on('data', (chunk: Buffer | string) => {
+  const text = String(chunk)
+  chunks.push(Buffer.from(chunk))
+  // The client asks the terminal for its colours once, at start-up. A real
+  // window answers; without the answer the editor theme falls back.
+  seen += text.length
+  for (const match of text.matchAll(/\u001b\](?:10|11|4;\d+);\?\u0007/gu)) {
+    const reply = terminalReply(match[0])
+    if (reply !== undefined) input.write(reply)
+  }
+})
 
 const all = (): Buffer => Buffer.concat(chunks)
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -256,26 +238,32 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 /** Frames to capture: the key that opens the column, and the file it lands in. */
 const TREE = process.argv.includes('--tree')
 
-const SHOTS: Array<{ name: string; key?: string }> = TREE
-  ? [{ name: '04-files', key: '\u0006' }]
+const SHOTS: Array<{ name: string; keys?: string[] }> = TREE
+  ? [{ name: '04-files', keys: ['\u0006', `${'\u001b[B'.repeat(12)}\r`] }]
   : [
       { name: '01-conversation' },
-      { name: '02-terminal', key: '\u0014' },
-      { name: '03-editor', key: '\u0006' },
+      { name: '02-terminal', keys: ['\u0014'] },
+      { name: '03-editor', keys: ['\u0006'] },
     ]
 
 async function main(): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'hulala-screens-'))
   void runTerminalClient({
     backend: fakeBackend(), cwd: CWD, input, output, resume: 'session-a',
-    pty: scriptedPty(),
+    // The tree shot is the real editor: the vendored snacks explorer is what the
+    // screenshot is meant to show, so nothing here paints over it.
+    ...(TREE ? {} : { pty: scriptedPty() }),
     updateCheck: async () => undefined,
   })
   await wait(1400)
   for (const shot of SHOTS) {
-    if (shot.key !== undefined) {
-      input.write(shot.key)
-      await wait(900)
+    if (shot.keys !== undefined) {
+      for (const [index, key] of shot.keys.entries()) {
+        input.write(key)
+        // The editor needs real time to start Neovim, paint its explorer and
+        // open the file the tree lands on.
+        await wait(TREE ? (index === 0 ? 6000 : 2500) : 900)
+      }
     }
     const ansiPath = join(dir, `${shot.name}.ansi`)
     writeFileSync(ansiPath, all())

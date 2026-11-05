@@ -67,7 +67,7 @@ default, and `hulala host stop` is the explicit way to end it.
 </p>
 
 <p align="center">
-  <img src="assets/screens/04-files.png" alt="The editor column on the Session directory: the vendored file tree, with the buffer list and git status" width="900" />
+  <img src="assets/screens/04-files.png" alt="The editor column on the Session directory: the real file tree with README.md open beside it" width="900" />
 </p>
 
 `Ctrl-F` opens the editor on the Session directory, so it is also the file tree:

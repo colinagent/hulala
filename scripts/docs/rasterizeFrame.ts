@@ -13,19 +13,18 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { GhosttyVt } from '../../apps/cli/src/tui/pane/ghosttyVt.ts'
+import { terminalTheme } from './terminalTheme.ts'
 
 const FONT = 14
 const CELL = 8.4
 const LINE = 21
 const PAD = 26
 
-const BG = '#0e0f12'
-const FG = '#d9d6d0'
-
-const PALETTE = [
-  '#000000', '#cc6666', '#8fbf7f', '#d6b46a', '#7f9fd0', '#b48ead', '#79b8b0', '#c9c7c1',
-  '#6b6b6b', '#e0796f', '#a8d29a', '#e8c97f', '#9db8e0', '#c9a0c4', '#8fd0c8', '#f0efe9',
-]
+// The capture answers the client's colour queries with this theme, so the cells
+// that keep the terminal default belong to it too.
+const BG = terminalTheme.background
+const FG = terminalTheme.foreground
+const PALETTE = terminalTheme.palette
 
 interface Cell { ch: string; fg?: string; bg?: string; bold: boolean; dim: boolean; italic: boolean; underline: boolean }
 interface Style { fg?: string; bg?: string; bold: boolean; dim: boolean; italic: boolean; underline: boolean; inverse: boolean }
@@ -134,6 +133,19 @@ function mix(fg: string, bg: string, amount = 0.45): string {
   return `rgb(${blend(r1, r2)},${blend(g1, g2)},${blend(b1, b2)})`
 }
 
+/** CSS that fills the part of a cell a block element covers, or undefined. */
+function blockRect(text: string): string | undefined {
+  const cp = text.codePointAt(0) ?? 0
+  if (cp === 0x2588) return '' // full block
+  const left: Record<number, number> = { 0x258f: 1, 0x258e: 2, 0x258d: 3, 0x258c: 4 }
+  const right: Record<number, number> = { 0x2595: 1, 0x2594: 2, 0x2593: 3, 0x2590: 4 }
+  if (left[cp] !== undefined) return `clip-path:inset(0 ${100 - (left[cp]! / 8) * 100}% 0 0)`
+  if (right[cp] !== undefined) return `clip-path:inset(0 0 0 ${100 - (right[cp]! / 8) * 100}%)`
+  if (cp === 0x2580) return 'clip-path:inset(0 0 50% 0)'
+  if (cp === 0x2584) return 'clip-path:inset(50% 0 0 0)'
+  return undefined
+}
+
 const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
   const spans: string[] = []
@@ -145,9 +157,17 @@ const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, 
       const text = cell.ch
       // Terminal rules are drawn as real rules: the font glyph leaves the gaps a
       // terminal closes, and a screenshot should show a solid divider.
-      const rule = text === '\u2502' || text === '\u258f' || text === '\u2500' || text === '\u2015'
+      // Block elements are geometry, not type: a terminal draws them to fill
+      // part of the cell, and a font's glyph leaves gaps that read as artefacts.
+      const block = blockRect(text)
+      if (block !== undefined) {
+        spans.push(`<span style="left:${(col * CELL).toFixed(2)}px;top:${(row * LINE).toFixed(2)}px;width:${(width * CELL).toFixed(2)}px;height:${LINE}px;background:${cell.fg};${block}"></span>`)
+        col += width
+        continue
+      }
+      const rule = text === '\u258f'
       if (rule) {
-        const vertical = text !== '\u2500' && text !== '\u2015'
+        const vertical = true
         // Rules are drawn as boxes, so the dim opacity the text spans use has to
         // be stated here too: a dim rule is a fainter line, not a narrower one.
         const dim = cell.dim ? ';opacity:.62' : ''
@@ -184,7 +204,7 @@ const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, 
     html,body{margin:0;background:#07080a}
     .card{position:relative;width:${width}px;height:${height}px;background:${BG};overflow:hidden}
     .grid{position:absolute;left:${PAD}px;top:${PAD}px;width:${Math.round(cols * CELL)}px;height:${Math.round(rows * LINE)}px;
-      font-family:"SF Mono",SFMono-Regular,Menlo,"DejaVu Sans Mono",monospace;font-size:${FONT}px;
+      font-family:"SF Mono",SFMono-Regular,Menlo,"DejaVu Sans Mono","Symbols Nerd Font Mono",monospace;font-size:${FONT}px;
       font-variant-ligatures:none;white-space:pre}
     .grid span{position:absolute;overflow:visible;display:block}
   </style></head><body><div class="card"><div class="grid">${spans.join('')}</div></div></body></html>`

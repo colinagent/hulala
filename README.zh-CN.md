@@ -56,7 +56,7 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
 </p>
 
 <p align="center">
-  <img src="assets/screens/04-files.png" alt="编辑器列开在会话目录上：内置文件树，带缓冲区列表和 git 状态" width="900" />
+  <img src="assets/screens/04-files.png" alt="编辑器列开在会话目录上：真实文件树，旁边打开着 README.md" width="900" />
 </p>
 
 `Ctrl-F` 是在会话目录上打开编辑器，所以它同时也是文件树：内置的浏览器
