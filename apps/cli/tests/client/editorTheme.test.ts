@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import {
   editorThemeFromTerminal,
   FALLBACK_THEME,
+  HIGHLIGHT_INK,
 } from '../../src/tui/editor/editorTheme.js'
 
 test('the theme falls back when the terminal reports nothing', () => {
@@ -54,4 +55,18 @@ test('secondary colours are blends, never the raw foreground', () => {
   const value = Number.parseInt(theme.comment.slice(1), 16)
   expect(value).toBeGreaterThan(0)
   expect(value).toBeLessThan(0xffffff)
+})
+
+test('the current-location ink is the client\'s own, not a palette entry', () => {
+  const palette = Array.from({ length: 16 }, (_, index) => ({ r: index * 4, g: index * 2, b: index }))
+  const theme = editorThemeFromTerminal({
+    foreground: { r: 0xff, g: 0xff, b: 0xff },
+    background: { r: 0x10, g: 0x10, b: 0x10 },
+    palette,
+  })
+  // The rail and the file tree mark the same thing, so they share one ink even
+  // on terminals whose palette would suggest something else.
+  expect(theme.highlight).toBe(HIGHLIGHT_INK)
+  expect(theme.highlight).not.toBe(theme.title)
+  expect(FALLBACK_THEME.highlight).toBe(HIGHLIGHT_INK)
 })

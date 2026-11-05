@@ -11,6 +11,7 @@
  * @module hulala-cli/tui/view/theme
  */
 import type { EditorTheme, MarkdownTheme, SelectListTheme } from '@earendil-works/pi-tui'
+import { HIGHLIGHT_INK } from '../editor/editorTheme.js'
 
 export interface ThemeSet {
   editor: EditorTheme
@@ -29,14 +30,8 @@ function wrap(open: string, close: string) {
  */
 const BRAND_RGB = [0x91, 0x80, 0x72] as const
 
-/**
- * Current-location ink: the brand hue lifted for legibility on a dark terminal.
- *
- * Selection and current location are text, never a filled row, so the colour has
- * to carry on its own against the default background — the brand ink itself is
- * too muted for that at a 20-column rail.
- */
-const HIGHLIGHT_RGB = [0xd8, 0xaa, 0x78] as const
+/** Current-location ink, shared with the file tree in the editor column. */
+const HIGHLIGHT_RGB = parseRgb(HIGHLIGHT_INK)
 
 /**
  * Archived user message panel. A fixed dark chip with its own foreground, so

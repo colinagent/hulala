@@ -22,8 +22,12 @@
  * - `<data>/config/editor/plugins/` — every plugin directory here is prepended
  *   to `runtimepath`, so a user plugin (a reader, a motion pack) is a folder
  *   drop away. Hulala never writes into it;
- * - `<data>/config/editor/nvim/init.lua` — Hulala's config, created on first
- *   use so it stays editable, and read as `$XDG_CONFIG_HOME/nvim/init.lua`;
+ * - `<data>/config/editor/nvim/init.lua` — the user's config, created on first
+ *   use and never overwritten, so their edits persist. Read as
+ *   `$XDG_CONFIG_HOME/nvim/init.lua`;
+ * - `<data>/config/editor/nvim/hulala.lua` — Hulala's own settings, rewritten
+ *   whenever they change and loaded before `init.lua`, so an installation made
+ *   by an older client still gets the current editor;
  * - `<data>/cache/editor/` — `XDG_DATA_HOME` / `XDG_STATE_HOME`: undo, shada,
  *   swap and plugin state never touch the user's own Neovim directories.
  *
@@ -39,7 +43,7 @@ import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { NVIM_INIT_LUA } from './nvimConfig.js'
+import { NVIM_BASE_LUA, NVIM_INIT_LUA } from './nvimConfig.js'
 import { appendPathEntry, bundledRipgrep, ripgrepExecutable } from '../../ripgrep.js'
 import type { EditorTheme } from './editorTheme.js'
 
@@ -70,8 +74,10 @@ export interface EditorHome {
   readonly dataHome: string
   /** `$XDG_STATE_HOME`. */
   readonly stateHome: string
-  /** Absolute path of the config file, written on first use. */
+  /** Absolute path of the user's `init.lua`, written on first use. */
   readonly initPath: string
+  /** Absolute path of Hulala's own settings, rewritten when they change. */
+  readonly basePath: string
   /** `<data>`: the state root the editor is published under. */
   readonly dataRoot: string
 }
@@ -133,6 +139,7 @@ export function resolveEditorHome(dataRoot: string): EditorHome {
     dataHome: join(dataRoot, 'cache', 'editor'),
     stateHome: join(dataRoot, 'cache', 'editor', 'state'),
     initPath: join(configHome, 'nvim', 'init.lua'),
+    basePath: join(configHome, 'nvim', 'hulala.lua'),
     dataRoot,
   }
 }
@@ -247,14 +254,30 @@ function moduleDirectory(): string {
 }
 
 /**
- * Create the config file when it does not exist yet, so upgrades never
- * overwrite edits the user made to it.
+ * Write the editor config: Hulala's own settings fresh, the user's file once.
+ *
+ * The split is what makes an editor fix reach an existing installation. The
+ * base file is part of the client, so it is rewritten whenever it changed;
+ * `init.lua` belongs to the user, so it is only ever created. The client also
+ * loads the base through `nvim --cmd`, before Neovim reads `init.lua`, which is
+ * what gets the current settings to an installation whose `init.lua` was
+ * written by an older client.
  * @param home - resolved editor home.
  */
 export function ensureEditorConfig(home: EditorHome): void {
-  if (existsSync(home.initPath)) return
   mkdirSync(dirname(home.initPath), { recursive: true })
-  writeFileSync(home.initPath, NVIM_INIT_LUA, { mode: 0o600 })
+  writeIfChanged(home.basePath, NVIM_BASE_LUA)
+  if (!existsSync(home.initPath)) writeFileSync(home.initPath, NVIM_INIT_LUA, { mode: 0o600 })
+}
+
+/** Write a generated file only when its content actually changed. */
+function writeIfChanged(path: string, content: string): void {
+  try {
+    if (readFileSync(path, 'utf8') === content) return
+  } catch {
+    // Missing or unreadable: write it.
+  }
+  writeFileSync(path, content, { mode: 0o600 })
 }
 
 /**
@@ -274,6 +297,7 @@ export function editorEnvironment(home: EditorHome, theme: EditorTheme, ripgrepP
     XDG_DATA_HOME: home.dataHome,
     XDG_STATE_HOME: home.stateHome,
     HULALA_NVIM_THEME: JSON.stringify(theme),
+    HULALA_NVIM_CONFIG: home.basePath,
     HULALA_NVIM_SNACKS: home.plugin,
     HULALA_NVIM_PLUGIN_DIR: home.pluginDir,
     HULALA_NVIM_BUNDLED_PLUGINS: home.pluginRoot,

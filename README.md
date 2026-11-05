@@ -12,6 +12,16 @@ Loop, every panel is a plugin, and the agent can write plugins for the client it
 runs inside.
 
 <p align="center">
+  <img src="assets/screens/03-files.png" alt="The editor column on the Session directory: the real file tree with a file open beside it" width="900" />
+  <br />
+  <sub><code>Ctrl-F</code>: Neovim on the Session directory — the bundled file tree, a file opened from it, and buffers kept while the column is hidden.</sub>
+</p>
+
+`Ctrl-F` opens the editor on the Session directory, so it is also the file tree:
+the bundled explorer (`apps/cli/vendor/snacks.nvim`) replaces netrw, and picking
+a file opens it beside the tree in the same column.
+
+<p align="center">
   <img src="assets/screens/01-conversation.png" alt="The Hulala terminal client: Session rail, the conversation with tool rows, and the composer" width="900" />
   <br />
   <sub>The frame: the Session rail, the conversation with its tool rows, the pending inbox and the composer.</sub>
@@ -66,15 +76,6 @@ default, and `hulala host stop` is the explicit way to end it.
   <sub><code>Ctrl-T</code>: the built-in terminal — your shell in the Session directory, with its own scrollback.</sub>
 </p>
 
-<p align="center">
-  <img src="assets/screens/03-files.png" alt="The editor column on the Session directory: the real file tree with a file open beside it" width="900" />
-  <br />
-  <sub><code>Ctrl-F</code>: Neovim on the Session directory — the bundled file tree, a file opened from it, and buffers kept while the column is hidden.</sub>
-</p>
-
-`Ctrl-F` opens the editor on the Session directory, so it is also the file tree:
-the bundled explorer (`apps/cli/vendor/snacks.nvim`) replaces netrw, and picking
-a file opens it beside the tree in the same column.
 
 ## Keyboard
 

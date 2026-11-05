@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { CURSOR_MARKER, visibleWidth } from '@earendil-works/pi-tui'
 import type { TerminalSession } from '../../src/tui/data/remote.js'
 import {
   railLists,
@@ -53,7 +53,7 @@ interface Harness {
   refreshed: number
 }
 
-function harness(overrides: Partial<RailState> = {}, rows = 12): Harness {
+function harness(overrides: Partial<RailState> = {}, rows = 12, color = false): Harness {
   const opened: string[] = []
   const queries: string[] = []
   const folds: boolean[] = []
@@ -63,7 +63,7 @@ function harness(overrides: Partial<RailState> = {}, rows = 12): Harness {
   result.rail = new SessionRail({
     state: () => current,
     rows: () => rows,
-    color: false,
+    color,
     onOpen: id => { opened.push(id) },
     onNew: () => { result.created += 1 },
     onQuery: query => { queries.push(query); current = { ...current, query } },
@@ -385,4 +385,54 @@ test('the More row is the row after the page, inside the scroll', () => {
   test.rail.handleInput('\r')
   const revealed = test.rail.render(24).map(strip)
   expect(revealed[8]?.trimEnd()).toBe('↑ Less')
+})
+
+test('a focused rail puts the keyboard cursor on its cursor row', () => {
+  const test = harness()
+  test.rail.focused = true
+  test.rail.startEditing('session-current')
+  const lines = test.rail.render(24)
+  // Row 0 is the directory, row 1 the filter, row 2 the `+ new session` action,
+  // so the first Session is row 3. The cursor cell is the marker pair pi-tui
+  // turns into the terminal cursor, the same one the editor column shows.
+  expect(lines[3]).toContain(CURSOR_MARKER)
+  expect(lines[3]?.startsWith(`${CURSOR_MARKER}\u001b_pi:fc\u0007`)).toBe(true)
+  // Exactly one cursor: a second marker would move it back up the frame.
+  expect(lines.filter(line => line.includes(CURSOR_MARKER))).toHaveLength(1)
+
+  test.rail.handleInput('j')
+  const moved = test.rail.render(24)
+  expect(moved[3]).not.toContain(CURSOR_MARKER)
+  expect(moved[4]).toContain(CURSOR_MARKER)
+})
+
+test('the filter box takes the cursor while a query is being typed', () => {
+  const test = harness()
+  test.rail.focused = true
+  test.rail.handleInput('/')
+  test.rail.handleInput('p')
+  const lines = test.rail.render(24)
+  // The caret leaves the list for the query, at the end of what was typed.
+  expect(lines[1]).toContain(CURSOR_MARKER)
+  expect(lines.slice(2).every(line => !line.includes(CURSOR_MARKER))).toBe(true)
+  expect(strip(lines[1] ?? '')).toStartWith('> p')
+})
+
+test('the cursor block is neutral, never painted in the selection ink', () => {
+  const test = harness({}, 12, true)
+  test.rail.focused = true
+  test.rail.startEditing('session-current')
+  const row = test.rail.render(24)[3] ?? ''
+  // The cursor is an inverted cell, so the SGR open around it decides the
+  // block's colour. It opens on the default pen, then the accent starts: that is
+  // what makes it the same neutral block as the composer's.
+  expect(row.startsWith(`${CURSOR_MARKER}\u001b_pi:fc\u0007`)).toBe(true)
+  expect(row.indexOf('\u001b[36m')).toBeGreaterThan(row.indexOf(CURSOR_MARKER))
+})
+
+test('an unfocused rail shows the selection ink but no cursor', () => {
+  const test = harness()
+  test.rail.focused = false
+  const lines = test.rail.render(24)
+  expect(lines.join('')).not.toContain(CURSOR_MARKER)
 })

@@ -10,6 +10,7 @@ import {
 } from '../../src/tui/editor/editorHome.js'
 import { ripgrepExecutable } from '../../src/ripgrep.js'
 import { FALLBACK_THEME } from '../../src/tui/editor/editorTheme.js'
+import { NVIM_BASE_LUA, NVIM_BASE_MARKER } from '../../src/tui/editor/nvimConfig.js'
 
 function stateRoot(): string {
   return mkdtempSync(join(tmpdir(), 'hulala-editor-home-'))
@@ -49,6 +50,7 @@ test('the editor home lives under the Hulala state root', () => {
   expect(home.dataHome).toBe(join(root, 'cache', 'editor'))
   expect(home.stateHome).toBe(join(root, 'cache', 'editor', 'state'))
   expect(home.initPath).toBe(join(root, 'config', 'editor', 'nvim', 'init.lua'))
+  expect(home.basePath).toBe(join(root, 'config', 'editor', 'nvim', 'hulala.lua'))
 })
 
 test('without a published binary the editor falls back to PATH', () => {
@@ -128,23 +130,45 @@ test('an unchanged package is not republished, an upgraded one is', () => {
   expect(readFileSync(join(root, 'bin', 'nvim'), 'utf8')).toBe('second')
 })
 
-test('the config is written once and never overwrites user edits', () => {
+test('the user config is written once and never overwrites edits', () => {
   const root = stateRoot()
   const home = resolveEditorHome(root)
   ensureEditorConfig(home)
   const written = readFileSync(home.initPath, 'utf8')
-  expect(written).toContain('Hulala editor config')
+  // It loads Hulala's own settings and says where they live; that is all.
+  expect(written).toContain('HULALA_NVIM_CONFIG')
+  expect(written).toContain('hulala.lua')
+  expect(statSync(home.initPath).mode & 0o777).toBe(0o600)
   writeFileSync(home.initPath, '-- edited\n')
   ensureEditorConfig(home)
   expect(readFileSync(home.initPath, 'utf8')).toBe('-- edited\n')
 })
 
-test('the generated config shows dotfiles in the file tree', () => {
+test('Hulala\'s own editor settings are rewritten when they change', () => {
+  const root = stateRoot()
+  const home = resolveEditorHome(root)
+  ensureEditorConfig(home)
+  // An installation whose settings were written by an older client: the file is
+  // not the user's, so the current settings replace it, or no editor fix would
+  // ever reach an existing installation.
+  writeFileSync(home.basePath, '-- older settings\n')
+  ensureEditorConfig(home)
+  const written = readFileSync(home.basePath, 'utf8')
+  expect(written).toBe(NVIM_BASE_LUA)
+  expect(written).toContain(NVIM_BASE_MARKER)
+  expect(statSync(home.basePath).mode & 0o777).toBe(0o600)
+  // Writing it again is a no-op rather than a new mtime on every editor start.
+  const before = statSync(home.basePath).mtimeMs
+  ensureEditorConfig(home)
+  expect(statSync(home.basePath).mtimeMs).toBe(before)
+})
+
+test('the shipped settings show dotfiles in the file tree', () => {
   const root = stateRoot()
   const home = resolveEditorHome(root)
   ensureEditorConfig(home)
   // The explorer's own `hidden` switch: dotfiles are ordinary project files.
-  expect(readFileSync(home.initPath, 'utf8')).toMatch(/explorer = \{[^}]*hidden = true/)
+  expect(readFileSync(home.basePath, 'utf8')).toMatch(/explorer = \{[^}]*hidden = true/)
 })
 
 test('the editor environment isolates XDG homes and points at the published data', () => {
@@ -160,6 +184,7 @@ test('the editor environment isolates XDG homes and points at the published data
   expect(env.VIMRUNTIME).toBe(published.runtime)
   expect(env.HULALA_NVIM_PARSERS).toBe(published.parsers)
   expect(env.HULALA_NVIM_SNACKS).toBe(published.plugin)
+  expect(env.HULALA_NVIM_CONFIG).toBe(published.basePath)
   expect(env.HULALA_NVIM_PLUGIN_DIR).toBe(published.pluginDir)
   expect(env.HULALA_NVIM_BUNDLED_PLUGINS).toBe(published.pluginRoot)
   expect(published.pluginRoot).toBe(join(root, 'runtime', 'editor', 'nvim-plugins'))

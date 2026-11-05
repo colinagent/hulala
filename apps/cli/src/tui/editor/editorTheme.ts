@@ -45,7 +45,20 @@ export interface EditorTheme {
   readonly removed: string
   readonly title: string
   readonly directory: string
+  /** Current-location ink: the open file in the tree, the row under the keyboard. */
+  readonly highlight: string
 }
+
+/**
+ * Current-location ink: the brand hue lifted for legibility on a dark terminal.
+ *
+ * Selection and current location are text, never a filled row, so the colour has
+ * to carry on its own against the default background — the brand ink itself is
+ * too muted for that at a 20-column rail. It is deliberately not derived from the
+ * terminal palette: the rail and the file tree are the same signal in the same
+ * client, so they keep the same ink on every machine.
+ */
+export const HIGHLIGHT_INK = '#d8aa78'
 
 /** Neutral dark palette used when the terminal does not report its colours. */
 export const FALLBACK_THEME: EditorTheme = {
@@ -75,6 +88,7 @@ export const FALLBACK_THEME: EditorTheme = {
   removed: '#ff757f',
   title: '#82aaff',
   directory: '#82aaff',
+  highlight: HIGHLIGHT_INK,
 }
 
 /** ANSI palette indices used for syntax accents. */
@@ -154,5 +168,6 @@ export function editorThemeFromTerminal(colors: TerminalColors | undefined): Edi
     removed: red,
     title: blue,
     directory: blue,
+    highlight: HIGHLIGHT_INK,
   }
 }

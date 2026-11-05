@@ -1,11 +1,18 @@
 /**
- * The Neovim config Hulala writes on first use.
+ * The Neovim config Hulala ships with the editor column.
  *
- * Kept as a string rather than a second file on disk so the single-file client
- * bundle carries it: `ensureEditorConfig()` writes it to
- * `<data>/config/editor/nvim/init.lua`, which Neovim then reads as its own
- * `$XDG_CONFIG_HOME/nvim/init.lua`. Writing it once (never overwriting) means a
- * user can edit it and keep those edits across upgrades.
+ * Kept as strings rather than loose files so the single-file client bundle
+ * carries them. Two files land in `<data>/config/editor/nvim/`:
+ *
+ * - `hulala.lua` is {@link NVIM_BASE_LUA}: the settings the client owns (theme,
+ *   autosave, the file tree, the pickers). It is rewritten whenever its content
+ *   changes, because a fix that never reaches an existing installation is not a
+ *   fix. The client also loads it through `nvim --cmd` before Neovim reads any
+ *   user config, so installations whose `init.lua` was written by an older
+ *   client still get it.
+ * - `init.lua` is {@link NVIM_INIT_LUA}: written once and never overwritten, so
+ *   a user can edit it and keep those edits across upgrades. It only loads the
+ *   base config, and the base guards against being loaded twice.
  *
  * Everything configurable arrives through the environment so the config holds no
  * hardcoded palette: `HULALA_NVIM_THEME` is the JSON from
@@ -15,9 +22,32 @@
  * @module hulala-cli/tui/editor/nvimConfig
  */
 
-/** Lua source of Hulala's editor config. */
-export const NVIM_INIT_LUA = `-- Hulala editor config. Regenerated only when missing, so edits here persist.
--- Written by the Hulala terminal client; the theme follows your terminal.
+/**
+ * Lua source of the user's `init.lua`.
+ *
+ * Deliberately short: it names where Hulala's own settings live and gets out of
+ * the way, so the half a user may want to change is not buried in four hundred
+ * lines they did not write.
+ */
+export const NVIM_INIT_LUA = `-- Your Neovim settings for Hulala's editor column.
+--
+-- Hulala writes this file once and never overwrites it, so anything you add here
+-- survives an upgrade. Hulala's own settings (theme, autosave, the file tree,
+-- the pickers) live in \`hulala.lua\` in this directory; the client rewrites that
+-- file, so change behaviour here rather than there.
+local base = vim.env.HULALA_NVIM_CONFIG
+if base ~= nil and base ~= "" then pcall(dofile, base) end
+`
+
+/** Marker line of the base config, used by the tests. */
+export const NVIM_BASE_MARKER = 'Hulala editor settings'
+
+/** Lua source of the settings Hulala owns. */
+export const NVIM_BASE_LUA = `-- ${NVIM_BASE_MARKER}. Written by the Hulala terminal client and rewritten
+-- whenever they change; add your own settings to \`init.lua\` instead. Loaded
+-- before that file, and again by it, so this guard keeps autocmds single.
+if vim.g.hulala_editor_settings then return end
+vim.g.hulala_editor_settings = true
 
 local function theme_value(key, fallback)
   local encoded = vim.env.HULALA_NVIM_THEME
@@ -171,62 +201,124 @@ for group, spec in pairs(highlights) do
   vim.api.nvim_set_hl(0, group, spec)
 end
 
--- The file tree and the pickers mark the row under the keyboard with ink, not
--- with a filled band: a background here would be a second surface inside a
--- column that is meant to read as one, and this client reserves background
--- blocks for panels, never for selection.
+-- The file tree is one surface, and it carries two signals: the file the editor
+-- is showing, and the row under the keyboard. Both are ink, never a filled row:
+-- the client reserves background blocks for panels, and a band inside the tree
+-- would split one column into two surfaces.
 vim.api.nvim_set_hl(0, "HulalaTree", { fg = fg, bg = theme_value("pmenu", bg) })
--- The opened file is marked with ink, never a band: hover already changes the
--- background, so a filled row would read as a hover and split the column into
--- two surfaces.
-vim.api.nvim_set_hl(0, "HulalaTreeCurrent", { fg = theme_value("title", fg), bold = true })
+vim.api.nvim_set_hl(0, "HulalaTreeCurrent", { fg = theme_value("highlight", fg), bold = true })
+vim.api.nvim_set_hl(0, "HulalaTreeCursor", { fg = theme_value("highlight", fg) })
 
---- Is this window one of the tree's windows?
+-- The box, the list, the search field and a picker's preview are separate
+-- windows with separate backgrounds by default. They are one panel here, so
+-- every one of them keeps the tree's surface, and the cursor line -- which
+-- snacks points at either SnacksPickerListCursorLine or CursorLine -- is ink
+-- instead of a shade.
+local panel_filetypes = {
+  snacks_explorer = true,
+  snacks_layout_box = true,
+  snacks_picker_input = true,
+  snacks_picker_list = true,
+  snacks_picker_preview = true,
+}
+
+local tree_winhl = table.concat({
+  "Normal:HulalaTree",
+  "NormalNC:HulalaTree",
+  "NormalFloat:HulalaTree",
+  "NormalFloatNC:HulalaTree",
+  "EndOfBuffer:HulalaTree",
+  "SignColumn:HulalaTree",
+  "CursorLine:HulalaTreeCursor",
+  "CursorLineNr:HulalaTreeCursor",
+  "SnacksPickerListCursorLine:HulalaTreeCursor",
+}, ",")
+
+--- Is this window part of the tree's panel?
 ---@param win integer
 local function tree_window(win)
   if win == nil or win == 0 or not vim.api.nvim_win_is_valid(win) then return false end
-  local filetype = vim.bo[vim.api.nvim_win_get_buf(win)].filetype
-  return filetype:match("^snacks_picker") ~= nil or filetype == "snacks_explorer"
+  return panel_filetypes[vim.bo[vim.api.nvim_win_get_buf(win)].filetype] == true
 end
 
---- One surface per tree window, and no cursor band.
----@param win integer
-local function style_tree(win)
-  if not tree_window(win) then return end
-  vim.wo[win].cursorline = false
-  vim.wo[win].winhighlight = "Normal:HulalaTree,NormalFloat:HulalaTree,EndOfBuffer:HulalaTree,SignColumn:HulalaTree,CursorLine:HulalaTree"
+-- The file the editor column is showing. Kept here rather than taken from the
+-- current buffer each time: the tree's own windows are the current buffer
+-- whenever the keyboard is in the tree.
+local open_file = ""
+
+local function remember_open_file()
+  if tree_window(vim.api.nvim_get_current_win()) then return end
+  local buf = vim.api.nvim_get_current_buf()
+  if vim.bo[buf].buftype ~= "" then return end
+  local name = vim.api.nvim_buf_get_name(buf)
+  if name ~= "" then open_file = name end
 end
 
---- Mark the row of the buffer that is open, by colouring its text.
+--- List buffers already watched for the next render.
+local watched = {}
+
+--- Colour the label of the file that is open, so the tree says where you are.
 local function mark_open_file()
-  local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":t")
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    if tree_window(win) then
-      local buf = vim.api.nvim_win_get_buf(win)
-      local ns = vim.api.nvim_create_namespace("hulala-tree-current")
+  if open_file == "" then return end
+  local ok, picker = pcall(require, "snacks.picker")
+  if not ok then return end
+  local ns = vim.api.nvim_create_namespace("hulala-tree-current")
+  local item_ns = vim.api.nvim_get_namespaces()["snacks.picker.list"]
+  for _, instance in ipairs(picker.get({ source = "explorer" }) or {}) do
+    local list = instance.list
+    if list ~= nil and list.win ~= nil and list.win:valid() then
+      local buf = list.win.buf
       vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-      if name ~= "" then
-        local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-        for index, text in ipairs(lines) do
-          if text:find(name, 1, true) ~= nil then
-            pcall(vim.api.nvim_buf_set_extmark, buf, ns, index - 1, 0, { end_col = #text, hl_group = "HulalaTreeCurrent" })
-            break
+      if watched[buf] == nil then
+        -- Re-marked after every render: the picker rewrites its lines when you
+        -- scroll, search or open a folder, and a stale row would leave the ink
+        -- on the wrong file.
+        watched[buf] = true
+        vim.api.nvim_buf_attach(buf, false, {
+          on_lines = function() vim.schedule(function() pcall(mark_open_file) end) end,
+          on_detach = function() watched[buf] = nil end,
+        })
+      end
+      for item, index in instance:iter() do
+        if item.file == open_file then
+          local row = list:idx2row(index)
+          local text = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
+          if text ~= nil then
+            -- Only the label: the picker's own marks on this row say where the
+            -- name starts and ends, after the guides and the icon.
+            local from, to = 0, #text
+            for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(buf, item_ns, { row - 1, 0 }, { row - 1, -1 }, { details = true })) do
+              local details = mark[4] or {}
+              if details.hl_group == "SnacksPickerFile" or details.hl_group == "SnacksPickerDirectory" then
+                from, to = mark[3], details.end_col or #text
+                break
+              end
+            end
+            pcall(vim.api.nvim_buf_set_extmark, buf, ns, row - 1, from, { end_col = to, hl_group = "HulalaTreeCurrent" })
           end
+          break
         end
       end
     end
   end
 end
 
-vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter", "BufEnter" }, {
-  -- The win field is 0 for some events, so the current window is the fallback; a
-  -- failure here must never turn into a message in the editor column.
-  callback = function(event)
-    local win = event.win
-    if win == nil or win == 0 then win = vim.api.nvim_get_current_win() end
-    pcall(style_tree, win)
-    pcall(mark_open_file)
-  end,
+--- One surface for the panel, and the ink on the open file.
+local function refresh_tree()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if tree_window(win) and vim.wo[win].winhighlight ~= tree_winhl then vim.wo[win].winhighlight = tree_winhl end
+  end
+  pcall(remember_open_file)
+  pcall(mark_open_file)
+end
+
+--- Restyle after the event that caused it, so snacks' own option writes lose.
+local function refresh_tree_soon()
+  vim.schedule(function() pcall(refresh_tree) end)
+end
+
+vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter", "BufEnter", "ColorScheme", "VimResized" }, {
+  callback = refresh_tree_soon,
 })
 
 -- Bundled tree-sitter parsers, published next to the editor's runtime tree.
@@ -395,6 +487,3 @@ vim.keymap.set("n", "<esc>", "<cmd>nohlsearch<cr>", { desc = "Clear search" })
 -- It writes the whole buffer (no visual range) and only this one, never :wall.
 vim.keymap.set({ "n", "i", "v", "s", "x" }, "<C-s>", "<Cmd>write<CR>", { desc = "Write" })
 `
-
-/** Content of the generated config, for tests and first-use writes. */
-export const NVIM_CONFIG_MARKER = 'Hulala editor config'

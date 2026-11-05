@@ -28,11 +28,22 @@ import { ScreenSession } from '../pane/screenSession.js'
  * `Ctrl-[` is the same byte as `Esc`, so the client has to know whether the editor
  * still has something to cancel (insert, visual, command-line, operator-pending)
  * before it takes the key for focus switching. `--cmd` runs before the user's
- * config, which matters because Hulala's `init.lua` is written once and never
- * overwritten: an installation created by an older client has no such autocommand
- * of its own and still gets this one.
+ * config, which matters because the user's `init.lua` is theirs: an installation
+ * created by an older client has no such autocommand of its own and still gets
+ * this one.
  */
 const MODE_AUTOCMD = 'autocmd ModeChanged * lua local f = vim.env.HULALA_NVIM_MODE_FILE; if f and f ~= "" then pcall(vim.fn.writefile, {vim.v.event.new_mode}, f, "b") end'
+
+/**
+ * Load Hulala's own editor settings before the user's `init.lua`.
+ *
+ * The settings live in a file the client rewrites, and this is the path that
+ * delivers them: a `init.lua` written by an older client keeps its own copy of
+ * an old config, and nothing short of taking that file over would otherwise
+ * reach it. The base guards against a second load, so the current `init.lua`,
+ * which also sources it, stays cheap.
+ */
+const BASE_CONFIG = 'lua local f = vim.env.HULALA_NVIM_CONFIG; if f ~= nil and f ~= "" then pcall(dofile, f) end'
 
 export interface NvimSessionOptions {
   readonly pty: PtyModule
@@ -59,7 +70,7 @@ export function startNvimSession(options: NvimSessionOptions): ScreenSession {
   return ScreenSession.start({
     pty: options.pty,
     command: options.command,
-    args: ['--cmd', MODE_AUTOCMD, '.'],
+    args: ['--cmd', BASE_CONFIG, '--cmd', MODE_AUTOCMD, '.'],
     env: options.env,
     cwd: options.cwd,
     cols: options.cols,

@@ -206,7 +206,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         </div>
 
         <figure className="hero-shot">
-          <img src="/screens/01-conversation.png" alt={t.screens.conversation} width={1161} height={640} />
+          <img src="/screens/03-files.png" alt={t.screens.files} width={1648} height={766} />
         </figure>
       </section>
 
@@ -214,12 +214,12 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         <p className="section-label">{t.screens.label}</p>
         <div className="screens-pair">
           <figure>
-            <img src="/screens/02-terminal.png" alt={t.screens.terminal} width={1161} height={640} />
-            <figcaption>{t.screens.terminal}</figcaption>
+            <img src="/screens/01-conversation.png" alt={t.screens.conversation} width={1161} height={640} />
+            <figcaption>{t.screens.conversation}</figcaption>
           </figure>
           <figure>
-            <img src="/screens/03-files.png" alt={t.screens.files} width={1648} height={766} />
-            <figcaption>{t.screens.files}</figcaption>
+            <img src="/screens/02-terminal.png" alt={t.screens.terminal} width={1161} height={640} />
+            <figcaption>{t.screens.terminal}</figcaption>
           </figure>
         </div>
       </section>

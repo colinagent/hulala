@@ -169,8 +169,66 @@ function fit(line: string, width: number): string {
   return line + ' '.repeat(width - current)
 }
 
+/**
+ * Does the sequence at `start` run to the end of the chunk with no final byte?
+ *
+ * A pty read can land in the middle of an escape, so a sequence split across two
+ * reads is held back instead of being fed half at a time.
+ * @param data - the program's bytes.
+ * @param start - index of the escape byte.
+ * @returns true when the final byte is still to come.
+ */
+function partialCsiAt(data: Uint8Array, start: number): boolean {
+  let index = start + 2
+  while (index < data.length) {
+    const byte = data[index] as number
+    if ((byte < 0x30 || byte > 0x39) && byte !== 0x3b) return false
+    index += 1
+  }
+  return true
+}
+
+/**
+ * Read an erase sequence at `start`: `ESC [ <params> X` or `ESC [ <params> K`.
+ * @param data - the program's bytes.
+ * @param start - index of the escape byte.
+ * @returns the operation, its first parameter and the index after the sequence.
+ */
+function eraseAt(data: Uint8Array, start: number): { operation: number; parameter: number; end: number } | undefined {
+  let index = start + 2
+  let parameter = 0
+  let digits = 0
+  let separated = false
+  while (index < data.length) {
+    const byte = data[index] as number
+    if (byte >= 0x30 && byte <= 0x39) {
+      // Only the first parameter selects what to erase; the rest is ignored.
+      if (!separated) {
+        parameter = parameter * 10 + (byte - 0x30)
+        digits += 1
+      }
+      index += 1
+      continue
+    }
+    if (byte === 0x3b) {
+      separated = true
+      index += 1
+      continue
+    }
+    if (byte === 0x58 || byte === 0x4b) {
+      return { operation: byte, parameter: digits === 0 ? 0 : parameter, end: index + 1 }
+    }
+    return undefined
+  }
+  return undefined
+}
+
 /** One program's screen model, driven byte for byte. */
 export class GhosttyVt {
+  /** UTF-8 for the blanks an erase is rewritten into. */
+  private readonly encoder = new TextEncoder()
+  /** The head of a sequence whose remainder is in the next chunk. */
+  private pending = new Uint8Array(0)
   private readonly exports: Exports
   private readonly terminal: number
   private readonly renderState: number
@@ -294,14 +352,104 @@ export class GhosttyVt {
     else view.setBigUint64(this.slot, BigInt(value), true)
   }
 
-  /** Feed one chunk of the program's output. */
-  write(data: Uint8Array): void {
-    if (this.disposed || data.length === 0) return
+  /** Send raw bytes to the terminal model. */
+  private feed(bytes: Uint8Array): void {
+    if (bytes.length === 0) return
     const ex = this.exports
-    const pointer = ex.ghostty_wasm_alloc(data.length)
-    new Uint8Array(ex.memory.buffer, pointer, data.length).set(data)
-    ex.ghostty_terminal_vt_write(this.terminal, pointer, data.length)
-    ex.ghostty_wasm_free(pointer, data.length)
+    const pointer = ex.ghostty_wasm_alloc(bytes.length)
+    new Uint8Array(ex.memory.buffer, pointer, bytes.length).set(bytes)
+    ex.ghostty_terminal_vt_write(this.terminal, pointer, bytes.length)
+    ex.ghostty_wasm_free(pointer, bytes.length)
+  }
+
+  /**
+   * Feed one chunk of the program's output.
+   *
+   * Erase-in-line (`EL`) and erase-characters (`ECH`) blank cells with the
+   * pen's background, the way a terminal does; this module's build instead
+   * clears them to the default style. Every erase that leaves a coloured block
+   * — a floating window's fill, a status line, a picker's row — would then be
+   * repainted in light and dark patches wherever a line had no text. So the
+   * erase is rewritten here as the cells it produces: blanks carrying the pen
+   * that was open at that point, then the cursor put back where the erase left
+   * it. Erasing to the end of the screen (`ED`) is left to the module: it is a
+   * whole-screen fill, and the scroll risk of rewriting it is not worth the
+   * one frame it would repair.
+   */
+  write(data: Uint8Array): void {
+    if (this.disposed) return
+    let bytes = data
+    if (this.pending.length > 0) {
+      bytes = new Uint8Array(this.pending.length + data.length)
+      bytes.set(this.pending, 0)
+      bytes.set(data, this.pending.length)
+      this.pending = new Uint8Array(0)
+    }
+    if (bytes.length === 0) return
+    let start = 0
+    let index = 0
+    let hold = -1
+    while (index < bytes.length) {
+      if (bytes[index] !== 0x1b) {
+        index += 1
+        continue
+      }
+      const next = bytes[index + 1]
+      if (next === 0x5b) {
+        const parsed = eraseAt(bytes, index)
+        if (parsed === undefined) {
+          if (partialCsiAt(bytes, index)) {
+            hold = index
+            break
+          }
+          index += 2
+          continue
+        }
+        this.feed(bytes.subarray(start, index))
+        if (!this.erase(parsed.operation, parsed.parameter)) this.feed(bytes.subarray(index, parsed.end))
+        index = parsed.end
+        start = index
+        continue
+      }
+      // A lone trailing escape byte is the head of the next chunk's sequence.
+      if (next === undefined) {
+        hold = index
+        break
+      }
+      index += 2
+    }
+    if (hold >= 0) {
+      this.feed(bytes.subarray(start, hold))
+      this.pending = bytes.slice(hold)
+      return
+    }
+    this.feed(bytes.subarray(start))
+  }
+
+  /**
+   * Blank cells the way an erase with the current pen would.
+   * @returns false when the cursor is unknown and the erase must be left alone.
+   */
+  private erase(operation: number, parameter: number): boolean {
+    const columns = this.columnCount
+    const where = this.cursor()
+    const x = where.x
+    if (!where.visible || x >= columns) return false
+    let from = x
+    let to = columns
+    if (operation === 0x58) {
+      to = Math.min(columns, x + Math.max(1, parameter))
+    } else if (parameter === 1) {
+      from = 0
+      to = x + 1
+    } else if (parameter === 2) {
+      from = 0
+    }
+    const count = to - from
+    if (count <= 0) return true
+    const start = from === x ? '' : '\u001b[1G'
+    this.feed(this.encoder.encode(`${start}${' '.repeat(count)}\u001b[${x + 1}G`))
+    return true
   }
 
   /** Resize the screen model; the caller resizes the pty alongside it. */
@@ -431,21 +579,29 @@ export class GhosttyVt {
             continue
           }
           if (cursor !== undefined && cursor.visible && cursor.y === rowIndex && cursor.x === column && ink !== undefined) {
-            out += ink.draw(' ', '')
+            // The pen is reset first: a cursor is drawn by the caller as an
+            // inverted cell, and the colours it inverts are the ones open here.
+            // Without the reset the block takes the colour of whatever cell came
+            // before it — the line number's amber in an editor, a label's accent
+            // in a list — so the same cursor changed colour between columns.
+            out += RESET + ink.draw(' ', cell.sgr)
             open = ''
             column += 1
             continue
           }
-          if (open !== '') {
-            out += RESET
-            open = ''
+          // A blank cell is still part of whatever the program painted there:
+          // its background is what makes a panel a panel, so the cell keeps its
+          // own style instead of being reset to the terminal's default.
+          if (cell.sgr !== open) {
+            out += RESET + (cell.sgr === '' ? '' : `\u001b[${cell.sgr.slice(1)}m`)
+            open = cell.sgr
           }
           out += ' '
           column += 1
           continue
         }
         if (cursor !== undefined && cursor.visible && cursor.y === rowIndex && cursor.x === column && ink !== undefined) {
-          out += ink.draw(cell.text, cell.sgr)
+          out += RESET + ink.draw(cell.text, cell.sgr)
           open = ''
         } else if (cell.sgr !== open) {
           out += RESET + (cell.sgr === '' ? '' : `\u001b[${cell.sgr.slice(1)}m`)
@@ -473,11 +629,16 @@ export class GhosttyVt {
     const data = this.tags.cell
     ex.ghostty_render_state_row_cells_get(cells, data.GRAPHEMES_LEN ?? 3, this.slot)
     const length = new DataView(ex.memory.buffer).getUint32(this.slot, true)
-    if (length === 0) return { text: '', sgr: '' }
-    ex.ghostty_render_state_row_cells_get(cells, data.GRAPHEMES_BUF ?? 4, this.codepointsBuffer)
-    const count = Math.min(length, 16)
-    const codepoints = new Uint32Array(ex.memory.buffer, this.codepointsBuffer, count)
-    const text = String.fromCodePoint(...codepoints)
+    // The style is read for blank cells too: an erase paints a cell with a
+    // background but no grapheme, and dropping that background is what broke a
+    // panel into light and dark patches wherever a line had no text.
+    let text = ''
+    if (length > 0) {
+      ex.ghostty_render_state_row_cells_get(cells, data.GRAPHEMES_BUF ?? 4, this.codepointsBuffer)
+      const count = Math.min(length, 16)
+      const codepoints = new Uint32Array(ex.memory.buffer, this.codepointsBuffer, count)
+      text = String.fromCodePoint(...codepoints)
+    }
     new DataView(ex.memory.buffer).setUint32(this.styleBuffer, this.sizes.style, true)
     ex.ghostty_render_state_row_cells_get(cells, data.STYLE ?? 2, this.styleBuffer)
     return { text, sgr: this.styleSgr() }

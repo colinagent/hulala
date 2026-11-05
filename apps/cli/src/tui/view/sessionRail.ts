@@ -14,8 +14,10 @@
  * @module hulala-cli/tui/view/sessionRail
  */
 import {
+  CURSOR_MARKER,
   fuzzyFilter,
   matchesKey,
+  renderFakeCursor,
   truncateToWidth,
   visibleWidth,
   type Component,
@@ -85,6 +87,25 @@ export function relativeTimeLabel(updatedAt: number, now: number): string {
  */
 function clip(text: string, width: number): string {
   return truncateToWidth(text, width, '…').replace(/\u001b\[0m/gu, '')
+}
+
+/**
+ * A selected row: the cursor cell, then the rest in the selection ink.
+ *
+ * Every column shows where the keyboard is with the same cursor — the composer
+ * at its caret, a program column at the cell the program drew, the rail at the
+ * head of its row. That cursor is an inverted cell, so the colours it inverts
+ * decide what the block looks like: keeping the cell outside the accent run
+ * makes it the same neutral block as the composer's instead of a teal one.
+ * @param text - the row's plain text.
+ * @param styles - the rail's styles.
+ * @param caret - whether this row carries the cursor.
+ * @returns the row, styled.
+ */
+function selectedRow(text: string, styles: ReturnType<typeof buildStyles>, caret: boolean): string {
+  if (!caret || text === '') return styles.accent(text)
+  const first = String.fromCodePoint(text.codePointAt(0) ?? 32)
+  return `${CURSOR_MARKER}${renderFakeCursor(first)}${styles.accent(text.slice(first.length))}`
 }
 
 /** Same directory, ignoring a trailing separator. */
@@ -324,15 +345,18 @@ export class SessionRail implements Component {
 
     const lines: string[] = []
     lines.push(padEnd(styles.dim(fitPath(state.cwd, width)), width))
-    lines.push(this.filterLine(state, styles, width))
     const focused = this.options.focused?.() ?? this.focused
+    lines.push(this.filterLine(state, styles, width, focused))
+    // The list owns the cursor only while the filter box does not; the filter's
+    // own caret is emitted by `filterLine`.
+    const showCaret = focused && !this.searching
     for (let index = 0; index < listArea; index += 1) {
       const row = rows[this.offset + index]
       lines.push(row === undefined
         ? ' '.repeat(Math.max(0, width))
-        : this.rowLine(row, styles, width, state, focused && this.offset + index === this.cursor))
+        : this.rowLine(row, styles, width, state, focused && this.offset + index === this.cursor, showCaret))
     }
-    lines.push(this.allLine(state, styles, width, focused && this.cursor === rows.length))
+    lines.push(this.allLine(state, styles, width, focused && this.cursor === rows.length, showCaret))
     return lines.slice(0, height)
   }
 
@@ -417,12 +441,21 @@ export class SessionRail implements Component {
     this.offset = Math.max(0, Math.min(this.offset, rowsLength - listArea))
   }
 
-  private filterLine(state: RailState, styles: ReturnType<typeof buildStyles>, width: number): string {
+  private filterLine(
+    state: RailState,
+    styles: ReturnType<typeof buildStyles>,
+    width: number,
+    focused: boolean,
+  ): string {
     const prompt = `${styles.dim('>')} `
-    const plain = `${state.query === '' ? 'search' : state.query}${this.searching ? '▏' : ''}`
+    // The caret the hardware cursor draws replaces the `▏` glyph: two carets in
+    // one box would fight over the same cell.
+    const caret = focused && this.searching
+    const plain = `${state.query === '' ? 'search' : state.query}${this.searching && !caret ? '▏' : ''}`
     const clipped = clip(plain, Math.max(1, width - 2))
     const text = state.query === '' && !this.searching ? styles.dim(clipped) : clipped
-    return padEnd(prompt + text, width)
+    const cursor = caret ? `${CURSOR_MARKER}${renderFakeCursor(' ')}` : ''
+    return padEnd(`${prompt}${text}${cursor}`, width)
   }
 
   private rowLine(
@@ -431,14 +464,15 @@ export class SessionRail implements Component {
     width: number,
     state: RailState,
     selected: boolean,
+    caret: boolean,
   ): string {
     if (row.kind === 'new') {
       const label = '+ new session'
-      return selected ? styles.accent(padEnd(label, width)) : padEnd(label, width)
+      return selected ? selectedRow(padEnd(label, width), styles, caret) : padEnd(label, width)
     }
     if (row.kind === 'more') {
       const label = row.revealed ? '↑ Less' : `↓ More · ${row.hidden}`
-      return selected ? styles.accent(padEnd(label, width)) : padEnd(styles.dim(label), width)
+      return selected ? selectedRow(padEnd(label, width), styles, caret) : padEnd(styles.dim(label), width)
     }
     const session = row.session
     const current = session.sessionId === state.currentId
@@ -452,7 +486,7 @@ export class SessionRail implements Component {
     const title = clip(sessionLabel(session), titleWidth)
     const gap = Math.max(0, width - 2 - visibleWidth(title) - timeWidth - 1)
     const plain = `${glyph} ${title}${' '.repeat(gap)} ${time}`
-    if (selected) return styles.accent(plain)
+    if (selected) return selectedRow(plain, styles, caret)
     const head = session.running ? styles.accent(glyph) : glyph
     const label = current ? styles.highlight(title) : title
     return `${head} ${label}${' '.repeat(gap)} ${styles.dim(time)}`
@@ -463,9 +497,10 @@ export class SessionRail implements Component {
     styles: ReturnType<typeof buildStyles>,
     width: number,
     selected: boolean,
+    caret: boolean,
   ): string {
     const label = `${state.allExpanded ? '▾' : '▸'} all`
-    if (selected) return styles.accent(padEnd(label, width))
+    if (selected) return selectedRow(padEnd(label, width), styles, caret)
     return padEnd(styles.dim(label), width)
   }
 }

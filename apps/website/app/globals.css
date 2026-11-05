@@ -300,7 +300,10 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 @media (max-width: 820px) { .download-hero { padding: 70px 18px 60px; }.download-grid, .notice-grid { grid-template-columns: 1fr; padding-left: 18px; padding-right: 18px; }.download-card { grid-template-columns: 1fr; }.download-action { max-width: none; }.download-checksum { grid-column: 1; }.release-links { align-items: center; flex-direction: column; } }
 
 /* Captured client frames: real screenshots, never a redrawn mock. */
-.screens-section { border-top: 1px solid var(--line); margin: 90px auto 0; max-width: 1440px; padding: 90px 40px 110px; }
+/* A captured frame is shown near its capture size: a terminal screenshot blown
+   up to the page width is a wall of pixels, so the section and the hero keep the
+   screenshots in a narrower column. */
+.screens-section { border-top: 1px solid var(--line); margin: 90px auto 0; max-width: 1160px; padding: 90px 40px 110px; }
 .screens-section > .section-label { margin: 0 0 28px; }
 .screens-main { margin: 0; }
 .screens-main img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
@@ -310,6 +313,6 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 @media (max-width: 900px) { .screens-section { padding: 60px 18px 70px; } }
 
 /* The hero's product shot: the client's own pixels, framed like the section below. */
-.hero-shot { margin: 60px auto 0; }
+.hero-shot { margin: 60px auto 0; max-width: 1080px; }
 .hero-shot img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; box-shadow: 0 22px 60px rgba(15, 36, 31, .2); }
 @media (max-width: 900px) { .hero-shot { margin-top: 38px; } }

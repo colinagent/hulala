@@ -11,6 +11,15 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 给它自己跑在里面的这个客户端写插件。
 
 <p align="center">
+  <img src="assets/screens/03-files.png" alt="编辑器列开在会话目录上：真实文件树，旁边打开着一个文件" width="900" />
+  <br />
+  <sub><code>Ctrl-F</code>：在会话目录上打开 Neovim——内置文件树、从树里打开的文件，列隐藏时缓冲区还在。</sub>
+</p>
+
+`Ctrl-F` 是在会话目录上打开编辑器，所以它同时也是文件树：内置的浏览器
+（`apps/cli/vendor/snacks.nvim`）替代了 netrw，选中文件就在同一列里、树的旁边打开。
+
+<p align="center">
   <img src="assets/screens/01-conversation.png" alt="Hulala 终端客户端：左侧会话栏、带工具行的对话，以及 composer" width="900" />
   <br />
   <sub>整个帧：左侧会话栏、带工具行的对话、排队的消息和下面的 composer。</sub>
@@ -55,14 +64,6 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
   <sub><code>Ctrl-T</code>：内置终端——会话目录里你自己的 shell，带自己的回滚历史。</sub>
 </p>
 
-<p align="center">
-  <img src="assets/screens/03-files.png" alt="编辑器列开在会话目录上：真实文件树，旁边打开着一个文件" width="900" />
-  <br />
-  <sub><code>Ctrl-F</code>：在会话目录上打开 Neovim——内置文件树、从树里打开的文件，列隐藏时缓冲区还在。</sub>
-</p>
-
-`Ctrl-F` 是在会话目录上打开编辑器，所以它同时也是文件树：内置的浏览器
-（`apps/cli/vendor/snacks.nvim`）替代了 netrw，选中文件就在同一列里、树的旁边打开。
 
 ## 快捷键
 
