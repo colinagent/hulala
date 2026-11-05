@@ -306,7 +306,7 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 .screens-section > .section-label { margin: 0 0 28px; }
 .screens-main { margin: 0; }
 .screens-main img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
-.screens-pair { display: grid; gap: 22px; grid-template-columns: 1fr 1fr; margin-top: 22px; }
+.screens-pair { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top: 22px; }
 .screens-pair img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
 .screens-section figcaption { color: var(--muted); font-size: 12px; line-height: 1.7; margin-top: 12px; }
 @media (max-width: 900px) { .screens-section { padding: 60px 18px 70px; } .screens-pair { grid-template-columns: 1fr; } }

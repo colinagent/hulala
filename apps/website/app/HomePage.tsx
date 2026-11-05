@@ -13,6 +13,7 @@ const translations = {
       conversation: "Session rail, conversation, tool rows and the composer.",
       terminal: "Ctrl-T: your shell in the Session directory.",
       editor: "Ctrl-F: Neovim beside the conversation.",
+      files: "The same column on the Session directory: the file tree.",
     },
     nav: ["The terminal", "The screens", "What we refuse"],
     cta: "Install Hulala",
@@ -86,6 +87,7 @@ const translations = {
       conversation: "会话栏、对话、工具行和 composer。",
       terminal: "Ctrl-T：会话目录里你自己的 shell。",
       editor: "Ctrl-F：对话旁边的 Neovim。",
+      files: "同一列开在会话目录上：文件树。",
     },
     nav: ["终端", "截图", "我们不做什么"],
     cta: "安装 Hulala",
@@ -220,6 +222,10 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
           <figure>
             <img src="/screens/03-editor.png" alt={t.screens.editor} width={1161} height={640} />
             <figcaption>{t.screens.editor}</figcaption>
+          </figure>
+          <figure>
+            <img src="/screens/04-files.png" alt={t.screens.files} width={1161} height={640} />
+            <figcaption>{t.screens.files}</figcaption>
           </figure>
         </div>
       </section>
