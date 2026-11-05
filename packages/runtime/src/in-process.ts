@@ -165,11 +165,30 @@ const HOST_ROW_IDS = new Set([
 ])
 
 /**
+ * The row name every agent-preset declaration uses. The rows an agent gets
+ * belong to the installed bundle, so the profile never keeps an old copy of
+ * them; see {@link ensureProfilePatch}.
+ */
+const PRESET_ROW_NAME = '@deepseek-ai/dsh-agent-preset'
+
+/** Whether one profile or insert row declares an agent preset. */
+function isPresetRow(entry: unknown): boolean {
+  return entry !== null && typeof entry === 'object'
+    && (entry as { name?: unknown }).name === PRESET_ROW_NAME
+}
+
+/**
  * Seed the profile patch with Hulala's composition the first time it is used.
- * On later boots, replace only Host-owned rows and append the current
- * composition; preset and user settings rows are preserved. The profile patch
- * is the Harness settings document, so rewriting it wholesale would discard
- * live edits.
+ * On later boots, replace only Host-owned rows and the agent-preset
+ * declarations, and append the current composition; settings rows are
+ * preserved. The profile patch is the Harness settings document, so rewriting
+ * it wholesale would discard live edits.
+ *
+ * Presets are composition, not settings: the rows an agent gets belong to the
+ * installed bundle. A profile that keeps its own copy also keeps every row that
+ * copy named, so an upstream release that retires one (0.2.2 retired
+ * `tool-subagent-list-agents`) leaves a profile whose preset cannot start at
+ * all. The declarations are therefore re-read from the bundle on every boot.
  */
 async function ensureProfilePatch(path: string, rows: PatchOptions[], creator = false): Promise<void> {
   const existing = loadOptionalPatches(BIN_NAME, path)
@@ -188,18 +207,20 @@ async function ensureProfilePatch(path: string, rows: PatchOptions[], creator = 
     // the parsed layer so a Host can upgrade a profile it did not create.
     serialized = existing
   }
-  // Host-owned rows are replaced wholesale, not merged by id: a profile from an
-  // older Host version may still name a removed plugin under the same row id.
-  // Preset/user rows are preserved.
+  // Host-owned rows and preset declarations are replaced wholesale, not merged
+  // by id: a profile from an older Host version may still name a removed plugin
+  // under the same row id. Settings rows are preserved.
   serialized = (Array.isArray(serialized) ? serialized : []).flatMap(patch => {
     if (patch === null || typeof patch !== 'object') return [patch]
     const id = (patch as { id?: unknown }).id
     if (typeof id === 'string' && HOST_ROW_IDS.has(id)) return []
+    if (isPresetRow(patch)) return []
     const insert = (patch as { insert?: unknown }).insert
     if (!Array.isArray(insert)) return [patch]
     const kept = insert.filter(entry => {
       const rowId = entry === null || typeof entry !== 'object' ? undefined : (entry as { id?: unknown }).id
-      return !(typeof rowId === 'string' && HOST_ROW_IDS.has(rowId))
+      if (typeof rowId === 'string' && HOST_ROW_IDS.has(rowId)) return false
+      return !isPresetRow(entry)
     })
     return kept.length === 0 ? [] : [{ ...patch, insert: kept }]
   })
@@ -208,13 +229,13 @@ async function ensureProfilePatch(path: string, rows: PatchOptions[], creator = 
     if ('insert' in row && Array.isArray(row.insert)) {
       const additions = row.insert.filter(entry => {
         const id = entry === null || typeof entry !== 'object' ? undefined : (entry as { id?: unknown }).id
-        return typeof id === 'string' && HOST_ROW_IDS.has(id)
+        return (typeof id === 'string' && HOST_ROW_IDS.has(id)) || isPresetRow(entry)
       })
       if (additions.length > 0) managed.push({ ...row, insert: additions } as PatchOptions)
       continue
     }
     const id = (row as { id?: unknown }).id
-    if (typeof id === 'string' && HOST_ROW_IDS.has(id)) managed.push(row)
+    if ((typeof id === 'string' && HOST_ROW_IDS.has(id)) || isPresetRow(row)) managed.push(row)
   }
   if (managed.length === 0) return
   await writeFile(path, JSON.stringify(withCreatorTools([...(serialized as unknown[]), ...managed], creator), null, 2) + '\n', { encoding: 'utf8', mode: 0o600 })

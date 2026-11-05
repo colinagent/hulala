@@ -27,31 +27,43 @@
  * @module hulala-cli/tui/keys
  */
 import { matchesKey, type KeybindingsConfig, type SlashCommand } from '@earendil-works/pi-tui'
+import { t } from './i18n/index.js'
 
-/** Slash commands offered by the completion menu (`name` excludes the `/`). */
-export const SLASH_COMMANDS: SlashCommand[] = [
-  { name: 'help', description: 'show commands' },
-  { name: 'sessions', description: 'list and switch Sessions' },
-  { name: 'new', description: 'start a new Session in this directory' },
-  { name: 'resume', description: 'pick or open a saved Session', argumentHint: '[id]' },
-  { name: 'model', description: 'select the model', argumentHint: '[provider/model]' },
-  { name: 'login', description: 'add a provider API key', argumentHint: '[provider]' },
-  { name: 'rename', description: 'rename the current Session', argumentHint: '<title>' },
-  { name: 'cancel', description: 'cancel the running turn' },
-  { name: 'status', description: 'show Session and turn state' },
-  { name: 'editor', description: 'open or close the nvim column' },
-  { name: 'terminal', description: 'open or close the built-in terminal column' },
-  { name: 'reasoning', description: 'cycle reasoning display mode' },
-  { name: 'clear', description: 'clear the transcript' },
-  { name: 'update', description: 'install the downloaded release and restart' },
-  { name: 'quit', description: 'detach (the Host keeps running)' },
-]
+/**
+ * Slash commands offered by the completion menu (`name` excludes the `/`).
+ *
+ * Built on demand instead of stored in a constant: the descriptions follow the
+ * active interface language, and a switch must show up in the next completion
+ * menu without a restart.
+ */
+export function slashCommands(): SlashCommand[] {
+  return [
+    { name: 'help', description: t('slash.help') },
+    { name: 'sessions', description: t('slash.sessions') },
+    { name: 'new', description: t('slash.new') },
+    { name: 'resume', description: t('slash.resume'), argumentHint: '[id]' },
+    { name: 'model', description: t('slash.model'), argumentHint: '[provider/model]' },
+    { name: 'login', description: t('slash.login'), argumentHint: '[provider]' },
+    { name: 'rename', description: t('slash.rename'), argumentHint: '<title>' },
+    { name: 'cancel', description: t('slash.cancel') },
+    { name: 'status', description: t('slash.status') },
+    { name: 'editor', description: t('slash.editor') },
+    { name: 'terminal', description: t('slash.terminal') },
+    { name: 'reasoning', description: t('slash.reasoning') },
+    { name: 'clear', description: t('slash.clear') },
+    { name: 'update', description: t('slash.update') },
+    { name: 'language', description: t('slash.language'), argumentHint: '[en|zh-CN]' },
+    { name: 'quit', description: t('slash.quit') },
+  ]
+}
 
 /** Alt-screen viewport bindings that would otherwise swallow a column's keys. */
 export const VIEWPORT_PAGING_KEYS = ['tui.altScreen.pageUp', 'tui.altScreen.pageDown'] as const
 
 /** The hint every list shows for its two movement gestures. */
-export const LIST_MOVE_HINT = '↑↓/Ctrl-N/P move'
+export function listMoveHint(): string {
+  return t('list.moveHint')
+}
 
 /**
  * Whether one input event moves a list selection up or down.

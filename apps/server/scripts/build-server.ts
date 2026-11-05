@@ -8,7 +8,7 @@ const packageRoot = join(import.meta.dirname, '..')
 const outputRoot = join(packageRoot, 'dist')
 await mkdir(outputRoot, { recursive: true })
 
-// DeepSeek Harness 0.2.1 boots profiles through Node's internal module loader,
+// DeepSeek Harness 0.2.2 boots profiles through Node's internal module loader,
 // so the Host is a Node program: Bundle first-party code and keep every package
 // external, because the resolved package closure carries Node-only addons.
 const result = await Bun.build({

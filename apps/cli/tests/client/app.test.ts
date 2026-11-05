@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -638,7 +638,7 @@ test('TTY mode leaves Ctrl-F to an open overlay', async () => {
   const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234' })
   await waitFor(() => text.includes('history answer'), 'transcript')
   input.write('/help\r')
-  await waitFor(() => text.includes('任意键关闭'), 'help overlay')
+  await waitFor(() => text.includes('any key closes'), 'help overlay')
   input.write('\u0006') // Ctrl-F closes the overlay instead of opening the editor
   await new Promise(resolve => setTimeout(resolve, 100))
   expect(text).not.toContain('editor unavailable')
@@ -827,7 +827,7 @@ test('Ctrl-[ belongs to a full-screen program in the terminal', async () => {
 })
 
 /** A TTY client on a fake Host, with the bytes it painted collected. */
-function startTty(fake: FakeBackend, columns = 100): {
+function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean): {
   input: PassThrough & { isTTY: true; setRawMode(mode: boolean): void; setEncoding(): void }
   output: PassThrough & { isTTY: true; columns: number }
   painted(): string
@@ -841,7 +841,7 @@ function startTty(fake: FakeBackend, columns = 100): {
   const output = Object.assign(new PassThrough(), { isTTY: true as const, columns })
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', ...(promptLanguage === undefined ? {} : { promptLanguage }) })
   // Detach even when an assertion threw, so a failure cannot leave the client's
   // repaint timer keeping the test process alive.
   cleanups.push(async () => {
@@ -924,7 +924,7 @@ test('TTY mode replaces the composer with the pi-style model selector', async ()
   tty.input.write('/model\r')
   await waitFor(() => tty.painted().includes('Only configured providers'), 'model selector')
   expect(tty.painted()).toContain('DeepSeek-V4.1-Flash')
-  expect(tty.painted()).toContain('Tab 推理强度')
+  expect(tty.painted()).toContain('Tab reasoning effort')
   // Escape puts the composer back instead of leaving a floating dialog behind.
   const mark = tty.painted().length
   tty.input.write('\u001b')
@@ -1129,7 +1129,7 @@ test('quitting a clean editor asks nothing and leaves through :qa', async () => 
   await openEditorAndBlur(tty, editor)
   tty.input.write('\u0011') // Ctrl-Q is the exit key
   await expect(tty.run).resolves.toBe(0)
-  expect(tty.painted()).not.toContain('有未保存的文件')
+  expect(tty.painted()).not.toContain('There are unsaved files')
   expect(editor.writes()).toContain(':qa')
 })
 
@@ -1142,7 +1142,7 @@ test('quitting an editor Neovim will not leave asks, and Escape keeps the client
   await openEditorAndBlur(tty, editor)
 
   tty.input.write('\u0011')
-  await waitFor(() => tty.painted().includes('有未保存的文件'), 'confirm dialog')
+  await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
   tty.input.write('\u001b') // Escape cancels the quit
   await new Promise(resolve => setTimeout(resolve, 120))
   tty.input.write('still-here\r')
@@ -1165,7 +1165,7 @@ test('saving from the dialog writes every buffer before leaving', async () => {
   await openEditorAndBlur(tty, editor)
 
   tty.input.write('\u0011')
-  await waitFor(() => tty.painted().includes('有未保存的文件'), 'confirm dialog')
+  await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
   tty.input.write('s') // save all, then Neovim leaves on its own
   await expect(tty.run).resolves.toBe(0)
   expect(editor.saves()).toBe(1)
@@ -1186,7 +1186,7 @@ test('a file changed on disk by the agent becomes a question, not a clobber', as
   mkdirSync(dirname(marker), { recursive: true })
   writeFileSync(marker, `${join(home, 'notes.md')}\t${Date.now()}\n`)
 
-  await waitFor(() => tty.painted().includes('在磁盘上被改过'), 'conflict dialog')
+  await waitFor(() => tty.painted().includes('changed on disk'), 'conflict dialog')
   tty.input.write('k') // keep mine: force the write
   await waitFor(() => editor.writes().includes(':write!'), 'forced write')
   expect(readFileSync(marker, 'utf8')).toBe('')
@@ -1271,7 +1271,7 @@ test('the composer takes input after discarding an unsaved buffer on close', asy
   tty.input.write('\u0006')
   await waitFor(() => editor.spawned(), 'editor column')
   tty.input.write('\u0006') // close: Neovim refuses, so the dialog appears
-  await waitFor(() => tty.painted().includes('有未保存的文件'), 'confirm dialog')
+  await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
   tty.input.write('d') // discard
   await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -1311,7 +1311,7 @@ test('a dialog left open when the editor exits does not disable the keyboard', a
   tty.input.write('\u0006')
   await waitFor(() => spawned, 'editor column')
   tty.input.write('\u0006') // close: no exit yet, so the dialog appears
-  await waitFor(() => tty.painted().includes('有未保存的文件'), 'confirm dialog')
+  await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
   await new Promise(resolve => setTimeout(resolve, 900)) // the process leaves with the dialog up
 
   tty.input.write('after-slow-close\r')
@@ -1353,9 +1353,206 @@ test('a slow but committed quit is not mistaken for unsaved work', async () => {
   tty.input.write('\u0006') // close: committed, just slow
   await new Promise(resolve => setTimeout(resolve, 2600))
 
-  expect(tty.painted()).not.toContain('有未保存的文件')
+  expect(tty.painted()).not.toContain('There are unsaved files')
   tty.input.write('after-slow-quit\r')
   await waitFor(() => fake.prompts.includes('after-slow-quit'), 'the composer keeps working')
   tty.input.write('\u0011')
   await expect(tty.run).resolves.toBe(0)
+})
+
+/** A temporary state root with no language, restored even when a test fails. */
+function languageHome(): { home: string; restore(): void } {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-language-client-'))
+  const previousHome = process.env.HULALA_HOME
+  const previousLang = process.env.HULALA_LANG
+  process.env.HULALA_HOME = home
+  delete process.env.HULALA_LANG
+  return {
+    home,
+    restore: () => {
+      if (previousHome === undefined) delete process.env.HULALA_HOME
+      else process.env.HULALA_HOME = previousHome
+      if (previousLang === undefined) delete process.env.HULALA_LANG
+      else process.env.HULALA_LANG = previousLang
+      rmSync(home, { recursive: true, force: true })
+    },
+  }
+}
+
+function languageFile(home: string): string {
+  return join(home, 'config', 'client.json')
+}
+
+test('first launch asks once, saves the choice, and the next launch is already Chinese', async () => {
+  const state = languageHome()
+  try {
+    const fake = fakeBackend()
+    const first = startTty(fake, 100, true)
+    await waitFor(() => plain(first.painted()).includes('Choose a language / 选择语言'), 'language picker')
+    expect(plain(first.painted())).toContain('English')
+    expect(plain(first.painted())).toContain('中文（简体）')
+    expect(plain(first.painted())).toContain('You can change this later with /language')
+
+    first.input.write('2') // 中文（简体）
+    await waitFor(() => plain(first.painted()).includes('搜索'), 'Chinese interface')
+    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"zh-CN"}')
+    // Switching the interface never rewrites what the Host already said.
+    expect(plain(first.painted())).toContain('history answer')
+    first.input.write('/quit\r')
+    await expect(first.run).resolves.toBe(0)
+
+    const second = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(second.painted()).includes('history answer'), 'second launch')
+    expect(plain(second.painted())).not.toContain('Choose a language')
+    expect(plain(second.painted())).toContain('搜索')
+    second.input.write('/quit\r')
+    await expect(second.run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
+})
+
+test('Escape leaves the language unset, so the next launch asks again', async () => {
+  const state = languageHome()
+  try {
+    const first = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(first.painted()).includes('Choose a language / 选择语言'), 'language picker')
+    first.input.write('\u001b')
+    // A lone Escape is also the prefix of an escape sequence: give pi-tui its
+    // disambiguation window before the next line reaches the composer.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(existsSync(languageFile(state.home))).toBe(false)
+    expect(plain(first.painted())).toContain('search')
+    first.input.write('/quit\r')
+    await expect(first.run).resolves.toBe(0)
+
+    const second = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(second.painted()).includes('Choose a language / 选择语言'), 'picker again')
+    second.input.write('\u001b')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    second.input.write('/quit\r')
+    await expect(second.run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
+})
+
+test('HULALA_LANG skips the picker and is never written', async () => {
+  const state = languageHome()
+  const previousLang = process.env.HULALA_LANG
+  process.env.HULALA_LANG = 'zh-CN'
+  try {
+    const tty = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+    expect(plain(tty.painted())).not.toContain('Choose a language')
+    expect(plain(tty.painted())).toContain('搜索')
+    expect(existsSync(languageFile(state.home))).toBe(false)
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    if (previousLang === undefined) delete process.env.HULALA_LANG
+    else process.env.HULALA_LANG = previousLang
+    state.restore()
+  }
+})
+
+test('a bad HULALA_LANG is reported and still asks', async () => {
+  const state = languageHome()
+  process.env.HULALA_LANG = 'klingon'
+  try {
+    const tty = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(tty.painted()).includes('Choose a language / 选择语言'), 'language picker')
+    expect(plain(tty.painted())).toContain('HULALA_LANG=klingon')
+    expect(existsSync(languageFile(state.home))).toBe(false)
+    tty.input.write('\u001b')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
+})
+
+test('a broken client.json asks again and says why', async () => {
+  const state = languageHome()
+  mkdirSync(join(state.home, 'config'), { recursive: true })
+  writeFileSync(languageFile(state.home), '{"language":')
+  try {
+    const tty = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(tty.painted()).includes('The saved language could not be read'), 'language problem')
+    expect(plain(tty.painted())).toContain('Choose a language / 选择语言')
+    tty.input.write('1') // English
+    await waitFor(() => readFileSync(languageFile(state.home), 'utf8').trim() === '{"language":"en"}', 'repaired file')
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
+})
+
+test('/language switches and persists immediately, and rejects an unknown value', async () => {
+  const state = languageHome()
+  mkdirSync(join(state.home, 'config'), { recursive: true })
+  writeFileSync(languageFile(state.home), '{"language":"zh-CN"}\n')
+  try {
+    const tty = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(tty.painted()).includes('搜索'), 'Chinese interface')
+    tty.input.write('/language en\r')
+    await waitFor(() => plain(tty.painted()).includes('Interface language set to English.'), 'language notice')
+    await waitFor(() => plain(tty.painted()).includes('search'), 'English rail')
+    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"en"}')
+
+    tty.input.write('/language xx\r')
+    await waitFor(() => plain(tty.painted()).includes('unsupported language "xx"'), 'unsupported notice')
+    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"en"}')
+    expect(plain(tty.painted())).toContain('history answer')
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
+})
+
+test('/language without an argument opens the picker on the current language', async () => {
+  const state = languageHome()
+  mkdirSync(join(state.home, 'config'), { recursive: true })
+  writeFileSync(languageFile(state.home), '{"language":"en"}\n')
+  try {
+    const tty = startTty(fakeBackend(), 100, true)
+    await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+    expect(plain(tty.painted())).not.toContain('Choose a language')
+    tty.input.write('/language\r')
+    await waitFor(() => plain(tty.painted()).includes('Choose a language / 选择语言'), 'picker from command')
+    expect(plain(tty.painted())).toContain('› English')
+    tty.input.write('\u001b')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"en"}')
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
+})
+
+test('plain mode uses the saved language without asking or writing', async () => {
+  const state = languageHome()
+  mkdirSync(join(state.home, 'config'), { recursive: true })
+  writeFileSync(languageFile(state.home), '{"language":"zh-CN"}\n')
+  try {
+    const input = new PassThrough()
+    const output = new PassThrough()
+    let text = ''
+    output.on('data', chunk => { text += String(chunk) })
+    cleanups.push(() => { input.destroy(); output.destroy() })
+    const run = runTerminalClient({ backend: fakeBackend().backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+    await waitFor(() => text.includes('会话 session-1234'), 'Chinese plain session line')
+    expect(text).not.toContain('Choose a language')
+    expect(JSON.parse(readFileSync(languageFile(state.home), 'utf8'))).toEqual({ language: 'zh-CN' })
+    input.write('/nope\n')
+    await waitFor(() => text.includes('未知命令 /nope'), 'Chinese plain error')
+    input.write('/quit\n')
+    await expect(run).resolves.toBe(0)
+  } finally {
+    state.restore()
+  }
 })

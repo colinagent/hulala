@@ -10,7 +10,8 @@
 import type { Component } from '@earendil-works/pi-tui'
 import { fuzzyFilter, matchesKey, truncateToWidth } from '@earendil-works/pi-tui'
 import type { TerminalSearchItem, TerminalSession } from '../../data/remote.js'
-import { LIST_MOVE_HINT, listMove } from '../../keys.js'
+import { t } from '../../i18n/index.js'
+import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
 
@@ -68,32 +69,32 @@ export class ResumeOverlay implements Component {
       return this.tab === name ? s.accent(text) : text
     }
     const body: string[] = []
-    body.push(`${tabLabel('cwd', 'Current folder')} ${tabLabel('all', 'All folders')}  ${truncateToWidth(this.options.cwd, Math.max(4, inner - 30))}`)
+    body.push(`${tabLabel('cwd', t('resume.currentFolder'))} ${tabLabel('all', t('resume.allFolders'))}  ${truncateToWidth(this.options.cwd, Math.max(4, inner - 30))}`)
     body.push(s.accent(`> ${this.query}`))
 
     if (this.search !== null) {
       if (this.search.items.length === 0) {
-        body.push(s.dim('  (no matching content)'))
+        body.push(s.dim(t('resume.noContent')))
       } else {
         this.search.items.forEach((item, index) => {
           const marker = index === this.cursor ? '›' : ' '
           const line = `${marker} ${shortId(item.sessionId)}  ${truncateToWidth(item.snippet, Math.max(4, inner - 22))}`
           body.push(index === this.cursor ? s.accent(line) : line)
         })
-        if (this.search.hasMore) body.push(s.dim('  (more results…)'))
+        if (this.search.hasMore) body.push(s.dim(t('resume.more')))
       }
     } else if (rows.length === 0) {
-      body.push(s.dim('  (no matching Session)'))
+      body.push(s.dim(t('resume.noSession')))
     } else {
       rows.slice(0, 12).forEach((session, index) => {
         const marker = index === this.cursor ? '›' : ' '
-        const running = session.running === true ? ' ● running' : ''
+        const running = session.running === true ? t('resume.running') : ''
         const line = `${marker} ${stamp(session.updatedAt)}  ${shortId(session.sessionId)}  ${truncateToWidth(session.cwd ?? '', Math.max(4, inner - 40))}${running}`
         body.push(index === this.cursor ? s.accent(line) : line)
       })
     }
 
-    return panel(panelWidth, 'Resume Session', body, [s.dim(`Tab 切换 · ${LIST_MOVE_HINT} · Enter 打开 · Ctrl-F 内容搜索 · Esc 取消`)])
+    return panel(panelWidth, t('resume.title'), body, [s.dim(t('resume.footer'))])
   }
 
   handleInput(data: string): void {

@@ -83,7 +83,7 @@
   first-party JavaScript, MJS, shell, Python, Rust, or Go implementation files.
 - Use Bun 1.4.2 for installs, scripts, tests, and bundles. Keep `bun.lock`
   committed and deterministic. The Host and CLI execute on Node 24+ because DSH
-  0.2.1 boots through Node's internal module loader.
+  0.2.2 boots through Node's internal module loader.
 - The Host keeps only the daemon shell and the two gap plugins. Add a DSH row
   only when the client feature that consumes it lands; do not mount unused
   controllers "for later".

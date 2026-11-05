@@ -31,6 +31,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { isKeyRelease, matchesKey } from '@earendil-works/pi-tui'
+import { t } from '../i18n/index.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -96,7 +97,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return
     }
     lastSigint = now
-    reducer.addNotice('press Ctrl+C again to quit')
+    reducer.addNotice(t('input.pressAgain'))
     render.repaint()
   }
 
@@ -112,7 +113,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
   const toggleConversation = (): void => {
     if (layout.conversationShown) {
       if (!layout.railShown && layout.paneId === undefined) {
-        reducer.addNotice('open the Session rail or a sidebar column before hiding the conversation')
+        reducer.addNotice(t('input.keepColumn'))
         render.repaint()
         return
       }

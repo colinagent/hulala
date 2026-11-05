@@ -15,7 +15,8 @@
  * @module hulala-cli/tui/plugins/update
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { updateNotice, type UpdateInfo } from '../../update/check.js'
+import { t } from '../i18n/index.js'
+import type { UpdateInfo } from '../../update/check.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -78,12 +79,17 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
       // the reminder waits instead of being spent unseen.
       if (available === undefined || announced || session.id === undefined) return
       announced = true
-      reducer.addNotice(updateNotice(available), available.downloaded === true ? 'info' : 'warn')
+      reducer.addNotice(
+        available.downloaded === true
+          ? t('update.downloaded', { version: available.latestVersion })
+          : t('update.available', { current: available.currentVersion, latest: available.latestVersion }),
+        available.downloaded === true ? 'info' : 'warn',
+      )
       render.repaint()
     },
     install: async () => {
-      if (config.applyUpdate === undefined) return 'this install cannot update itself'
-      reducer.addNotice('installing the downloaded release…')
+      if (config.applyUpdate === undefined) return t('update.cannotSelf')
+      reducer.addNotice(t('update.installing'))
       render.repaint()
       const result = await config.applyUpdate().catch((caught: unknown) => ({
         ok: false,

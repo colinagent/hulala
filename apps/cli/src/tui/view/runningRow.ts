@@ -6,9 +6,15 @@
  * clock is not owned here — the app repaints once a second while a turn is
  * running, so this component stays a pure function of the start time.
  *
+ * The line is a step row like any other: the same two-column gutter and the
+ * same two-cell icon box, so the star sits in the icon column and the label
+ * starts in the title column instead of drifting left of the list.
+ *
  * @module hulala-cli/tui/view/runningRow
  */
 import type { Component } from '@earendil-works/pi-tui'
+import { GUTTER, iconBox } from './rowGlyph.js'
+import { t } from '../i18n/index.js'
 import { buildStyles } from './theme.js'
 
 /** Leading glyph for the active turn. */
@@ -42,8 +48,8 @@ export class RunningRow implements Component {
     const state = this.state()
     const s = buildStyles(this.color)
     const label = state.startedAt === undefined
-      ? 'Deep diving'
-      : `Deep diving for ${formatRunDuration((state.now ?? Date.now()) - state.startedAt)}`
-    return [`${s.accent(ICON)} ${s.dim(`${label} ···`)}`]
+      ? t('running.idle')
+      : t('running.elapsed', { duration: formatRunDuration((state.now ?? Date.now()) - state.startedAt) })
+    return [`${GUTTER}${s.accent(iconBox(ICON))} ${s.dim(`${label} ···`)}`]
   }
 }

@@ -17,6 +17,8 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type { TerminalPromptMode, TerminalSession } from '../data/remote.js'
+import { languageName, parseLanguage } from '../../language.js'
+import { t } from '../i18n/index.js'
 import { HelpOverlay } from '../view/overlays/help.js'
 import { VERSION } from '../../constants.js'
 
@@ -72,6 +74,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const layout = ctx.hulalaLayout
   const view = ctx.hulalaView
   const lifecycle = ctx.hulalaLifecycle
+  const language = ctx.hulalaLanguage
   const { reducer } = ctx.hulalaViewModel
   const { editor } = ctx.hulalaComposer
 
@@ -92,7 +95,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     cancelRequested = true
     try {
       await backend.cancel(session.id)
-      reducer.addNotice('cancel requested')
+      reducer.addNotice(t('notice.cancelRequested'))
       repaint()
     } catch (caught) {
       cancelRequested = false
@@ -109,6 +112,21 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'help':
         await overlays.modal<undefined>(done => new HelpOverlay({ color: config.color, onClose: () => done(undefined) }), { anchor: 'center', width: 74 })
         return
+      case 'language': {
+        const code = argument === '' ? await language.pick() : parseLanguage(argument)
+        if (code === undefined) {
+          if (argument !== '') {
+            reducer.addError(t('error.languageUnsupported', { value: argument }))
+            repaint()
+          }
+          return
+        }
+        const failure = language.set(code)
+        if (failure !== undefined) reducer.addError(t('language.saveFailed', { reason: failure }))
+        else reducer.addNotice(t('language.changed', { language: languageName(code) }))
+        repaint()
+        return
+      }
       case 'quit':
       case 'exit':
         ctx.emit('hulala/quit')
@@ -135,7 +153,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         if (session.id === undefined || argument === '') return
         try {
           await backend.rename(session.id, argument)
-          reducer.addNotice(`renamed to ${argument}`)
+          reducer.addNotice(t('notice.renamed', { title: argument }))
         } catch (caught) {
           failure(caught)
           return
@@ -144,16 +162,17 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         return
       }
       case 'status': {
+        const row = (label: string, value: string): void => { reducer.addNotice(`${label.padEnd(8)}${value}`) }
         reducer.addNotice(`hulala  v${VERSION}`)
-        if (updater.available !== undefined) reducer.addNotice(`update  ${updater.available.latestVersion} available; run \`hulala update\``)
-        reducer.addNotice(`host    ${backend.host.url === '' ? '-' : backend.host.url}`)
-        reducer.addNotice(`session ${session.id ?? '-'}`)
-        reducer.addNotice(`cwd     ${session.cwd}`)
-        reducer.addNotice(`model   ${session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`}`)
-        reducer.addNotice(`pane    ${panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ' (focus)' : ''}`}`)
-        reducer.addNotice(`rail    ${layout.railWanted ? (rail.focused ? 'visible (focus)' : 'visible') : 'hidden'}`)
-        reducer.addNotice(`chat    ${layout.conversationShown ? 'visible' : 'hidden'}`)
-        reducer.addNotice(`turn    ${reducer.busy ? 'running' : 'idle'}`)
+        if (updater.available !== undefined) reducer.addNotice(t('status.updateAvailable', { version: updater.available.latestVersion }))
+        row(t('status.label.host'), backend.host.url === '' ? '-' : backend.host.url)
+        row(t('status.label.session'), session.id ?? '-')
+        row(t('status.label.cwd'), session.cwd)
+        row(t('status.label.model'), session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`)
+        row(t('status.label.pane'), panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ` ${t('status.value.focus')}` : ''}`)
+        row(t('status.label.rail'), layout.railWanted ? (rail.focused ? `${t('status.value.visible')} ${t('status.value.focus')}` : t('status.value.visible')) : t('status.value.hidden'))
+        row(t('status.label.chat'), layout.conversationShown ? t('status.value.visible') : t('status.value.hidden'))
+        row(t('status.label.turn'), reducer.busy ? t('status.value.running') : t('status.value.idle'))
         repaint()
         return
       }
@@ -163,7 +182,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         return
       case 'reasoning': {
         const mode = view.cycleReasoning()
-        reducer.addNotice(`reasoning ${mode}`)
+        const label = mode === 'summary' ? 'reasoning.summary' : mode === 'full' ? 'reasoning.full' : 'reasoning.hidden'
+        reducer.addNotice(t('notice.reasoning', { mode: t(label) }))
         repaint()
         return
       }
@@ -187,7 +207,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
           }
           return
         }
-        reducer.addError(`unknown command /${command}; use /help`)
+        reducer.addError(t('error.unknownCommand', { command }))
         repaint()
       }
     }
@@ -229,7 +249,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     if (session.id === undefined) return
     const items = [...reducer.pending.steering, ...reducer.pending.followUp]
     if (items.length === 0) {
-      reducer.addNotice('no queued messages to restore')
+      reducer.addNotice(t('notice.noQueued'))
       repaint()
       return
     }
@@ -252,10 +272,10 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     const current = editor.getText()
     editor.setText([queued, current].filter(part => part.trim() !== '').join('\n\n'))
     if (restored.length > 0) {
-      reducer.addNotice(`restored ${restored.length} queued message${restored.length > 1 ? 's' : ''}`)
+      reducer.addNotice(t('notice.restored', { count: restored.length }))
     }
     if (held > 0) {
-      reducer.addNotice(`kept ${held} queued message${held > 1 ? 's' : ''} with attachments in the queue`, 'warn')
+      reducer.addNotice(t('notice.kept', { count: held }), 'warn')
     }
     repaint()
   }
@@ -311,6 +331,7 @@ export const commandsPlugin = {
     'hulalaLifecycle',
     'hulalaViewModel',
     'hulalaComposer',
+    'hulalaLanguage',
   ],
   apply,
 }

@@ -13,6 +13,7 @@
  */
 import { Markdown, truncateToWidth, visibleWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui'
 import type { TranscriptItem } from '../data/viewModel.js'
+import { t } from '../i18n/index.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -85,7 +86,7 @@ export class ThinkRow implements Component {
     const s = buildStyles(this.color)
     const summary = this.item.streaming ? latestParagraphLine(text) : firstLine(text)
     const gutter = this.gutter()
-    const head = `${this.item.streaming ? s.accent(iconBox(ICON)) : s.dim(iconBox(ICON))} Think`
+    const head = `${this.item.streaming ? s.accent(iconBox(ICON)) : s.dim(iconBox(ICON))} ${t('think.label')}`
     const room = Math.max(1, width - visibleWidth(gutter) - visibleWidth(head) - 3)
     const line = `${gutter}${summary === '' ? head : `${head} · ${s.dim(truncateToWidth(summary.replaceAll('**', ''), room, '…'))}`}`
 

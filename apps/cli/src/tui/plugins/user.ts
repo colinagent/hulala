@@ -27,6 +27,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { readPluginDirectory, type PluginDirectory } from '../../plugins/directory.js'
 import type { PluginActivate } from '@hulala/plugin-sdk'
 import { createPluginApi } from '../pluginApi.js'
+import { t } from '../i18n/index.js'
 import { withPluginTimeout } from '../../plugins/timeout.js'
 
 /** Where the plugins are and how to talk about failures. */
@@ -94,7 +95,7 @@ export async function loadUserPlugins(ctx: Context, config: UserPluginsConfig): 
 
   for (const problem of directory.problems) {
     config.debug(`plugin ${problem.id} rejected: ${problem.message}`)
-    reducer.addError(`plugin ${problem.id}: ${problem.message}`)
+    reducer.addError(t('error.pluginLoad', { plugin: problem.id, reason: problem.message }))
   }
 
   for (const manifest of directory.manifests) {
@@ -108,7 +109,7 @@ export async function loadUserPlugins(ctx: Context, config: UserPluginsConfig): 
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught)
       config.debug(`plugin ${manifest.id} failed: ${message}`)
-      reducer.addError(`plugin ${manifest.id} failed to load: ${message}`)
+      reducer.addError(t('error.pluginLoad', { plugin: manifest.id, reason: message }))
     }
   }
   if (directory.problems.length > 0 || directory.manifests.length > 0) render.repaint()

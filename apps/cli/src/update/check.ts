@@ -231,9 +231,3 @@ export async function checkForUpdate(options: UpdateCheckOptions = {}): Promise<
   if (info === undefined) return undefined
   return await downloaded(info.latestVersion, paths) ? { ...info, downloaded: true } : info
 }
-
-/** One-line reminder shared by the client and tests. */
-export function updateNotice(info: UpdateInfo): string {
-  if (info.downloaded === true) return `Update ${info.latestVersion} is downloaded: /update installs it and restarts.`
-  return `Update available: ${info.currentVersion} → ${info.latestVersion}. Run \`hulala update\`.`
-}

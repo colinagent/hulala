@@ -24,7 +24,8 @@ import {
   type Focusable,
 } from '@earendil-works/pi-tui'
 import type { TerminalModel, TerminalModelCatalog } from '../../data/remote.js'
-import { LIST_MOVE_HINT, listMove } from '../../keys.js'
+import { t } from '../../i18n/index.js'
+import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
 
@@ -112,13 +113,13 @@ export class ModelSelector extends Container implements Focusable {
     this.addChild(new Spacer(1))
     this.addChild(new TruncatedText(
       this.entries.length === 0
-        ? s.warn('No model providers are configured · type /login to add an API key')
-        : s.dim('Only configured providers · type to filter · /login adds a provider'),
+        ? s.warn(t('selector.model.noProviders'))
+        : s.dim(t('selector.model.hint')),
       1,
       0,
     ))
     this.addChild(new Spacer(1))
-    this.search = new Input({ prompt: `  ${s.accent('❯')} `, placeholder: 'search models' })
+    this.search = new Input({ prompt: `  ${s.accent('❯')} `, placeholder: t('selector.model.search') })
     this.addChild(this.search)
     this.addChild(new Spacer(1))
     this.addChild(this.list)
@@ -168,7 +169,7 @@ export class ModelSelector extends Container implements Focusable {
     const s = this.styles
     this.list.clear()
     if (this.filtered.length === 0) {
-      this.list.addChild(new TruncatedText(s.dim('  No matching models'), 1, 0))
+      this.list.addChild(new TruncatedText(s.dim(t('selector.model.noMatch')), 1, 0))
     }
     const capacity = this.visible()
     const window = windowOf(this.filtered, this.cursor, capacity)
@@ -182,7 +183,7 @@ export class ModelSelector extends Container implements Focusable {
       const label = selected ? s.accent(entry.name) : entry.name
       const id = entry.id === entry.name ? '' : s.dim(` (${entry.id})`)
       const provider = s.dim(` [${entry.provider}]`)
-      const badges = `${isDefault ? s.dim(' · default') : ''}${effort === undefined ? '' : s.dim(` · reasoning ${effort}`)}`
+      const badges = `${isDefault ? s.dim(t('selector.model.default')) : ''}${effort === undefined ? '' : s.dim(t('selector.model.reasoning', { effort }))}`
       this.list.addChild(new TruncatedText(`${prefix}${label}${id}${provider}${badges}`, 0, 0))
     })
     const scroll = scrollLabel(this.cursor, this.filtered.length, window.start, capacity)
@@ -196,16 +197,16 @@ export class ModelSelector extends Container implements Focusable {
     const entry = this.selected()
     if (entry !== undefined) {
       const name = entry.id === entry.name ? entry.name : `${entry.name} (${entry.id})`
-      this.detail.addChild(new TruncatedText(s.dim(`  Model Name: ${name}`), 0, 0))
+      this.detail.addChild(new TruncatedText(s.dim(t('selector.model.name', { name })), 0, 0))
       if (entry.efforts.length === 0) {
-        this.detail.addChild(new TruncatedText(s.dim('  reasoning: not available'), 0, 0))
+        this.detail.addChild(new TruncatedText(s.dim(t('selector.model.notAvailable')), 0, 0))
       } else {
         const chosen = this.effortOf(entry)
         const parts = entry.efforts.map(effort => effort === chosen ? s.accent(effort) : s.dim(effort))
-        this.detail.addChild(new TruncatedText(`  ${s.dim('reasoning:')} ${parts.join(s.dim(' / '))}`, 0, 0))
+        this.detail.addChild(new TruncatedText(`  ${s.dim(t('selector.model.reasoningLabel'))} ${parts.join(s.dim(' / '))}`, 0, 0))
       }
     }
-    this.detail.addChild(new TruncatedText(s.dim(`  ${LIST_MOVE_HINT} · Tab 推理强度 · Enter 选择 · Esc 取消`), 0, 0))
+    this.detail.addChild(new TruncatedText(s.dim(`  ${t('selector.model.footer')}`), 0, 0))
   }
 
   private confirm(): void {

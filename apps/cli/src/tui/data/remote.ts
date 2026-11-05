@@ -26,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-user-questions/types'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
 import WebSocket from 'ws'
 import type { HostAttachment } from '../../hostAttach.js'
+import { t } from '../i18n/index.js'
 
 /** One non-subagent Session as presented by the Host. */
 export interface TerminalSession {
@@ -463,7 +464,7 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => {
           unsubscribe()
-          reject(new Error('Timed out waiting for the Host event connection'))
+          reject(new Error(t('error.connectionTimeout')))
         }, 15_000)
         const check = (): void => {
           if (connection.generation.getSnapshot() === undefined) return
@@ -572,11 +573,16 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
               const pressure = pressureOf(block?.values)
               if (pressure !== undefined) handlers.onContextPressure?.(pressure)
               handlers.onInbox?.(inboxOf((block?.values as { inbox?: unknown } | undefined)?.inbox))
-            } else if (frame.type === 'projection' && frame.sessionId === sessionId && frame.key === 'contextPressure') {
-              const pressure = pressureOf({ contextPressure: frame.value })
-              if (pressure !== undefined) handlers.onContextPressure?.(pressure)
-            } else if (frame.type === 'projection' && frame.sessionId === sessionId && frame.key === 'inbox') {
-              handlers.onInbox?.(inboxOf(frame.value))
+            } else if (frame.type === 'projection' && frame.sessionId === sessionId) {
+              // One update carries every key the committed event changed.
+              for (const change of frame.changes) {
+                if (change.key === 'contextPressure') {
+                  const pressure = pressureOf({ contextPressure: change.val })
+                  if (pressure !== undefined) handlers.onContextPressure?.(pressure)
+                } else if (change.key === 'inbox') {
+                  handlers.onInbox?.(inboxOf(change.val))
+                }
+              }
             }
           }
         } catch {
@@ -656,11 +662,11 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
 
     async login(providerId, apiKey) {
       const key = apiKey.trim()
-      if (key === '') throw new Error('an API key is required')
+      if (key === '') throw new Error(t('error.apiKeyRequired'))
       const profile = (await describeProviders()).find(candidate => candidate.entry.provider === providerId)
-      if (profile === undefined) throw new Error(`provider ${providerId} is not configurable on this Host`)
+      if (profile === undefined) throw new Error(t('error.providerNotConfigurable', { provider: providerId }))
       if (profile.keyRef === undefined) {
-        throw new Error(`${profile.entry.displayName} does not accept an API key here; sign in from the Desktop app`)
+        throw new Error(t('error.providerSignIn', { provider: profile.entry.displayName }))
       }
       // The pi-ai adapter only reads a stored key when the profile names its
       // reference, so record the derived one first, exactly like the Web Models

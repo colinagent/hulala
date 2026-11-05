@@ -10,6 +10,7 @@
 import type { Component } from '@earendil-works/pi-tui'
 import { matchesKey } from '@earendil-works/pi-tui'
 import type { TerminalApprovalOutcome } from '../../data/remote.js'
+import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
 
@@ -36,8 +37,8 @@ export class ApprovalOverlay implements Component {
     if (this.options.reason !== undefined && this.options.reason !== '') {
       body.push(s.dim(this.options.reason))
     }
-    const footer = [s.accent('[y] 允许一次  [n] 拒绝  [Ctrl-C] 取消')]
-    return panel(panelWidth, '工具审批', body, footer)
+    const footer = [s.accent(t('approval.footer'))]
+    return panel(panelWidth, t('approval.title'), body, footer)
   }
 
   handleInput(data: string): void {

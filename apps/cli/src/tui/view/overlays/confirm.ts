@@ -15,6 +15,7 @@
  */
 import type { Component } from '@earendil-works/pi-tui'
 import { matchesKey } from '@earendil-works/pi-tui'
+import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
 
@@ -39,10 +40,10 @@ export class ConfirmOverlay implements Component {
 
   render(width: number): string[] {
     const s = buildStyles(this.options.color)
-    const body: string[] = ['有未保存的文件']
-    if (this.options.failedSave === true) body.push(s.dim('保存失败，文件可能不可写'))
-    const footer = [s.accent('[s] 保存全部  [d] 放弃改动  [Esc] 取消')]
-    return panel(width, '编辑器', body, footer)
+    const body: string[] = [t('confirm.body')]
+    if (this.options.failedSave === true) body.push(s.dim(t('confirm.failed')))
+    const footer = [s.accent(t('confirm.footer'))]
+    return panel(width, t('confirm.title'), body, footer)
   }
 
   handleInput(data: string): void {

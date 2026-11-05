@@ -15,6 +15,7 @@
  * @module hulala-cli/tui/plugins/rail
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { t } from '../i18n/index.js'
 import { SessionRail, railLists } from '../view/sessionRail.js'
 import { columnRule } from '../view/splitDivider.js'
 import { railFits, railWidthFor } from '../view/layout.js'
@@ -167,7 +168,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   const focus = (): void => {
     if (config.isClosing()) return
     if (!railFits(terminal.columns, layout.paneId !== undefined)) {
-      reducer.addNotice('the Session rail needs a wider terminal; close the editor column first')
+      reducer.addNotice(t('rail.tooNarrow'))
       render.repaint()
       return
     }

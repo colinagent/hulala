@@ -8,6 +8,7 @@
  *
  * @module hulala-cli/tui/view/hints
  */
+import { t } from '../i18n/index.js'
 
 /** One hint: the keys, and what they do. */
 export interface UsageHint {
@@ -24,17 +25,19 @@ export const HINT_INTERVAL_MS = 15_000
  * Opening a Session comes before closing a column: the rail is how a Session is
  * chosen, and the columns are what you do once one is open.
  */
-export const USAGE_HINTS: readonly UsageHint[] = [
-  { keys: 'Ctrl-G', text: 'show or hide the Session rail' },
-  { keys: 'Ctrl-T', text: 'terminal in the Session directory' },
-  { keys: 'Ctrl-F', text: 'Neovim in the right column' },
-  { keys: 'Ctrl-[ Ctrl-]', text: 'move between rail, chat and column' },
-  { keys: 'Ctrl-Q', text: 'detach; the Host keeps running the turn' },
-  { keys: 'Esc', text: 'stop the running turn' },
-  { keys: 'Ctrl-O', text: 'expand the tool row under the pointer' },
-  { keys: 'Alt-Enter', text: 'queue a follow-up while a turn runs' },
-  { keys: '/', text: 'commands — /help, /model, /sessions' },
-]
+export function usageHints(): readonly UsageHint[] {
+  return [
+    { keys: 'Ctrl-G', text: t('hint.rail') },
+    { keys: 'Ctrl-T', text: t('hint.terminal') },
+    { keys: 'Ctrl-F', text: t('hint.editor') },
+    { keys: 'Ctrl-[ Ctrl-]', text: t('hint.focus') },
+    { keys: 'Ctrl-Q', text: t('hint.quit') },
+    { keys: 'Esc', text: t('hint.escape') },
+    { keys: 'Ctrl-O', text: t('hint.expand') },
+    { keys: 'Alt-Enter', text: t('hint.queue') },
+    { keys: '/', text: t('hint.commands') },
+  ]
+}
 
 /**
  * The hint to show at `now`.
@@ -47,7 +50,8 @@ export const USAGE_HINTS: readonly UsageHint[] = [
  */
 export function usageHint(now: number, interval = HINT_INTERVAL_MS): UsageHint {
   const slot = Math.floor(Math.max(0, now) / Math.max(1, interval))
-  return USAGE_HINTS[slot % USAGE_HINTS.length]!
+  const hints = usageHints()
+  return hints[slot % hints.length]!
 }
 
 /**

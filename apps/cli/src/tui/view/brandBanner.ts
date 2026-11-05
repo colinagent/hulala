@@ -23,6 +23,7 @@
 import { HStack, Image, Text, allocateImageId, getCapabilities } from '@earendil-works/pi-tui'
 import { LOGO_PNG_BASE64 } from '../../brand/logoPng.js'
 import { VERSION } from '../../constants.js'
+import { activeLanguage, t } from '../i18n/index.js'
 import { buildStyles } from './theme.js'
 
 /**
@@ -44,6 +45,7 @@ const imageId = allocateImageId()
 
 interface Built {
   width: number
+  language: string
   lines: string[]
   imageId: number | undefined
 }
@@ -53,7 +55,8 @@ let built: Built | undefined
 /** The banner for the empty home screen, or none when images are unavailable. */
 export function brandBannerLines(width: number): string[] {
   if (getCapabilities().images === null) return []
-  if (built !== undefined && built.width === width) return built.lines
+  const language = activeLanguage()
+  if (built !== undefined && built.width === width && built.language === language) return built.lines
 
   const styles = buildStyles(true)
   const image = new Image(
@@ -67,11 +70,11 @@ export function brandBannerLines(width: number): string[] {
   // paragraph, so narrow terminals get the keys that matter.
   const hints = width >= 96
     ? [
-        `${keys('esc')} interrupt · ${keys('ctrl+c')} clear/exit · ${keys('/')} commands · ${keys('!')} bash`,
-        `${keys('ctrl+g')} sessions · ${keys('ctrl+t')} terminal · ${keys('ctrl+f')} editor`,
-        `${keys('ctrl+d')} chat · ${keys('ctrl+o')} expand · ${keys('/help')} for more`,
+        `${keys('esc')} ${t('banner.interrupt')} · ${keys('ctrl+c')} ${t('banner.clearExit')} · ${keys('/')} ${t('banner.commands')} · ${keys('!')} ${t('banner.bash')}`,
+        `${keys('ctrl+g')} ${t('banner.sessions')} · ${keys('ctrl+t')} ${t('banner.terminal')} · ${keys('ctrl+f')} ${t('banner.editor')}`,
+        `${keys('ctrl+d')} ${t('banner.chat')} · ${keys('ctrl+o')} ${t('banner.expand')} · ${keys('/help')} ${t('banner.more')}`,
       ]
-    : [`${keys('esc')} interrupt · ${keys('ctrl+c')} exit · ${keys('ctrl+t')} terminal · ${keys('/')} commands`]
+    : [`${keys('esc')} ${t('banner.interrupt')} · ${keys('ctrl+c')} ${t('banner.clearExit')} · ${keys('ctrl+t')} ${t('banner.terminal')} · ${keys('/')} ${t('banner.commands')}`]
   const text = new Text([`${styles.bold('hulala')} ${styles.dim(`v${VERSION}`)}`, ...hints].join('\n'))
   // The image gets a fixed column and the hints take the rest, so the text wraps
   // on a narrow terminal instead of pushing the mark off the row.
@@ -80,7 +83,7 @@ export function brandBannerLines(width: number): string[] {
     { component: text, grow: 1 },
   ])
   const lines = banner.render(width)
-  built = { width, lines, imageId }
+  built = { width, language, lines, imageId }
   return lines
 }
 

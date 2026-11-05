@@ -31,6 +31,7 @@ import { columnRule, splitDivider } from '../view/splitDivider.js'
 import { ScreenPane } from '../view/screenPane.js'
 import { SPLIT_MIN_SIZE } from '../view/layout.js'
 import { ConfirmOverlay, type ConfirmChoice } from '../view/overlays/confirm.js'
+import { t } from '../i18n/index.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -310,7 +311,8 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 
   /** Report why a column cannot start, naming the column the key chose. */
   const unavailable = (kind: PaneKind, reason: string): false => {
-    reducer.addNotice(`${kind} unavailable: ${reason}`)
+    const pane = t(kind === 'editor' ? 'pane.editor' : 'pane.terminal')
+    reducer.addNotice(t('pane.unavailable', { pane, reason }))
     render.repaint()
     return false
   }
@@ -321,11 +323,11 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     const pty = ptyModule()
     if (pty === undefined) {
       // Only when this runtime has no pty at all (no Bun and no node-pty).
-      return unavailable(kind, 'no pty backend in this install')
+      return unavailable(kind, t('pane.noPty'))
     }
-    if (!isLocalDirectory(cwd)) return unavailable(kind, `${cwd} is not a local directory`)
+    if (!isLocalDirectory(cwd)) return unavailable(kind, t('pane.notDirectory', { path: cwd }))
     if (terminal.columns < MIN_SPLIT_COLUMNS) {
-      return unavailable(kind, `the sidebar needs at least ${MIN_SPLIT_COLUMNS} columns`)
+      return unavailable(kind, t('pane.tooNarrow', { columns: MIN_SPLIT_COLUMNS }))
     }
     if (kind === 'editor') {
       try {

@@ -256,8 +256,8 @@ test('reasoning hides itself when it only carries a provider signature', () => {
 
 test('the running indicator counts the elapsed turn', () => {
   const row = new RunningRow(() => ({ startedAt: Date.now() - 12_000, now: Date.now() }), false)
-  expect(row.render(80)[0]).toBe('✷ Deep diving for 12s ···')
-  expect(new RunningRow(() => ({}), false).render(80)[0]).toBe('✷ Deep diving ···')
+  expect(row.render(80)[0]).toBe('  ✷  Deep diving for 12s ···')
+  expect(new RunningRow(() => ({}), false).render(80)[0]).toBe('  ✷  Deep diving ···')
   expect(formatRunDuration(80_000)).toBe('1m 20s')
   expect(formatRunDuration(3_930_000)).toBe('1h 5m')
 })
@@ -267,7 +267,7 @@ test('the transcript appends the running indicator after the last item', () => {
   transcript.setItems([{ kind: 'user', text: 'hello', time: 0 }])
   transcript.setRunning(Date.now() - 3_000)
   const lines = transcript.render(80)
-  expect(lines.at(-1)?.startsWith('✷ Deep diving for 3s')).toBe(true)
+  expect(lines.at(-1)?.startsWith('  ✷  Deep diving for 3s')).toBe(true)
   transcript.setRunning(undefined)
   expect(transcript.render(80).at(-1)).not.toContain('Deep diving')
 })
@@ -409,6 +409,10 @@ test('every step row starts its title in the same column', () => {
   expect([...columns]).toEqual([5])
   expect(lines[0]).toBe('  ✳  Think · A thought')
   expect(lines[1]).toBe('  >_ Bash · List files')
+
+  // The live turn clock is a step row too, so its label lands in that column.
+  transcript.setRunning(Date.now() - 4_000)
+  expect(transcript.render(120).at(-1)?.indexOf('Deep diving')).toBe(5)
 })
 
 test('an unfocused cursor is a ghost of the background, not a half-visible block', () => {

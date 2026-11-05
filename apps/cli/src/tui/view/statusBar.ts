@@ -20,6 +20,7 @@ import type { TerminalMetrics } from '../data/remote.js'
 import { buildStyles } from './theme.js'
 import { padEnd, truncateLeftText } from './pathText.js'
 import { hintLine, usageHint, type UsageHint } from './hints.js'
+import { t } from '../i18n/index.js'
 
 export interface StatusState {
   metrics: TerminalMetrics
@@ -50,7 +51,7 @@ export class StatusBar implements Component {
       styles.band(`${' '.repeat(gutter)}${padEnd(text, usable)}${' '.repeat(gutter)}`),
     ]
 
-    if (state.disconnected) return band('disconnected — reconnecting…')
+    if (state.disconnected) return band(t('status.disconnected'))
 
     const readings = this.readings(state)
     const modelText = state.model === undefined ? '' : `${state.model.provider}/${state.model.model}`
@@ -95,6 +96,6 @@ export class StatusBar implements Component {
     if (total > 0) parts.push(`${formatTokens(total)} tok`)
     const line = parts.join(' · ')
     if (state.update === undefined) return line
-    return line === '' ? `update ${state.update}` : `${line} · update ${state.update}`
+    return line === '' ? t('status.update', { version: state.update }) : `${line} · ${t('status.update', { version: state.update })}`
   }
 }

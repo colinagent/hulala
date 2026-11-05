@@ -12,6 +12,7 @@
  */
 import type { Component } from '@earendil-works/pi-tui'
 import { matchesKey } from '@earendil-works/pi-tui'
+import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
 
@@ -40,12 +41,12 @@ export class ConflictOverlay implements Component {
     // there when it fits and is clipped when it does not.
     const name = this.options.path.split('/').pop() ?? this.options.path
     const body: string[] = [
-      `${name} 在磁盘上被改过`,
+      t('conflict.body', { name }),
       s.dim(this.options.path),
-      s.dim('编辑器保留你的修改，没有自动保存'),
+      s.dim(t('conflict.detail')),
     ]
-    const footer = [s.accent('[k] 保留我的并覆盖  [r] 用磁盘的  [Esc] 稍后')]
-    return panel(width, '冲突', body, footer)
+    const footer = [s.accent(t('conflict.footer'))]
+    return panel(width, t('conflict.title'), body, footer)
   }
 
   handleInput(data: string): void {

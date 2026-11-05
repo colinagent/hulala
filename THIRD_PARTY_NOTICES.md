@@ -8,15 +8,17 @@ file. Third-party packages retain their own licenses.
 - Project: [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
 - Packages: `@deepseek-ai/dsh`, Agent/session/API/Web packages, Cordis and
   Schemastery
-- Version: `0.2.1-rc.2`
+- Version: `0.2.2-rc.1`
 - License: MIT
-- Local patch: `patches/@deepseek-ai%2Fdsh-subprocess-local@0.2.1-rc.2.patch`
+- Local patch: `patches/@deepseek-ai%2Fdsh-subprocess-local@0.2.2-rc.1.patch`
   preserves the native subprocess runner's argument delimiter under Bun.
 
 ## Cordis stack
 
 Cordis, loader, include, group, timer, hmr and related packages are distributed
-with DeepSeek Harness and retain their MIT licenses.
+with DeepSeek Harness and retain their MIT licenses. Hulala pins the line DSH
+`0.2.2-rc.1` resolves against: Cordis `4.1.0`, plugin include, loader, group and
+hmr `1.1.0`, timer `1.2.0`, Schemastery `3.19.0`.
 
 ## Undici
 

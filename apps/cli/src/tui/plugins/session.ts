@@ -17,6 +17,7 @@
  * @module hulala-cli/tui/plugins/session
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { t } from '../i18n/index.js'
 import type {
   SessionListEvent,
   TerminalModel,
@@ -262,7 +263,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     try {
       const workspaceId = await backend.ensureWorkspace(target)
       const created = await backend.createSession(workspaceId)
-      reducer.addNotice(`created Session ${created}`)
+      reducer.addNotice(t('notice.createdSession', { id: created }))
       if (!sessions.some(session => session.sessionId === created)) {
         sessions = [{ sessionId: created, updatedAt: Date.now(), running: false, blank: true, cwd: target }, ...sessions]
       }
@@ -319,7 +320,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     try {
       await backend.selectModel(id, selection)
       model = selection
-      reducer.addNotice(`model ${selection.provider}/${selection.model}`)
+      reducer.addNotice(t('notice.model', { selection: `${selection.provider}/${selection.model}` }))
       announceChange()
     } catch (caught) {
       error(caught)
@@ -354,7 +355,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       return undefined
     }
     if (providers.length === 0) {
-      error(new Error('this Host exposes no provider that accepts an API key'))
+      error(new Error(t('error.noProvider')))
       return undefined
     }
     const result = await composer.panel<ProviderPickerResult>(done => new ProviderSelector({
@@ -398,7 +399,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
         const wanted = argument.toLowerCase()
         provider = providers.find(candidate => candidate.id.toLowerCase() === wanted || candidate.name.toLowerCase() === wanted)
         if (provider === undefined) {
-          error(new Error(`unknown provider ${argument}; run /login to pick one`))
+          error(new Error(t('error.unknownProvider', { provider: argument })))
           return
         }
       } catch (caught) {
@@ -419,7 +420,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       error(caught)
       return
     }
-    reducer.addNotice(`saved an API key for ${provider.name}`)
+    reducer.addNotice(t('notice.savedKey', { provider: provider.name }))
     repaint()
     await adoptProviderModel(provider.id)
   }
@@ -429,7 +430,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     if (argument !== '') {
       const separator = argument.indexOf('/')
       if (separator <= 0 || separator === argument.length - 1) {
-        error(new Error('use /model provider/model or /model to pick from the catalog'))
+        error(new Error(t('error.modelUsage')))
         return
       }
       await selectModel({ provider: argument.slice(0, separator), model: argument.slice(separator + 1) })

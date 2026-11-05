@@ -27,7 +27,14 @@ import { textOf } from './data/viewModel.js'
 import { editorThemeFromTerminal } from './editor/editorTheme.js'
 import type { PtyModule } from './editor/pty.js'
 import { resolvePaths } from '../paths.js'
-import { checkForUpdate, updateNotice, type UpdateInfo } from '../update/check.js'
+import {
+  guessLanguage,
+  resolveLanguage,
+  type ResolvedLanguage,
+} from '../language.js'
+import { languageProblemText, setActiveLanguage, t } from './i18n/index.js'
+import { languagePlugin } from './plugins/language.js'
+import { checkForUpdate, type UpdateInfo } from '../update/check.js'
 import { collect, spawnDetached } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
@@ -73,6 +80,10 @@ export interface RunTerminalOptions {
   applyUpdate?: () => Promise<{ ok: boolean; message: string }>
   /** Restart onto the installed release; tests inject a recorder. */
   restartClient?: (resume: string | undefined) => void
+  /** Inject the resolved language; tests use this instead of touching `HULALA_LANG`. */
+  language?: ResolvedLanguage
+  /** Override the first-use prompt default (on only when this process owns the terminal). */
+  promptLanguage?: boolean
 }
 
 /**
@@ -99,12 +110,12 @@ function colorEnabled(): boolean {
 /** Run `hulala update` the way the shell would and keep its last line. */
 async function defaultApplyUpdate(): Promise<{ ok: boolean; message: string }> {
   const entry = process.argv[1]
-  if (entry === undefined) return { ok: false, message: 'cannot locate the hulala entry point' }
+  if (entry === undefined) return { ok: false, message: t('update.entryMissing') }
   const { code, stdout, stderr } = await collect(process.execPath, [entry, 'update'])
   const lines = (stdout + stderr).split('\n').map(line => line.trim()).filter(line => line !== '')
   const tail = lines.slice(-2).join(' · ')
-  if (code === 0) return { ok: true, message: tail === '' ? 'release installed' : tail }
-  return { ok: false, message: tail === '' ? `hulala update exited with ${code}` : tail }
+  if (code === 0) return { ok: true, message: tail === '' ? t('update.installed') : tail }
+  return { ok: false, message: tail === '' ? t('update.exitCode', { code }) : tail }
 }
 
 /** Hand the terminal to the newly activated release, resuming this Session. */
@@ -146,11 +157,14 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
   const kernel = options.kernel ?? createTerminalKernel()
   const ctx = kernel.ctx
   provideBackend(ctx, options.backend)
+  const dataRoot = resolvePaths().data
+  const language = options.language ?? resolveLanguage(process.env, dataRoot)
+  setActiveLanguage(language.code)
   try {
     await ctx.plugin(lifecyclePlugin)
     await ctx.plugin(viewModelPlugin)
     if (!interactive) {
-      return await runPlain({ ...options, kernel }, input, output)
+      return await runPlain({ ...options, kernel }, input, output, language)
     }
     await ctx.plugin(terminalPlugin, { input, output, composerPaging: true })
     await ctx.plugin(renderPlugin)
@@ -162,6 +176,15 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     // Ordered by dependency: each row injects only what a row above it provides,
     // so no plugin spends its first tick pending on a later one.
     await ctx.plugin(overlaysPlugin, { color: colorEnabled(), debug: debugLog })
+    // Before anything that reads `t()` or serves `/language`; the picker waits
+    // for the first frame, never for the Host or a Session.
+    await ctx.plugin(languagePlugin, {
+      dataRoot,
+      resolved: language,
+      color: colorEnabled(),
+      prompt: options.promptLanguage ?? ownsTerminal(options),
+      guess: guessLanguage(process.env),
+    })
     await ctx.plugin(composerPlugin, { color: colorEnabled() })
     await ctx.plugin(panesPlugin, { color: colorEnabled(), ...(options.pty === undefined ? {} : { pty: options.pty }), debug: debugLog })
     await ctx.plugin(sessionPlugin, { color: colorEnabled(), cwd: options.cwd })
@@ -332,7 +355,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   backend.onApproval(async request => {
     const outcome = await overlays.showApproval(request)
     if (!lifecycle.closing) {
-      reducer.addNotice(`approval ${outcome}`)
+      reducer.addNotice(t('notice.approval', { outcome }))
       rerender()
     }
     return outcome
@@ -344,6 +367,9 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   ui.setFocus(editor)
 
   ui.start()
+  // The language picker (when the language is unset) is a first-frame surface:
+  // emitting after `start()` keeps attach and Session boot off its path.
+  setImmediate(() => { if (!lifecycle.closing) ctx.emit('hulala/first-frame') })
 
   // The reminder is deliberately off the startup path: a slow or unreachable
   // release index must not delay the first Session, and the client works
@@ -374,7 +400,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     await Promise.race([backend.ready(), done.promise])
   } catch (caught) {
     if (!lifecycle.closing) {
-      reducer.addNotice(`event connection unavailable: ${caught instanceof Error ? caught.message : String(caught)}`)
+      reducer.addNotice(t('notice.connectionUnavailable', { reason: caught instanceof Error ? caught.message : String(caught) }))
       rerender()
     }
   }
@@ -396,6 +422,7 @@ async function runPlain(
   options: RunTerminalOptions,
   input: NodeJS.ReadableStream & { isTTY?: boolean },
   output: NodeJS.WritableStream & { isTTY?: boolean },
+  language: ResolvedLanguage,
 ): Promise<number> {
   const backend = options.backend
   const done = Promise.withResolvers<number>()
@@ -404,6 +431,7 @@ async function runPlain(
   let sessionId: string | undefined
   let closing = false
   const write = (text: string): void => { output.write(`${text}\n`) }
+  if (language.problem !== undefined) write(`! ${languageProblemText(language.problem)}`)
 
   const renderEvent = (event: TerminalSessionEvent): string | undefined => {
     switch (event.type) {
@@ -419,7 +447,7 @@ async function runPlain(
       }
       case 'compaction/summary': {
         const text = textOf((event.data as { summary?: unknown }).summary)
-        return text.trim() === '' ? undefined : `[summary] ${text}`
+        return text.trim() === '' ? undefined : `${t('plain.summary')} ${text}`
       }
       case 'tool/call': {
         const name = stringAt(event.data, 'name') ?? 'tool'
@@ -432,12 +460,12 @@ async function runPlain(
       }
       case 'turn/end': {
         const kind = stringAt(event.data, 'reason', 'kind')
-        if (kind === 'error') return `! ${stringAt(event.data, 'reason', 'error', 'message') ?? 'turn failed'}`
-        if (kind === 'aborted') return 'turn cancelled'
+        if (kind === 'error') return `! ${stringAt(event.data, 'reason', 'error', 'message') ?? t('plain.turnFailed')}`
+        if (kind === 'aborted') return t('plain.turnCancelled')
         return undefined
       }
       case 'error':
-        return `! ${stringAt(event.data, 'message') ?? 'session error'}`
+        return `! ${stringAt(event.data, 'message') ?? t('plain.sessionError')}`
       default:
         return undefined
     }
@@ -462,13 +490,13 @@ async function runPlain(
 
   const openSession = async (id: string): Promise<void> => {
     sessionId = id
-    write(`Session ${id}`)
+    write(t('plain.session', { id }))
     backend.follow(id, handlers)
   }
 
   backend.onApproval(async request => {
-    write(`[approval] ${request.toolName}`)
-    write('  y = allow once · n = reject · c = cancel')
+    write(t('plain.approval', { tool: request.toolName }))
+    write(t('plain.approvalHint'))
     const answer = await new Promise<string | undefined>(resolve => { rl.question('> ', line => resolve(line.trim().toLowerCase())) })
     return answer === 'y' ? 'allowed-once' : answer === 'n' ? 'rejected' : 'cancelled'
   })
@@ -476,15 +504,23 @@ async function runPlain(
   backend.onQuestion(async questions => {
     const answers: TerminalQuestionAnswer[] = []
     for (const question of questions) {
-      if (question.options !== undefined && question.options.length > 0) {
+      const options = question.options ?? []
+      if (options.length > 0) {
         write(question.question)
-        question.options.forEach((option, index) => write(`  ${index + 1}. ${option.label}`))
-        const line = await new Promise<string | undefined>(resolve => rl.question('> ', resolve))
+        options.forEach((option, index) => write(`  ${index + 1}. ${option.label}`))
+        write(t('plain.questionPrompt'))
+        const line = (await new Promise<string | undefined>(resolve => rl.question('> ', resolve)))?.trim() ?? ''
         const index = Number(line)
-        const selected = Number.isInteger(index) && index >= 1 && index <= question.options!.length
-          ? [question.options[index - 1]!.label]
+        const selected = Number.isInteger(index) && index >= 1 && index <= options.length
+          ? [options[index - 1]!.label]
           : []
-        answers.push({ id: question.id, selected })
+        // Anything that is not a row number is the typed answer, so a listed
+        // question never answers itself with an empty selection.
+        answers.push({
+          id: question.id,
+          selected,
+          ...(selected.length === 0 && line !== '' ? { custom: line } : {}),
+        })
       } else {
         const line = await new Promise<string | undefined>(resolve => rl.question(`${question.question} > `, resolve))
         answers.push({ id: question.id, selected: [], ...(line === undefined ? {} : { custom: line }) })
@@ -520,7 +556,7 @@ async function runPlain(
       } else if (command === 'cancel') {
         if (sessionId !== undefined) await backend.cancel(sessionId)
       } else {
-        write(`unknown command /${command ?? ''}`)
+        write(t('plain.unknownCommand', { command: command ?? '' }))
       }
       return
     }

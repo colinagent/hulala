@@ -1,38 +1,46 @@
 /**
- * Help modal: slash commands and keybindings.
+ * Help modal: the commands a reader needs, and the keybindings.
+ *
+ * The list is curated rather than the whole completion table: the panel must
+ * fit above the composer on a short terminal, and `/reasoning`, `/clear` and
+ * `/status` remain discoverable through completion. Descriptions come from the
+ * same message table as the completion menu, so both follow the language.
  *
  * @module hulala-cli/tui/view/overlays/help
  */
 import type { Component } from '@earendil-works/pi-tui'
 import { truncateToWidth } from '@earendil-works/pi-tui'
+import { t, type MessageKey } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
 
-const COMMANDS: readonly string[] = [
-  '/help                 show this list',
-  '/sessions             list and switch Sessions',
-  '/new                  start a new Session in this directory',
-  '/resume [id]          pick a saved Session (or open one by id)',
-  '/model [p/m]          select the model for later steps',
-  '/login [provider]     add a provider API key (stored by the Host)',
-  '/rename <title>       rename the current Session',
-  '/cancel               cancel the running turn',
-  '/status               show Session and turn state',
-  '/editor, /terminal    打开/关闭 Neovim、内置终端列（同 Ctrl-F / Ctrl-T）',
-  '/quit                 detach (the Host keeps running)',
+/** The curated command list, with each description's message key. */
+const COMMANDS: ReadonlyArray<readonly [usage: string, description: MessageKey]> = [
+  ['/help', 'slash.help'],
+  ['/sessions', 'slash.sessions'],
+  ['/new', 'slash.new'],
+  ['/resume [id]', 'slash.resume'],
+  ['/model [provider/model]', 'slash.model'],
+  ['/login [provider]', 'slash.login'],
+  ['/rename <title>', 'slash.rename'],
+  ['/cancel', 'slash.cancel'],
+  ['/status', 'slash.status'],
+  ['/editor, /terminal', 'help.columns'],
+  ['/language [en|zh-CN]', 'slash.language'],
+  ['/quit', 'slash.quit'],
 ]
 
-const KEYS: readonly string[] = [
-  'Enter 提交（回合运行中则插话）· Alt-Enter 排队 · Alt-Up 回收待发消息 · Ctrl-J 换行',
-  '↑/↓ 或 Ctrl-N/P 上下（历史/列表）· Tab 补全',
-  'Esc 取消当前回合 · 空闲时进左侧会话栏（草稿保留）',
-  'Ctrl-C 取消/退出 · Ctrl-Q 退出 · Ctrl-L 重绘 · Ctrl-O 展开/折叠工具输出',
-  'Ctrl-D 隐藏/显示对话栏 · Ctrl-T 开/关终端列 · Ctrl-F 开/关 Neovim 列',
-  'Ctrl-G 开/关会话栏 · Ctrl-[ / Ctrl-] 会话↔对话↔侧栏（只移光标）',
-  '会话栏：↑↓/j k/Ctrl-N P 移动 · Enter 切换 · n 新建 · / 搜索 · ←/→ 展开 all · r 刷新 · Esc 回输入框',
-  '会话栏最多先列 30 个：More 行上 Enter 展开其余（Less 收回）',
-  '鼠标点击行首 ▸ 展开/折叠该行',
-]
+const KEY_LINES = [
+  'help.key.submit',
+  'help.key.move',
+  'help.key.escape',
+  'help.key.exit',
+  'help.key.columns',
+  'help.key.railKeys',
+  'help.key.rail',
+  'help.key.more',
+  'help.key.mouse',
+] as const
 
 export interface HelpOverlayOptions {
   color: boolean
@@ -53,10 +61,12 @@ export class HelpOverlay implements Component {
     const panelWidth = width
     const inner = panelWidth - 4
     const body: string[] = []
-    for (const command of COMMANDS) body.push(truncateToWidth(command, inner))
-    body.push(s.accent('按键'))
-    for (const key of KEYS) body.push(s.dim(truncateToWidth(key, inner)))
-    return panel(panelWidth, '帮助', body, [s.dim('任意键关闭')])
+    for (const [usage, description] of COMMANDS) {
+      body.push(truncateToWidth(`${usage.padEnd(24)} ${t(description)}`, inner))
+    }
+    body.push(s.accent(t('help.keys')))
+    for (const key of KEY_LINES) body.push(s.dim(truncateToWidth(t(key), inner)))
+    return panel(panelWidth, t('help.title'), body, [s.dim(t('help.close'))])
   }
 
   handleInput(_data: string): void {

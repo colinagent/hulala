@@ -17,9 +17,9 @@ import {
   checkForUpdate,
   latestRelease,
   releaseAvailable,
-  updateNotice,
   UPDATE_CACHE_TTL_MS,
 } from '../src/update/check.js'
+import { t } from '../src/tui/i18n/index.js'
 import { releaseArchivePath, writeReleaseSidecar } from '../src/distribution/releaseCache.js'
 import { packageManagerUpdate } from '../src/update/packageManager.js'
 
@@ -76,8 +76,8 @@ test('a newer release is reported and cached for the next startup', async () => 
 
   const first = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 1_000 })
   expect(first).toEqual({ currentVersion: '0.1.8', latestVersion: '0.2.0' })
-  expect(updateNotice(first!)).toContain('0.1.8 → 0.2.0')
-  expect(updateNotice(first!)).toContain('hulala update')
+  expect(t('update.available', { current: first!.currentVersion, latest: first!.latestVersion })).toContain('0.1.8 → 0.2.0')
+  expect(t('update.available', { current: first!.currentVersion, latest: first!.latestVersion })).toContain('hulala update')
 
   const cached = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 2_000 })
   expect(cached).toEqual(first)
@@ -281,7 +281,7 @@ test('a release that is already downloaded is announced as ready to install', as
   // Nothing downloaded yet: the reminder points at the shell command.
   const available = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 1_000 })
   expect(available?.downloaded).toBeUndefined()
-  expect(updateNotice(available!)).toContain('hulala update')
+  expect(t('update.available', { current: available!.currentVersion, latest: available!.latestVersion })).toContain('hulala update')
 
   // `hulala update --background` leaves the archive next to its index facts.
   const archive = releaseArchivePath(paths.data, '0.2.0')
@@ -291,7 +291,7 @@ test('a release that is already downloaded is announced as ready to install', as
 
   const ready = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 2_000 })
   expect(ready).toEqual({ currentVersion: '0.1.8', latestVersion: '0.2.0', downloaded: true })
-  expect(updateNotice(ready!)).toContain('/update')
+  expect(t('update.downloaded', { version: ready!.latestVersion })).toContain('/update')
 })
 
 test('hulala update downloads when nothing is cached, reuses a prefetched release and prunes the cache', async () => {

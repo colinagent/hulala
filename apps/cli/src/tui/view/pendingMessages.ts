@@ -15,18 +15,15 @@
  */
 import { truncateToWidth, type Component } from '@earendil-works/pi-tui'
 import type { PendingState } from '../data/viewModel.js'
+import { t } from '../i18n/index.js'
 import { buildStyles } from './theme.js'
 
-/** Label prefix pi uses for text the running turn will claim. */
-const STEERING = 'Steering: '
-/** Label prefix pi uses for a follow-up turn. */
-const FOLLOW_UP = 'Follow-up: '
 /** Left margin shared with the transcript body. */
 const INDENT = 2
 
 /** Collapse an occurrence to the single line the pending block shows. */
 function oneLine(item: { text?: string | undefined }): string {
-  if (item.text === undefined) return '(attachments)'
+  if (item.text === undefined) return t('pending.attachments')
   return item.text.replace(/\s+/gu, ' ').trim()
 }
 
@@ -52,9 +49,9 @@ export class PendingMessages implements Component {
     const row = (label: string, text: string): string =>
       ' '.repeat(INDENT) + styles.dim(truncateToWidth(`${label}${text}`, inner))
     const lines: string[] = ['']
-    for (const item of steering) lines.push(row(STEERING, oneLine(item)))
-    for (const item of followUp) lines.push(row(FOLLOW_UP, oneLine(item)))
-    lines.push(' '.repeat(INDENT) + styles.dim(truncateToWidth('↳ alt+up to edit all queued messages', inner)))
+    for (const item of steering) lines.push(row(t('pending.steering'), oneLine(item)))
+    for (const item of followUp) lines.push(row(t('pending.followUp'), oneLine(item)))
+    lines.push(' '.repeat(INDENT) + styles.dim(truncateToWidth(t('pending.editHint'), inner)))
     return lines
   }
 }

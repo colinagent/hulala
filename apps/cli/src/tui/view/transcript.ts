@@ -28,6 +28,7 @@ import {
 } from '@earendil-works/pi-tui'
 import type { TranscriptItem } from '../data/viewModel.js'
 import { buildStyles, buildTheme } from './theme.js'
+import { t } from '../i18n/index.js'
 import { COLLAPSED, EXPANDED, GUTTER } from './rowGlyph.js'
 import { RunningRow } from './runningRow.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
@@ -207,7 +208,7 @@ export class Transcript implements Component {
         return new Text(this.styles.error(`! ${item.message}`), 2, 0)
       case 'summary': {
         const rule = '─'.repeat(20)
-        return new Text(this.styles.dim(`${rule}\nSummary\n${item.text}\n${rule}`), 2, 0)
+        return new Text(this.styles.dim(`${rule}\n${t('transcript.summary')}\n${item.text}\n${rule}`), 2, 0)
       }
       case 'notice':
         return new Text(item.tone === 'warn' ? this.styles.warn(item.text) : this.styles.dim(item.text), 2, 0)

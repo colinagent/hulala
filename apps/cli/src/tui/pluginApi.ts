@@ -19,6 +19,7 @@ import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Component } from '@earendil-works/pi-tui'
 import { PLUGIN_API_VERSION } from '../plugins/manifest.js'
+import { t } from './i18n/index.js'
 import type {
   Disposable,
   SeatId,
@@ -81,7 +82,7 @@ export function createPluginApi(ctx: Context, manifest: PluginManifest, dataRoot
           } catch (caught) {
             failed = true
             const reason = caught instanceof Error ? caught.message : String(caught)
-            reducer.addError(`plugin ${manifest.id}: "${options.id}" cannot render: ${reason}`)
+            reducer.addError(t('error.pluginRender', { plugin: manifest.id, id: options.id, reason }))
             render.request()
             return [marker(width)]
           }

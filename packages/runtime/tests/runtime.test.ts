@@ -122,6 +122,53 @@ test('Creator mode adds the inspect registry, and turning it off removes it', as
   }
 })
 
+test('refreshes agent presets from the installed bundle, not a frozen profile copy', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'hulala-runtime-preset-'))
+  const repositoryRoot = join(import.meta.dir, '..', '..', '..')
+  const profile = join(root, 'config', 'harness', 'profiles', 'hulala-host', 'cordis.patch.yml')
+  try {
+    const first = await bootRepositoryHarness({
+      repositoryRoot,
+      paths: { root },
+      environment: { DSH_TELEMETRY_DISABLED: '1' },
+    })
+    await first.stop()
+    // A profile seeded by an older bundle carries that bundle's whole preset,
+    // including a tool row a newer release retired. Keeping the copy would make
+    // every later boot fail the preset check instead of starting the agent.
+    const patches = JSON.parse(await readFile(profile, 'utf8')) as Array<Record<string, unknown>>
+    let injected = false
+    for (const patch of patches) {
+      if (!Array.isArray(patch.insert)) continue
+      for (const row of patch.insert as Array<Record<string, unknown>>) {
+        if (row.name !== '@deepseek-ai/dsh-agent-preset') continue
+        const config = row.config as { plugins?: Array<Record<string, unknown>> }
+        config.plugins = [...config.plugins ?? [], {
+          id: 'tool-subagent-list-agents',
+          name: '@deepseek-ai/dsh-tool-subagent-control/list-agents',
+        }]
+        injected = true
+      }
+    }
+    expect(injected).toBe(true)
+    await writeFile(profile, JSON.stringify(patches, null, 2), 'utf8')
+
+    const second = await bootRepositoryHarness({
+      repositoryRoot,
+      paths: { root },
+      environment: { DSH_TELEMETRY_DISABLED: '1' },
+    })
+    try {
+      expect(second.state()).toBe('running')
+    } finally {
+      await second.stop()
+    }
+    expect(await readFile(profile, 'utf8')).not.toContain('tool-subagent-list-agents')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
 test('replaces stale Host rows in an existing profile', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-runtime-profile-'))
   try {

@@ -4,11 +4,17 @@
  *
  * This mirrors the DeepSeek Harness web client's row derivation
  * (`packages/client/ui-tool/src/client/tool/models/tool-call-model.ts` at
- * 0.2.1-rc.2) so the same Session record reads the same in the terminal and in
+ * 0.2.2-rc.1) so the same Session record reads the same in the terminal and in
  * the browser: the same variant classification, the same title, the same
- * argument key preference per variant, the same cwd-relative path and the same
- * lifecycle state. It is a reimplementation of those rules, not a copy of the
- * client bundle — that package is a browser plugin and cannot be imported here.
+ * argument key preference per variant, the same cwd-relative path, the same
+ * lifecycle state and the same failure line. It is a reimplementation of those
+ * rules, not a copy of the client bundle — that package is a browser plugin and
+ * cannot be imported here.
+ *
+ * Two upstream shapes stay out. A `preparing` row describes a call the web client
+ * has not sent yet, and a terminal row only exists once the Host recorded it. The
+ * keyed Cordis verb cards are registered by name on the web side; here those calls
+ * take the generic row like any other tool.
  *
  * Only the shell exit-status marker is parsed locally instead of reused from
  * `@deepseek-ai/dsh-shell`: that package's entry also carries the shell

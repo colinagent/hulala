@@ -23,6 +23,7 @@ import {
   type Component,
 } from '@earendil-works/pi-tui'
 import type { TerminalSession } from '../data/remote.js'
+import { t } from '../i18n/index.js'
 import { listMove } from '../keys.js'
 import { fitPath, padEnd } from './pathText.js'
 import { buildStyles } from './theme.js'
@@ -67,12 +68,12 @@ export function relativeTimeLabel(updatedAt: number, now: number): string {
   const HOUR = 3_600_000
   const DAY = 86_400_000
   const diff = Math.max(0, now - updatedAt)
-  if (diff < MINUTE) return 'now'
-  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m`
-  if (diff < DAY) return `${Math.floor(diff / HOUR)}h`
-  if (diff < 30 * DAY) return `${Math.floor(diff / DAY)}d`
-  if (diff < 365 * DAY) return `${Math.floor(diff / (30 * DAY))}mo`
-  return `${Math.floor(diff / (365 * DAY))}y`
+  if (diff < MINUTE) return t('rail.now')
+  if (diff < HOUR) return t('rail.minutes', { n: Math.floor(diff / MINUTE) })
+  if (diff < DAY) return t('rail.hours', { n: Math.floor(diff / HOUR) })
+  if (diff < 30 * DAY) return t('rail.days', { n: Math.floor(diff / DAY) })
+  if (diff < 365 * DAY) return t('rail.months', { n: Math.floor(diff / (30 * DAY)) })
+  return t('rail.years', { n: Math.floor(diff / (365 * DAY)) })
 }
 
 /**
@@ -129,7 +130,7 @@ export function sameDirectory(left: string | undefined, right: string): boolean 
 export function sessionLabel(session: TerminalSession): string {
   const title = session.title?.trim() ?? ''
   if (title !== '') return title
-  if (session.blank) return 'new session'
+  if (session.blank) return t('rail.newLabel')
   return `${session.sessionId.slice(0, 4)}…${session.sessionId.slice(-4)}`
 }
 
@@ -451,7 +452,7 @@ export class SessionRail implements Component {
     // The caret the hardware cursor draws replaces the `▏` glyph: two carets in
     // one box would fight over the same cell.
     const caret = focused && this.searching
-    const plain = `${state.query === '' ? 'search' : state.query}${this.searching && !caret ? '▏' : ''}`
+    const plain = `${state.query === '' ? t('rail.search') : state.query}${this.searching && !caret ? '▏' : ''}`
     const clipped = clip(plain, Math.max(1, width - 2))
     const text = state.query === '' && !this.searching ? styles.dim(clipped) : clipped
     const cursor = caret ? `${CURSOR_MARKER}${renderFakeCursor(' ')}` : ''
@@ -467,11 +468,11 @@ export class SessionRail implements Component {
     caret: boolean,
   ): string {
     if (row.kind === 'new') {
-      const label = '+ new session'
+      const label = t('rail.newRow')
       return selected ? selectedRow(padEnd(label, width), styles, caret) : padEnd(label, width)
     }
     if (row.kind === 'more') {
-      const label = row.revealed ? '↑ Less' : `↓ More · ${row.hidden}`
+      const label = row.revealed ? t('rail.less') : t('rail.more', { hidden: row.hidden })
       return selected ? selectedRow(padEnd(label, width), styles, caret) : padEnd(styles.dim(label), width)
     }
     const session = row.session
@@ -499,7 +500,7 @@ export class SessionRail implements Component {
     selected: boolean,
     caret: boolean,
   ): string {
-    const label = `${state.allExpanded ? '▾' : '▸'} all`
+    const label = `${state.allExpanded ? '▾' : '▸'} ${t('rail.all')}`
     if (selected) return selectedRow(padEnd(label, width), styles, caret)
     return padEnd(styles.dim(label), width)
   }

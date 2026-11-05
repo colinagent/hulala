@@ -25,7 +25,8 @@ import {
   type Focusable,
 } from '@earendil-works/pi-tui'
 import type { TerminalProvider } from '../../data/remote.js'
-import { LIST_MOVE_HINT, listMove } from '../../keys.js'
+import { t } from '../../i18n/index.js'
+import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
 
@@ -48,10 +49,10 @@ function providerCapacity(rows: number): number {
 /** One line of provider status, worded like pi's auth selector. */
 function statusOf(provider: TerminalProvider, styles: ReturnType<typeof buildStyles>): string {
   if (provider.configured) {
-    const source = provider.source === undefined || provider.source === 'file' ? 'configured' : provider.source
-    return styles.ok(` ✓ ${source}`)
+    const source = provider.source === undefined || provider.source === 'file' ? t('selector.login.configured') : ` ✓ ${provider.source}`
+    return styles.ok(source)
   }
-  return styles.dim(' • not configured')
+  return styles.dim(t('selector.login.notConfigured'))
 }
 
 export class ProviderSelector extends Container implements Focusable {
@@ -74,14 +75,14 @@ export class ProviderSelector extends Container implements Focusable {
 
     this.addChild(new Rule(s.dim))
     this.addChild(new Spacer(1))
-    this.addChild(new TruncatedText(s.accent(s.bold('Select a provider to add an API key:')), 1, 0))
+    this.addChild(new TruncatedText(s.accent(s.bold(t('selector.login.selectTitle'))), 1, 0))
     this.addChild(new Spacer(1))
-    this.search = new Input({ prompt: `  ${s.accent('❯')} `, placeholder: 'search providers' })
+    this.search = new Input({ prompt: `  ${s.accent('❯')} `, placeholder: t('selector.login.search') })
     this.addChild(this.search)
     this.addChild(new Spacer(1))
     this.addChild(this.list)
     this.addChild(new Spacer(1))
-    this.addChild(new TruncatedText(s.dim(`  ${LIST_MOVE_HINT} · Enter 选择 · Esc 取消 · 提供商由 Host 的模型目录提供`), 0, 0))
+    this.addChild(new TruncatedText(s.dim(`  ${t('selector.login.footer')}`), 0, 0))
     this.addChild(new Rule(s.dim))
     this.updateList()
   }
@@ -112,7 +113,7 @@ export class ProviderSelector extends Container implements Focusable {
     const s = this.styles
     this.list.clear()
     if (this.filtered.length === 0) {
-      this.list.addChild(new TruncatedText(s.dim('  No matching providers'), 1, 0))
+      this.list.addChild(new TruncatedText(s.dim(t('selector.login.noMatch')), 1, 0))
     }
     const capacity = providerCapacity(this.options.rows())
     const window = windowOf(this.filtered, this.cursor, capacity)
@@ -202,14 +203,14 @@ export class ApiKeyPanel extends Container implements Focusable {
 
     this.addChild(new Rule(s.dim))
     this.addChild(new Spacer(1))
-    this.addChild(new TruncatedText(s.accent(s.bold(`Login to ${provider.name}`)), 1, 0))
+    this.addChild(new TruncatedText(s.accent(s.bold(t('selector.login.apiKeyTitle', { provider: provider.name }))), 1, 0))
     this.addChild(new Spacer(1))
-    this.addChild(new TruncatedText(`Enter an API key for ${provider.name}${provider.baseURL === undefined ? '' : s.dim(` (${provider.baseURL})`)}:`, 1, 0))
+    this.addChild(new TruncatedText(`${t('selector.login.apiKeyPrompt', { provider: provider.name })}${provider.baseURL === undefined ? '' : s.dim(` (${provider.baseURL})`)}`, 1, 0))
     this.addChild(new Spacer(1))
     this.addChild(this.field)
     this.addChild(new Spacer(1))
-    this.addChild(new TruncatedText(s.dim('The key is stored by the Host in its credential store, not in Hulala settings or logs.'), 1, 0))
-    this.addChild(new TruncatedText(s.dim('Enter 保存 · Ctrl-U 清空 · Esc 取消'), 1, 0))
+    this.addChild(new TruncatedText(s.dim(t('selector.login.storage')), 1, 0))
+    this.addChild(new TruncatedText(s.dim(t('selector.login.footerKeys')), 1, 0))
     this.addChild(new Rule(s.dim))
   }
 

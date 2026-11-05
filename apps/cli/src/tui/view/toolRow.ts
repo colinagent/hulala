@@ -14,6 +14,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from '@earendil-works/pi-tui'
 import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
 import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
+import { t } from '../i18n/index.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -66,8 +67,8 @@ export class ToolRowView implements Component {
       ? `  ${s.dim(this.seconds(this.item.durationMs))}`
       : ''
     const exit = row.exit === undefined ? ''
-      : row.exit.signal !== undefined ? `  ${s.error(`signal ${row.exit.signal}`)}`
-        : `  ${s.error(`exit ${row.exit.code ?? '?'}`)}`
+      : row.exit.signal !== undefined ? `  ${s.error(t('tool.signal', { signal: row.exit.signal }))}`
+        : `  ${s.error(t('tool.exit', { code: String(row.exit.code ?? '?') }))}`
 
     let line = `${marker(iconBox(ICONS[row.variant]))} ${row.title}`
     if (row.summary !== '') {
@@ -83,10 +84,10 @@ export class ToolRowView implements Component {
       const command = truncateToWidth(row.command, Math.max(1, inner - INDENT.length - 2), '…')
       lines.push(`${INDENT}${s.dim(`❯ ${command}`)}`)
     } else if (row.body !== undefined) {
-      lines.push(...this.block('IN', row.body, width, text => s.dim(text)))
+      lines.push(...this.block(t('tool.in'), row.body, width, text => s.dim(text)))
     }
     if (row.output !== undefined) {
-      const label = row.command === undefined && row.body !== undefined ? 'OUT' : undefined
+      const label = row.command === undefined && row.body !== undefined ? t('tool.out') : undefined
       lines.push(...this.block(label, row.output, width, text => s.dim(text)))
     }
     return lines
@@ -126,7 +127,7 @@ export class ToolRowView implements Component {
     const shown = wrapped.slice(0, OUTPUT_LINES)
     for (const line of shown) lines.push(`${INDENT}${INDENT}${style(line)}`)
     if (wrapped.length > shown.length) {
-      lines.push(`${INDENT}${INDENT}${style(`… +${wrapped.length - shown.length} lines`)}`)
+      lines.push(`${INDENT}${INDENT}${style(t('tool.moreLines', { n: wrapped.length - shown.length }))}`)
     }
     return lines
   }

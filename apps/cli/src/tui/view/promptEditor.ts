@@ -30,7 +30,7 @@ import {
   type TuiMouseEvent,
   type TuiMouseEventResult,
 } from '@earendil-works/pi-tui'
-import { SLASH_COMMANDS, listMove } from '../keys.js'
+import { slashCommands, listMove } from '../keys.js'
 import { buildStyles } from './theme.js'
 
 interface MenuEntry {
@@ -302,7 +302,7 @@ export class PromptEditor extends Editor {
 
   private completeSlash(prefix: string): MenuEntry[] {
     const needle = prefix.toLowerCase()
-    return SLASH_COMMANDS
+    return slashCommands()
       .filter(command => `/${command.name}`.toLowerCase().startsWith(needle))
       .map(command => ({ value: `/${command.name}`, ...(command.description === undefined ? {} : { description: command.description }) }))
   }

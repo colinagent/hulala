@@ -15,7 +15,14 @@ The terminal client performs the DSH `/connect?token=...` exchange for a signed
 Cookie, then uses the native `/api` Remote calls and `/api/remote.mux` event
 streams. It does not start a private Agent Runtime and there is no second REST
 surface. `/help` inside the client lists `/sessions`, `/new`, `/model`,
-`/cancel`, `/status`, `/editor`, `/terminal` and `/quit`.
+`/cancel`, `/status`, `/editor`, `/terminal`, `/language` and `/quit`.
+
+The interface language is English or Chinese. A first launch with no saved
+choice asks once; `/language` (or `/language en` / `/language zh-CN`) changes it
+at any time and remembers the answer. `HULALA_LANG=en|zh-CN` overrides the saved
+choice for one run without writing it. The language applies to the client's own
+copy only: Session titles, prompts, assistant output and tool results stay in
+the language they arrived in.
 
 The frame has three columns: the Session rail on the left, the conversation in
 the middle, and one sidebar column on the right — the built-in terminal on
