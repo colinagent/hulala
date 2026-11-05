@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala" width="128" />
   <h1>Hulala</h1>
-  <p>面向黑客的 DeepSeek Harness。</p>
-  <p>一个 TUI：内置 Neovim、真实 shell，还有一个你永远不用看着的 daemon。</p>
+  <p>面向 hacker 的 DeepSeek Harness。</p>
+  <p>一个 TUI：内置 Neovim、真实 shell，还有一个你永远不用看着的守护进程。</p>
   <p><a href="README.md">English</a> · <a href="https://hulala.ai/zh-CN/">官网</a></p>
 </div>
 
@@ -18,7 +18,7 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 
 - **一个窗口三列** —— 左边会话栏，中间对话，右边一个侧栏：`Ctrl+T` 是内置终端，
   `Ctrl+F` 是 Neovim。
-- **不需要 tmux，也不需要启动脚本** —— Host 本身就是 daemon。每个窗口都是连到它的
+- **不需要 tmux，也不需要启动脚本** —— Host 本身就是守护进程。每个窗口都是连到它的
   客户端，`Ctrl-Q` 只是断开，turn 继续跑。
 - **自带 Neovim 和 ripgrep** —— 什么都不用装。每个内置二进制都是 `$HULALA_HOME/bin`
   下的真实文件，`bin/` 是追加到子进程 `PATH` 的，所以你自己装的工具仍然优先。
@@ -32,17 +32,17 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 
 ## 不需要 tmux
 
-`hulala` 不是那种每个窗口启动一个、关窗就没了的程序。一个 Host daemon 拥有 state root；
+`hulala` 不是那种每个窗口启动一个、关窗就没了的程序。一个 Host 守护进程拥有 state root；
 每个终端窗口都是连到那个进程的客户端，想开几个开几个。
 
 ```sh
 hulala host start        # 这个 state root 唯一的 Host，detached
 hulala                   # 附着窗口 —— 开几个终端都行
-hulala host status       # daemon 现在的状态
+hulala host status       # 守护进程现在的状态
 hulala host stop         # 唯一能停掉它的东西
 ```
 
-客户端通过 state root 里的 `endpoint.json` 找到 daemon，所以健康的 Host 在响应时，
+客户端通过 state root 里的 `endpoint.json` 找到守护进程，所以健康的 Host 在响应时，
 第二个窗口不会偷偷起一个自己的。关窗（`Ctrl-Q`）只是断开：模型调用、工具调用和
 Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`、裸 `&` 就是在手搜这件事；
 这里是程序默认的行为，而 `hulala host stop` 是明确的终止方式。
@@ -183,7 +183,7 @@ hulala                  # 连上本机的 Host
 hulala update           # 装最新版本
 hulala update --check   # 只看不装
 hulala rollback         # 回到上一个版本
-hulala host stop        # 停掉 daemon（唯一能停掉它的东西）
+hulala host stop        # 停掉守护进程（唯一能停掉它的东西）
 ```
 
 支持 `darwin-arm64`、`darwin-x64`、`linux-x64`、`linux-arm64`。Windows 尚未实现。
@@ -256,7 +256,7 @@ bun 会静默忽略补丁，产物里装的是没打补丁的上游文件。这�
 
 ```text
 apps/cli       终端客户端、插件宿主、程序生命周期
-apps/server    Hulala Host daemon 壳（DSH webServer + connection）
+apps/server    Hulala Host 守护进程壳（DSH webServer + connection）
 apps/website   官网和下载元数据
 packages/runtime             DSH 组合（一个原生 Agent Loop）
 packages/host-client         发现、detached 启动、共享客户端契约

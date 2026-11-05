@@ -17,8 +17,8 @@ const metadataCopy = {
   },
   "zh-CN": {
     home: {
-      title: "Hulala 呼啦啦｜面向黑客的 DeepSeek Harness",
-      description: "DeepSeek Harness 的终端客户端：一个 Host daemon、多个窗口，对话旁边是 Neovim 和真实 shell。macOS 与 Linux，一行命令安装。",
+      title: "Hulala 呼啦啦｜面向 hacker 的 DeepSeek Harness",
+      description: "DeepSeek Harness 的终端客户端：一个 Host 守护进程、多个窗口，对话旁边是 Neovim 和真实 shell。macOS 与 Linux，一行命令安装。",
     },
     download: {
       title: "安装 Hulala｜下载与安装说明",
