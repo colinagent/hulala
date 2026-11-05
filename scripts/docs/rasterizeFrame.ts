@@ -161,7 +161,7 @@ const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, 
       // part of the cell, and a font's glyph leaves gaps that read as artefacts.
       const block = blockRect(text)
       if (block !== undefined) {
-        spans.push(`<span style="left:${(col * CELL).toFixed(2)}px;top:${(row * LINE).toFixed(2)}px;width:${(width * CELL).toFixed(2)}px;height:${LINE}px;background:${cell.fg};${block}"></span>`)
+        spans.push(`<span style="left:${(col * CELL).toFixed(2)}px;top:${(row * LINE).toFixed(2)}px;width:${(width * CELL + 0.5).toFixed(2)}px;height:${LINE + 0.5}px;background:${cell.fg};${block}"></span>`)
         col += width
         continue
       }
@@ -179,11 +179,14 @@ const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, 
         continue
       }
       if (text.trim() !== '' || cell.bg !== undefined) {
+        // Filled cells overlap by half a pixel: cell sizes are fractional, and
+        // without the overlap the page shows through as seams between fills.
+        const bleed = cell.bg === undefined ? 0 : 0.5
         const styles = [
           `left:${(col * CELL).toFixed(2)}px`,
           `top:${(row * LINE).toFixed(2)}px`,
-          `width:${(width * CELL).toFixed(2)}px`,
-          'height:' + LINE + 'px',
+          `width:${(width * CELL + bleed).toFixed(2)}px`,
+          'height:' + (LINE + bleed) + 'px',
           'line-height:' + LINE + 'px',
           `color:${cell.fg}`,
           cell.bg ? `background:${cell.bg}` : '',

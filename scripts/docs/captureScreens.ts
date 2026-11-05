@@ -239,7 +239,7 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 const TREE = process.argv.includes('--tree')
 
 const SHOTS: Array<{ name: string; keys?: string[] }> = TREE
-  ? [{ name: '04-files', keys: ['\u0006', `${'\u001b[B'.repeat(12)}\r`] }]
+  ? [{ name: '04-files', keys: ['\u0006', `${'\u001b[B'.repeat(16)}\r`] }]
   : [
       { name: '01-conversation' },
       { name: '02-terminal', keys: ['\u0014'] },
@@ -262,7 +262,7 @@ async function main(): Promise<void> {
         input.write(key)
         // The editor needs real time to start Neovim, paint its explorer and
         // open the file the tree lands on.
-        await wait(TREE ? (index === 0 ? 6000 : 2500) : 900)
+        await wait(TREE ? (index === 0 ? 6000 : 1600) : 900)
       }
     }
     const ansiPath = join(dir, `${shot.name}.ansi`)
