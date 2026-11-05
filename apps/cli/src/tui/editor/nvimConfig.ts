@@ -176,19 +176,57 @@ end
 -- column that is meant to read as one, and this client reserves background
 -- blocks for panels, never for selection.
 vim.api.nvim_set_hl(0, "HulalaTree", { fg = fg, bg = theme_value("pmenu", bg) })
-vim.api.nvim_set_hl(0, "HulalaTreeCursor", { bg = theme_value("pmenuSelected", bg) })
+-- The opened file is marked with ink, never a band: hover already changes the
+-- background, so a filled row would read as a hover and split the column into
+-- two surfaces.
+vim.api.nvim_set_hl(0, "HulalaTreeCurrent", { fg = theme_value("title", fg), bold = true })
 
+--- Is this window one of the tree's windows?
+---@param win integer
 local function tree_window(win)
+  if win == nil or win == 0 or not vim.api.nvim_win_is_valid(win) then return false end
   local filetype = vim.bo[vim.api.nvim_win_get_buf(win)].filetype
-  if not filetype:match("^snacks_picker") and filetype ~= "snacks_explorer" then return end
-  -- One surface for the whole column, whatever the tree is: the float it opens
-  -- as, and the window it becomes next to an opened file. The selected entry is
-  -- the only row allowed a different background.
-  vim.wo[win].winhighlight = "Normal:HulalaTree,NormalFloat:HulalaTree,EndOfBuffer:HulalaTree,SignColumn:HulalaTree,CursorLine:HulalaTreeCursor,SnacksPickerCursorLine:HulalaTreeCursor"
+  return filetype:match("^snacks_picker") ~= nil or filetype == "snacks_explorer"
 end
 
-vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter" }, {
-  callback = function(event) tree_window(event.win) end,
+--- One surface per tree window, and no cursor band.
+---@param win integer
+local function style_tree(win)
+  if not tree_window(win) then return end
+  vim.wo[win].cursorline = false
+  vim.wo[win].winhighlight = "Normal:HulalaTree,NormalFloat:HulalaTree,EndOfBuffer:HulalaTree,SignColumn:HulalaTree,CursorLine:HulalaTree"
+end
+
+--- Mark the row of the buffer that is open, by colouring its text.
+local function mark_open_file()
+  local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(0), ":t")
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if tree_window(win) then
+      local buf = vim.api.nvim_win_get_buf(win)
+      local ns = vim.api.nvim_create_namespace("hulala-tree-current")
+      vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+      if name ~= "" then
+        local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        for index, text in ipairs(lines) do
+          if text:find(name, 1, true) ~= nil then
+            pcall(vim.api.nvim_buf_set_extmark, buf, ns, index - 1, 0, { end_col = #text, hl_group = "HulalaTreeCurrent" })
+            break
+          end
+        end
+      end
+    end
+  end
+end
+
+vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter", "WinEnter", "BufEnter" }, {
+  -- The win field is 0 for some events, so the current window is the fallback; a
+  -- failure here must never turn into a message in the editor column.
+  callback = function(event)
+    local win = event.win
+    if win == nil or win == 0 then win = vim.api.nvim_get_current_win() end
+    pcall(style_tree, win)
+    pcall(mark_open_file)
+  end,
 })
 
 -- Bundled tree-sitter parsers, published next to the editor's runtime tree.
