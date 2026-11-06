@@ -6,6 +6,7 @@ import { faintCursorSgr } from '../../src/tui/view/theme.js'
 import { Transcript } from '../../src/tui/view/transcript.js'
 import { RunningRow, formatRunDuration } from '../../src/tui/view/runningRow.js'
 import { ResumeOverlay } from '../../src/tui/view/overlays/resume.js'
+import { HelpOverlay } from '../../src/tui/view/overlays/help.js'
 import { emptyMetrics } from '../../src/tui/data/viewModel.js'
 import type { TranscriptItem } from '../../src/tui/data/viewModel.js'
 import type { TerminalSession } from '../../src/tui/data/remote.js'
@@ -22,6 +23,33 @@ test('StatusBar never carries the version', () => {
   expect(line).not.toContain('hulala v')
   expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
   expect(visibleWidth(line)).toBe(80)
+})
+
+test('StatusBar names the thinking level next to the model', () => {
+  const bar = new StatusBar(() => ({
+    model: { provider: 'deepseek-official', model: 'deepseek-flash' },
+    thinkingLevel: 'max',
+    metrics: emptyMetrics(),
+    disconnected: false,
+  }), false, () => NO_HINT)
+  const line = bar.render(100)[0] ?? ''
+  expect(line.trimEnd().endsWith('deepseek-official/deepseek-flash • max')).toBe(true)
+  expect(visibleWidth(line)).toBe(100)
+})
+
+test('StatusBar keeps the level visible when the row is too narrow for it', () => {
+  const bar = new StatusBar(() => ({
+    model: { provider: 'deepseek-official', model: 'deepseek-flash' },
+    thinkingLevel: 'high',
+    metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
+    disconnected: false,
+  }), false, () => NO_HINT)
+  const line = bar.render(24)[0] ?? ''
+  // The right slot keeps its tail, so the level survives the clipping…
+  expect(line.trimEnd().endsWith('• high')).toBe(true)
+  expect(line).toContain('…')
+  // …and neither the reading nor the model runs past the band.
+  expect(visibleWidth(line)).toBe(24)
 })
 
 test('StatusBar centres the readings between the hint and the model', () => {
@@ -95,6 +123,22 @@ test('StatusBar shows disconnected state on the left', () => {
   const line = bar.render(80)[0] ?? ''
   expect(line).toContain('disconnected')
   expect(line).not.toContain('hulala v')
+})
+
+test('HelpOverlay keeps its close hint inside the terminal height', () => {
+  const help = (rows: number): string[] => new HelpOverlay({
+    color: false,
+    rows: () => rows,
+    onClose: () => undefined,
+  }).render(74)
+  const tall = help(40).join('\n')
+  expect(tall).toContain('/thinking [level]')
+  expect(tall).toContain('Click the ▸')
+  const short = help(24)
+  // pi-tui clamps a modal to the terminal height and drops its last lines, so
+  // the panel gives up trailing detail rows instead of its close hint.
+  expect(short.slice(0, 24).join('\n')).toContain('any key closes')
+  expect(short.join('\n')).not.toContain('Click the ▸')
 })
 
 test('CwdBar renders just the working directory (no hint)', () => {

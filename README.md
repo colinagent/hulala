@@ -94,20 +94,21 @@ The frame is drivable without a mouse:
 | `Enter` | send; while a turn runs, `Alt-Enter` queues the message as the next turn |
 | `Alt-Up` | take queued messages back into the composer |
 | `Ctrl-O` | expand the tool row under the pointer |
+| `Shift-Tab` | cycle the thinking level of the current model; `/thinking` opens the level picker |
 | `Ctrl-S` | write the editor buffer now (it otherwise autosaves) |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | move the divider beside the focused column: the column on its right grows or shrinks |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | the same move; `Ctrl-Shift-←` / `Ctrl-Shift-→` is the spelling every terminal reports |
 | drag the divider | the same move with the pointer, on either side of the frame |
 | `Shift-PgUp` / `Shift-PgDn` | page the terminal column's own history |
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
-| `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/editor`, `/terminal`, `/cancel`, `/quit` |
+| `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/thinking`, `/editor`, `/terminal`, `/cancel`, `/quit` |
 
 `/help` prints the same list inside the client, which is the version to trust if
 a key is swallowed by your terminal or input method.
 
 The footer is one band across the bottom: a rotating usage hint on the left, the
-context and token readings in the middle, the model on the right, and the
-working directory at the top of the Session rail.
+context and token readings in the middle, and the model with its thinking level
+on the right, and the working directory at the top of the Session rail.
 
 ## Clients
 

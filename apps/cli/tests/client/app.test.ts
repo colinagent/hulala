@@ -30,6 +30,8 @@ interface FakeBackend {
   logins: Array<{ providerId: string; apiKey: string }>
   /** Model selections in `provider/model` form. */
   models: string[]
+  /** Reasoning effort of each model selection, in call order. */
+  efforts: Array<string | undefined>
   /** Directories a new Session was requested in. */
   workspaces: string[]
   /** Session ids the fake Host created. */
@@ -56,6 +58,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
   const cancels: string[] = []
   const logins: Array<{ providerId: string; apiKey: string }> = []
   const models: string[] = []
+  const efforts: Array<string | undefined> = []
   /** Directories `ensureWorkspace` was asked for, in call order. */
   const workspaces: string[] = []
   /** Session ids the fake Host handed out. */
@@ -109,13 +112,23 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
           models: [{
             id: 'deepseek-flash',
             name: 'DeepSeek-V4.1-Flash',
-            reasoning: { efforts: [{ id: 'off', name: 'Off' }, { id: 'low', name: 'Low' }], defaultEffort: 'off' },
+            reasoning: {
+              efforts: [
+                { id: 'off', name: 'Off', description: 'Use for simple tasks that do not need reasoning.' },
+                { id: 'low', name: 'Low', description: 'Prefer for routine tasks.' },
+                { id: 'max', name: 'Max', description: 'Reserve for the hardest quality-first tasks.' },
+              ],
+              defaultEffort: 'off',
+            },
           }],
         }],
         failures: [],
       }
     },
-    async selectModel(_sessionId, selection) { models.push(`${selection.provider}/${selection.model}`) },
+    async selectModel(_sessionId, selection) {
+      models.push(`${selection.provider}/${selection.model}`)
+      efforts.push(selection.reasoningEffort)
+    },
     async loginProviders() {
       return [
         { id: 'deepseek-official', name: 'DeepSeek', active: false, configured: false, baseURL: 'https://api.deepseek.com' },
@@ -139,6 +152,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
     cancels,
     logins,
     models,
+    efforts,
     workspaces,
     created,
     followed,
@@ -1087,6 +1101,80 @@ test('TTY mode selects a model from the in-flow selector', async () => {
   await expect(tty.run).resolves.toBe(0)
 })
 
+/** A Session already on the reasoning model, so the picker has levels to offer. */
+function reasoningSession(fake: FakeBackend): void {
+  fake.setSessions([{
+    sessionId: 'session-1234',
+    updatedAt: Date.now(),
+    running: false,
+    blank: false,
+    cwd: '/workspace',
+    model: { provider: 'deepseek-official', model: 'deepseek-flash' },
+  }])
+}
+
+test('the footer names the thinking level and Shift-Tab cycles it', async () => {
+  const fake = fakeBackend()
+  reasoningSession(fake)
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  await waitFor(() => tty.painted().includes('deepseek-official/deepseek-flash • off'), 'footer level')
+  tty.input.write('\u001b[Z') // Shift-Tab
+  await waitFor(() => fake.efforts.length === 1, 'level change')
+  expect(fake.efforts).toEqual(['low'])
+  await waitFor(() => tty.painted().includes('thinking level: low'), 'level notice')
+  await waitFor(() => tty.painted().includes('deepseek-official/deepseek-flash • low'), 'footer after cycle')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('the /thinking picker applies a level for the Session', async () => {
+  const fake = fakeBackend()
+  reasoningSession(fake)
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  tty.input.write('/thinking\r')
+  await waitFor(() => plain(tty.painted()).includes('Thinking Level — deepseek-flash'), 'thinking picker')
+  expect(plain(tty.painted())).toContain('The choice also becomes the default for new Sessions')
+  tty.input.write('\u001b[B') // ↓ from the current `off` to `low`
+  tty.input.write('\r')
+  await waitFor(() => fake.efforts.length === 1, 'level applied')
+  expect(fake.efforts).toEqual(['low'])
+  await waitFor(() => tty.painted().includes('thinking level: low'), 'level notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('/thinking takes an explicit level and rejects one the model lacks', async () => {
+  const fake = fakeBackend()
+  reasoningSession(fake)
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  tty.input.write('/thinking max\r')
+  await waitFor(() => fake.efforts.length === 1, 'level applied')
+  expect(fake.efforts).toEqual(['max'])
+  tty.input.write('/thinking turbo\r')
+  await waitFor(() => tty.painted().includes('unknown thinking level "turbo"; available: off, low, max'), 'rejection')
+  expect(fake.efforts).toEqual(['max'])
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a model selection from another client reaches the footer', async () => {
+  const fake = fakeBackend()
+  reasoningSession(fake)
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.handlers?.onEvent({
+    type: 'model/selection',
+    seq: 9,
+    time: Date.now(),
+    data: { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'max' },
+  })
+  await waitFor(() => tty.painted().includes('deepseek-official/deepseek-flash • max'), 'footer route')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
 test('TTY mode adds a provider API key through the /login panels', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)

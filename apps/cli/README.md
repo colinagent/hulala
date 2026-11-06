@@ -15,7 +15,10 @@ The terminal client performs the DSH `/connect?token=...` exchange for a signed
 Cookie, then uses the native `/api` Remote calls and `/api/remote.mux` event
 streams. It does not start a private Agent Runtime and there is no second REST
 surface. `/help` inside the client lists `/sessions`, `/new`, `/model`,
-`/cancel`, `/status`, `/editor`, `/terminal`, `/language` and `/quit`.
+`/thinking`, `/cancel`, `/status`, `/editor`, `/terminal`, `/language` and `/quit`.
+`Shift-Tab` cycles the thinking level in place, and the footer names the level in
+effect next to the model; a choice made there (or in `/model`) is also the default
+DeepSeek Harness saves for new Sessions.
 
 The interface language is English or Chinese. A first launch with no saved
 choice asks once; `/language` (or `/language en` / `/language zh-CN`) changes it

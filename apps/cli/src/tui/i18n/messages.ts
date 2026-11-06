@@ -24,6 +24,7 @@ export interface MessageTable {
   'slash.new': string
   'slash.resume': string
   'slash.model': string
+  'slash.thinking': string
   'slash.login': string
   'slash.rename': string
   'slash.cancel': string
@@ -42,6 +43,7 @@ export interface MessageTable {
   'help.close': string
   'help.key.submit': string
   'help.key.move': string
+  'help.key.thinking': string
   'help.key.escape': string
   'help.key.exit': string
   'help.key.columns': string
@@ -100,6 +102,10 @@ export interface MessageTable {
   'selector.login.apiKeyPrompt': (params: { provider: string }) => string
   'selector.login.storage': string
   'selector.login.footerKeys': string
+  'selector.thinking.title': string
+  'selector.thinking.default': string
+  'selector.thinking.footer': string
+  'selector.thinking.persists': string
 
   'status.disconnected': string
   'status.update': (params: { version: string }) => string
@@ -125,6 +131,7 @@ export interface MessageTable {
   'hint.quit': string
   'hint.escape': string
   'hint.expand': string
+  'hint.thinking': string
   'hint.queue': string
   'hint.commands': string
 
@@ -176,6 +183,7 @@ export interface MessageTable {
   'notice.kept': (params: { count: number }) => string
   'notice.reasoning': (params: { mode: string }) => string
   'notice.model': (params: { selection: string }) => string
+  'notice.thinking': (params: { level: string }) => string
   'notice.createdSession': (params: { id: string }) => string
   'notice.savedKey': (params: { provider: string }) => string
   'notice.approval': (params: { outcome: string }) => string
@@ -184,6 +192,8 @@ export interface MessageTable {
   'error.unknownCommand': (params: { command: string }) => string
   'error.unknownProvider': (params: { provider: string }) => string
   'error.modelUsage': string
+  'error.thinkingUnavailable': string
+  'error.thinkingUnknown': (params: { level: string; levels: string }) => string
   'error.noProvider': string
   'error.languageUnsupported': (params: { value: string }) => string
   'error.pluginRender': (params: { plugin: string; id: string; reason: string }) => string

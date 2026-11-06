@@ -84,6 +84,11 @@ export interface PluginSnapshot {
   /** The directory that Session runs in. */
   readonly cwd: string
   readonly model: { readonly provider: string; readonly model: string } | undefined
+  /**
+   * The thinking level the model runs at (`off`, `low`, `high`, `max`, …), the
+   * same one the footer names. Absent for a model that does not reason.
+   */
+  readonly thinkingLevel?: string
   /** A turn is running. */
   readonly busy: boolean
   readonly turnStartedAt: number | undefined

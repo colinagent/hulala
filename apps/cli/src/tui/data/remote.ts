@@ -71,6 +71,14 @@ export interface TerminalModel {
   reasoningEffort?: string
 }
 
+/** One reasoning effort a model advertises. */
+export interface TerminalThinkingLevel {
+  id: string
+  name: string
+  /** Adapter-authored sentence for the level; absent when it has none. */
+  description?: string
+}
+
 /** One provider group in the model catalog. */
 export interface TerminalModelGroup {
   id: string
@@ -78,7 +86,7 @@ export interface TerminalModelGroup {
   models: ReadonlyArray<{
     id: string
     name: string
-    reasoning?: { efforts: ReadonlyArray<{ id: string; name: string }>; defaultEffort?: string }
+    reasoning?: { efforts: ReadonlyArray<TerminalThinkingLevel>; defaultEffort?: string }
   }>
 }
 
@@ -379,7 +387,11 @@ function catalogOf(catalog: ModelCatalog): TerminalModelCatalog {
         name: model.name,
         ...(model.reasoning === undefined ? {} : {
           reasoning: {
-            efforts: model.reasoning.efforts.map(effort => ({ id: effort.id, name: effort.name })),
+            efforts: model.reasoning.efforts.map(effort => ({
+              id: effort.id,
+              name: effort.name,
+              ...(effort.description === undefined ? {} : { description: effort.description }),
+            })),
             ...(model.reasoning.defaultEffort === undefined ? {} : { defaultEffort: model.reasoning.defaultEffort }),
           },
         }),

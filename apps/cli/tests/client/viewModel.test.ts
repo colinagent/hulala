@@ -51,6 +51,16 @@ test('records context pressure from the projection', () => {
   expect(reducer.metrics.contextLimit).toBe(128_000)
 })
 
+test('repeated identical notices collapse into the one already shown', () => {
+  const reducer = new ViewModelReducer()
+  reducer.addNotice('thinking level: low')
+  reducer.addNotice('thinking level: low')
+  reducer.addNotice('thinking level: low', 'info')
+  reducer.addNotice('another thing')
+  reducer.addNotice('thinking level: low')
+  expect(reducer.items.filter(item => item.kind === 'notice')).toHaveLength(4)
+})
+
 test('turn end errors and unknown events are handled safely', () => {
   const reducer = new ViewModelReducer()
   reducer.applyEvent(event('turn/end', { reason: { kind: 'error', error: { message: 'boom' } } }))

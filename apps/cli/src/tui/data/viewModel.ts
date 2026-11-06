@@ -315,6 +315,11 @@ export class ViewModelReducer {
   }
 
   addNotice(text: string, tone?: 'warn' | 'info'): void {
+    // One key can repeat faster than a Session can act on it (a held
+    // `Shift-Tab` on a model without levels). Consecutive identical notices are
+    // one statement, not a ticker.
+    const last = this.items[this.items.length - 1]
+    if (last?.kind === 'notice' && last.text === text && last.tone === tone) return
     this.items.push({ kind: 'notice', text, time: Date.now(), ...(tone === undefined ? {} : { tone }) })
   }
 

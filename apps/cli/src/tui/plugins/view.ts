@@ -59,6 +59,7 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   const pending = new PendingMessages(config.color)
   const statusBar = new StatusBar(() => ({
     ...(session.model === undefined ? {} : { model: session.model }),
+    ...(session.thinkingLevel === undefined ? {} : { thinkingLevel: session.thinkingLevel }),
     metrics: reducer.metrics,
     disconnected: session.disconnected,
     ...(updater.available === undefined ? {} : { update: updater.available.latestVersion }),

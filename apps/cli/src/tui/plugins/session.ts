@@ -21,13 +21,21 @@ import { t } from '../i18n/index.js'
 import type {
   SessionListEvent,
   TerminalModel,
+  TerminalModelCatalog,
   TerminalProvider,
   TerminalSession,
   TerminalSessionHandlers,
+  TerminalThinkingLevel,
 } from '../data/remote.js'
 import { ApiKeyPanel, ProviderSelector, type ProviderPickerResult } from '../view/selector/login.js'
 import { ModelSelector, type ModelPickerResult, type ModelSelection } from '../view/selector/model.js'
+import { ThinkingSelector, type ThinkingPickerResult } from '../view/selector/thinking.js'
 import { ResumeOverlay, type ResumeResult } from '../view/overlays/resume.js'
+import {
+  defaultThinkingLevelOf,
+  thinkingLevelOf,
+  thinkingLevelsOf,
+} from '../data/thinkingLevel.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -49,6 +57,13 @@ export interface TuiSession {
   readonly id: string | undefined
   readonly cwd: string
   readonly model: TerminalModel | undefined
+  /**
+   * The thinking level the model runs at: the effort `/model` or `/thinking`
+   * recorded, else the catalog's default for that model (the Host applies it
+   * either way). Undefined for a model that does not reason, or until the
+   * catalog arrives.
+   */
+  readonly thinkingLevel: string | undefined
   readonly sessions: readonly TerminalSession[]
   readonly disconnected: boolean
   /** Re-read the Host's Session list; the live events keep it current. */
@@ -77,6 +92,10 @@ export interface TuiSession {
   chooseModel(argument: string): Promise<void>
   /** `/login [provider]`: store a provider API key and adopt its model. */
   login(argument: string): Promise<void>
+  /** `/thinking [level]`: pick or set the reasoning level of the current model. */
+  chooseThinking(argument: string): Promise<void>
+  /** `Shift-Tab`: advance to the next level the current model advertises. */
+  cycleThinking(): Promise<void>
 }
 
 /** Colour flag for the pickers. */
@@ -99,6 +118,8 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
   let id: string | undefined
   let cwd = config.cwd
   let model: TerminalModel | undefined
+  /** The Host catalog, kept for the thinking level and for `/model`. */
+  let catalog: TerminalModelCatalog | undefined
   let sessions: TerminalSession[] = []
   let disconnected = false
   let followDispose: (() => void) | undefined
@@ -112,6 +133,22 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     repaint()
   }
   const announceChange = (): void => { ctx.emit('hulala/session-changed') }
+
+  /**
+   * Read the Host catalog and keep it.
+   *
+   * The footer names the thinking level in effect, and for a route the user
+   * never touched that level is the catalog's `defaultEffort` — the same value
+   * the Host applies. Reading it once per window is the cost of that sentence;
+   * a failure only costs the level, never the Session.
+   */
+  const loadCatalog = async (): Promise<TerminalModelCatalog> => {
+    const loaded = await backend.modelCatalog()
+    catalog = loaded
+    return loaded
+  }
+  const catalogOrUndefined = (): Promise<TerminalModelCatalog | undefined> =>
+    loadCatalog().catch(() => undefined)
 
   /**
    * Apply one Host Session-list event to the one array every view reads.
@@ -183,6 +220,18 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
           sessions = sessions.map(session => session.sessionId === id ? { ...session, title } : session)
         }
       }
+      // Another client can move this Session's route or level. The journal is
+      // where the footer learns it, so two windows on one Session never disagree.
+      if (event.type === 'model/selection' && id !== undefined) {
+        const selection = event.data as { provider?: unknown; model?: unknown; reasoningEffort?: unknown }
+        if (typeof selection.provider === 'string' && typeof selection.model === 'string') {
+          model = {
+            provider: selection.provider,
+            model: selection.model,
+            ...(typeof selection.reasoningEffort === 'string' ? { reasoningEffort: selection.reasoningEffort } : {}),
+          }
+        }
+      }
       // A human prompt ends the blank state the rail's own `+ new session` row started
       // in. The Host publishes no second list summary for that transition, so
       // the journal is where the client learns it; injected context and
@@ -246,11 +295,12 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     // A reconnect re-opens the same Session and keeps them alive.
     if (previous !== undefined && (previous !== next || previousCwd !== cwd)) panes.reset()
     if (model === undefined) {
-      try {
-        model = (await backend.modelCatalog()).default
-      } catch {
-        // A catalog failure must not block opening an existing Session.
-      }
+      const loaded = await catalogOrUndefined()
+      if (loaded !== undefined) model = loaded.default
+    } else if (catalog === undefined) {
+      // The level for an untouched route is the catalog default; a late catalog
+      // only repaints the band, so opening never waits for it.
+      void catalogOrUndefined().then(() => { if (!shut) repaint() })
     }
     if (shut) return
     followDispose = backend.follow(next, handlers)
@@ -315,30 +365,131 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     else if (picked.kind === 'new') await startNew()
   }
 
-  const selectModel = async (selection: ModelSelection): Promise<void> => {
-    if (id === undefined) return
+  /**
+   * Send one selection to the Host and adopt what it accepted.
+   *
+   * `session/selectModel` is also how DeepSeek Harness persists the default
+   * for new Sessions, so the cached catalog's default moves with every choice;
+   * the `/thinking` picker's `default` badge reads it, and a stale copy would
+   * blame the wrong level.
+   * @param selection - route and optional explicit effort.
+   * @returns whether the Host accepted the selection.
+   */
+  const commitSelection = async (selection: ModelSelection): Promise<boolean> => {
+    if (id === undefined) return false
     try {
       await backend.selectModel(id, selection)
-      model = selection
-      reducer.addNotice(t('notice.model', { selection: `${selection.provider}/${selection.model}` }))
-      announceChange()
     } catch (caught) {
       error(caught)
-      return
+      return false
     }
+    model = selection
+    if (catalog !== undefined) catalog = { ...catalog, default: { ...selection } }
+    announceChange()
+    repaint()
+    return true
+  }
+
+  const selectModel = async (selection: ModelSelection): Promise<void> => {
+    if (!await commitSelection(selection)) return
+    reducer.addNotice(t('notice.model', { selection: `${selection.provider}/${selection.model}` }))
     repaint()
   }
 
-  const pickModel = async (): Promise<ModelPickerResult> => {
-    let catalog
+  /**
+   * What `/thinking` and `Shift-Tab` need: the route, its levels, and the level
+   * and default the catalog currently names.
+   *
+   * A route the Session has not settled on yet falls back to the Host default,
+   * which is the model a new Session would use.
+   */
+  const loadThinking = async (): Promise<{
+    route: TerminalModel
+    levels: readonly TerminalThinkingLevel[]
+    current: string | undefined
+    defaultLevel: string | undefined
+  } | undefined> => {
+    let loaded: TerminalModelCatalog
     try {
-      catalog = await backend.modelCatalog()
+      loaded = await loadCatalog()
+    } catch (caught) {
+      error(caught)
+      return undefined
+    }
+    const route = model ?? loaded.default
+    const levels = thinkingLevelsOf(route, loaded)
+    if (levels.length === 0) {
+      reducer.addNotice(t('error.thinkingUnavailable'))
+      repaint()
+      return undefined
+    }
+    return {
+      route,
+      levels,
+      current: thinkingLevelOf(route, loaded),
+      defaultLevel: defaultThinkingLevelOf(route, loaded),
+    }
+  }
+
+  const applyThinking = async (level: string, route: TerminalModel): Promise<void> => {
+    const accepted = await commitSelection({ provider: route.provider, model: route.model, reasoningEffort: level })
+    if (!accepted) return
+    reducer.addNotice(t('notice.thinking', { level }))
+    repaint()
+  }
+
+  const chooseThinking = async (argument: string): Promise<void> => {
+    if (id === undefined) return
+    const thinking = await loadThinking()
+    if (thinking === undefined) return
+    if (argument.trim() !== '') {
+      const wanted = argument.trim().toLowerCase()
+      const level = thinking.levels.find(candidate =>
+        candidate.id.toLowerCase() === wanted || candidate.name.toLowerCase() === wanted)
+      if (level === undefined) {
+        error(new Error(t('error.thinkingUnknown', {
+          level: argument.trim(),
+          levels: thinking.levels.map(candidate => candidate.id).join(', '),
+        })))
+        return
+      }
+      await applyThinking(level.id, thinking.route)
+      return
+    }
+    const picked = await composer.panel<ThinkingPickerResult>(done => new ThinkingSelector({
+      model: thinking.route.model,
+      levels: thinking.levels,
+      ...(thinking.current === undefined ? {} : { current: thinking.current }),
+      ...(thinking.defaultLevel === undefined ? {} : { defaultLevel: thinking.defaultLevel }),
+      color: config.color,
+      rows: () => terminal.rows,
+      onResolve: done,
+    }))
+    if (picked.kind === 'select') await applyThinking(picked.level, thinking.route)
+  }
+
+  const cycleThinking = async (): Promise<void> => {
+    if (id === undefined) return
+    const thinking = await loadThinking()
+    if (thinking === undefined) return
+    const index = thinking.current === undefined
+      ? -1
+      : thinking.levels.findIndex(level => level.id === thinking.current)
+    const next = thinking.levels[(index + 1) % thinking.levels.length]
+    if (next === undefined) return
+    await applyThinking(next.id, thinking.route)
+  }
+
+  const pickModel = async (): Promise<ModelPickerResult> => {
+    let loaded: TerminalModelCatalog
+    try {
+      loaded = await loadCatalog()
     } catch (caught) {
       error(caught)
       return { kind: 'cancel' }
     }
     return await composer.panel<ModelPickerResult>(done => new ModelSelector({
-      catalog,
+      catalog: loaded,
       ...(model === undefined ? {} : { current: model }),
       color: config.color,
       rows: () => terminal.rows,
@@ -374,12 +525,12 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
    */
   const adoptProviderModel = async (providerId: string): Promise<void> => {
     const chosen = model === undefined ? undefined : `${model.provider}/${model.model}`
-    const catalog = await backend.modelCatalog().catch(() => undefined)
+    const loaded = await catalogOrUndefined()
     // The user may have picked a model while the catalog was settling.
     if (chosen !== (model === undefined ? undefined : `${model.provider}/${model.model}`)) return
-    const group = catalog?.groups.find(candidate => candidate.id === providerId)
-    if (catalog === undefined || group === undefined || group.models.length === 0) return
-    if (model !== undefined && catalog.groups.some(candidate => candidate.id === model?.provider)) return
+    const group = loaded?.groups.find(candidate => candidate.id === providerId)
+    if (loaded === undefined || group === undefined || group.models.length === 0) return
+    if (model !== undefined && loaded.groups.some(candidate => candidate.id === model?.provider)) return
     const first = group.models[0]
     if (first === undefined) return
     await selectModel({
@@ -477,6 +628,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     get id() { return id },
     get cwd() { return cwd },
     get model() { return model },
+    get thinkingLevel() { return thinkingLevelOf(model, catalog) },
     get sessions() { return sessions },
     get disconnected() { return disconnected },
     refresh,
@@ -488,6 +640,8 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     selectModel,
     chooseModel,
     login,
+    chooseThinking,
+    cycleThinking,
   })
 }
 

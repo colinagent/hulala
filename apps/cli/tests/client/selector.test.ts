@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
 import { visibleWidth } from '@earendil-works/pi-tui'
-import type { TerminalModel, TerminalModelCatalog, TerminalProvider } from '../../src/tui/data/remote.js'
+import type { TerminalModel, TerminalModelCatalog, TerminalProvider, TerminalThinkingLevel } from '../../src/tui/data/remote.js'
 import { ApiKeyPanel, ProviderSelector, type ProviderPickerResult } from '../../src/tui/view/selector/login.js'
 import { ModelSelector, type ModelPickerResult } from '../../src/tui/view/selector/model.js'
+import { ThinkingSelector, type ThinkingPickerResult } from '../../src/tui/view/selector/thinking.js'
 
 const strip = (lines: readonly string[]): string[] => lines.map(line => line
   .replace(/\u001b\[[0-9;]*m/gu, '')
@@ -157,4 +158,68 @@ test('the API-key field accepts a bracketed paste without its markers', () => {
   expect(strip(panel.render(80)).join('\n')).toContain('•'.repeat('sk-pasted-key'.length))
   panel.handleInput('\r')
   expect(seen).toEqual(['sk-pasted-key'])
+})
+
+const levels: readonly TerminalThinkingLevel[] = [
+  { id: 'off', name: 'Off', description: 'Use for simple tasks that do not need reasoning.' },
+  { id: 'low', name: 'Low', description: 'Prefer for routine or latency-sensitive tasks.' },
+  { id: 'max', name: 'Max', description: 'Reserve for the hardest quality-first tasks.' },
+]
+
+function thinking(onResolve: (result: ThinkingPickerResult) => void = () => undefined): ThinkingSelector {
+  const picker = new ThinkingSelector({
+    model: 'deepseek-flash',
+    levels,
+    current: 'low',
+    defaultLevel: 'max',
+    color: false,
+    rows: () => 30,
+    onResolve,
+  })
+  picker.focused = true
+  return picker
+}
+
+test('the thinking picker lists the advertised levels, the current one and the default', () => {
+  const lines = strip(thinking().render(80))
+  const rendered = lines.join('\n')
+  expect(lines[0]).toBe('─'.repeat(80))
+  expect(lines.at(-1)).toBe('─'.repeat(80))
+  expect(rendered).toContain('Thinking Level — deepseek-flash')
+  expect(rendered).toContain('→ ✓ low  Prefer for routine or latency-sensitive tasks.')
+  expect(rendered).toContain('    max  Reserve for the hardest quality-first tasks. · default')
+  expect(rendered).toContain('↑↓/Ctrl-N/P move · Enter select · Esc cancel')
+  expect(rendered).toContain('The choice also becomes the default for new Sessions')
+  for (const line of lines) expect(visibleWidth(line) <= 80).toBe(true)
+})
+
+test('the cursor starts on the current level and Enter reports it', () => {
+  const seen: ThinkingPickerResult[] = []
+  const picker = thinking(result => seen.push(result))
+  picker.handleInput('\r')
+  expect(seen).toEqual([{ kind: 'select', level: 'low' }])
+})
+
+test('arrows and Ctrl-P/Ctrl-N move with wrap-around, and Enter reports the level', () => {
+  const seen: ThinkingPickerResult[] = []
+  const picker = thinking(result => seen.push(result))
+  picker.handleInput('\u001b[B') // ↓ → max
+  picker.handleInput('\u001b[B') // ↓ wraps to off
+  expect(strip(picker.render(80)).join('\n')).toContain('→   off  Use for simple tasks')
+  picker.handleInput('\u000e') // Ctrl-N
+  picker.handleInput('\r')
+  expect(seen).toEqual([{ kind: 'select', level: 'low' }])
+})
+
+test('Escape and Ctrl-C cancel the thinking picker', () => {
+  const seen: ThinkingPickerResult[] = []
+  const picker = thinking(result => seen.push(result))
+  picker.handleInput('\u001b')
+  picker.handleInput('\u0003')
+  expect(seen).toEqual([{ kind: 'cancel' }, { kind: 'cancel' }])
+})
+
+test('the thinking picker never paints past a narrow terminal', () => {
+  const lines = strip(thinking().render(28))
+  for (const line of lines) expect(visibleWidth(line) <= 28).toBe(true)
 })

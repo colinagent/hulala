@@ -43,6 +43,7 @@ export function slashCommands(): SlashCommand[] {
     { name: 'new', description: t('slash.new') },
     { name: 'resume', description: t('slash.resume'), argumentHint: '[id]' },
     { name: 'model', description: t('slash.model'), argumentHint: '[provider/model]' },
+    { name: 'thinking', description: t('slash.thinking'), argumentHint: '[level]' },
     { name: 'login', description: t('slash.login'), argumentHint: '[provider]' },
     { name: 'rename', description: t('slash.rename'), argumentHint: '<title>' },
     { name: 'cancel', description: t('slash.cancel') },

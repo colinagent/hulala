@@ -69,6 +69,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const overlays = ctx.hulalaOverlays
   const session = ctx.hulalaSession
   const panes = ctx.hulalaPanes
+  const { terminal } = ctx.hulalaTerminal
   const updater = ctx.hulalaUpdate
   const rail = ctx.hulalaRail
   const layout = ctx.hulalaLayout
@@ -110,7 +111,11 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     const argument = (match[2] ?? '').trim()
     switch (command) {
       case 'help':
-        await overlays.modal<undefined>(done => new HelpOverlay({ color: config.color, onClose: () => done(undefined) }), { anchor: 'center', width: 74 })
+        await overlays.modal<undefined>(done => new HelpOverlay({
+          color: config.color,
+          rows: () => terminal.rows,
+          onClose: () => done(undefined),
+        }), { anchor: 'center', width: 74 })
         return
       case 'language': {
         const code = argument === '' ? await language.pick() : parseLanguage(argument)
@@ -142,6 +147,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'model':
         await session.chooseModel(argument)
         return
+      case 'thinking':
+        await session.chooseThinking(argument)
+        return
       case 'login':
         await session.login(argument)
         return
@@ -168,7 +176,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         row(t('status.label.host'), backend.host.url === '' ? '-' : backend.host.url)
         row(t('status.label.session'), session.id ?? '-')
         row(t('status.label.cwd'), session.cwd)
-        row(t('status.label.model'), session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`)
+        const route = session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`
+        row(t('status.label.model'), session.thinkingLevel === undefined ? route : `${route} • ${session.thinkingLevel}`)
         row(t('status.label.pane'), panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ` ${t('status.value.focus')}` : ''}`)
         row(t('status.label.rail'), layout.railWanted ? (rail.focused ? `${t('status.value.visible')} ${t('status.value.focus')}` : t('status.value.visible')) : t('status.value.hidden'))
         row(t('status.label.chat'), layout.conversationShown ? t('status.value.visible') : t('status.value.hidden'))
@@ -332,6 +341,7 @@ export const commandsPlugin = {
     'hulalaViewModel',
     'hulalaComposer',
     'hulalaLanguage',
+    'hulalaTerminal',
   ],
   apply,
 }

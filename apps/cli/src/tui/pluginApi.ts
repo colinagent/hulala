@@ -119,6 +119,7 @@ export function createPluginApi(ctx: Context, manifest: PluginManifest, dataRoot
       sessionId: session.id,
       cwd: session.cwd,
       model: session.model === undefined ? undefined : { provider: session.model.provider, model: session.model.model },
+      ...(session.thinkingLevel === undefined ? {} : { thinkingLevel: session.thinkingLevel }),
       busy: reducer.busy,
       turnStartedAt: reducer.turnStartedAt,
       metrics: {

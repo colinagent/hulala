@@ -301,6 +301,13 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return undefined
     }
 
+    // Shift-Tab cycles the thinking level, pi's `app.thinking.cycle`. The
+    // completion menu owns the keyboard while it is up, so the chord is left
+    // alone there instead of raising a level behind the picker.
+    if (matchesKey(data, 'shift+tab') && !editor.completionMenuOpen) {
+      void session.cycleThinking()
+      return { consume: true }
+    }
     // Esc is the interrupt key, as in pi's `app.interrupt`: it aborts the running
     // turn, and on an empty idle composer a second press opens the Session
     // picker. The completion menu keeps the first press for closing itself, and a

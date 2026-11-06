@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { fitPath } from '../../src/tui/view/pathText.js'
+import { fitPath, shortenFromStart } from '../../src/tui/view/pathText.js'
 
 const HOME = process.env.HOME ?? '/Users/nobody'
 const DEEP = '/opt/company/teams/platform/services/hulala'
@@ -21,4 +21,11 @@ test('a long path loses whole leading segments, never half of one', () => {
 test('a single segment that cannot fit is clipped from the right', () => {
   expect(fitPath('/hulala-workspace-long-name', 12)).toBe('hulala-work…')
   expect(fitPath('/hulala-workspace-long-name', 4)).toBe('hul…')
+})
+
+test('shortenFromStart keeps the tail, which is where the level lives', () => {
+  expect(shortenFromStart('deepseek/deepseek-flash • max', 40)).toBe('deepseek/deepseek-flash • max')
+  expect(shortenFromStart('deepseek/deepseek-flash • max', 22)).toBe('…/deepseek-flash • max')
+  expect(shortenFromStart('deepseek/deepseek-flash • max', 1)).toBe('…')
+  expect(shortenFromStart('deepseek/deepseek-flash • max', 0)).toBe('')
 })

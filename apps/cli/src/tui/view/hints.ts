@@ -34,6 +34,7 @@ export function usageHints(): readonly UsageHint[] {
     { keys: 'Ctrl-Q', text: t('hint.quit') },
     { keys: 'Esc', text: t('hint.escape') },
     { keys: 'Ctrl-O', text: t('hint.expand') },
+    { keys: 'Shift-Tab', text: t('hint.thinking') },
     { keys: 'Alt-Enter', text: t('hint.queue') },
     { keys: '/', text: t('hint.commands') },
   ]

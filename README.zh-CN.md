@@ -82,18 +82,19 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
 | `Enter` | 发送；turn 在跑时用 `Alt-Enter` 排成下一个 turn |
 | `Alt-Up` | 把排队的消息取回 composer |
 | `Ctrl-O` | 展开当前指向的工具行 |
+| `Shift-Tab` | 循环切换当前模型的思考等级；`/thinking` 打开等级选择器 |
 | `Ctrl-S` | 立刻写编辑器缓冲区（平时自动保存） |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | 移动焦点列旁的分割线：右边那列变宽或变窄 |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | 同上；`Ctrl-Shift-←` / `Ctrl-Shift-→` 是任何终端都收得到的写法 |
 | 拖动分割线 | 用指针做同一件事，两侧的线都可以拖 |
 | `Shift-PgUp` / `Shift-PgDn` | 翻终端列自己的历史 |
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
-| `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/editor`、`/terminal`、`/cancel`、`/quit` |
+| `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/cancel`、`/quit` |
 
 客户端里输入 `/help` 会印出同一张表——如果你的终端或输入法吃掉了某个键，以它为准。
 
 底部是一条横贯全宽的栏：左边滚动播放用法提示，中间是上下文和 token 读数，右边是
-模型名；当前工作目录在会话栏顶端。
+模型及其思考等级；当前工作目录在会话栏顶端。
 
 ## 客户端
 

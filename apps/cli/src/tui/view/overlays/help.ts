@@ -21,6 +21,7 @@ const COMMANDS: ReadonlyArray<readonly [usage: string, description: MessageKey]>
   ['/new', 'slash.new'],
   ['/resume [id]', 'slash.resume'],
   ['/model [provider/model]', 'slash.model'],
+  ['/thinking [level]', 'slash.thinking'],
   ['/login [provider]', 'slash.login'],
   ['/rename <title>', 'slash.rename'],
   ['/cancel', 'slash.cancel'],
@@ -33,6 +34,7 @@ const COMMANDS: ReadonlyArray<readonly [usage: string, description: MessageKey]>
 const KEY_LINES = [
   'help.key.submit',
   'help.key.move',
+  'help.key.thinking',
   'help.key.escape',
   'help.key.exit',
   'help.key.columns',
@@ -44,6 +46,12 @@ const KEY_LINES = [
 
 export interface HelpOverlayOptions {
   color: boolean
+  /**
+   * Terminal rows. The panel is placed over the whole screen and pi-tui clamps
+   * it to this height, so the close hint must be inside that clamp: the body
+   * gives way instead of the footer being cut off.
+   */
+  rows?(): number
   onClose(): void
 }
 
@@ -60,13 +68,17 @@ export class HelpOverlay implements Component {
     const s = buildStyles(this.options.color)
     const panelWidth = width
     const inner = panelWidth - 4
-    const body: string[] = []
+    // Title and footer take two rows and both must survive: pi-tui clamps a
+    // modal to the terminal height, so a short terminal drops trailing detail
+    // rows instead of the close hint.
+    const budget = Math.max(1, (this.options.rows?.() ?? 24) - 2)
+    const lines: string[] = []
     for (const [usage, description] of COMMANDS) {
-      body.push(truncateToWidth(`${usage.padEnd(24)} ${t(description)}`, inner))
+      lines.push(truncateToWidth(`${usage.padEnd(24)} ${t(description)}`, inner))
     }
-    body.push(s.accent(t('help.keys')))
-    for (const key of KEY_LINES) body.push(s.dim(truncateToWidth(t(key), inner)))
-    return panel(panelWidth, t('help.title'), body, [s.dim(t('help.close'))])
+    lines.push(s.accent(t('help.keys')))
+    for (const key of KEY_LINES) lines.push(s.dim(truncateToWidth(t(key), inner)))
+    return panel(panelWidth, t('help.title'), lines.slice(0, budget), [s.dim(t('help.close'))])
   }
 
   handleInput(_data: string): void {

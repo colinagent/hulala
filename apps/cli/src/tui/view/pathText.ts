@@ -28,13 +28,23 @@ function keepRight(text: string, maxWidth: number): string {
   return result
 }
 
+/**
+ * Shorten text to fit, preferring the tail (`…/leaf`, `… • max`).
+ *
+ * The right edge of a row is where the identifying part lives, so a clipped
+ * footer slot keeps its end rather than its beginning.
+ */
+export function shortenFromStart(text: string, maxWidth: number): string {
+  if (maxWidth <= 0) return ''
+  if (visibleWidth(text) <= maxWidth) return text
+  const ellipsis = '…'
+  const budget = Math.max(0, maxWidth - visibleWidth(ellipsis))
+  return `${ellipsis}${keepRight(text, budget)}`
+}
+
 /** Shorten a path to fit, preferring the tail (`…/leaf`). */
 export function shortenPath(path: string, maxWidth: number): string {
-  const display = shortenHome(path)
-  if (visibleWidth(display) <= maxWidth) return display
-  const ellipsis = '…'
-  const budget = Math.max(1, maxWidth - visibleWidth(ellipsis))
-  return `${ellipsis}${keepRight(display, budget)}`
+  return shortenFromStart(shortenHome(path), maxWidth)
 }
 
 /** Keep the leftmost `maxWidth` columns and append an ellipsis. */
