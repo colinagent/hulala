@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, realpath, rm, stat } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
+import { open, mkdir, mkdtemp, realpath, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { VERSION } from '../constants.js'
@@ -124,6 +125,38 @@ function owner(): string { return process.env.HULALA_INSTALL_SOURCE || 'source' 
 
 function managedSource(value = owner()): ManagedSource | undefined {
   return value === 'npm' || value === 'bun' || value === 'pnpm' ? value : undefined
+}
+
+/**
+ * Offer to start the installed client right away, from `/dev/tty`.
+ *
+ * `curl … | sh` leaves stdin holding the installer, so the question is asked on
+ * the terminal itself, like pi's installer does. Declining (or no terminal, or
+ * `HULALA_NO_START=1`) leaves the install finished and the start line printed.
+ * @param command - absolute path of the installed command.
+ */
+async function offerStart(command: string): Promise<void> {
+  if (process.env.HULALA_NO_START === '1' || !process.stdout.isTTY) return
+  let tty: Awaited<ReturnType<typeof open>>
+  try { tty = await open('/dev/tty', 'r+') } catch { return }
+  try {
+    process.stdout.write('\nStart Hulala now? [Y/n] ')
+    let answer = ''
+    let answered = false
+    const buffer = Buffer.alloc(1)
+    for (;;) {
+      const { bytesRead } = await tty.read(buffer, 0, 1, null)
+      if (bytesRead === 0) break
+      const character = buffer.toString('utf8')
+      if (character === '\n') { answered = true; break }
+      answer += character
+    }
+    // A closed terminal is not consent to take over the screen.
+    if (!answered) return
+    if (/^(?:n|no)$/i.test(answer.trim())) return
+    const child = spawn(command, [], { stdio: [tty.fd, 'inherit', 'inherit'], windowsHide: true, env: process.env })
+    await new Promise<void>(resolve => { child.once('exit', () => resolve()); child.once('error', () => resolve()) })
+  } finally { await tty.close().catch(() => undefined) }
 }
 
 /** `hulala update --check` is read-only and never writes the installation. */
@@ -368,6 +401,9 @@ export async function runDistributionCommand(command: string, args: string[]): P
       if (reachable) console.log('Start it with:  hulala')
       else if (registered !== undefined) console.log('Open a new terminal, then start it with:  hulala')
       else console.log(`Start it with:  ${JSON.stringify(installed.command)}\nAdd ${JSON.stringify(dirname(installed.command))} to PATH to run it as \`hulala\`, or re-run the installer without --no-add-to-path.`)
+      // A freshly registered directory only exists in the next shell, so offer to
+      // start it now by absolute path — the first run never needs a PATH refresh.
+      if (command === 'install') await offerStart(installed.command)
       return 0
     } finally { await rm(temporary, { recursive: true, force: true }) }
   })

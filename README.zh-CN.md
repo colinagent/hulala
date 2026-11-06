@@ -203,7 +203,9 @@ hulala host stop        # 停掉守护进程（唯一能停掉它的东西）
 Neovim 是包里自带的；Node.js 不是。`install.sh` 先用机器上已有的 Node.js 24.9+，
 没有就问你要不要装一个：Homebrew、`apt-get`、`apk` 能提供 24.9+ 就用它们，否则
 从 nodejs.org 下载经过 SHA-256 校验的独立包，解到 `$HULALA_HOME/runtime/node`。
-管道安装且没有终端时它不会擅自改动机器，而是停下来说明缺什么。下载这一侧专门照顾网络差的机器：
+管道安装且没有终端时它不会擅自改动机器，而是停下来说明缺什么。在终端里安装时，最后会问一句 `Start Hulala now? [Y/n]`，所以即使新注册的 `PATH` 还没被
+当前 shell 读到，第一次也能直接跑起来；脚本化安装用 `HULALA_NO_START=1` 跳过这个提问。
+下载这一侧专门照顾网络差的机器：
 安装器会读 macOS（`scutil`）或 GNOME（`gsettings`）的系统代理并只对自己的下载生效，`nodejs.org`
 不通时依次退到 npmmirror、清华、腾讯的 Node.js 镜像，并且认 `HTTPS_PROXY`、`HULALA_NODE_BASE`、
 `HULALA_NODE_LINE` 三个环境变量。

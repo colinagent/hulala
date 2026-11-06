@@ -227,7 +227,10 @@ not implemented. Neovim is bundled; Node.js is not. `install.sh` uses a Node.js
 Homebrew, `apt-get` or `apk` when that package manager can supply 24.9+, and
 with a SHA-256 verified standalone archive under `$HULALA_HOME/runtime/node`
 otherwise. A piped install with no terminal never guesses: it stops and prints
-the requirement. The download side is built for networks that need help: the
+the requirement. When the installer runs in a terminal it ends by offering to start the client
+(`Start Hulala now? [Y/n]`), so the first run works even before the shell has
+picked up a newly registered `PATH`; `HULALA_NO_START=1` skips the question for
+scripted installs. The download side is built for networks that need help: the
 installer picks up a macOS (`scutil`) or GNOME (`gsettings`) system proxy and
 exports it for its own downloads, falls back to the npmmirror, TUNA or Tencent
 Node.js mirrors when `nodejs.org` is unreachable, and honours `HTTPS_PROXY`,
