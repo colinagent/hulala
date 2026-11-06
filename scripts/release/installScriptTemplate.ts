@@ -489,10 +489,12 @@ ${cases}
   package="$work/package"
   mkdir -p "$package"
   tar -xzf "$work/$archive" -C "$package" --strip-components=1
+  # The install command ends with the one line the user has to type ("Start it
+  # with: hulala"), so the update hint goes first.
+  echo 'Update Hulala later with: hulala update' >&2
   release_command "$package"
   install_binaries "$package"
   ensure_unzip || true
-  echo 'Update Hulala later with: hulala update' >&2
 }
 main "$@"
 `
