@@ -82,6 +82,7 @@ export async function attachHost(): Promise<HostAttachment> {
   const ripgrepPath = appendPathEntry(process.env.PATH, ripgrepPathEntry(paths.data, { packageRoot: packageRoot() }))
   const { record } = await ensureHostDaemon({
     paths: daemonRoots(paths),
+    version: VERSION,
     spawn: {
       command: nodeExecutable(),
       args: ['--experimental-sqlite', hostEntry(), '--daemon', '--hulala-home', paths.data, '--port', '0'],

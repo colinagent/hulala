@@ -197,3 +197,37 @@ test('stopping when no endpoint is published is a no-op', async () => {
   const { paths } = await fixture()
   expect(await stopHostDaemon(paths)).toBe('absent')
 })
+
+test('a live Host from another version is reported instead of attached', async () => {
+  const { paths, endpoint } = await fixture()
+  const published = record({ version: '0.2.12' })
+  await writeFile(endpoint, JSON.stringify(published))
+  let launched = 0
+  const error = await ensureHostDaemon({
+    paths,
+    version: '0.2.19',
+    fetch: answering(published),
+    spawn: { command: 'unused', args: [] },
+    launch: () => { launched += 1 },
+  }).catch(caught => caught)
+  expect(error).toBeInstanceOf(HostDaemonError)
+  expect(error.code).toBe('version-mismatch')
+  expect(error.message).toContain('Hulala 0.2.12 is still running')
+  expect(error.message).toContain('hulala host stop')
+  expect(error.message).toContain('0.2.19')
+  expect(launched).toBe(0)
+})
+
+test('a live Host from this version still attaches', async () => {
+  const { paths, endpoint } = await fixture()
+  const published = record({ version: '0.2.19' })
+  await writeFile(endpoint, JSON.stringify(published))
+  const connection = await ensureHostDaemon({
+    paths,
+    version: '0.2.19',
+    fetch: answering(published),
+    spawn: false,
+  })
+  expect(connection.started).toBe(false)
+  expect(connection.record.version).toBe('0.2.19')
+})

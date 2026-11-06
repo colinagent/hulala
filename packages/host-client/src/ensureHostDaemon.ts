@@ -41,6 +41,8 @@ export type HostDaemonErrorCode =
   | 'incompatible'
   /** A Host was started but never published a healthy endpoint. */
   | 'start-timeout'
+  /** A live Host runs another product version; only the user can stop it. */
+  | 'version-mismatch'
   /** The launch itself failed (missing executable, rejected spawn, ...). */
   | 'start-failed'
 
@@ -72,6 +74,13 @@ export interface EnsureHostDaemonOptions {
   probeTimeoutMs?: number
   /** Delay between discovery attempts while a Host boots. */
   intervalMs?: number
+  /**
+   * Product version this client runs. A live Host that reports another version
+   * would serve its own (older) plugin set to this client's first session, so
+   * attaching is refused with `version-mismatch` instead of failing silently;
+   * stopping a Host that other clients may use stays a user action.
+   */
+  version?: string
   fetch?: typeof fetch
   /** Replace the detached launcher; tests capture the spec instead of spawning. */
   launch?: HostDaemonLauncher
@@ -102,7 +111,11 @@ export async function ensureHostDaemon(options: EnsureHostDaemonOptions): Promis
   const files = resolveHostDaemonPaths(options.paths)
   const probe = { fetch: options.fetch, timeoutMs: options.probeTimeoutMs }
   const discovery = await discoverHostDaemon(files, probe)
-  if (discovery.status === 'ready') return { record: discovery.record, health: discovery.health, started: false }
+  if (discovery.status === 'ready') {
+    if (options.version !== undefined && discovery.record.version !== options.version)
+      throw versionMismatch(discovery.record, options.version)
+    return { record: discovery.record, health: discovery.health, started: false }
+  }
   if (discovery.status === 'incompatible') throw incompatible(discovery.record)
   const spec = options.spawn
   if (spec === undefined || spec === false) throw notRunning(files, discovery)
@@ -174,6 +187,14 @@ function incompatible(record: HostEndpointRecord): HostDaemonError {
   return new HostDaemonError(
     'incompatible',
     `The running Hulala Host speaks protocol ${record.protocol}, but this client requires ${HOST_DAEMON_PROTOCOL}. Stop the running Host and start it again.`,
+    record,
+  )
+}
+
+function versionMismatch(record: HostEndpointRecord, version: string): HostDaemonError {
+  return new HostDaemonError(
+    'version-mismatch',
+    `Hulala ${record.version} is still running as this machine's Host, but this client is ${version}. Run \`hulala host stop\` and start Hulala again to load ${version}.`,
     record,
   )
 }
