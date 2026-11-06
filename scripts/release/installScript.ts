@@ -2,7 +2,8 @@
  * Generate the terminal-client install metadata for one release.
  *
  * The Hulala archive carries the client and the embedded Host in one package, so
- * the install path needs no bootstrap binary: `install.sh` downloads the
+ * the install path needs no bootstrap binary: `install.sh` secures a Node.js
+ * 24.9+ first (the machine's own, or one it offers to install), downloads the
  * archive for the detected platform, verifies its SHA-256, extracts it, hands it
  * to the package's own `bin/hulala install` (one versioned layout, so
  * `hulala update` can replace it) and publishes the bundled binaries into
@@ -11,14 +12,18 @@
  * Produces, next to the archives:
  *   install.sh         the `curl -fsSL https://hulala.ai/install.sh | sh` script
  *   web-releases.json  the release index `hulala install/update` reads
- *   SHASUMS256.txt     checksums for every archive
+ *   SHASUMS256.txt     checksums for every archive, runtime pack and the lock
+ *
+ * Every platform also publishes `hulala-<version>-<target>-runtime.tar.gz` (the
+ * installed, patched dependency tree) and one `runtime-package-lock.json`; the
+ * archive itself carries no `node_modules`.
  *
  * @module hulala/release/install-script
  */
 import { createHash } from 'node:crypto'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { renderInstallScript } from './installScriptTemplate.ts'
+import { buildInstallMetadata } from './installMetadata.ts'
 import { RELEASE_TARGETS } from './r2Retention'
 
 const argument = (name: string): string | undefined => {
@@ -38,9 +43,15 @@ interface Archive {
   size: number
   sha256: string
   manifestSha256: string
+  /** Per-target dependency tree for machines without npm or registry access. */
+  runtimePack: { file: string, sha256: string }
 }
 
 const present = new Set(await readdir(directory))
+// One npm lock resolves the dependency tree for every target.
+const lockFile = 'runtime-package-lock.json'
+if (!present.has(lockFile)) throw new Error(`missing dependency lock: ${lockFile}`)
+const lockSha256 = createHash('sha256').update(await readFile(join(directory, lockFile))).digest('hex')
 const archives: Archive[] = []
 for (const target of RELEASE_TARGETS) {
   const file = `hulala-${version}-${target}.tar.gz`
@@ -56,37 +67,33 @@ for (const target of RELEASE_TARGETS) {
   if (parsed.version !== version || parsed.target !== target || parsed.dataFormat !== 1) {
     throw new Error(`${file} does not describe ${version}/${target} dataFormat 1`)
   }
+  const packFile = `hulala-${version}-${target}-runtime.tar.gz`
+  if (!present.has(packFile)) throw new Error(`missing runtime pack: ${packFile}`)
+  const packSha256 = createHash('sha256').update(await readFile(join(directory, packFile))).digest('hex')
   archives.push({
     target,
     file,
     size: bytes.byteLength,
     sha256: createHash('sha256').update(bytes).digest('hex'),
     manifestSha256: createHash('sha256').update(manifestBytes).digest('hex'),
+    runtimePack: { file: packFile, sha256: packSha256 },
   })
 }
 
-const cases = archives.map(archive => `  ${archive.target}) archive='${archive.file}' archive_sha='${archive.sha256}' ;;`).join('\n')
+// The Node.js line is a deliberate release decision: it must match the
+// `engines` floor DSH declares and the `node-version` the release CI builds on.
+const nodeLine = argument('--node-line') ?? process.env.HULALA_NODE_LINE
+const metadata = buildInstallMetadata({
+  version,
+  downloadBase,
+  githubBase,
+  lockFile,
+  lockSha256,
+  archives,
+  ...(nodeLine === undefined ? {} : { nodeLine }),
+})
 
-const installScript = renderInstallScript({ version, cases, downloadBase, githubBase })
-
-const index = {
-  format: 1 as const,
-  product: 'hulala' as const,
-  channels: { stable: version },
-  releases: [{
-    version,
-    dataFormat: 1,
-    platforms: Object.fromEntries(archives.map(archive => [archive.target, {
-      url: `${downloadBase}/${archive.file}`,
-      sha256: archive.sha256,
-      manifestSha256: archive.manifestSha256,
-    }])),
-  }],
-}
-
-const shasums = archives.map(archive => `${archive.sha256}  ${archive.file}`).join('\n')
-
-await writeFile(join(directory, 'install.sh'), installScript, { mode: 0o644 })
-await writeFile(join(directory, 'web-releases.json'), `${JSON.stringify(index, null, 2)}\n`)
-await writeFile(join(directory, 'SHASUMS256.txt'), `${shasums}\n`)
+await writeFile(join(directory, 'install.sh'), metadata.installScript, { mode: 0o644 })
+await writeFile(join(directory, 'web-releases.json'), `${JSON.stringify(metadata.index, null, 2)}\n`)
+await writeFile(join(directory, 'SHASUMS256.txt'), `${metadata.shasums}\n`)
 console.log(JSON.stringify({ version, files: archives.map(a => ({ file: a.file, size: a.size, sha256: a.sha256 })) }, null, 2))

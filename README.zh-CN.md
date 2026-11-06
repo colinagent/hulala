@@ -200,14 +200,21 @@ hulala host stop        # 停掉守护进程（唯一能停掉它的东西）
 ```
 
 支持 `darwin-arm64`、`darwin-x64`、`linux-x64`、`linux-arm64`。Windows 尚未实现。
-机器需要 Node.js 22.13+；不需要 Neovim，因为包里自带一个。
+Neovim 是包里自带的；Node.js 不是。`install.sh` 先用机器上已有的 Node.js 24.9+，
+没有就问你要不要装一个：Homebrew、`apt-get`、`apk` 能提供 24.9+ 就用它们，否则
+从 nodejs.org 下载经过 SHA-256 校验的独立包，解到 `$HULALA_HOME/runtime/node`。
+管道安装且没有终端时它不会擅自改动机器，而是停下来说明缺什么。下载这一侧专门照顾网络差的机器：
+安装器会读 macOS（`scutil`）或 GNOME（`gsettings`）的系统代理并只对自己的下载生效，`nodejs.org`
+不通时依次退到 npmmirror、清华、腾讯的 Node.js 镜像，并且认 `HTTPS_PROXY`、`HULALA_NODE_BASE`、
+`HULALA_NODE_LINE` 三个环境变量。
 
 Hulala 写的一切都在 `$HULALA_HOME`（默认 `~/.hulala`）下：`config/`、`desktop/`、
 `server/`、`runtime/`、`logs/`、`cache/`、`transfers/`、`bin/`。安装器在这个目录之外
 只写一个链接：你 `PATH` 里已有目录中的 `hulala` 命令；不传 `--add-to-path` 就不改
-任何 shell 配置文件。
+任何 shell 配置文件。如果 Node 是安装器装的，它就在 `runtime/node/` 下，`hulala`
+命令直接从那里启动它，所以从未得知该目录的 shell 里也能用。
 
-发布包是自包含的 Node 安装：
+发布包的目录结构（运行时和依赖都不在包里）：
 
 ```text
 hulala-<version>-<target>/
@@ -216,10 +223,17 @@ hulala-<version>-<target>/
   bin/ime                    macOS 输入法辅助（仅 darwin 目标）
   server/hulala-host.mjs     Host wrapper
   runtime/host.mjs           编译后的 Host
-  runtime/node_modules/      DeepSeek Harness 引擎
+  runtime/package.json       本发布解析出来的依赖清单
+  runtime/package-lock.json  在你机器上执行 `npm ci` 用的 lock
   runtime/editor/            Neovim runtime、tree-sitter parsers、snacks.nvim
   manifest.json
 ```
+
+归档只有约 10MB，因为它不带 `node_modules`：`hulala install` 按发布版的 npm lock 装依赖；
+npm 或 registry 不通时，装旁边发布的、已经打好 patch 的
+`hulala-<version>-<target>-runtime.tar.gz`。DSH 的 `dsh-office-to-pdf` 背后的 LibreOffice
+引擎完全不下发：解压 140MB，而终端客户端没有文档转换功能。打包时会剪掉它，并把打包后的
+Host 真正启动一次，证明其余依赖仍然可用。
 
 包里每个二进制都是真正的文件，绝不是软链：安装器把它们复制进 `$HULALA_HOME/bin`，
 升级后第一次打开编辑器时客户端会再发布一次（编辑器的运行数据落在

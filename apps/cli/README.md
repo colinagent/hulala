@@ -331,14 +331,22 @@ file changes. Without the helper nothing breaks: the panels simply keep whatever
 source the user has selected. A window whose terminal streams were injected (a
 test) leaves the input source alone, because changing it is machine-wide.
 
-The package requires Node.js 22.13+ on the target machine. The installer
-offers the extracted package to its own `hulala install`, which validates
-`bin/hulala --version` and manages immutable versions; it never stops a running
-Host. Use `hulala host stop` explicitly before starting a new Host version.
-`install.sh` also copies the package's binaries into `$HULALA_HOME/bin`, and
-`hulala install` writes `$HULALA_HOME/bin/hulala` as the command: a script that
-names its own installation root, reads `active.json` and starts the active
-version. Nothing outside `$HULALA_HOME` describes where the program lives, so
+The package needs Node.js 24.9+ (DeepSeek Harness's own floor), which it does not
+carry. `install.sh` takes the machine's own Node when it is new enough, and
+otherwise offers to install one (Homebrew, `apt-get`, `apk`, or a SHA-256 verified
+standalone archive in `$HULALA_HOME/runtime/node`) before it offers the extracted
+package to its own `hulala install`. The archive also carries no dependency tree:
+`hulala install` and `hulala update` run `npm ci` from the release's lock, apply
+the release's patches, rebuild only the allowlisted native packages, and fall back
+to the per-target runtime pack when npm or the registry is unreachable. Both
+routes record their origin in `runtime/node_modules/.hulala-runtime.json`. That command validates `bin/hulala --version` and manages
+immutable versions; it never stops a running Host. Use `hulala host stop`
+explicitly before starting a new Host version. `install.sh` also copies the
+package's binaries into `$HULALA_HOME/bin`, and `hulala install` writes
+`$HULALA_HOME/bin/hulala` as the command: a POSIX shell script that picks the
+Node runtime (the installer's `runtime/node` first, then `node` on `PATH`) and
+starts `launcher.mjs` beside `active.json`, which reads the active version and
+runs it. Nothing outside `$HULALA_HOME` describes where the program lives, so
 `hulala update` and `hulala rollback` switch what it starts by rewriting that one
 file, and deleting `$HULALA_HOME` removes everything Hulala installed. Versions
 are additive: an upgrade adds a version directory and never rewrites or deletes

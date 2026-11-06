@@ -6,12 +6,19 @@
  *   server/hulala-host.mjs     Host wrapper (the real Host lives in runtime/)
  *   runtime/host.mjs           compiled Node Host
  *   runtime/ghostty-vt.wasm    terminal engine for the two side columns
- *   runtime/node_modules/      DSH engine and native dependencies
  *   bin/nvim                   bundled Neovim binary for this platform
  *   bin/ime                    macOS input-source helper (darwin targets only)
  *   runtime/editor/nvim/       Neovim runtime tree and tree-sitter parsers
  *   runtime/editor/nvim-plugins/  vendored plugins (snacks.nvim, reader.nvim)
+ *   runtime/package.json       dependency list the released npm lock resolves
+ *   runtime/package-lock.json  the lock `npm ci` uses at install time
+ *   runtime/patches/           the two bun patches, applied after npm ci
  *   manifest.json              package integrity manifest
+ *
+ * The dependency tree is NOT in the archive: `npm ci` (or the per-target runtime
+ * pack published beside the archive) installs it on the machine that runs Hulala.
+ * The pack is built here from the same npm install, so what CI boots is what a
+ * user gets.
  *
  * Bundled binaries are real files under `bin/`, never symlinks; the client
  * copies them (and the editor's runtime data) into `<data>/bin/nvim` and
@@ -23,8 +30,9 @@
  * @module hulala/release/package-tui
  */
 import { chmod, copyFile, cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, resolve, sep } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import { packageFiles, verifyPackage, type PackageManifest } from '@hulala/distribution/manifest'
+import { installDependencies } from '../../apps/cli/src/distribution/dependencies.ts'
 import { bundleEditor } from './editorBundle.ts'
 import { bundleNativeTools } from './nativeTools.ts'
 
@@ -105,9 +113,46 @@ if (rootManifest.patchedDependencies !== undefined) {
     await cp(join(repositoryRoot, patch), join(staging, 'runtime', patch))
   }
 }
+/**
+ * The dependency tree is installed with npm, not Bun: packaging and the end-user
+ * install then run the same `npm ci` from the same lock, so the tree CI boots is
+ * the tree a user gets. The lock is generated here, from the exact dependency set
+ * this release declares.
+ */
+const npm = Bun.which('npm')
+if (npm === null) throw new Error('npm is required to package the dependency tree (release CI installs Node.js with npm)')
+console.log('Resolving the Runtime dependency lock...')
+await run([npm, 'install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'], join(staging, 'runtime'))
 console.log('Installing the Runtime dependencies...')
-await run([process.execPath, 'install', '--production'], join(staging, 'runtime'))
+const dependencyFailure = await installDependencies(join(staging, 'runtime'), { log: line => console.log(line) })
+if (dependencyFailure !== undefined) throw new Error(`installing the Runtime dependencies failed: ${dependencyFailure}`)
 await removeLinks(join(staging, 'runtime', 'node_modules'))
+
+/** The dependency tree is pruned by `installDependencies` (shared with users), so
+ * only the assertion stays here: if the LibreOffice engine is still installed, the
+ * rule or the package name changed and the archive would ship 62 MB again. */
+const engines = await readdir(join(staging, 'runtime', 'node_modules', '@deepseek-ai')).catch(() => [] as string[])
+if (engines.some(name => name.startsWith('libreoffice-kit-')))
+  throw new Error('the LibreOffice engine is still installed; review the pruning rule before shipping')
+
+console.log('Booting the packaged Host...')
+await run([process.execPath, 'scripts/release/checkPackagedHost.ts', '--package', staging], repositoryRoot)
+
+/**
+ * The runtime pack is the dependency tree as installed and patched above. It is
+ * published beside the archive for machines where npm or the registry is out of
+ * reach, and it is why the archive itself can stay small.
+ */
+const runtimePack = join(outputRoot, `hulala-${version}-${target}-runtime.tar.gz`)
+await rm(runtimePack, { force: true })
+const packTar = Bun.spawn(['tar', '-czf', runtimePack, '-C', join(staging, 'runtime'), 'node_modules'], { stdout: 'inherit', stderr: 'inherit' })
+if (await packTar.exited !== 0) throw new Error('failed to create the runtime pack')
+const packHash = createHash(await readFile(runtimePack))
+await writeFile(runtimePack + '.sha256', `${packHash}  ${basename(runtimePack)}\n`, { mode: 0o600 })
+// The lock is target-independent; every build writes the same bytes.
+await copyFile(join(staging, 'runtime', 'package-lock.json'), join(outputRoot, 'runtime-package-lock.json'))
+console.log(`Runtime pack: ${runtimePack} (${packHash.slice(0, 12)}…)`)
+await rm(join(staging, 'runtime', 'node_modules'), { recursive: true, force: true })
 
 await writeFile(join(staging, 'package.json'), `${JSON.stringify({ name: 'hulala', version, private: true, type: 'module' }, null, 2)}\n`, { mode: 0o600 })
 async function removeSourceMaps(directory: string): Promise<void> {

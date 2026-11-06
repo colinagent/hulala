@@ -222,16 +222,27 @@ hulala host stop        # stop the daemon (the only thing that does)
 ```
 
 Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`. Windows is
-not implemented. Node.js 22.13+ is required on the machine; Neovim is not,
-because one is bundled.
+not implemented. Neovim is bundled; Node.js is not. `install.sh` uses a Node.js
+24.9+ that the machine already has, and otherwise offers to install one: with
+Homebrew, `apt-get` or `apk` when that package manager can supply 24.9+, and
+with a SHA-256 verified standalone archive under `$HULALA_HOME/runtime/node`
+otherwise. A piped install with no terminal never guesses: it stops and prints
+the requirement. The download side is built for networks that need help: the
+installer picks up a macOS (`scutil`) or GNOME (`gsettings`) system proxy and
+exports it for its own downloads, falls back to the npmmirror, TUNA or Tencent
+Node.js mirrors when `nodejs.org` is unreachable, and honours `HTTPS_PROXY`,
+`HULALA_NODE_BASE` and `HULALA_NODE_LINE`.
 
 Everything Hulala writes lives under `$HULALA_HOME` (default `~/.hulala`):
 `config/`, `desktop/`, `server/`, `runtime/`, `logs/`, `cache/`, `transfers/`
 and `bin/`. The installer's only link outside that directory is the `hulala`
 command in a directory you already have on `PATH`; no shell profile is edited
-unless you pass `--add-to-path`.
+unless you pass `--add-to-path`. When the installer supplied Node, it lives in
+`runtime/node/` and the `hulala` command starts it from there, so the command
+also works in a shell that never learns about that directory.
 
-The release package is a self-contained Node install:
+The release package layout (neither the runtime nor the dependency tree is part
+of it):
 
 ```text
 hulala-<version>-<target>/
@@ -240,10 +251,19 @@ hulala-<version>-<target>/
   bin/ime                    macOS input-source helper (darwin targets only)
   server/hulala-host.mjs     Host wrapper
   runtime/host.mjs           compiled Host
-  runtime/node_modules/      DeepSeek Harness engine
+  runtime/package.json       dependency list this release resolves
+  runtime/package-lock.json  the lock `npm ci` uses on your machine
   runtime/editor/            Neovim runtime, tree-sitter parsers, snacks.nvim
   manifest.json
 ```
+
+The archive is about 10 MB because it carries no `node_modules`: `hulala install`
+installs the dependency tree from the release's npm lock (or, when npm or the
+registry is unreachable, from the pre-installed, patched
+`hulala-<version>-<target>-runtime.tar.gz` published beside it). The LibreOffice
+engine behind DSH's `dsh-office-to-pdf` is not installed at all: it is 140 MB
+unpacked, and the terminal client has no document conversion. Packaging prunes it
+and boots the packaged Host to prove the rest still starts.
 
 Every bundled binary is a real file, never a symlink: the installer copies them
 into `$HULALA_HOME/bin`, and the client republishes them there (with the editor's

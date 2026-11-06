@@ -2,7 +2,14 @@ import { downloadUrl } from './archive.js'
 import { curlText, useCurl } from './net.js'
 import { releaseTarget, RELEASE_TARGETS, type ReleaseTarget } from './targets.js'
 
-export interface ReleaseAsset { url: string; sha256: string; manifestSha256: string }
+/** Dependency install facts for one target: the npm lock and the fallback pack. */
+export interface RuntimeAsset {
+  /** `package-lock.json` fed to `npm ci`. */
+  lock: { url: string; sha256: string }
+  /** Pre-installed, patched tree used when npm cannot be used. */
+  pack: { url: string; sha256: string }
+}
+export interface ReleaseAsset { url: string; sha256: string; manifestSha256: string; runtime?: RuntimeAsset }
 export interface Release { version: string; dataFormat: number; platforms: Partial<Record<ReleaseTarget, ReleaseAsset>> }
 export interface ReleaseIndex { format: 1; product: 'hulala'; channels: { stable?: string; preview?: string }; releases: Release[] }
 const versionPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)?$/
@@ -33,6 +40,13 @@ export function parseReleaseIndex(value: any): ReleaseIndex {
     for (const [target, asset] of Object.entries(release.platforms) as Array<[string, any]>) {
       if (!Object.hasOwn(RELEASE_TARGETS, target) || typeof asset?.url !== 'string' || !/^[a-f0-9]{64}$/.test(asset.sha256) || !/^[a-f0-9]{64}$/.test(asset.manifestSha256)) throw new Error('Invalid release platform asset')
       downloadUrl(asset.url)
+      if (asset.runtime !== undefined) {
+        for (const part of ['lock', 'pack'] as const) {
+          const value = asset.runtime[part]
+          if (typeof value?.url !== 'string' || !/^[a-f0-9]{64}$/.test(value.sha256)) throw new Error(`Invalid release runtime asset: ${part}`)
+          downloadUrl(value.url)
+        }
+      }
     }
   }
   for (const channel of ['stable', 'preview']) {

@@ -15,8 +15,23 @@ import { validateNativeCandidate } from './validate.js'
 import { addCommandPath, removeCommandPath, userPathDirectories } from './path.js'
 import { deferWindowsUninstall } from './deferred-uninstall.js'
 import { listCachedReleases, pruneReleaseCache, writeReleaseSidecar } from './releaseCache.js'
+import { ensureRuntimeDependencies, type RuntimeAssets } from './dependencies.js'
 
-interface Options { root?: string; bin?: string; from?: string; sha256?: string; force: boolean; addToPath: boolean; check: boolean; downloadOnly: boolean; background: boolean; version?: string }
+interface Options {
+  root?: string; bin?: string; from?: string; sha256?: string; version?: string
+  runtimeLock?: string; runtimeLockSha256?: string; runtimePack?: string; runtimePackSha256?: string
+  force: boolean; addToPath: boolean; check: boolean; downloadOnly: boolean; background: boolean
+}
+
+/** The release's dependency facts, either from the index or from the installer. */
+function runtimeAssets(options: Options): RuntimeAssets | undefined {
+  const { runtimeLock, runtimeLockSha256, runtimePack, runtimePackSha256 } = options
+  if (runtimeLock === undefined || runtimeLockSha256 === undefined || runtimePack === undefined || runtimePackSha256 === undefined) {
+    if (runtimeLock !== undefined || runtimePack !== undefined) throw new Error('A runtime install needs --runtime-lock-url, --runtime-lock-sha256, --runtime-pack-url and --runtime-pack-sha256')
+    return undefined
+  }
+  return { lock: { url: runtimeLock, sha256: runtimeLockSha256 }, pack: { url: runtimePack, sha256: runtimePackSha256 } }
+}
 
 function options(args: string[]): Options {
   const value: Options = { force: false, addToPath: false, check: false, downloadOnly: false, background: false }
@@ -28,10 +43,11 @@ function options(args: string[]): Options {
     else if (key === '--check') value.check = true
     else if (key === '--download-only') value.downloadOnly = true
     else if (key === '--background') value.background = true
-    else if (['--root', '--bin', '--from', '--sha256', '--version'].includes(key)) {
+    else if (['--root', '--bin', '--from', '--sha256', '--version', '--runtime-lock-url', '--runtime-lock-sha256', '--runtime-pack-url', '--runtime-pack-sha256'].includes(key)) {
       const next = args[++index]
       if (!next || next.startsWith('--')) throw new Error('Missing value for ' + key)
-      ;(value as unknown as Record<string, string>)[key.slice(2)] = next
+      const field = ({ '--runtime-lock-url': 'runtimeLock', '--runtime-lock-sha256': 'runtimeLockSha256', '--runtime-pack-url': 'runtimePack', '--runtime-pack-sha256': 'runtimePackSha256' } as Record<string, string>)[key] ?? key.slice(2)
+      ;(value as unknown as Record<string, string>)[field] = next
     } else throw new Error('Unknown installation option: ' + key)
   }
   if (value.version && !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(value.version)) throw new Error('Use an explicit semantic version')
@@ -238,6 +254,7 @@ export async function runDistributionCommand(command: string, args: string[]): P
       console.log('The running Host was left untouched; run `hulala host stop` and start it again to load this version.')
       return 0
     }
+    let assets: RuntimeAssets | undefined = runtimeAssets(input)
     let source = input.from || (command === 'install' && !input.version ? process.env.HULALA_PACKAGE_ROOT : undefined)
     let expectedManifest: string | undefined, expectedVersion = input.version, expectedDataFormat: number | undefined
     if (!source) {
@@ -269,6 +286,7 @@ export async function runDistributionCommand(command: string, args: string[]): P
       } else if (indexed !== undefined) {
         if (command === 'update' && !input.version && compareVersions(indexed.release.version, VERSION) <= 0) { console.log(`Hulala ${VERSION} is already up to date.`); return 0 }
         source = indexed.asset.url; input.sha256 = indexed.asset.sha256; expectedManifest = indexed.asset.manifestSha256; expectedVersion = indexed.release.version; expectedDataFormat = indexed.release.dataFormat
+        assets = indexed.asset.runtime
       } else {
         throw new Error('No release is available for this platform.')
       }
@@ -298,6 +316,12 @@ export async function runDistributionCommand(command: string, args: string[]): P
       console.log('Checking package integrity...')
       const manifest = await verifyPackage(source)
       if ((expectedManifest && await fileSha256(join(source, 'manifest.json')) !== expectedManifest) || (expectedVersion && manifest.version !== expectedVersion) || (expectedDataFormat !== undefined && expectedDataFormat !== manifest.dataFormat)) throw new Error('The package does not match the selected release index')
+      // The archive carries the code, not its dependency tree: install it after the
+      // package proved it is the selected release, so a wrong download never runs
+      // anything.
+      const dependencies = await ensureRuntimeDependencies(join(source, 'runtime'), assets)
+      if (dependencies.source !== 'present')
+        console.log(`Dependencies installed from the ${dependencies.source === 'npm' ? 'npm registry' : 'release runtime pack'}.`)
       console.log('Installing program files and validating this platform...')
       const heartbeat = setInterval(() => console.log('Installation is still running: copying and validating program files...'), 5000)
       let candidate

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { verifyPackage, type PackageManifest } from '@hulala/distribution/manifest'
 import type { PathRegistration } from './path.js'
@@ -72,20 +72,78 @@ export async function withInstallationLock<T>(root: string, action: () => Promis
  * The command file names its own installation root. Nothing outside the Hulala
  * state root has to describe where the program lives, and `hulala uninstall`
  * recognizes the file by this marker instead of a second locator file that
- * could disagree with it.
+ * could disagree with it. The command is a shell script because it has to pick
+ * the Node runtime itself; older installations used a Node script, so both
+ * comment markers are recognized.
  */
-const LAUNCHER_HEADER = '// hulala-launcher '
+const LAUNCHER_MARKERS = ['# hulala-launcher ', '// hulala-launcher '] as const
 export function launcherRoot(source: string): string | undefined {
-  const line = source.slice(0, 4096).split('\n').find(value => value.startsWith(LAUNCHER_HEADER))
-  if (line === undefined) return undefined
-  let value: any
-  try { value = JSON.parse(line.slice(LAUNCHER_HEADER.length)) } catch { return undefined }
-  if (value?.format !== 1 || typeof value.root !== 'string' || !isAbsolute(value.root)) return undefined
-  return resolve(value.root)
+  const lines = source.slice(0, 4096).split('\n')
+  for (const marker of LAUNCHER_MARKERS) {
+    const line = lines.find(value => value.startsWith(marker))
+    if (line === undefined) continue
+    let value: any
+    try { value = JSON.parse(line.slice(marker.length)) } catch { continue }
+    if (value?.format !== 1 || typeof value.root !== 'string' || !isAbsolute(value.root)) continue
+    return resolve(value.root)
+  }
+  return undefined
 }
-function launcherScript(root: string): string { return `#!/usr/bin/env node
-${LAUNCHER_HEADER}${JSON.stringify({ format: 1, root })}
-import { spawn } from 'node:child_process'
+/**
+ * The command in `bin/hulala` and the program it starts. The command is POSIX
+ * shell so it can find a runtime before any JavaScript exists: the installer's
+ * standalone Node in `<state root>/runtime/node` wins, then a `node` on `PATH`,
+ * and a too-old candidate is skipped instead of producing a shebang error. The
+ * program stays JavaScript because it owns the `active.json` read, the signal
+ * forwarding and the environment the installed version runs with.
+ */
+function launcherScript(root: string, stateRoot: string): string {
+  const marker = `${LAUNCHER_MARKERS[0]}${JSON.stringify({ format: 1, root, state: stateRoot })}`
+  return `#!/bin/sh
+${marker}
+set -eu
+root=${JSON.stringify(root)}
+state=${JSON.stringify(stateRoot)}
+# The floor is DeepSeek Harness's own engines field (@deepseek-ai/dsh), which
+# the Host boots in process; it moves when DSH moves.
+node_usable() {
+  version=$("$1" --version 2>/dev/null) || return 1
+  case "$version" in v[0-9]*) ;; *) return 1 ;; esac
+  version=\${version#v}
+  major=\${version%%.*}
+  rest=\${version#*.}
+  minor=\${rest%%.*}
+  minor=\${minor%%[!0-9]*}
+  [ -n "$minor" ] || minor=0
+  case "$major$minor" in ''|*[!0-9]*) return 1 ;; esac
+  if [ "$major" -gt 24 ]; then return 0; fi
+  if [ "$major" -lt 24 ]; then return 1; fi
+  if [ "$minor" -ge 9 ]; then return 0; fi
+  return 1
+}
+installed=''
+if [ -f "$state/runtime/node/CURRENT" ]; then
+  name=$(cat "$state/runtime/node/CURRENT" 2>/dev/null) || name=''
+  case "$name" in
+    ''|.*|*[!0-9A-Za-z._-]*) ;;
+    *) if [ -x "$state/runtime/node/$name/bin/node" ]; then installed=$state/runtime/node/$name/bin/node; fi ;;
+  esac
+fi
+node=''
+for candidate in "$installed" "$(command -v node 2>/dev/null || true)"; do
+  [ -n "$candidate" ] || continue
+  if node_usable "$candidate"; then node=$candidate; break; fi
+done
+if [ -z "$node" ]; then
+  echo 'Hulala needs Node.js 24.9 or newer. Reinstall it with: curl -fsSL https://hulala.ai/install.sh | sh' >&2
+  exit 1
+fi
+PATH=\${node%/*}:$PATH
+export PATH
+exec "$node" "$root/launcher.mjs" "$@"
+`
+}
+function launcherProgram(root: string): string { return `import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 const root = ${JSON.stringify(root)}
@@ -193,9 +251,14 @@ export class Installation {
     await mkdir(dirname(command), { recursive: true, mode: 0o700 })
     command = join(await realpath(dirname(command)), basename(command))
     const real = await this.commandFile(basename(command))
-    const script = launcherScript(this.root)
+    const script = launcherScript(this.root, this.stateRoot)
     let before: InstallationReceipt | undefined
     try { before = await installationReceipt(this.root) } catch (error) { if (!missing(error)) throw error }
+    // The program the command starts is version-independent, so it is written
+    // once per launcher update and never differs between installed versions.
+    const program = join(this.root, 'launcher.mjs'), programTemporary = program + '.' + randomUUID() + '.tmp'
+    try { await writeFile(programTemporary, launcherProgram(this.root), { mode: 0o600 }); await rename(programTemporary, program) }
+    finally { await rm(programTemporary, { force: true }) }
     const temporary = real + '.' + randomUUID() + '.tmp'
     try {
       await writeFile(temporary, script, { mode: 0o755 })
@@ -280,7 +343,12 @@ export class Installation {
     if ((await lstat(receipt.command)).isSymbolicLink()) await rm(receipt.command)
     const real = await this.commandFile(basename(receipt.command))
     await rm(real, { force: true })
+    await rm(join(this.root, 'launcher.mjs'), { force: true })
     for (const file of ['active.json', 'installation.json']) await rm(join(this.root, file), { force: true })
+    // The Node runtime the installer supplied belongs to this installation too;
+    // it is only removed when Hulala itself put it there.
+    const installedNode = join(this.stateRoot, 'runtime/node')
+    if (await stat(join(installedNode, 'CURRENT')).then(() => true, () => false)) await rm(installedNode, { recursive: true, force: true })
     // Leave the state root's bin directory only when the command was the last
     // thing in it; the bundled nvim and helpers live there too.
     await rm(dirname(real), { recursive: false }).catch(() => {})

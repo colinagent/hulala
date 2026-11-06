@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "Launch the local-first Hulala Agent workbench with one npx command.",
   "type": "module",
   "bin": {
@@ -30,7 +30,7 @@
     "typescript": "^7.0.0"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.9.0"
   },
   "license": "GPL-3.0-only",
   "homepage": "https://hulala.ai",

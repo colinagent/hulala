@@ -22,6 +22,21 @@ export function safePackagePath(path: unknown): path is string {
     && path.split('/').every(part => part !== '' && part !== '.' && part !== '..')
 }
 
+/**
+ * The installed dependency tree is not part of the package's integrity manifest.
+ *
+ * Dependencies are fetched at install time from the release's npm lock (or its
+ * runtime pack), so the archive cannot hash them and the installed tree must not
+ * count as "unexpected files". Their integrity comes from the lock's `integrity`
+ * digests (verified by `npm ci`) and from the runtime pack's own SHA-256; the
+ * archive's own files stay covered file by file.
+ * @param path - package-relative path with `/` separators.
+ * @returns true when the path belongs to the dependency tree.
+ */
+export function isRuntimeDependencyPath(path: string): boolean {
+  return path === 'runtime/node_modules' || path.startsWith('runtime/node_modules/')
+}
+
 export async function packageFiles(root: string): Promise<PackageEntry[]> {
   const entries: PackageEntry[] = []
   async function walk(directory: string): Promise<void> {
@@ -31,7 +46,7 @@ export async function packageFiles(root: string): Promise<PackageEntry[]> {
       if (entry.isDirectory()) { await walk(file); continue }
       if (!entry.isFile()) throw new Error('Package contains a special file')
       const path = relative(root, file).split(sep).join('/')
-      if (path === 'manifest.json') continue
+      if (path === 'manifest.json' || isRuntimeDependencyPath(path)) continue
       const bytes = await readFile(file)
       entries.push({ path, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), mode: (await lstat(file)).mode & 0o777 })
     }

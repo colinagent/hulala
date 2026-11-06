@@ -23,7 +23,7 @@ test('installs immutable versions, validates before activation, rolls back safel
     const second = await installation.stage(next, valid)
     await installation.activate(second); await installation.installLauncher(command)
     expect((await readInstallation(location)).previous?.id).toBe(first.id)
-    expect(await readFile(command, 'utf8')).toStartWith('#!/usr/bin/env node')
+    expect(await readFile(command, 'utf8')).toStartWith('#!/bin/sh')
     await mkdir(join(state, 'server'), { recursive: true }); await writeFile(join(state, 'server/browser-data-format.json'), '{"format":2}')
     await expect(installation.rollback(valid)).rejects.toThrow('current user data format')
     expect((await readInstallation(location)).current.id).toBe(second.id)
