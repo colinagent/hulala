@@ -18,7 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14
+          # macos-14 (Intel-era label) is no longer offered to this repository;
+          # macos-15 is the Apple-silicon image.
+          - runner: macos-15
             target: darwin-arm64
           - runner: macos-15-intel
             target: darwin-x64
