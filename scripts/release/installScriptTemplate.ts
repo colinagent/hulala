@@ -465,7 +465,8 @@ ensure_unzip() {
 # or the registry is unreachable.
 release_command() {
   package=$1
-  runtime_auth="--runtime-lock-url $runtime_lock_url --runtime-lock-sha256 $runtime_lock_sha --runtime-pack-url $runtime_pack_url --runtime-pack-sha256 $runtime_pack_sha"
+  runtime_auth="--runtime-lock-url $runtime_lock_url --runtime-lock-sha256 $runtime_lock_sha"
+  if [ -n "\${runtime_pack_url:-}" ]; then runtime_auth="$runtime_auth --runtime-pack-url $runtime_pack_url --runtime-pack-sha256 $runtime_pack_sha"; fi
   if [ -n "$command_bin" ]; then
     "$package/bin/hulala" install --from "$package" --root "$install_root" --bin "$command_bin" --version "$version" $runtime_auth
   else

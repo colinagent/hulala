@@ -25,8 +25,8 @@ import { basename, delimiter, join } from 'node:path'
 export interface RuntimeAssets {
   /** The `package-lock.json` the installer feeds to `npm ci`. */
   readonly lock: { readonly url: string, readonly sha256: string }
-  /** The pre-installed, patched tree used when npm cannot be used. */
-  readonly pack: { readonly url: string, readonly sha256: string }
+  /** Historical fallback: a pre-installed tree. Hulala no longer publishes one. */
+  readonly pack?: { readonly url: string, readonly sha256: string }
 }
 
 export interface RuntimeInstallResult {
@@ -326,6 +326,7 @@ export async function ensureRuntimeDependencies(
       await writeMarker(runtime, { source: 'npm', lockSha256: assets.lock.sha256 })
       return { source: 'npm' }
     }
+    if (assets.pack === undefined) throw new Error(`Hulala could not install its dependencies with npm (${failure}). Install Node.js 24.9+ with npm and run the install command again.`)
     log(`${failure}; using the release runtime pack instead.`)
     const archive = join(work, 'runtime.tar.gz')
     await download(assets.pack.url, archive, assets.pack.sha256)

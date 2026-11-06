@@ -30,7 +30,7 @@
  * @module hulala/release/package-tui
  */
 import { chmod, copyFile, cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
-import { basename, dirname, join, resolve, sep } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { packageFiles, verifyPackage, type PackageManifest } from '@hulala/distribution/manifest'
 import { installDependencies } from '../../apps/cli/src/distribution/dependencies.ts'
 import { bundleEditor } from './editorBundle.ts'
@@ -138,20 +138,10 @@ if (engines.some(name => name.startsWith('libreoffice-kit-')))
 console.log('Booting the packaged Host...')
 await run([process.execPath, 'scripts/release/checkPackagedHost.ts', '--package', staging], repositoryRoot)
 
-/**
- * The runtime pack is the dependency tree as installed and patched above. It is
- * published beside the archive for machines where npm or the registry is out of
- * reach, and it is why the archive itself can stay small.
- */
-const runtimePack = join(outputRoot, `hulala-${version}-${target}-runtime.tar.gz`)
-await rm(runtimePack, { force: true })
-const packTar = Bun.spawn(['tar', '-czf', runtimePack, '-C', join(staging, 'runtime'), 'node_modules'], { stdout: 'inherit', stderr: 'inherit' })
-if (await packTar.exited !== 0) throw new Error('failed to create the runtime pack')
-const packHash = createHash(await readFile(runtimePack))
-await writeFile(runtimePack + '.sha256', `${packHash}  ${basename(runtimePack)}\n`, { mode: 0o600 })
-// The lock is target-independent; every build writes the same bytes.
+// The dependency tree is installed on the user's machine from this lock (the
+// archive carries no node_modules), so the lock ships beside the archive and the
+// tree stays out of every release asset. Only the lock is target-independent.
 await copyFile(join(staging, 'runtime', 'package-lock.json'), join(outputRoot, 'runtime-package-lock.json'))
-console.log(`Runtime pack: ${runtimePack} (${packHash.slice(0, 12)}…)`)
 await rm(join(staging, 'runtime', 'node_modules'), { recursive: true, force: true })
 
 await writeFile(join(staging, 'package.json'), `${JSON.stringify({ name: 'hulala', version, private: true, type: 'module' }, null, 2)}\n`, { mode: 0o600 })

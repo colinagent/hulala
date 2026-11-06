@@ -28,11 +28,16 @@ interface Options {
 /** The release's dependency facts, either from the index or from the installer. */
 function runtimeAssets(options: Options): RuntimeAssets | undefined {
   const { runtimeLock, runtimeLockSha256, runtimePack, runtimePackSha256 } = options
-  if (runtimeLock === undefined || runtimeLockSha256 === undefined || runtimePack === undefined || runtimePackSha256 === undefined) {
-    if (runtimeLock !== undefined || runtimePack !== undefined) throw new Error('A runtime install needs --runtime-lock-url, --runtime-lock-sha256, --runtime-pack-url and --runtime-pack-sha256')
+  if (runtimeLock === undefined || runtimeLockSha256 === undefined) {
+    if (runtimeLock !== undefined) throw new Error('A runtime install needs both --runtime-lock-url and --runtime-lock-sha256')
     return undefined
   }
-  return { lock: { url: runtimeLock, sha256: runtimeLockSha256 }, pack: { url: runtimePack, sha256: runtimePackSha256 } }
+  return {
+    lock: { url: runtimeLock, sha256: runtimeLockSha256 },
+    ...(runtimePack === undefined || runtimePackSha256 === undefined
+      ? {}
+      : { pack: { url: runtimePack, sha256: runtimePackSha256 } }),
+  }
 }
 
 function options(args: string[]): Options {

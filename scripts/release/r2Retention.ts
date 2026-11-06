@@ -14,7 +14,6 @@ export function releaseFiles(product: keyof Retention, version: string): string[
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Retention requires an explicit stable version')
   const names = product === 'web'
     ? RELEASE_TARGETS.map(target => `hulala-${version}-${target}.tar.gz`)
-      .concat(RELEASE_TARGETS.map(target => `hulala-${version}-${target}-runtime.tar.gz`))
       .concat(['install.sh', 'web-releases.json', 'SHASUMS256.txt', 'runtime-package-lock.json'])
     : [`Hulala-${version}-arm64.dmg`, `Hulala-${version}-arm64-mac.zip`, `Hulala-${version}-arm64-mac.zip.blockmap`,
       `Hulala-Setup-${version}.exe`, `Hulala-Setup-${version}.exe.blockmap`, 'latest-mac.yml', 'latest.yml', 'manifest.json', 'SHA256SUMS']

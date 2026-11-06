@@ -16,7 +16,8 @@ export interface BuiltArchive {
   readonly file: string
   readonly sha256: string
   readonly manifestSha256: string
-  readonly runtimePack: { readonly file: string, readonly sha256: string }
+  /** Optional pre-installed dependency tree; Hulala no longer publishes one. */
+  readonly runtimePack?: { readonly file: string, readonly sha256: string }
 }
 
 export interface InstallMetadataInput {
@@ -46,7 +47,8 @@ export function buildInstallMetadata(input: InstallMetadataInput): InstallMetada
   // Every case arm carries the per-target runtime pack; `install.sh` passes all
   // four values to `hulala install`, so a missing one leaves an unset variable.
   const cases = archives.map(archive => `  ${archive.target}) archive='${archive.file}' archive_sha='${archive.sha256}'`
-    + ` runtime_pack_url='${downloadBase}/${archive.runtimePack.file}' runtime_pack_sha='${archive.runtimePack.sha256}' ;;`).join('\n')
+    + (archive.runtimePack === undefined ? '' : ` runtime_pack_url='${downloadBase}/${archive.runtimePack.file}' runtime_pack_sha='${archive.runtimePack.sha256}'`)
+    + ' ;;').join('\n')
   const installScript = renderInstallScript({
     version,
     cases,
@@ -69,14 +71,14 @@ export function buildInstallMetadata(input: InstallMetadataInput): InstallMetada
         manifestSha256: archive.manifestSha256,
         runtime: {
           lock: { url: `${downloadBase}/${lockFile}`, sha256: lockSha256 },
-          pack: { url: `${downloadBase}/${archive.runtimePack.file}`, sha256: archive.runtimePack.sha256 },
+          ...(archive.runtimePack === undefined ? {} : { pack: { url: `${downloadBase}/${archive.runtimePack.file}`, sha256: archive.runtimePack.sha256 } }),
         },
       }])),
     }],
   }
   const shasums = [
     ...archives.map(archive => `${archive.sha256}  ${archive.file}`),
-    ...archives.map(archive => `${archive.runtimePack.sha256}  ${archive.runtimePack.file}`),
+    ...archives.filter(archive => archive.runtimePack !== undefined).map(archive => `${archive.runtimePack!.sha256}  ${archive.runtimePack!.file}`),
     `${lockSha256}  ${lockFile}`,
   ].join('\n')
   return { installScript, index, shasums }

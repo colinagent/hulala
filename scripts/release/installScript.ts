@@ -14,9 +14,9 @@
  *   web-releases.json  the release index `hulala install/update` reads
  *   SHASUMS256.txt     checksums for every archive, runtime pack and the lock
  *
- * Every platform also publishes `hulala-<version>-<target>-runtime.tar.gz` (the
- * installed, patched dependency tree) and one `runtime-package-lock.json`; the
- * archive itself carries no `node_modules`.
+ * One `runtime-package-lock.json` ships beside the archives: the archive carries no
+ * `node_modules`, so `hulala install` resolves the dependency tree from that npm
+ * lock on the target machine.
  *
  * @module hulala/release/install-script
  */
@@ -43,8 +43,8 @@ interface Archive {
   size: number
   sha256: string
   manifestSha256: string
-  /** Per-target dependency tree for machines without npm or registry access. */
-  runtimePack: { file: string, sha256: string }
+  /** Optional per-target dependency tree; not published any more. */
+  runtimePack?: { file: string, sha256: string }
 }
 
 const present = new Set(await readdir(directory))
@@ -67,16 +67,12 @@ for (const target of RELEASE_TARGETS) {
   if (parsed.version !== version || parsed.target !== target || parsed.dataFormat !== 1) {
     throw new Error(`${file} does not describe ${version}/${target} dataFormat 1`)
   }
-  const packFile = `hulala-${version}-${target}-runtime.tar.gz`
-  if (!present.has(packFile)) throw new Error(`missing runtime pack: ${packFile}`)
-  const packSha256 = createHash('sha256').update(await readFile(join(directory, packFile))).digest('hex')
   archives.push({
     target,
     file,
     size: bytes.byteLength,
     sha256: createHash('sha256').update(bytes).digest('hex'),
     manifestSha256: createHash('sha256').update(manifestBytes).digest('hex'),
-    runtimePack: { file: packFile, sha256: packSha256 },
   })
 }
 
