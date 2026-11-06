@@ -3,7 +3,7 @@ import { open, mkdir, mkdtemp, realpath, rm, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { VERSION } from '../constants.js'
-import { inspectHost } from '../hostAttach.js'
+import { inspectHost, stopHost } from '../hostAttach.js'
 import { resolvePaths } from '../paths.js'
 import { spawnDetached } from '../spawn.js'
 import { downloadArchive, unpackRelease, fileSha256 } from '@hulala/distribution/archive'
@@ -23,6 +23,24 @@ import { ensureRuntimeDependencies, type RuntimeAssets } from './dependencies.js
 function displayPath(path: string): string {
   const home = homedir()
   return path.startsWith(home + '/') ? '~' + path.slice(home.length) : path
+}
+
+/**
+ * Stop the Host when it runs another version than the one just activated.
+ *
+ * Install, update and rollback are explicit user actions that replace the code
+ * under the daemon, and the daemon keeps serving the plugin set it booted with
+ * (including bugs a newer release already fixed). The action that changes the
+ * installed version therefore owns stopping it; an ordinary client still only
+ * attaches, or refuses with `version-mismatch` and names the stop command.
+ * @param version - the version that is active after this action.
+ * @returns the version that was running and had to be stopped, when any.
+ */
+async function stopStaleHost(version: string): Promise<string | undefined> {
+  const live = await inspectHost().catch(() => ({ state: 'stopped' } as const))
+  if (live.state !== 'running' || live.record.version === version) return undefined
+  await stopHost().catch(() => 'absent')
+  return live.record.version
 }
 
 interface Options {
@@ -214,7 +232,8 @@ async function updateManaged(source: ManagedSource, input: Options): Promise<num
     return 1
   }
   console.log(`Hulala ${version} installed with ${source}.`)
-  console.log('The running Host was left untouched; run `hulala host stop` and start it again to load this version.')
+  const stopped = await stopStaleHost(version)
+  if (stopped !== undefined) console.log(`Stopped the Hulala Host ${stopped}; the next start uses ${version}.`)
   return 0
 }
 
@@ -303,8 +322,9 @@ export async function runDistributionCommand(command: string, args: string[]): P
       await install.checkData(before.previous)
       await validateNativeCandidate(installedDirectory(root, before.previous), before.previous.version)
       const active = await install.activate(before.previous)
+      const stopped = await stopStaleHost(active.current.version)
       console.log('Rolled back to Hulala ' + active.current.version)
-      console.log('The running Host was left untouched; run `hulala host stop` and start it again to load this version.')
+      if (stopped !== undefined) console.log(`Stopped the Hulala Host ${stopped}; the next start uses ${active.current.version}.`)
       return 0
     }
     let assets: RuntimeAssets | undefined = runtimeAssets(input)
@@ -425,22 +445,18 @@ export async function runDistributionCommand(command: string, args: string[]): P
       const removed = await pruneReleaseCache(paths.data, active.current.version).catch(() => [])
       if (removed.length > 0) console.log(`Removed cached release packages: ${removed.join(', ')}`)
       console.log(`Hulala ${active.current.version} ${beforeVersion === active.current.version ? 'is already installed' : command === 'install' ? 'installed' : 'updated'}: ${displayPath(installed.command)}`)
-      // A Host started by the previous version keeps serving the plugin set it
-      // booted with (including bugs that release already fixed); attaching the new
-      // client to it is what makes a fresh install look broken. Stopping a Host
-      // other clients may use stays a user action, so name it here.
-      const liveHost = await inspectHost().catch(() => ({ state: 'stopped' } as const))
-      const staleHost = liveHost.state === 'running' && liveHost.record.version !== active.current.version ? liveHost.record.version : undefined
-      if (command === 'update') console.log('A running Host was left untouched; run `hulala host stop` and start it again to load this version.')
-      else if (staleHost !== undefined) console.log(`A Hulala Host ${staleHost} is still running; run \`hulala host stop\` and start Hulala again to load ${active.current.version}.`)
-      else console.log('Update it later with:  hulala update')
+      // The Host started by the previous version keeps serving the plugin set it
+      // booted with; this install replaces that code, so it is restarted here.
+      const stopped = await stopStaleHost(active.current.version)
+      if (stopped !== undefined) console.log(`Stopped the Hulala Host ${stopped}; the next start uses ${active.current.version}.`)
+      else if (command === 'install') console.log('Update it later with:  hulala update')
       if (registeredFiles !== undefined) console.log(`Added ${displayPath(bin)} to PATH for new terminals (${registeredFiles.map(displayPath).join(', ')}).`)
       // A freshly registered directory only exists in the next shell, so offer to
       // start it now by absolute path — answering this question is the only step
       // between "installed" and "running". The PATH instructions are printed only
       // when they are needed: after a declined start, or after the client exits in
       // a shell that still cannot see the command.
-      const started = command === 'install' && staleHost === undefined && await offerStart(installed.command)
+      const started = command === 'install' && await offerStart(installed.command)
       if (reachable) {
         if (!started) console.log('Start it with:  hulala')
       } else if (registered !== undefined) {
