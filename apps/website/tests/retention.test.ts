@@ -15,9 +15,11 @@ const duplicate = { ...current[0]!, key: current[0]!.key.replace('/0.1.6/', '/la
 
 test('retention keeps exactly one complete release per product and aliases latest', () => {
   const next = latestOnlyCatalog([...current, old, duplicate], policy)
-  // Seven canonical files per retained Web (terminal client) release, nine per
-  // Desktop release, plus one latest alias each.
-  expect(next.filter(x => !x.retired && !x.objectKey)).toHaveLength(16)
+  // Twelve canonical files per retained Web (terminal client) release — four
+  // archives, four dependency packs, the installer, the release index, the
+  // checksums and the shared npm lock — nine per Desktop release, plus one latest
+  // alias each.
+  expect(next.filter(x => !x.retired && !x.objectKey)).toHaveLength(21)
   expect(next.find(x => x.key === duplicate.key)?.objectKey).toBe(current[0]!.key)
   expect(next.find(x => x.key === old.key)?.retired).toBe(true)
   expect(latestOnlyCatalog(next, policy)).toEqual(next)
