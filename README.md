@@ -261,9 +261,8 @@ hulala-<version>-<target>/
 ```
 
 The archive is about 10 MB because it carries no `node_modules`: `hulala install`
-installs the dependency tree from the release's npm lock (or, when npm or the
-registry is unreachable, from the pre-installed, patched
-`hulala-<version>-<target>-runtime.tar.gz` published beside it). The LibreOffice
+installs the dependency tree from the release's npm lock with `npm ci` (through the
+machine's proxy, with `registry.npmmirror.com` as the retry). The LibreOffice
 engine behind DSH's `dsh-office-to-pdf` is not installed at all: it is 140 MB
 unpacked, and the terminal client has no document conversion. Packaging prunes it
 and boots the packaged Host to prove the rest still starts.

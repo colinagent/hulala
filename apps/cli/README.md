@@ -336,10 +336,11 @@ carry. `install.sh` takes the machine's own Node when it is new enough, and
 otherwise offers to install one (Homebrew, `apt-get`, `apk`, or a SHA-256 verified
 standalone archive in `$HULALA_HOME/runtime/node`) before it offers the extracted
 package to its own `hulala install`. The archive also carries no dependency tree:
-`hulala install` and `hulala update` run `npm ci` from the release's lock, apply
-the release's patches, rebuild only the allowlisted native packages, and fall back
-to the per-target runtime pack when npm or the registry is unreachable. Both
-routes record their origin in `runtime/node_modules/.hulala-runtime.json`. That command validates `bin/hulala --version` and manages
+`hulala install` and `hulala update` run `npm ci` from the release's lock (through
+the machine's proxy, retrying `registry.npmmirror.com`), apply the release's
+patches, and rebuild only the allowlisted native packages. The route is recorded in
+`runtime/node_modules/.hulala-runtime.json`; a machine without npm gets a clear
+error rather than a dependency-tree download. That command validates `bin/hulala --version` and manages
 immutable versions; it never stops a running Host. Use `hulala host stop`
 explicitly before starting a new Host version. `install.sh` also copies the
 package's binaries into `$HULALA_HOME/bin`, and `hulala install` writes

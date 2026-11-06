@@ -231,9 +231,9 @@ hulala-<version>-<target>/
   manifest.json
 ```
 
-归档只有约 10MB，因为它不带 `node_modules`：`hulala install` 按发布版的 npm lock 装依赖；
-npm 或 registry 不通时，装旁边发布的、已经打好 patch 的
-`hulala-<version>-<target>-runtime.tar.gz`。DSH 的 `dsh-office-to-pdf` 背后的 LibreOffice
+归档只有约 10MB，因为它不带 `node_modules`：`hulala install` 用发布版的 npm lock 执行
+`npm ci`（走系统代理，失败时用 `registry.npmmirror.com` 重试）。DSH 的
+`dsh-office-to-pdf` 背后的 LibreOffice
 引擎完全不下发：解压 140MB，而终端客户端没有文档转换功能。打包时会剪掉它，并把打包后的
 Host 真正启动一次，证明其余依赖仍然可用。
 
