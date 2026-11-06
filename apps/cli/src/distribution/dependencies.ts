@@ -44,8 +44,17 @@ export interface RuntimeInstallResult {
  *   `@deepseek-ai/dsh` meta package, not referenced by the web-app preset the Host
  *   loads, and there is no microphone surface.
  * - the experimental inspector: a development tool.
- * - Windows-only plugins on non-Windows targets: the preset disables them by
- *   platform.
+ * - Windows-only *presets* on non-Windows targets: `dsh-pwsh-sandbox` and the
+ *   `dsh-tool-pwsh*` plugins are only referenced by the preset with
+ *   `disabled: platform !== 'win32'`.
+ *
+ * Packages a load-time `import` reaches must stay even when this platform never
+ * uses them: `dsh-subprocess-local` imports `dsh-win32-process`,
+ * `dsh-sandbox-local` imports `dsh-sandbox-windows-acl`, and a shell plugin
+ * imports `dsh-pwsh-local`. Pruning those makes the sandbox and subprocess
+ * plugins fail to load, which leaves `tool-bash` waiting for its shell service
+ * and the whole agent preset invalid — the Host still reports ready, so only the
+ * boot probe's import check catches it.
  *
  * The release's Host boot covers the same tree, so a package that becomes
  * required at load time fails packaging instead of the first install.
@@ -59,10 +68,9 @@ const UNSHIPPED: readonly RegExp[] = [
   /^@deepseek-ai\/dsh-experimental-api-speech-to-text$/,
 ]
 const WINDOWS_ONLY: readonly RegExp[] = [
-  /^@deepseek-ai\/dsh-win32-process$/,
-  /^@deepseek-ai\/dsh-sandbox-windows-acl$/,
-  /^@deepseek-ai\/dsh-pwsh-/,
-  /^@deepseek-ai\/dsh-tool-pwsh/,
+  /^@deepseek-ai\/dsh-pwsh-sandbox$/,
+  /^@deepseek-ai\/dsh-tool-pwsh$/,
+  /^@deepseek-ai\/dsh-tool-pwsh-persistent$/,
 ]
 
 /**

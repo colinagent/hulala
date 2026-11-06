@@ -66,6 +66,13 @@ try {
     try {
       const line = await ready
       const payload = line.split('\n').find(value => value.includes('hulala-server-ready'))
+      // "Ready" only means the transport is up. A plugin that failed to import
+      // leaves its services pending (the first-install symptom was `tool-bash
+      // waiting for service: shell`), so the probe refuses that Host.
+      await Bun.sleep(3000)
+      const output = stdout + stderr
+      const broken = output.split('\n').filter(value => /failed to import|pending \(waiting for/.test(value))
+      if (broken.length > 0) throw new Error(`the packaged Host has plugins that did not load:\n${broken.join('\n')}`)
       child.kill('SIGTERM')
       const code = await Promise.race([child.exited, Bun.sleep(15000).then(() => 'timeout')])
       if (code !== 0) throw new Error(`the packaged Host did not stop cleanly on SIGTERM (${String(code)})`)
