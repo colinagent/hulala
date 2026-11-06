@@ -492,8 +492,7 @@ ${cases}
   release_command "$package"
   install_binaries "$package"
   ensure_unzip || true
-  echo "Hulala $version installed. Its own binaries stay in $state_root/bin." >&2
-  echo 'Install future updates with: hulala update' >&2
+  echo 'Update Hulala later with: hulala update' >&2
 }
 main "$@"
 `

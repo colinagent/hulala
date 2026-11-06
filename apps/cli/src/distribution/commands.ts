@@ -20,7 +20,8 @@ import { ensureRuntimeDependencies, type RuntimeAssets } from './dependencies.js
 interface Options {
   root?: string; bin?: string; from?: string; sha256?: string; version?: string
   runtimeLock?: string; runtimeLockSha256?: string; runtimePack?: string; runtimePackSha256?: string
-  force: boolean; addToPath: boolean; check: boolean; downloadOnly: boolean; background: boolean
+  force: boolean; /** Register the command directory on PATH when it is missing there. */ addToPath: boolean
+  check: boolean; downloadOnly: boolean; background: boolean
 }
 
 /** The release's dependency facts, either from the index or from the installer. */
@@ -34,7 +35,7 @@ function runtimeAssets(options: Options): RuntimeAssets | undefined {
 }
 
 function options(args: string[]): Options {
-  const value: Options = { force: false, addToPath: false, check: false, downloadOnly: false, background: false }
+  const value: Options = { force: false, addToPath: true, check: false, downloadOnly: false, background: false }
   for (let index = 0; index < args.length; index++) {
     const key = args[index]!
     if (key === '--force') value.force = true
@@ -344,12 +345,15 @@ export async function runDistributionCommand(command: string, args: string[]): P
       const recorded = receipt && !receipt.command.startsWith(resolve(paths.data) + sep) ? dirname(receipt.command) : undefined
       const bin = resolve(input.bin || recorded || onPath[0] || join(homedir(), '.local/bin'))
       await install.installLauncher(join(bin, process.platform === 'win32' ? 'hulala.exe' : 'hulala'))
-      // Editing a shell profile is opt-in: it is only needed when the chosen
-      // directory is not on PATH already. An update keeps the registration the
-      // installation already has instead of writing a second block in whatever
-      // profile the updating user happens to use.
+      // A fresh macOS or Linux account usually has no writable PATH directory
+      // (no Homebrew, /usr/local/bin owned by root), so the launcher lands in
+      // ~/.local/bin. Leaving that off PATH is exactly how the first run ends in
+      // "command not found": register it unless the user opted out, and keep an
+      // existing registration instead of writing a second block. An update keeps
+      // whatever the installation already recorded.
       let registered = receipt?.pathRegistration ? bin : undefined
-      if (input.addToPath && receipt?.pathRegistration === undefined) {
+      const reachable = await onPathAlready(bin)
+      if (!reachable && registered === undefined && input.addToPath) {
         try {
           const registration = await addCommandPath(bin, homedir())
           if (registration) { await install.rememberPath(registration); registered = bin }
@@ -359,10 +363,11 @@ export async function runDistributionCommand(command: string, args: string[]): P
       const removed = await pruneReleaseCache(paths.data, active.current.version).catch(() => [])
       if (removed.length > 0) console.log(`Removed cached release packages: ${removed.join(', ')}`)
       console.log(`Hulala ${active.current.version} ${command === 'install' ? 'installed' : 'updated'}: ${installed.command}`)
-      console.log('A running Host was left untouched; run `hulala host stop` and start it again to load this version.')
-      if (!await onPathAlready(dirname(installed.command))) console.log(registered
-        ? `Open a new terminal to use hulala, or run: export PATH=${JSON.stringify(dirname(installed.command))}:"$PATH"`
-        : `Add this directory to PATH (or install with --add-to-path): ${dirname(installed.command)}`)
+      if (command === 'update') console.log('A running Host was left untouched; run `hulala host stop` and start it again to load this version.')
+      // The last line is the point of the whole install: how to start it.
+      if (reachable) console.log('Start it with:  hulala')
+      else if (registered !== undefined) console.log('Open a new terminal, then start it with:  hulala')
+      else console.log(`Start it with:  ${JSON.stringify(installed.command)}\nAdd ${JSON.stringify(dirname(installed.command))} to PATH to run it as \`hulala\`, or re-run the installer without --no-add-to-path.`)
       return 0
     } finally { await rm(temporary, { recursive: true, force: true }) }
   })

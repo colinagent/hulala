@@ -243,11 +243,19 @@ test('the rendered installer produces an installation that hulala can update and
       lockSha256: 'b'.repeat(64),
     }))
     const home = join(root, 'home'), bin = join(root, 'bin')
+    mkdirSync(bin, { recursive: true })
     // Async spawn: the mirror in this process must keep serving during the run.
-    // HOME points at the fixture so shell profile registration stays inside it.
-    const result = await run(['sh', installer], { ...process.env, HOME: home, HULALA_HOME: home, HULALA_BIN: bin })
+    // HOME points at the fixture so shell profile registration stays inside it,
+    // and the command directory is already on PATH so installing edits no profile
+    // (the opt-out path is `--no-add-to-path`; a missing directory is registered).
+    const result = await run(['sh', installer], {
+      ...process.env, HOME: home, HULALA_HOME: home, HULALA_BIN: bin,
+      PATH: `${bin}:${process.env.PATH}`,
+    })
     expect(result.stderr).not.toContain('not changed')
     expect(result.exitCode).toBe(0)
+    // The last thing the user reads is how to start it.
+    expect(result.stdout).toContain('Start it with:  hulala')
 
     // The installer produced the versioned layout `hulala update` replaces.
     const installation = join(home, 'runtime/client')
