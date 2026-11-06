@@ -10,10 +10,15 @@ const chineseDownload = readFileSync(join(root, 'app', '(zh)', 'zh-CN', 'downloa
 const home = readFileSync(join(root, 'app', 'HomePage.tsx'), 'utf8')
 const metadata = readFileSync(join(root, 'app', 'siteMetadata.ts'), 'utf8')
 const sitemap = readFileSync(join(root, 'app', 'sitemap.ts'), 'utf8')
+const github = readFileSync(join(root, 'app', 'GitHubLink.tsx'), 'utf8')
 
 test('download page uses the isolated Hulala manifest and GitHub fallback', () => {
   expect(loader).toContain('https://downloads.hulala.ai/hulala/desktop/latest/manifest.json')
-  expect(page).toContain('https://github.com/colinagent/hulala/releases')
+  // One repository constant feeds the home page, the download page and the fallback.
+  expect(github).toContain('https://github.com/colinagent/hulala"')
+  expect(github).toContain('`${GITHUB_REPOSITORY}/releases`')
+  expect(page).toContain('GITHUB_RELEASES')
+  expect(page).not.toContain('github.com/colinagent/hulala')
   expect(home).toContain('isZh ? "/zh-CN/download/" : "/download/"')
   expect(loader).not.toContain('download.op-agent.com/desktop/latest')
 })

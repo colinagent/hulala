@@ -1,3 +1,4 @@
+import GitHubLink, { GITHUB_REPOSITORY } from "./GitHubLink";
 import WebInstallCommand from "./WebInstallCommand";
 
 const WEBSITE_LOGO_SRC = "/logo-mark.svg?v=flywheel-brand-2";
@@ -77,6 +78,12 @@ const translations = {
       label: "TERMINAL CLIENT",
       title: ["Open a window.", "Leave it running."],
       copy: "Install the client on macOS or Linux with one command, then run hulala wherever you work.",
+      github: "Open source · GPL-3.0 · Star on GitHub",
+    },
+    github: {
+      label: "GitHub",
+      headerAria: "Open the Hulala repository on GitHub",
+      footer: "GitHub ↗",
     },
   },
   zh: {
@@ -150,6 +157,12 @@ const translations = {
       label: "终端客户端",
       title: ["开一个窗口，", "然后就让它跑着。"],
       copy: "macOS 与 Linux 一行命令安装，然后在任何地方运行 hulala。",
+      github: "开源 · GPL-3.0 · 在 GitHub 上 Star",
+    },
+    github: {
+      label: "GitHub",
+      headerAria: "在 GitHub 上打开 Hulala 仓库",
+      footer: "GitHub ↗",
     },
   },
 } as const;
@@ -173,6 +186,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
           <a href="#principles">{t.nav[2]}</a>
         </nav>
         <div className="header-actions">
+          <GitHubLink label={t.github.label} accessibleName={t.github.headerAria} />
           <nav className="language-switcher static-glass" aria-label={isZh ? "语言" : "Language"}>
             <a className={!isZh ? "active" : ""} aria-current={!isZh ? "page" : undefined} href="/" hrefLang="en" lang="en">EN</a>
             <span />
@@ -276,9 +290,10 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
       <section className="closing-section">
         <img src={WEBSITE_LOGO_MARK_SRC} alt="" /><p className="section-label">{t.closing.label}</p><h2>{t.closing.title[0]}<br /><em>{t.closing.title[1]}</em></h2><p>{t.closing.copy}</p>
         <a className="button static-glass" href={downloadHref}>{t.cta} <span aria-hidden="true">↗</span></a>
+        <a className="closing-github" href={GITHUB_REPOSITORY} rel="noreferrer" target="_blank">{t.closing.github} <span aria-hidden="true">↗</span></a>
       </section>
 
-      <footer><a className="brand" href={homeHref} aria-label="Hulala home"><img src={WEBSITE_LOGO_SRC} alt="" /><span>Hulala</span></a><p>{t.footerSlogan}</p><div><span>Terminal · macOS & Linux</span><span>hello@hulala.ai</span></div></footer>
+      <footer><a className="brand" href={homeHref} aria-label="Hulala home"><img src={WEBSITE_LOGO_SRC} alt="" /><span>Hulala</span></a><p>{t.footerSlogan}</p><div><span>Terminal · macOS & Linux</span><a href={GITHUB_REPOSITORY} rel="noreferrer" target="_blank">{t.github.footer}</a><span>hello@hulala.ai</span></div></footer>
     </main>
   );
 }
