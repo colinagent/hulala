@@ -17,8 +17,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { t } from '../i18n/index.js'
 import { SessionRail, railLists } from '../view/sessionRail.js'
-import { columnRule } from '../view/splitDivider.js'
-import { railFits, railWidthFor } from '../view/layout.js'
+import { splitDivider } from '../view/splitDivider.js'
+import { DIVIDER_STEP, railFits, railWidthFor } from '../view/layout.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -53,6 +53,13 @@ export interface TuiRail {
   handleInput(data: string): void
   /** Re-decide the repaint cadence (called after a geometry change). */
   sync(): void
+  /**
+   * Move the rail's divider one step.
+   *
+   * `-1` moves the boundary left (the rail narrows), `1` moves it right (the
+   * rail widens). A no-op while the rail is not drawn.
+   */
+  moveDivider(direction: -1 | 1): void
 }
 
 /** Colour flag, the closing predicate, and the notice sink. */
@@ -105,17 +112,54 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     onAllExpanded: (expanded: boolean) => { allExpanded = expanded; syncTimer(); render.request() },
     onRevealed: (next: boolean) => { revealed = next; render.request() },
     onRefresh: () => { void session.refresh() },
+    // The pointer sits on a column, not on the rule beside it.
+    onPointer: () => layout.clearDividerHover(),
   })
-  const divider = columnRule(() => Math.max(1, terminal.rows - 1), config.color)
+  /** The rule is already hovered; its pointer shape needs no second write. */
+  let dividerHovered = false
+  /**
+   * The side effect of the rule's hover state: the pointer shape and a repaint.
+   *
+   * The glyph belongs to the divider itself; OSC 22 asks the terminal for a
+   * resize pointer (Ghostty, kitty, xterm) and the others ignore the sequence.
+   */
+  const setDividerHover = (hovered: boolean): void => {
+    if (dividerHovered === hovered) return
+    dividerHovered = hovered
+    terminal.write(hovered ? '\u001b]22;ew-resize\u001b\\' : '\u001b]22;default\u001b\\')
+    render.request()
+  }
+  /**
+   * The rail's rule is a real drag target.
+   *
+   * The rail used to be a fixed share, so its rule was painted with no pointer
+   * handling. It is a column the user can size now, which makes this the same
+   * divider as the sidebar's: the drag reports how far it moved and the frame
+   * decides what that means for the columns on either side.
+   */
+  const divider = splitDivider({
+    rows: () => Math.max(1, terminal.rows - 1),
+    color: config.color,
+    // The conversation beside the rail carries the terminal's own background.
+    background: () => '',
+    onDrag: screenX => layout.moveRailDivider(screenX - layout.railDividerColumn),
+    onHover: setDividerHover,
+  })
 
   layout.register('rail', {
     id: 'sessions',
     component: rail,
-    divider,
+    divider: divider.component,
     width: () => railWidthFor(terminal.columns),
+    onConversationPointer: () => divider.setHovered(false),
   })
 
   const shown = (): boolean => layout.railShown
+
+  /** One keyboard step of the rail's divider, in the key's direction. */
+  const moveDivider = (direction: -1 | 1): void => {
+    layout.moveRailDivider(direction * DIVIDER_STEP)
+  }
 
   const hasRunning = (): boolean => {
     if (!shown()) return false
@@ -167,7 +211,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
 
   const focus = (): void => {
     if (config.isClosing()) return
-    if (!railFits(terminal.columns, layout.paneId !== undefined)) {
+    if (!railFits(terminal.columns, layout.paneId !== undefined, layout.railWidth)) {
       reducer.addNotice(t('rail.tooNarrow'))
       render.repaint()
       return
@@ -259,6 +303,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     blur,
     handleInput: (data: string) => { rail.handleInput(data) },
     sync: syncTimer,
+    moveDivider,
   })
 }
 

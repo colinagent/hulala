@@ -44,7 +44,7 @@ export const zhCN: MessageTable = {
   'help.key.move': '↑/↓ 或 Ctrl-N/P 上下（历史/列表）· Tab 补全',
   'help.key.escape': 'Esc 取消当前回合 · 空闲时进左侧会话栏（草稿保留）',
   'help.key.exit': 'Ctrl-C 取消/退出 · Ctrl-Q 退出 · Ctrl-L 重绘 · Ctrl-O 展开/折叠工具输出',
-  'help.key.columns': 'Ctrl-D 隐藏/显示对话栏 · Ctrl-T 开/关终端列 · Ctrl-F 开/关 Neovim 列',
+  'help.key.columns': 'Ctrl-D 隐藏/显示对话栏 · Ctrl-T 开/关终端列 · Ctrl-F 开/关 Neovim 列 · Cmd-Ctrl-[ / ] 或 Ctrl-Shift-[ / ]（Ctrl-Shift-←/→ 任何终端）移动焦点列旁的分割线',
   'help.key.railKeys': 'Ctrl-G 开/关会话栏 · Ctrl-[ / Ctrl-] 会话↔对话↔侧栏（只移光标）',
   'help.key.rail': '会话栏：↑↓/j k/Ctrl-N P 移动 · Enter 切换 · n 新建 · / 搜索 · ←/→ 展开全部 · r 刷新 · Esc 回输入框',
   'help.key.more': '会话栏最多先列 30 个：「更多」行上 Enter 展开其余（「收起」收回）',

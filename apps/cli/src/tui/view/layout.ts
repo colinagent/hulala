@@ -46,6 +46,8 @@ export interface TerminalLayoutOptions {
   readonly cwdBar?: Component
   readonly editor: Component
   readonly statusBar: Component
+  /** Viewport to reuse when a rebuild has to keep the reader's position. */
+  readonly scroll?: ScrollView
 }
 
 /** The dock entries shared by every layout, with the optional directory row. */
@@ -142,6 +144,8 @@ export interface RailLayoutOptions extends TerminalLayoutOptions {
   readonly rail: Component
   readonly railWidth: number
   readonly railDivider: Component
+  /** The pointer moved anywhere in the conversation column. */
+  readonly onConversationPointer?: () => void
   /** The editor column, when the sidebar is open beside the rail. */
   readonly pane?: RailPane
 }
@@ -151,6 +155,9 @@ const COMPOSER_MIN_SIZE = 3
 
 /** Gap column between two columns. */
 const SPLIT_GAP = 1
+
+/** Cells one keyboard resize moves a divider, the same nudge as a short drag. */
+export const DIVIDER_STEP = 2
 
 /** Narrowest column a side-by-side layout is allowed to shrink to. */
 export const SPLIT_MIN_SIZE = 32
@@ -180,16 +187,41 @@ export function railWidthFor(columns: number): number {
  * Whether the rail leaves both neighbours their minimum width.
  * @param columns - terminal width.
  * @param withPane - the editor column is open too.
+ * @param railWidth - the rail's width; the default share when omitted.
  * @returns true when the rail can be drawn without squeezing a neighbour.
  */
-export function railFits(columns: number, withPane: boolean): boolean {
+export function railFits(columns: number, withPane: boolean, railWidth = railWidthFor(columns)): boolean {
   if (columns < RAIL_MIN_SIZE + SPLIT_GAP + RAIL_CONVERSATION_MIN) return false
   if (!withPane) return true
-  return columns >= railWidthFor(columns) + SPLIT_GAP + RAIL_CONVERSATION_MIN + SPLIT_GAP + SPLIT_MIN_SIZE
+  return columns >= railWidth + SPLIT_GAP + RAIL_CONVERSATION_MIN + SPLIT_GAP + SPLIT_MIN_SIZE
+}
+
+/**
+ * Widest the rail may be drawn, dragged or not.
+ *
+ * The default share is a reading aid; a drag is the user saying the list needs
+ * more room, so the ceiling is what the frame still owes its neighbours: the rule
+ * gaps and dividers, the conversation's minimum, and the pane's minimum when one
+ * is open. Half the frame caps the rest, and the floor is `RAIL_MIN_SIZE` -
+ * a limit below the minimum is no limit at all.
+ * @param columns - terminal width.
+ * @param withPane - the editor column is open too.
+ * @returns the widest rail that still leaves its neighbours usable.
+ */
+export function railWidthLimit(columns: number, withPane: boolean): number {
+  // Without a pane the frame spends three cells on the rule: gap, rule, gap.
+  // With one it spends six, and the pane keeps its own minimum after them.
+  const chrome = withPane ? 6 + SPLIT_MIN_SIZE : 3
+  return Math.max(
+    RAIL_MIN_SIZE,
+    Math.min(Math.floor(columns / 2), columns - RAIL_CONVERSATION_MIN - chrome),
+  )
 }
 
 export function buildTerminalLayout(options: TerminalLayoutOptions): TerminalLayout {
-  const transcriptScroll = new ScrollView(options.transcript, { follow: 'end', primary: true })
+  // A drag rebuilds the tree, so the viewport can outlive the tree it was built
+  // in: reusing it keeps the reader where they were instead of jumping to the end.
+  const transcriptScroll = options.scroll ?? new ScrollView(options.transcript, { follow: 'end', primary: true })
 
   const dock = new VStack([
     ...chatEntries(options),
@@ -217,13 +249,15 @@ export function buildTerminalLayout(options: TerminalLayoutOptions): TerminalLay
  * @returns the layout root, the transcript viewport, and the pane-width hook.
  */
 export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTerminalLayout {
-  const transcriptScroll = new ScrollView(options.transcript, { follow: 'end', primary: true })
+  // A drag rebuilds the tree, so the viewport can outlive the tree it was built
+  // in: reusing it keeps the reader where they were instead of jumping to the end.
+  const transcriptScroll = options.scroll ?? new ScrollView(options.transcript, { follow: 'end', primary: true })
 
   const conversation = new ConversationColumn([
     { component: transcriptScroll, basis: 0, grow: 1, shrink: 1, minSize: 1 },
     ...chatEntries(options),
     { component: options.editor, shrink: 1, minSize: COMPOSER_MIN_SIZE },
-  ], options.pane?.onConversationPointer ?? (() => undefined))
+  ], options.onConversationPointer ?? options.pane?.onConversationPointer ?? (() => undefined))
 
   const railWidth = Math.max(RAIL_MIN_SIZE, Math.round(options.railWidth))
   const pane = options.pane
@@ -332,7 +366,9 @@ export function buildSideColumnsLayout(options: SideColumnsLayoutOptions): SideC
  * @returns the layout root and the transcript viewport.
  */
 export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): SplitTerminalLayout {
-  const transcriptScroll = new ScrollView(options.transcript, { follow: 'end', primary: true })
+  // A drag rebuilds the tree, so the viewport can outlive the tree it was built
+  // in: reusing it keeps the reader where they were instead of jumping to the end.
+  const transcriptScroll = options.scroll ?? new ScrollView(options.transcript, { follow: 'end', primary: true })
 
   const conversation = new ConversationColumn([
     { component: transcriptScroll, basis: 0, grow: 1, shrink: 1, minSize: 1 },

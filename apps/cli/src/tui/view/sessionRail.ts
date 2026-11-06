@@ -235,6 +235,8 @@ export interface SessionRailOptions {
   /** The `More` row was taken (`true`) or the expanded section folded back. */
   readonly onRevealed: (revealed: boolean) => void
   readonly onRefresh: () => void
+  /** The pointer is somewhere in the rail, which ends the rule's hover state. */
+  readonly onPointer?: () => void
 }
 
 export class SessionRail implements Component {
@@ -250,6 +252,12 @@ export class SessionRail implements Component {
   }
 
   invalidate(): void {}
+
+  /** Any pointer event reports that the rule beside the rail is no longer hovered. */
+  handleMouse(): undefined {
+    this.options.onPointer?.()
+    return undefined
+  }
 
   /** True while Esc belongs to the filter box rather than to leaving the rail. */
   get filterFocused(): boolean {

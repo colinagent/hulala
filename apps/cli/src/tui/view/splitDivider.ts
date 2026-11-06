@@ -61,23 +61,6 @@ class Divider implements Component {
 }
 
 /**
- * A plain one-column rule with no pointer handling.
- *
- * The session rail is fixed-width, so the rule beside it is not a drag target;
- * reusing the draggable divider would advertise a resize that does not exist.
- * @param rows - rows to paint.
- * @param color - whether ANSI styling is on.
- * @returns the rule component.
- */
-export function columnRule(rows: () => number, color: boolean): Component {
-  const styles = buildStyles(color)
-  return {
-    invalidate: () => undefined,
-    render: () => Array.from({ length: Math.max(1, rows()) }, () => styles.separator('▏')),
-  }
-}
-
-/**
  * Build the divider, wrapped so a press captures the drag and hovering asks for
  * a resize pointer.
  * @param options - height, colours, drag and hover callbacks.
@@ -95,20 +78,41 @@ export function splitDivider(options: SplitDividerOptions): SplitDivider {
     divider.setHovered(hovered)
     options.onHover(hovered)
   }
+  /**
+   * Whether this divider owns a held left button.
+   *
+   * The renderer classifies motion by the button bits the terminal reports, and
+   * some terminals label plain hover motion with a pressed button. Those events
+   * arrive as `drag` without any `press` here, so the divider tracks the press
+   * itself: a column that resizes while the pointer merely rests on it is a
+   * terminal report, not a drag.
+   */
+  let pressed = false
   const component = new MouseRegion(divider, (event: TuiMouseEvent): TuiMouseEventResult | undefined => {
     if (event.type === 'move') {
+      // The terminal says no button is down. That also settles a gesture whose
+      // release never arrived, e.g. one let go outside the window.
+      pressed = false
       setHovered(true)
       return { handled: true }
     }
     if (event.type === 'press' && event.button === 'left') {
+      pressed = true
       setHovered(true)
       return { handled: true, capture: true }
     }
     if (event.type === 'drag') {
+      if (!pressed) {
+        setHovered(true)
+        return { handled: true }
+      }
       options.onDrag(event.screenX)
       return { handled: true, capture: true }
     }
-    if (event.type === 'release') return { handled: true }
+    if (event.type === 'release') {
+      pressed = false
+      return { handled: true }
+    }
     return undefined
   })
   return { component, setHovered }

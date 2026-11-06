@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Component, TUI } from '@earendil-works/pi-tui'
 import { renderLayoutFrame } from '@earendil-works/pi-tui/dist/layout.js'
-import { buildRailTerminalLayout, buildSideColumnsLayout, buildSplitTerminalLayout, buildTerminalLayout, railFits, railWidthFor } from '../../src/tui/view/layout.js'
+import { buildRailTerminalLayout, buildSideColumnsLayout, buildSplitTerminalLayout, buildTerminalLayout, railFits, railWidthFor, railWidthLimit } from '../../src/tui/view/layout.js'
 import { PromptEditor } from '../../src/tui/view/promptEditor.js'
 import { buildTheme } from '../../src/tui/view/theme.js'
 
@@ -237,6 +237,34 @@ test('the rail keeps a narrow share and yields to the editor on a narrow termina
   expect(railFits(53, false)).toBe(true)
   expect(railFits(85, true)).toBe(false)
   expect(railFits(86, true)).toBe(true)
+})
+
+test('a dragged rail is capped so its neighbours keep their minimum', () => {
+  // The default share is a reading aid; a drag is the user asking for more room,
+  // and the ceiling is what the conversation and the editor still need.
+  expect(railWidthLimit(100, false)).toBe(50)
+  expect(railWidthLimit(100, true)).toBe(28)
+  // A frame too narrow for anything but the minimums still allows the minimum.
+  expect(railWidthLimit(60, true)).toBe(18)
+  // A rail dragged to that cap still leaves the neighbours their minimums.
+  expect(railFits(100, true, 28)).toBe(true)
+  expect(railFits(100, false, 50)).toBe(true)
+})
+
+test('the rail layout draws the width it was asked for', () => {
+  const shared = {
+    transcript: overflowingTranscript(100),
+    pending: slab('pending', 1),
+    editor: slab('composer', 3),
+    statusBar: slab('status', 1),
+    rail: slab('rail', 24),
+    railDivider: slab('|', 24),
+  }
+  const wide = renderLayoutFrame(buildRailTerminalLayout({ ...shared, railWidth: 32 }).root, 100, 24, () => undefined)
+  const [rail, , divider, , conversation] = wide.root.children[0]?.children ?? []
+  expect(rail?.rect).toMatchObject({ x: 0, width: 31 })
+  expect(divider?.rect).toMatchObject({ x: 32, width: 1 })
+  expect(conversation?.rect.x).toBe(34)
 })
 
 test('the rail, the conversation and the editor each get their columns', () => {

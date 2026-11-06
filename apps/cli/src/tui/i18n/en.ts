@@ -43,7 +43,7 @@ export const en: MessageTable = {
   'help.key.move': '↑/↓ or Ctrl-N/P move (history/lists) · Tab completes',
   'help.key.escape': 'Esc cancels the running turn · when idle, enters the Session rail (keeps the draft)',
   'help.key.exit': 'Ctrl-C cancel/exit · Ctrl-Q quit · Ctrl-L redraw · Ctrl-O expand/collapse tool output',
-  'help.key.columns': 'Ctrl-D hide/show conversation · Ctrl-T toggle terminal column · Ctrl-F toggle Neovim column',
+  'help.key.columns': 'Ctrl-D hide/show conversation · Ctrl-T toggle terminal column · Ctrl-F toggle Neovim column · Cmd-Ctrl-[ / ] or Ctrl-Shift-[ / ] (Ctrl-Shift-←/→ anywhere) move the divider beside the focused column',
   'help.key.railKeys': 'Ctrl-G toggle Session rail · Ctrl-[ / Ctrl-] rail↔chat↔sidebar (moves the cursor only)',
   'help.key.rail': 'Rail: ↑↓/j k/Ctrl-N P move · Enter switch · n new · / search · ←/→ expand all · r refresh · Esc back to composer',
   'help.key.more': 'The rail lists at most 30 first: Enter on the More row reveals the rest (Less folds it back)',

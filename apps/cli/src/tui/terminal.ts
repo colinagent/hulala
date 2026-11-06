@@ -4,12 +4,25 @@
  * `ProcessTerminal` hard-codes `process.stdin/stdout`, which makes the client
  * untestable with injected streams. This minimal `Terminal` implementation owns
  * raw mode, stdin framing (via pi-tui's `StdinBuffer`), resize notifications,
- * and the escape-sequence surface pi-tui's renderer calls. It skips Kitty
- * keyboard-protocol negotiation (`Ctrl-J` still inserts newlines).
+ * and the escape-sequence surface pi-tui's renderer calls.
+ *
+ * It does ask for the Kitty keyboard protocol's *disambiguate* mode, because a
+ * macOS terminal will not report a Command chord any other way — and Command is
+ * what the frame's divider keys are bound to. Legacy keys keep working: the
+ * renderer matches both spellings, and the column programs get the legacy bytes
+ * back through `pane/legacyKeys.ts`. Nothing is flipped in pi-tui's own parser
+ * state (`kittyProtocolActive` stays false), so a terminal that ignores the
+ * request reads exactly like it always did.
  *
  * @module hulala-cli/tui/terminal
  */
 import { formatProgramStatus, StdinBuffer, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
+
+/** Push the Kitty keyboard protocol's disambiguate mode, keeping older flags. */
+const PUSH_DISAMBIGUATE = '\u001b[>1u'
+
+/** Pop it again, restoring whatever the terminal had before the client started. */
+const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 
 export interface TerminalStreams {
   input: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void; setEncoding?: (encoding: string) => void }
@@ -53,6 +66,10 @@ export class StreamTerminal implements Terminal {
 
     // Bracketed paste so pasted text arrives wrapped in markers.
     this.write('\u001b[?2004h')
+    // Push "disambiguate escape codes" (Kitty keyboard protocol flag 1). A
+    // terminal without the protocol ignores the sequence; a terminal with it can
+    // now report `Cmd-Ctrl-[` as `CSI 91;13u`, which legacy encoding cannot.
+    this.write(PUSH_DISAMBIGUATE)
 
     this.stdinBuffer = new StdinBuffer()
     this.stdinBuffer.on('data', sequence => {
@@ -87,6 +104,9 @@ export class StreamTerminal implements Terminal {
     this.stdinBuffer = undefined
     this.detachResize?.()
     this.detachResize = undefined
+    // Pop the keyboard mode before the paste mode: the terminal must go back to
+    // the encoding the shell expects.
+    this.write(POP_KEYBOARD_PROTOCOL)
     this.write('\u001b[?2004l')
     this.streams.input.setRawMode?.(this.wasRaw)
     this.inputHandler = undefined

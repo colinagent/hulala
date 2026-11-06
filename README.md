@@ -95,6 +95,9 @@ The frame is drivable without a mouse:
 | `Alt-Up` | take queued messages back into the composer |
 | `Ctrl-O` | expand the tool row under the pointer |
 | `Ctrl-S` | write the editor buffer now (it otherwise autosaves) |
+| `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | move the divider beside the focused column: the column on its right grows or shrinks |
+| `Ctrl-Shift-[` / `Ctrl-Shift-]` | the same move; `Ctrl-Shift-←` / `Ctrl-Shift-→` is the spelling every terminal reports |
+| drag the divider | the same move with the pointer, on either side of the frame |
 | `Shift-PgUp` / `Shift-PgDn` | page the terminal column's own history |
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
 | `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/editor`, `/terminal`, `/cancel`, `/quit` |

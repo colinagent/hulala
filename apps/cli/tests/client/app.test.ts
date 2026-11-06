@@ -679,6 +679,145 @@ test('TTY mode keeps the sidebar open across focus changes and hands nvim its ke
   await expect(tty.run).resolves.toBe(0)
 })
 
+test('Cmd-Ctrl-[ / ] and Ctrl-Shift move the pane divider in the key direction', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-resize-'))
+  const fake = fakeBackend(home)
+  const editor = fakeEditor({ clean: true })
+  const tty = startPtyTty(home, fake, editor.module)
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+
+  tty.input.write('\u0006') // Ctrl-F opens the Neovim column with the keyboard in it
+  await waitFor(() => editor.spawned(), 'editor column')
+  await waitFor(() => editor.width() !== undefined, 'the pane asked for a pty width')
+  const start = editor.width()!
+
+  // The key names the boundary's direction: the leftward spellings take the rule
+  // left, which gives the column on its right more room, and the rightward ones
+  // take it right again. The pty follows the width and Neovim never sees the
+  // sequence. Extended modifiers (Shift on a bracket, Command) reach a program
+  // only through the keyboard report, so they arrive as CSI-u.
+  tty.input.write('\u001b[91;13u') // Cmd-Ctrl-[ widens the column
+  await waitFor(() => editor.width() === start + 2, 'Cmd-Ctrl-[ widens')
+  expect(editor.writes()).not.toContain('91;13u')
+
+  tty.input.write('\u001b[93;13u') // Cmd-Ctrl-] narrows it again
+  await waitFor(() => editor.width() === start, 'Cmd-Ctrl-] narrows')
+
+  tty.input.write('\u001b[91;6u') // Ctrl-Shift-[ widens
+  await waitFor(() => editor.width() === start + 2, 'Ctrl-Shift-[ widens')
+  tty.input.write('\u001b[93;6u') // Ctrl-Shift-] narrows
+  await waitFor(() => editor.width() === start, 'Ctrl-Shift-] narrows')
+
+  // The arrow pair is the one spelling every terminal reports: a plain CSI
+  // sequence carrying shift+ctrl, no keyboard report needed.
+  tty.input.write('\u001b[1;6D') // Ctrl-Shift-← widens
+  await waitFor(() => editor.width() === start + 2, 'Ctrl-Shift-← widens')
+  tty.input.write('\u001b[1;6C') // Ctrl-Shift-→ narrows
+  await waitFor(() => editor.width() === start, 'Ctrl-Shift-→ narrows')
+
+  tty.input.write('\u0006') // Ctrl-F closes: Neovim is clean, so it leaves at once
+  await new Promise(resolve => setTimeout(resolve, 200))
+  tty.input.write('\u0011') // and the client quits
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('the rail divider is dragged with the pointer, and the key moves it too', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-rail-width-'))
+  const fake = fakeBackend(home)
+  const tty = startPtyTty(home, fake, undefined as never)
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+
+  // SGR coordinates are 1-based: a 100-column terminal draws the default rail 18
+  // cells wide, so its rule is the 19th cell (index 18) and the pointer's column
+  // 19 is one past it.
+  const rule = 20
+  const seen = (): string => plain(tty.painted())
+  /**
+   * Park the pointer in the conversation until the rule paints its idle glyph.
+   *
+   * A move that arrives while the frame is being rebuilt is dropped by the
+   * renderer, so the park is repeated rather than sent once.
+   */
+  const settle = async (): Promise<void> => {
+    const deadline = Date.now() + 1_000
+    while (seen().lastIndexOf('▎') > seen().lastIndexOf('▏')) {
+      if (Date.now() > deadline) throw new Error('the rail rule never went idle')
+      tty.input.write(`\u001b[<35;60;3M`)
+      await new Promise(resolve => setTimeout(resolve, 40))
+    }
+  }
+  /** Whether the pointer at `column` lands on the rail's rule. */
+  const onRule = async (column: number): Promise<boolean> => {
+    await settle()
+    const deadline = Date.now() + 600
+    do {
+      const mark = tty.painted().length
+      tty.input.write(`\u001b[<35;${column};3M`)
+      await new Promise(resolve => setTimeout(resolve, 60))
+      if (plain(tty.painted().slice(mark)).includes('▎')) return true
+    } while (Date.now() < deadline)
+    return false
+  }
+
+  // The rail's rule used to be painted with no pointer handling at all.
+  expect(await onRule(rule)).toBe(true)
+  expect(await onRule(rule + 2)).toBe(false)
+
+  // Press it, drag six cells right and let go: the rail takes the wider share and
+  // the rule lands under the pointer instead of one cell short of it.
+  tty.input.write(`\u001b[<0;${rule};3M`)
+  tty.input.write(`\u001b[<32;${rule + 6};3M`)
+  tty.input.write(`\u001b[<0;${rule + 6};3m`)
+  expect(await onRule(rule + 6)).toBe(true)
+  // The cell it was drawn in belongs to the rail's content now.
+  expect(await onRule(rule)).toBe(false)
+
+  // The keyboard moves the same boundary: from the composer, a step right widens
+  // the rail (not the pane) and a step left takes it back.
+  tty.input.write('draft')
+  await waitFor(() => tty.painted().includes('draft'), 'the composer has the keyboard')
+  tty.input.write('\u001b[1;6C') // Ctrl-Shift-→ moves the rule right
+  expect(await onRule(rule + 8)).toBe(true)
+  tty.input.write('\u001b[93;13u') // Cmd-Ctrl-] moves it once more
+  expect(await onRule(rule + 10)).toBe(true)
+  tty.input.write('\u001b[91;13u') // Cmd-Ctrl-[ takes it back a step
+  expect(await onRule(rule + 8)).toBe(true)
+
+  tty.input.write('\u0011') // and the client quits
+  await expect(tty.run).resolves.toBe(0)
+}, 20_000)
+
+test('an extended key report reaches the column as the legacy byte it stands for', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-kitty-'))
+  const fake = fakeBackend(home)
+  const panes = fakePanes()
+  const tty = startPtyTty(home, fake, panes.module)
+  const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+  // The client asks the terminal for the disambiguated keyboard protocol: it is
+  // the only way a macOS terminal reports a Command chord.
+  expect(tty.painted()).toContain('\u001b[>1u')
+
+  tty.input.write('\u0014') // Ctrl-T: the shell column opens with the keyboard in it
+  await waitFor(() => panes.panes.length === 1, 'terminal column')
+  tty.input.write('git status')
+  await waitFor(() => shellWrites().includes('git status'), 'keys reach the shell')
+
+  // Under the protocol the terminal reports these keys as CSI-u; the shell still
+  // gets the bytes it was reading before the protocol was switched on.
+  tty.input.write('\u001b[99;5u') // Ctrl-C
+  await waitFor(() => shellWrites().includes('\u0003'), 'Ctrl-C as its control byte')
+  tty.input.write('\u001b[27u') // Esc
+  await waitFor(() => shellWrites().includes('\u001b'), 'Esc as its control byte')
+  tty.input.write('\u001b[106;3u') // Alt-j
+  await waitFor(() => shellWrites().includes('\u001bj'), 'Alt-j as escape plus j')
+  expect(shellWrites()).not.toContain('[99;5u')
+
+  tty.input.write('\u0011') // and the client quits, popping the keyboard mode
+  await expect(tty.run).resolves.toBe(0)
+  expect(tty.painted()).toContain('\u001b[<u')
+})
+
 test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl-F', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-terminal-'))
   const fake = fakeBackend(home)
@@ -1017,11 +1156,14 @@ function fakeEditor(options: { clean: boolean }): {
   writes(): string
   spawned(): boolean
   saves(): number
+  /** Columns of the last resize the pane asked the pty for. */
+  width(): number | undefined
 } {
   const writes: string[] = []
   let clean = options.clean
   let spawned = false
   let saves = 0
+  let cols: number | undefined
   let exit: ((event: { exitCode: number }) => void) | undefined
   const module: PtyModule = {
     spawn() {
@@ -1037,12 +1179,12 @@ function fakeEditor(options: { clean: boolean }): {
           const leave = chunk.includes(':qa!') || (chunk.includes(':qa') && clean)
           if (leave) queueMicrotask(() => exit?.({ exitCode: 0 }))
         },
-        resize() {},
+        resize(width) { cols = width },
         kill() {},
       }
     },
   }
-  return { module, writes: () => writes.join(''), spawned: () => spawned, saves: () => saves }
+  return { module, writes: () => writes.join(''), spawned: () => spawned, saves: () => saves, width: () => cols }
 }
 
 /** A pty backend whose children are the test: no shell or editor really starts. */

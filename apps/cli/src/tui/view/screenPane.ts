@@ -22,6 +22,7 @@
 import type { Component, Focusable, TuiMouseEvent, TuiMouseEventResult } from '@earendil-works/pi-tui'
 import { matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { CursorKind } from '../pane/screenSession.js'
+import { legacyKeys } from '../pane/legacyKeys.js'
 import { buildStyles } from './theme.js'
 import { padEnd } from './pathText.js'
 
@@ -109,7 +110,9 @@ export class ScreenPane implements Component, Focusable {
       // Anything typed means the user is done reading.
       if (scroll.scrolledBack() > 0 && scroll.follow()) this.options.onScroll?.()
     }
-    this.options.screen.input(data)
+    // The column's program speaks legacy terminal encoding; the outer terminal
+    // may be reporting its keys through the Kitty keyboard protocol.
+    this.options.screen.input(legacyKeys(data))
   }
 
   handleMouse(_event: TuiMouseEvent): TuiMouseEventResult | undefined {

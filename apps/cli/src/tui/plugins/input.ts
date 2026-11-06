@@ -135,6 +135,33 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     render.repaint()
   }
 
+  /**
+   * Which divider a keyboard resize moves.
+   *
+   * A column's rule belongs to its left edge, so the focused pane moves its own
+   * rule and the focused conversation moves the rail's rule beside it. With the
+   * conversation put away only the rail's rule is drawn, and the frame turns that
+   * column into the pane's width. Steps the pointer could also take: the boundary
+   * follows the key, which widens the column on its right and narrows the one on
+   * its left.
+   * @param direction - `-1` moves the boundary left, `1` moves it right.
+   */
+  const moveDivider = (direction: -1 | 1): void => {
+    const railShown = layout.railShown
+    const paneShown = layout.paneId !== undefined
+    if (!layout.conversationShown) {
+      if (railShown) rails.moveDivider(direction)
+      else if (paneShown) panes.moveDivider(direction)
+      return
+    }
+    if (panes.focused && paneShown) {
+      panes.moveDivider(direction)
+      return
+    }
+    if (railShown) rails.moveDivider(direction)
+    else if (paneShown) panes.moveDivider(direction)
+  }
+
   const listener = (data: string): { consume: boolean } | undefined => {
     config.debug(`input ${JSON.stringify(data)} active=${String(panes.focused)} overlays=${overlays.open}`)
     // A modal owns the keyboard: its own keys (the Session picker's search, an
@@ -153,6 +180,39 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     // columns are the only way back and the only reason the frame stays usable.
     if (matchesKey(data, 'ctrl+d')) {
       toggleConversation()
+      return { consume: true }
+    }
+
+    // The dividers from the keyboard. The key names the divider's direction, and
+    // the divider that answers is the one on the focused column's left: a focused
+    // pane moves its own rule, the conversation moves the rail's rule beside it,
+    // and the rail - which has no column to its left - moves its own. A candidate
+    // that is not painted falls back to the other.
+    //
+    // Two modifier families, because a terminal can only report what its encoding
+    // allows. `Ctrl-Shift-←/→` are plain CSI sequences, so every terminal
+    // reports them; `Ctrl-Shift-[ / ]` and `Cmd-Ctrl-[ / ]` need the extended
+    // keyboard report, which the client asks for on start - a terminal without it
+    // collapses the bracket chords onto `Esc` and `Ctrl-]`, which are the frame's
+    // own keys, so those spellings simply never arrive there. Arrow chords stay
+    // out of the Command family on purpose: macOS claims `Cmd-Ctrl-←/→`
+    // for spaces, so that pair can never be ours.
+    if (
+      matchesKey(data, 'ctrl+shift+left') ||
+      matchesKey(data, 'ctrl+shift+[') ||
+      matchesKey(data, 'ctrl+super+[')
+    ) {
+      // A release is swallowed with its press: a terminal that reports event
+      // types must not resize twice for one keystroke.
+      if (!isKeyRelease(data)) moveDivider(-1)
+      return { consume: true }
+    }
+    if (
+      matchesKey(data, 'ctrl+shift+right') ||
+      matchesKey(data, 'ctrl+shift+]') ||
+      matchesKey(data, 'ctrl+super+]')
+    ) {
+      if (!isKeyRelease(data)) moveDivider(1)
       return { consume: true }
     }
 

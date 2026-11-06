@@ -27,9 +27,9 @@ import { paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
 import { startShellSession } from '../pane/shellSession.js'
 import type { ScreenSession } from '../pane/screenSession.js'
 import { faintCursorSgr } from '../view/theme.js'
-import { columnRule, splitDivider } from '../view/splitDivider.js'
+import { splitDivider } from '../view/splitDivider.js'
 import { ScreenPane } from '../view/screenPane.js'
-import { SPLIT_MIN_SIZE } from '../view/layout.js'
+import { DIVIDER_STEP, SPLIT_MIN_SIZE } from '../view/layout.js'
 import { ConfirmOverlay, type ConfirmChoice } from '../view/overlays/confirm.js'
 import { t } from '../i18n/index.js'
 
@@ -103,10 +103,18 @@ export interface TuiPanes {
   leave(): Promise<boolean>
   /** The one-column drag target the frame draws beside the sidebar. */
   readonly divider: Component
-  /** The rule the rail layout draws between rail and conversation. */
-  readonly railDivider: Component
   setDividerHover(hovered: boolean): void
   dragDividerTo(screenX: number): void
+  /**
+   * Move the divider one keyboard step without a pointer.
+   *
+   * The key names the divider's direction, not the column's width: `-1` moves the
+   * boundary left, which widens the column, and `1` moves it right, which
+   * narrows it — the same thing a drag of that many cells does. A no-op while no
+   * column is painted: there is no divider to move, and no width the
+   * conversation could trade against.
+   */
+  moveDivider(direction: -1 | 1): void
   /** The component focus returns to when a column lets go. */
   setComposer(composer: Component): void
 }
@@ -179,6 +187,25 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     render.request()
   }
 
+  /**
+   * One keyboard step of the divider.
+   *
+   * The step goes through the same arithmetic as the pointer: the pointer's
+   * column is derived from the width the column has now, so a key and a drag
+   * can never disagree about where the boundary sits, and both share the same
+   * limits. Which column the resize lands on is the painted one, because that
+   * is the column the divider belongs to.
+   * @param direction - `-1` moves the boundary left (the column widens), `1`
+   * moves it right (the column narrows).
+   */
+  const moveDivider = (direction: -1 | 1): void => {
+    const kind = visibleKind
+    if (kind === undefined || layout.paneId === undefined) return
+    const width = terminal.columns
+    if (width <= 0) return
+    dragDividerTo(width - columns(kind) - 1 + direction * DIVIDER_STEP)
+  }
+
   const setDividerHover = (hovered: boolean): void => {
     if (dividerHovered === hovered) return
     dividerHovered = hovered
@@ -198,8 +225,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     onDrag: dragDividerTo,
     onHover: setDividerHover,
   })
-  const railDivider = columnRule(rows, config.color)
-
   /** The visible column's runtime, if one is painted. */
   const visibleRuntime = (): PaneRuntime | undefined => visibleKind === undefined ? undefined : runtimes.get(visibleKind)
 
@@ -240,6 +265,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       component: runtime.view,
       divider: divider.component,
       width: () => columns(kind),
+      // When the conversation is put away the rail absorbs the leftover width,
+      // so the rail's divider is the pane's right edge and this seat owns it.
+      onResize: (width: number) => dragDividerTo(terminal.columns - Math.round(width) - 1),
       onConversationPointer: () => divider.setHovered(false),
     }))
   }
@@ -302,7 +330,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       color: config.color,
       faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
       onScroll: () => { if (visibleKind === kind) render.request() },
-      onPointer: () => divider.setHovered(false),
+      onPointer: () => layout.clearDividerHover(),
     })
     const runtime: PaneRuntime = { kind, session, view }
     runtimes.set(kind, runtime)
@@ -519,9 +547,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     },
     leave,
     get divider() { return divider.component },
-    get railDivider() { return railDivider },
     setDividerHover,
     dragDividerTo,
+    moveDivider,
     setComposer: (component: Component) => { composer = component },
   })
 }

@@ -21,15 +21,17 @@
  * @module hulala-cli/tui/plugins/layout
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { VStack, type Component } from '@earendil-works/pi-tui'
+import { VStack, type Component, type ScrollView } from '@earendil-works/pi-tui'
 import type { SeatId } from '@hulala/plugin-sdk'
 import {
   buildRailTerminalLayout,
   buildSideColumnsLayout,
   buildSplitTerminalLayout,
   buildTerminalLayout,
+  RAIL_MIN_SIZE,
   railFits,
   railWidthFor,
+  railWidthLimit,
   SPLIT_MIN_SIZE,
 } from '../view/layout.js'
 
@@ -98,6 +100,23 @@ export interface TuiLayout {
   rebuild(): void
   /** Resize the right column without rebuilding the tree. */
   resizePane(width: number): void
+  /** The width the rail is drawn at, in cells. */
+  readonly railWidth: number
+  /** The column the rail divider is drawn in. */
+  readonly railDividerColumn: number
+  /** End every divider's hover state, e.g. when the pointer entered a column. */
+  clearDividerHover(): void
+  /**
+   * Move the rail divider by a number of cells.
+   *
+   * Positive moves the boundary right, negative left, so a pointer drag reports
+   * the distance from where the rule is now and the keyboard reports one step.
+   * The request is clamped to the rail's bounds, so a drag cannot squeeze the
+   * conversation or the pane away. With the conversation put away the rail is the
+   * flexible column and the pane owns the width, so the same step resizes there.
+   * @param delta - cells to move the boundary, positive to the right.
+   */
+  moveRailDivider(delta: number): void
   /**
    * Subscribe to a rebuild, after the tree is installed.
    * @param listener - runs on the next and every later rebuild.
@@ -135,7 +154,75 @@ export function apply(ctx: Context): void {
   let paneId: string | undefined
   // The frame in use when there are side columns; `setPaneWidth` is the only
   // part of either builder the layout needs after the tree is installed.
-  let split: { readonly root: Component; setPaneWidth(width: number): void } | undefined
+  let split: { readonly root: Component; setPaneWidth(width: number): void; readonly transcriptScroll?: ScrollView } | undefined
+  /** The rail width a drag asked for; the default share until one happens. */
+  let railWidthWanted: number | undefined
+  /** The transcript viewport, kept across rebuilds so a drag does not scroll away. */
+  let transcriptScroll: ScrollView | undefined
+
+  /**
+   * The width asked of the rail at this terminal width.
+   *
+   * The width the frame draws is one cell narrower, so the limit it must stay
+   * under is the drawn limit plus that cell.
+   */
+  const railWidthNow = (withPane: boolean): number => {
+    const wanted = railWidthWanted ?? railWidthFor(terminal.columns)
+    const limit = railWidthLimit(terminal.columns, withPane) + 1
+    return Math.min(limit, Math.max(RAIL_MIN_SIZE, Math.round(wanted)))
+  }
+
+  /** The pane's content width, as its seat asks for it. */
+  const paneWidthNow = (): number => {
+    const pane = column('pane')
+    return pane === undefined ? 0 : Math.max(SPLIT_MIN_SIZE, Math.round(pane.width()))
+  }
+
+  /** The width the rail is drawn at: the cell it asks for, minus its rule's gap. */
+  const railDrawnWidthNow = (): number => Math.max(RAIL_MIN_SIZE, railWidthNow(paneId !== undefined) - 1)
+
+  const railDividerColumnNow = (): number => {
+    if (!conversationShown) return terminal.columns - paneWidthNow() - 1
+    // The rule is the gap column after the rail's cell, which the builder keeps
+    // at `railWidth - 1` but never below the rail's own minimum.
+    return railDrawnWidthNow() + 1
+  }
+
+  /**
+   * Move the rail divider by a number of cells.
+   *
+   * With the conversation on screen the rail trades width with it: the step is
+   * clamped, remembered and laid out again, and the transcript viewport is reused
+   * across the rebuild so the reader keeps their place. With the conversation put
+   * away there is no rail width to trade, so the step belongs to the pane seat.
+   * @param delta - cells to move the boundary, positive to the right.
+   */
+  const moveRailDivider = (delta: number): void => {
+    const step = Math.round(delta)
+    if (step === 0) return
+    if (!conversationShown) {
+      // The rail absorbs the leftover width here, so the rule beside it is the
+      // pane's right edge: moving the rule by a cell takes a cell from the pane.
+      const pane = column('pane')
+      if (pane === undefined) return
+      const width = paneWidthNow() - step
+      if (pane.onResize === undefined) split?.setPaneWidth(width)
+      else pane.onResize(width)
+      render.request()
+      return
+    }
+    const withPane = paneId !== undefined
+    // The step starts from the rule's own column, not from the width it asks for:
+    // the two differ by the gap cell the rail's width already counts, and the rule
+    // has to land under the pointer that dragged it.
+    const next = Math.min(
+      railWidthLimit(terminal.columns, withPane) + 1,
+      Math.max(RAIL_MIN_SIZE, railDividerColumnNow() + step),
+    )
+    if (next === railWidthNow(withPane)) return
+    railWidthWanted = next
+    rebuild()
+  }
 
   const entriesOf = (seat: SeatId): Array<SeatEntry | ColumnSeatEntry> => [...(seats.get(seat)?.values() ?? [])]
 
@@ -155,11 +242,28 @@ export function apply(ctx: Context): void {
     return entry !== undefined && 'divider' in entry ? entry : undefined
   }
 
+  /**
+   * End every divider's hover state.
+   *
+   * A divider is its own layout cell, so the pointer entering any column means
+   * the pointer is no longer on a rule. Columns report their own pointer events
+   * and the frame fans that out, because a column has no business knowing which
+   * rules sit beside it.
+   */
+  const clearDividerHover = (): void => {
+    column('rail')?.onConversationPointer?.()
+    column('pane')?.onConversationPointer?.()
+  }
+
   const rebuild = (): void => {
     const rail = column('rail')
     const pane = column('pane')
     const paneShown = paneId === undefined ? undefined : pane
-    railShown = railWanted && rail !== undefined && railFits(terminal.columns, paneShown !== undefined)
+    const railWidth = railWidthNow(paneShown !== undefined)
+    railShown = railWanted && rail !== undefined && railFits(terminal.columns, paneShown !== undefined, railWidth)
+    // A drag rebuilds the tree; the viewport is reused so the transcript keeps
+    // the reader's position instead of jumping back to the end.
+    const scroll = transcriptScroll === undefined ? {} : { scroll: transcriptScroll }
     // One column always stays: a conversation put away while both side columns
     // are gone would leave an empty frame and a keyboard with nowhere to go.
     conversationShown = conversationWanted || (!railShown && paneShown === undefined)
@@ -175,7 +279,7 @@ export function apply(ctx: Context): void {
     if (!conversationShown) {
       split = buildSideColumnsLayout({
         ...(railShown
-          ? { rail: { component: rail!.component, divider: rail!.divider, width: railWidthFor(terminal.columns) } }
+          ? { rail: { component: rail!.component, divider: rail!.divider, width: railWidth } }
           : {}),
         ...(paneShown === undefined
           ? {}
@@ -202,13 +306,15 @@ export function apply(ctx: Context): void {
               editor,
               statusBar,
               rail: rail!.component,
-              railWidth: railWidthFor(terminal.columns),
+              railWidth,
               railDivider: rail!.divider,
+              ...scroll,
+              onConversationPointer: clearDividerHover,
               pane: {
                 component: paneShown.component,
                 width: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
                 divider: paneShown.divider,
-                onConversationPointer: () => paneShown.onConversationPointer?.(),
+                onConversationPointer: clearDividerHover,
               },
             })
           : buildSplitTerminalLayout({
@@ -221,7 +327,8 @@ export function apply(ctx: Context): void {
               pane: paneShown.component,
               divider: paneShown.divider,
               paneWidth: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
-              onConversationPointer: () => paneShown.onConversationPointer?.(),
+              onConversationPointer: clearDividerHover,
+              ...scroll,
             })
       } else if (railShown) {
         split = buildRailTerminalLayout({
@@ -230,21 +337,27 @@ export function apply(ctx: Context): void {
           editor,
           statusBar,
           rail: rail!.component,
-          railWidth: railWidthFor(terminal.columns),
+          railWidth,
           railDivider: rail!.divider,
+          onConversationPointer: clearDividerHover,
+          ...scroll,
         })
       } else {
         split = undefined
-        screen.setLayoutRoot(buildTerminalLayout({
+        const plain = buildTerminalLayout({
           transcript: main,
           pending: pendingOrBlank,
           ...(cwdBar === undefined ? {} : { cwdBar }),
           editor,
           statusBar,
-        }).root)
+          ...scroll,
+        })
+        transcriptScroll = plain.transcriptScroll
+        screen.setLayoutRoot(plain.root)
       }
       if (split !== undefined) screen.setLayoutRoot(split.root)
     }
+    if (split?.transcriptScroll !== undefined) transcriptScroll = split.transcriptScroll
     for (const listener of listeners) listener()
     render.request(true)
   }
@@ -312,6 +425,10 @@ export function apply(ctx: Context): void {
     get paneId() { return paneId },
     rebuild,
     resizePane: (width: number) => { split?.setPaneWidth(width) },
+    get railWidth() { return railDrawnWidthNow() },
+    get railDividerColumn() { return railDividerColumnNow() },
+    moveRailDivider,
+    clearDividerHover,
     onChange: (listener: () => void) => {
       listeners.add(listener)
       return () => { listeners.delete(listener) }

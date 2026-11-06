@@ -83,6 +83,9 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
 | `Alt-Up` | 把排队的消息取回 composer |
 | `Ctrl-O` | 展开当前指向的工具行 |
 | `Ctrl-S` | 立刻写编辑器缓冲区（平时自动保存） |
+| `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | 移动焦点列旁的分割线：右边那列变宽或变窄 |
+| `Ctrl-Shift-[` / `Ctrl-Shift-]` | 同上；`Ctrl-Shift-←` / `Ctrl-Shift-→` 是任何终端都收得到的写法 |
+| 拖动分割线 | 用指针做同一件事，两侧的线都可以拖 |
 | `Shift-PgUp` / `Shift-PgDn` | 翻终端列自己的历史 |
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
 | `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/editor`、`/terminal`、`/cancel`、`/quit` |
