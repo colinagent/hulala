@@ -397,10 +397,20 @@ export async function runDistributionCommand(command: string, args: string[]): P
       if (removed.length > 0) console.log(`Removed cached release packages: ${removed.join(', ')}`)
       console.log(`Hulala ${active.current.version} ${command === 'install' ? 'installed' : 'updated'}: ${installed.command}`)
       if (command === 'update') console.log('A running Host was left untouched; run `hulala host stop` and start it again to load this version.')
-      // The last line is the point of the whole install: how to start it.
+      // The last line is the point of the whole install: how to start it. A child
+      // process cannot change the shell that ran it, so when the directory was
+      // just registered, this terminal gets the exact command to run right now —
+      // "new terminal" alone left people typing `hulala` into a shell whose PATH
+      // was decided before the install.
       if (reachable) console.log('Start it with:  hulala')
-      else if (registered !== undefined) console.log('Open a new terminal, then start it with:  hulala')
-      else console.log(`Start it with:  ${JSON.stringify(installed.command)}\nAdd ${JSON.stringify(dirname(installed.command))} to PATH to run it as \`hulala\`, or re-run the installer without --no-add-to-path.`)
+      else if (registered !== undefined) {
+        console.log('New terminals find it automatically. In this one, run:')
+        console.log(`  export PATH=${JSON.stringify(dirname(installed.command))}:"$PATH"`)
+        console.log('Then start it with:  hulala')
+      } else {
+        console.log(`In this terminal, run:  export PATH=${JSON.stringify(dirname(installed.command))}:"$PATH"`)
+        console.log(`Start it with:  hulala   (installed at ${JSON.stringify(installed.command)})`)
+      }
       // A freshly registered directory only exists in the next shell, so offer to
       // start it now by absolute path — the first run never needs a PATH refresh.
       if (command === 'install') await offerStart(installed.command)
