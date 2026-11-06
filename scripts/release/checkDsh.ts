@@ -111,6 +111,26 @@ try {
   warnings.push('node_modules/@deepseek-ai/dsh is not installed; run bun install to let the gate check the installed tree')
 }
 
+// 5. A native dependency DSH pins exactly must be pinned to the same version
+// here, or npm installs a second copy: the release lock then carries an older
+// `sharp` (a native binary tree) that a security-gated registry can refuse, and
+// the install fails on the archive the next release publishes.
+const sharp = runtime.dependencies?.sharp
+report.runtimeSharp = typeof sharp === 'string' ? sharp : null
+if (typeof sharp !== 'string')
+  failures.push("packages/runtime/package.json declares no sharp pin; the Host installs DSH's attachment plugin, which needs one")
+else {
+  try {
+    const attachment = await readJson('node_modules/@deepseek-ai/dsh-attachment-local/package.json')
+    const required: unknown = attachment.dependencies?.sharp
+    report.dshSharp = typeof required === 'string' ? required : null
+    if (typeof required === 'string' && !/^[\^~><=*]|\s/.test(required) && required !== sharp)
+      failures.push(`packages/runtime/package.json pins sharp ${sharp} but @deepseek-ai/dsh-attachment-local@${attachment.version} requires exactly ${required}; pin the same version so the release lock installs one native copy`)
+  } catch {
+    warnings.push('node_modules/@deepseek-ai/dsh-attachment-local is not installed; run bun install to let the gate check the sharp pin')
+  }
+}
+
 if (json) console.log(JSON.stringify({ ok: failures.length === 0, failures, warnings, report }, null, 2))
 else {
   for (const [key, value] of Object.entries(report))
@@ -122,8 +142,9 @@ else {
     console.error(`
 DeepSeek Harness gate: ${failures.length} problem(s).
 A release cannot ship behind DSH's stable channel, cannot pin a version that only
-an unstable DSH channel (next/alpha/beta/canary) points at, and cannot fall behind
-the Node.js floor DSH declares.
+an unstable DSH channel (next/alpha/beta/canary) points at, cannot fall behind
+the Node.js floor DSH declares, and cannot pin a native dependency (sharp) to a
+version other than the one DSH's attachment plugin requires.
 Merge it first: bump the @deepseek-ai/dsh* pins in packages/runtime and
 apps/server together, run bun install, bun run test and bun run build, then set
 engines.node, DEFAULT_NODE_LINE (scripts/release/installScriptTemplate.ts) and the
