@@ -56,7 +56,34 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # A GitHub Release is user-facing: one archive per platform and its digest.
+      # The dependency packs and the npm lock are internal transport for the
+      # installer (they reach users through downloads.hulala.ai), so they stay in
+      # the workflow artifacts the release job consumes, not on the release page.
+      - name: Stage user-facing assets
+        run: |
+          mkdir -p release-assets
+          for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+            cp "dist/hulala-${GITHUB_REF_NAME#hulala-v}-${target}.tar.gz" release-assets/
+            cp "dist/hulala-${GITHUB_REF_NAME#hulala-v}-${target}.tar.gz.sha256" release-assets/
+          done
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: release-assets/*
           generate_release_notes: true
+          body: |
+            Download the archive for your platform and run `bin/hulala`, or install it:
+
+            ```sh
+            curl -fsSL https://hulala.ai/install.sh | sh
+            ```
+
+            | Platform | File |
+            |---|---|
+            | macOS (Apple silicon) | `hulala-<version>-darwin-arm64.tar.gz` |
+            | macOS (Intel) | `hulala-<version>-darwin-x64.tar.gz` |
+            | Linux (x64) | `hulala-<version>-linux-x64.tar.gz` |
+            | Linux (arm64) | `hulala-<version>-linux-arm64.tar.gz` |
+
+            The installer fetches the dependencies and, when Node.js 24.9+ is missing,
+            a verified Node.js runtime; it needs nothing else from you.

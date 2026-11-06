@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 const COMMAND = "curl -fsSL https://hulala.ai/install.sh | sh";
-const VERSION = "0.2.13";
+const VERSION = "0.2.14";
 
 export default function WebInstallCommand({ locale }: { locale: "en" | "zh-CN" }) {
   const zh = locale === "zh-CN";

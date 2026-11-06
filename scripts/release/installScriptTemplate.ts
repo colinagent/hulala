@@ -199,14 +199,15 @@ node_is_usable() {
   case "$node_seen" in v[0-9]*) ;; *) return 1 ;; esac
   node_version_is_new_enough "$node_seen"
 }
-# A Node this installer already put in the state root, if any. The pointer is a
-# plain file because nothing Hulala installs is a symlink.
+# The Node this installer put in the shared data directory, if any. Its bin/node
+# is a real script (never a symlink) that follows the version the CURRENT pointer
+# names.
 node_bin_root() {
   [ -f "$node_root/CURRENT" ] || return 0
   node_name=$(cat "$node_root/CURRENT" 2>/dev/null) || return 0
   case "$node_name" in ''|.*|*[!0-9A-Za-z._-]*) return 0 ;; esac
-  [ -x "$node_root/$node_name/bin/node" ] || return 0
-  printf '%s/%s/bin' "$node_root" "$node_name"
+  [ -x "$node_root/bin/node" ] || return 0
+  printf '%s/bin' "$node_root"
 }
 use_node_bin() {
   PATH=$1:$PATH
@@ -379,7 +380,7 @@ install_node_standalone() {
     [ "$node_entry" = "$node_root/$node_name" ] || rm -rf "$node_entry"
   done
   rm -rf "$node_work"
-  echo "Node.js installed in $node_root/$node_name." >&2
+  echo "Node.js installed in $node_root/$node_name (also at $node_root/bin/node)." >&2
 }
 check_node() {
   if node_is_usable node; then return 0; fi
@@ -392,7 +393,10 @@ check_node() {
 preflight() {
   echo 'Checking platform and installation directory permissions...' >&2
   state_root=\${HULALA_HOME:-"$HOME/.hulala"}
-  node_root="$state_root/runtime/node"
+  # Node.js is a user-level runtime other software may want too, so it lives in
+  # the XDG data directory (pi does the same with ~/.local/share/pi-node), not
+  # inside Hulala's private state root.
+  node_root=\${HULALA_NODE_HOME:-\${XDG_DATA_HOME:-"$HOME/.local/share"}/hulala-node}
   install_root=\${HULALA_INSTALL_ROOT:-"$state_root/runtime/client"}
   command_bin=\${HULALA_BIN:-}
   while [ "$#" -gt 0 ]; do

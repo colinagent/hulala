@@ -55,7 +55,10 @@ test('the installer supplies Node instead of demanding one', () => {
   // The floor is what DeepSeek Harness declares, not the old 22.x line.
   expect(script).toContain('Hulala needs Node.js 24.9 or newer')
   expect(script).toContain('SHASUMS256.txt')
-  expect(script).toContain('node_root="$state_root/runtime/node"')
+  // Node is a user-level runtime in the XDG data directory (pi's layout), not
+  // inside Hulala's private state root, so other software can use it too.
+  expect(script).toContain('${XDG_DATA_HOME:-"$HOME/.local/share"}/hulala-node')
+  expect(script).toContain('node_root/bin/node')
   expect(script).toContain('node_root/CURRENT')
   expect(script).toContain('Install it now with')
   expect(script).toContain('detect_node_install_method')
@@ -84,7 +87,7 @@ function withoutNode(state: string, name: string): { stdout: string, stderr: str
   const child = Bun.spawnSync(['/bin/sh', file], {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { PATH: bin, HOME: state, HULALA_HOME: state, HULALA_BIN: join(state, 'commands') },
+    env: { PATH: bin, HOME: state, XDG_DATA_HOME: state, HULALA_HOME: state, HULALA_BIN: join(state, 'commands') },
   })
   return { stdout: child.stdout.toString(), stderr: child.stderr.toString(), exitCode: child.exitCode }
 }
@@ -149,11 +152,14 @@ test('a machine without Node is told what it needs, and nothing is downloaded', 
 
 test('a Node this installer installed earlier is reused without asking', () => {
   const state = join(mkdtempSync(join(tmpdir(), 'hulala reuse node ')), 'state')
-  const runtime = join(state, 'runtime/node/node-test/bin/node')
-  mkdirSync(join(runtime, '..'), { recursive: true })
-  writeFileSync(runtime, '#!/bin/sh\ncase "$1" in --version) echo v24.9.0 ;; esac\n')
-  chmodSync(runtime, 0o755)
-  writeFileSync(join(state, 'runtime/node/CURRENT'), 'node-test\n')
+  const nodeRoot = join(state, 'hulala-node')
+  mkdirSync(join(nodeRoot, 'node-test/bin'), { recursive: true })
+  writeFileSync(join(nodeRoot, 'node-test/bin/node'), '#!/bin/sh\ncase "$1" in --version) echo v24.9.0 ;; esac\n')
+  chmodSync(join(nodeRoot, 'node-test/bin/node'), 0o755)
+  mkdirSync(join(nodeRoot, 'bin'), { recursive: true })
+  writeFileSync(join(nodeRoot, 'bin/node'), '#!/bin/sh\nexec "' + join(nodeRoot, 'node-test/bin/node') + '" "$@"\n')
+  chmodSync(join(nodeRoot, 'bin/node'), 0o755)
+  writeFileSync(join(nodeRoot, 'CURRENT'), 'node-test\n')
   const result = withoutNode(state, 'stored-node-bin')
   // No prompt and no requirement error: it moved on to the download, which this
   // fixture cannot reach because the limited PATH has no curl or wget.

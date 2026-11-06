@@ -121,8 +121,13 @@ node_usable() {
   if [ "$minor" -ge 9 ]; then return 0; fi
   return 1
 }
+# The installer's Node lives in the shared data directory (so other software can
+# use it too); versions before 0.2.14 kept it inside the state root.
 installed=''
-if [ -f "$state/runtime/node/CURRENT" ]; then
+if [ -x "\${XDG_DATA_HOME:-$HOME/.local/share}/hulala-node/bin/node" ]; then
+  installed="\${XDG_DATA_HOME:-$HOME/.local/share}/hulala-node/bin/node"
+fi
+if [ -z "$installed" ] && [ -f "$state/runtime/node/CURRENT" ]; then
   name=$(cat "$state/runtime/node/CURRENT" 2>/dev/null) || name=''
   case "$name" in
     ''|.*|*[!0-9A-Za-z._-]*) ;;
