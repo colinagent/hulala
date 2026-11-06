@@ -99,9 +99,13 @@ export interface HostDaemonConnection {
 /**
  * Attach to the Host daemon for a state root, starting one if necessary.
  *
- * The daemon outlives its clients: nothing here stops a Host that another
- * client may still be using, and the returned connection holds no process
- * handle that could reap it.
+ * The daemon outlives its clients: closing a client detaches instead of stopping
+ * the daemon, and a Host that another client may still be using is replaced only
+ * when this call is allowed to start one *and* it answers with another product
+ * version — the user launched a client of the installed version, so serving the
+ * plugin set the old daemon booted with would be wrong. The replacement is
+ * sequential: the old daemon is stopped before the new one starts, so a state
+ * root never holds two Hosts.
  *
  * @param options - daemon files plus the optional launch spec.
  * @returns the live endpoint record and its health document.
@@ -111,14 +115,21 @@ export async function ensureHostDaemon(options: EnsureHostDaemonOptions): Promis
   const files = resolveHostDaemonPaths(options.paths)
   const probe = { fetch: options.fetch, timeoutMs: options.probeTimeoutMs }
   const discovery = await discoverHostDaemon(files, probe)
-  if (discovery.status === 'ready') {
-    if (options.version !== undefined && discovery.record.version !== options.version)
-      throw versionMismatch(discovery.record, options.version)
-    return { record: discovery.record, health: discovery.health, started: false }
-  }
+  const stale = discovery.status === 'ready' && options.version !== undefined && discovery.record.version !== options.version
+  if (discovery.status === 'ready' && !stale) return { record: discovery.record, health: discovery.health, started: false }
+  if (stale && (options.spawn === undefined || options.spawn === false)) throw versionMismatch(discovery.record, options.version!)
   if (discovery.status === 'incompatible') throw incompatible(discovery.record)
   const spec = options.spawn
   if (spec === undefined || spec === false) throw notRunning(files, discovery)
+  if (stale) {
+    // Stopping is this call's own replacement, not a client closing: the daemon
+    // serves another version's code, and the caller is a launcher.
+    options.onProgress?.(`Replacing the Hulala Host ${discovery.record.version} with ${options.version}`)
+    await stopHostDaemon(options.paths, {
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      ...(options.probeTimeoutMs === undefined ? {} : { timeoutMs: options.probeTimeoutMs }),
+    })
+  }
 
   const launch = options.launch ?? spawnDetached
   options.onProgress?.('Starting the Hulala Host')
@@ -194,7 +205,7 @@ function incompatible(record: HostEndpointRecord): HostDaemonError {
 function versionMismatch(record: HostEndpointRecord, version: string): HostDaemonError {
   return new HostDaemonError(
     'version-mismatch',
-    `Hulala ${record.version} is still running as this machine's Host, but this client is ${version}. Run \`hulala host stop\` and start Hulala again to load ${version}.`,
+    `Hulala ${record.version} is still running as this machine's Host, but this caller is ${version} and may not replace it. Run \`hulala host stop\` and start Hulala again to load ${version}.`,
     record,
   )
 }

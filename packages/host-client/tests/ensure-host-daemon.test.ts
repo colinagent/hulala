@@ -198,24 +198,88 @@ test('stopping when no endpoint is published is a no-op', async () => {
   expect(await stopHostDaemon(paths)).toBe('absent')
 })
 
-test('a live Host from another version is reported instead of attached', async () => {
+test('attach-only callers refuse a Host from another version', async () => {
   const { paths, endpoint } = await fixture()
   const published = record({ version: '0.2.12' })
   await writeFile(endpoint, JSON.stringify(published))
-  let launched = 0
   const error = await ensureHostDaemon({
     paths,
     version: '0.2.19',
     fetch: answering(published),
-    spawn: { command: 'unused', args: [] },
-    launch: () => { launched += 1 },
+    spawn: false,
   }).catch(caught => caught)
   expect(error).toBeInstanceOf(HostDaemonError)
   expect(error.code).toBe('version-mismatch')
   expect(error.message).toContain('Hulala 0.2.12 is still running')
   expect(error.message).toContain('hulala host stop')
   expect(error.message).toContain('0.2.19')
-  expect(launched).toBe(0)
+})
+
+test('a launcher replaces a live Host from another version', async () => {
+  const { paths, endpoint, log } = await fixture()
+  const script = join(paths.logs, 'daemon.mjs')
+  const instanceId = 'instance-old'
+  await writeFile(script, `
+import { createServer } from 'node:http'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
+const endpoint = process.argv[2]
+const server = createServer((request, response) => {
+  response.writeHead(200, { 'content-type': 'application/json' })
+  response.end(JSON.stringify({ name: 'hulala-desktop-server', protocol: ${HOST_DAEMON_PROTOCOL}, version: '0.1.4', instanceId: '${instanceId}', pid: process.pid, startedAt: new Date().toISOString(), runtime: { state: 'running' } }))
+})
+server.listen(0, '127.0.0.1', async () => {
+  const { port } = server.address()
+  await mkdir(dirname(endpoint), { recursive: true, mode: 0o700 })
+  await writeFile(endpoint, JSON.stringify({
+    protocol: ${HOST_DAEMON_PROTOCOL}, version: '0.1.4', pid: process.pid, startedAt: new Date().toISOString(),
+    descriptor: { httpUrl: 'http://127.0.0.1:' + port, eventsUrl: 'ws://127.0.0.1:' + port + '/events', token: 'client-fixture-token-000000000000', instanceId: '${instanceId}', authCookieName: 'hulala_live' },
+    roots: { hulala: '/tmp/hulala', workspace: '/tmp/hulala-workspace' },
+  }))
+})
+process.on('SIGTERM', async () => { await rm(endpoint, { force: true }); server.close(); process.exit(0) })
+`)
+  const child = Bun.spawn([process.execPath, script, endpoint], { stdout: 'ignore', stderr: 'pipe', env: { ...process.env } })
+  children.push(child as unknown as typeof children[number])
+  const files = resolveHostDaemonPaths(paths)
+  const deadline = Date.now() + 10_000
+  let discovery = await discoverHostDaemon(files)
+  while (discovery.status !== 'ready' && Date.now() < deadline) {
+    await Bun.sleep(20)
+    discovery = await discoverHostDaemon(files)
+  }
+  expect(discovery.status).toBe('ready')
+  if (discovery.status !== 'ready') throw new Error('daemon never became ready')
+
+  // The replacement is fabricated: the point of the test is that the old process
+  // is stopped before anything is launched, and that the new endpoint wins.
+  const replacement = record({ version: '0.2.19', pid: 4343, descriptor: { ...record().descriptor, instanceId: 'instance-new' } })
+  const launches: string[] = []
+  const progress: string[] = []
+  const connection = await ensureHostDaemon({
+    paths,
+    version: '0.2.19',
+    spawn: { command: 'node', args: ['--daemon'] },
+    launch: async () => {
+      launches.push('launch')
+      // The old daemon must already be gone when the new one starts.
+      expect(await readFile(endpoint, 'utf8').catch(() => undefined)).toBeUndefined()
+      await writeFile(endpoint, JSON.stringify(replacement))
+    },
+    // Answer as whatever the endpoint currently publishes: the old daemon first,
+    // then the replacement the launcher writes.
+    fetch: (async () => Response.json(health(JSON.parse(await readFile(endpoint, 'utf8'))))) as unknown as typeof fetch,
+    intervalMs: 5,
+    onProgress: message => { progress.push(message) },
+  })
+  await child.exited
+  expect(child.exitCode).toBe(0)
+  expect(launches).toHaveLength(1)
+  expect(connection.started).toBe(true)
+  expect(connection.record.version).toBe('0.2.19')
+  expect(connection.record.descriptor.instanceId).toBe('instance-new')
+  expect(progress.join('\n')).toContain('Replacing the Hulala Host 0.1.4 with 0.2.19')
+  expect(log).toBeDefined()
 })
 
 test('a live Host from this version still attaches', async () => {
