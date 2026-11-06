@@ -18,6 +18,12 @@ import { deferWindowsUninstall } from './deferred-uninstall.js'
 import { listCachedReleases, pruneReleaseCache, writeReleaseSidecar } from './releaseCache.js'
 import { ensureRuntimeDependencies, type RuntimeAssets } from './dependencies.js'
 
+/** Show `/Users/me/.local/bin/hulala` as `~/.local/bin/hulala`. */
+function displayPath(path: string): string {
+  const home = homedir()
+  return path.startsWith(home + '/') ? '~' + path.slice(home.length) : path
+}
+
 interface Options {
   root?: string; bin?: string; from?: string; sha256?: string; version?: string
   runtimeLock?: string; runtimeLockSha256?: string; runtimePack?: string; runtimePackSha256?: string
@@ -137,13 +143,16 @@ function managedSource(value = owner()): ManagedSource | undefined {
  *
  * `curl … | sh` leaves stdin holding the installer, so the question is asked on
  * the terminal itself, like pi's installer does. Declining (or no terminal, or
- * `HULALA_NO_START=1`) leaves the install finished and the start line printed.
+ * `HULALA_NO_START=1`) leaves the install finished, and the caller prints how to
+ * start it instead: answering the question is the only thing between "installed"
+ * and "running", so the instructions must not come first.
  * @param command - absolute path of the installed command.
+ * @returns whether the client was started (and has now exited).
  */
-async function offerStart(command: string): Promise<void> {
-  if (process.env.HULALA_NO_START === '1' || !process.stdout.isTTY) return
+async function offerStart(command: string): Promise<boolean> {
+  if (process.env.HULALA_NO_START === '1' || !process.stdout.isTTY) return false
   let tty: Awaited<ReturnType<typeof open>>
-  try { tty = await open('/dev/tty', 'r+') } catch { return }
+  try { tty = await open('/dev/tty', 'r+') } catch { return false }
   try {
     process.stdout.write('\nStart Hulala now? [Y/n] ')
     let answer = ''
@@ -157,10 +166,11 @@ async function offerStart(command: string): Promise<void> {
       answer += character
     }
     // A closed terminal is not consent to take over the screen.
-    if (!answered) return
-    if (/^(?:n|no)$/i.test(answer.trim())) return
+    if (!answered) return false
+    if (/^(?:n|no)$/i.test(answer.trim())) return false
     const child = spawn(command, [], { stdio: [tty.fd, 'inherit', 'inherit'], windowsHide: true, env: process.env })
     await new Promise<void>(resolve => { child.once('exit', () => resolve()); child.once('error', () => resolve()) })
+    return true
   } finally { await tty.close().catch(() => undefined) }
 }
 
@@ -270,6 +280,9 @@ export async function runDistributionCommand(command: string, args: string[]): P
   }
   return withInstallationLock(root, async () => {
     if (await stat(join(root, 'removal.json')).then(() => true, () => false)) throw new Error('Hulala removal is already in progress; check its completion result before changing this installation')
+    // Re-running the installer for a version that is already active must say so
+    // instead of claiming a fresh install.
+    const beforeVersion = await readInstallation(root).then(value => value.current.version, () => undefined)
     if (command === 'uninstall') {
       const receipt = await install.assertLauncherOwned()
       if (process.platform === 'win32') {
@@ -358,7 +371,12 @@ export async function runDistributionCommand(command: string, args: string[]): P
       // The archive carries the code, not its dependency tree: install it after the
       // package proved it is the selected release, so a wrong download never runs
       // anything.
-      const dependencies = await ensureRuntimeDependencies(join(source, 'runtime'), assets)
+      // npm can be silent for a minute on a cold registry; say it is still moving
+      // instead of leaving the terminal looking stuck.
+      const dependencyHeartbeat = setInterval(() => console.log('Still installing dependencies...'), 15000)
+      let dependencies
+      try { dependencies = await ensureRuntimeDependencies(join(source, 'runtime'), assets) }
+      finally { clearInterval(dependencyHeartbeat) }
       if (dependencies.source !== 'present')
         console.log(`Dependencies installed from the ${dependencies.source === 'npm' ? 'npm registry' : 'release runtime pack'}.`)
       console.log('Installing program files and validating this platform...')
@@ -390,35 +408,44 @@ export async function runDistributionCommand(command: string, args: string[]): P
       // existing registration instead of writing a second block. An update keeps
       // whatever the installation already recorded.
       let registered = receipt?.pathRegistration ? bin : undefined
+      let registeredFiles: string[] | undefined
       const reachable = await onPathAlready(bin)
       if (!reachable && registered === undefined && input.addToPath) {
         try {
           const registration = await addCommandPath(bin, homedir())
-          if (registration) { await install.rememberPath(registration); registered = bin }
+          if (registration) {
+            await install.rememberPath(registration)
+            registered = bin
+            if (registration.kind === 'profile') registeredFiles = registration.files
+          }
         } catch (error) { console.log(error instanceof Error ? error.message : String(error)) }
       }
       const installed = await installationReceipt(root)
       const removed = await pruneReleaseCache(paths.data, active.current.version).catch(() => [])
       if (removed.length > 0) console.log(`Removed cached release packages: ${removed.join(', ')}`)
-      console.log(`Hulala ${active.current.version} ${command === 'install' ? 'installed' : 'updated'}: ${installed.command}`)
+      console.log(`Hulala ${active.current.version} ${beforeVersion === active.current.version ? 'is already installed' : command === 'install' ? 'installed' : 'updated'}: ${displayPath(installed.command)}`)
       if (command === 'update') console.log('A running Host was left untouched; run `hulala host stop` and start it again to load this version.')
-      // The last line is the point of the whole install: how to start it. A child
-      // process cannot change the shell that ran it, so when the directory was
-      // just registered, this terminal gets the exact command to run right now —
-      // "new terminal" alone left people typing `hulala` into a shell whose PATH
-      // was decided before the install.
-      if (reachable) console.log('Start it with:  hulala')
-      else if (registered !== undefined) {
-        console.log('New terminals find it automatically. In this one, run:')
+      else console.log('Update it later with:  hulala update')
+      if (registeredFiles !== undefined) console.log(`Added ${displayPath(bin)} to PATH for new terminals (${registeredFiles.map(displayPath).join(', ')}).`)
+      // A freshly registered directory only exists in the next shell, so offer to
+      // start it now by absolute path — answering this question is the only step
+      // between "installed" and "running". The PATH instructions are printed only
+      // when they are needed: after a declined start, or after the client exits in
+      // a shell that still cannot see the command.
+      const started = command === 'install' && await offerStart(installed.command)
+      if (reachable) {
+        if (!started) console.log('Start it with:  hulala')
+      } else if (registered !== undefined) {
+        // A child process cannot change the shell that ran it, so when the
+        // directory was just registered this terminal gets the exact line that
+        // works right now.
+        console.log(started ? 'To run Hulala in this terminal, run:' : 'New terminals can already run it. In this one, run:')
         console.log(`  export PATH=${JSON.stringify(dirname(installed.command))}:"$PATH"`)
         console.log('Then start it with:  hulala')
       } else {
         console.log(`In this terminal, run:  export PATH=${JSON.stringify(dirname(installed.command))}:"$PATH"`)
         console.log(`Start it with:  hulala   (installed at ${JSON.stringify(installed.command)})`)
       }
-      // A freshly registered directory only exists in the next shell, so offer to
-      // start it now by absolute path — the first run never needs a PATH refresh.
-      if (command === 'install') await offerStart(installed.command)
       return 0
     } finally { await rm(temporary, { recursive: true, force: true }) }
   })

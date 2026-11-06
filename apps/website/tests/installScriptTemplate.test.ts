@@ -53,17 +53,85 @@ test('the installer supplies Node instead of demanding one', () => {
   expect(script).toContain('node_line=${HULALA_NODE_LINE:-latest-v24.x}')
   expect(script).toContain("'https://nodejs.org/dist'")
   // The floor is what DeepSeek Harness declares, not the old 22.x line.
-  expect(script).toContain('Hulala needs Node.js 24.9 or newer')
+  expect(script).toContain('Hulala needs Node.js 24.9+.')
   expect(script).toContain('SHASUMS256.txt')
-  // Node is a user-level runtime in the XDG data directory (pi's layout), not
-  // inside Hulala's private state root, so other software can use it too.
-  expect(script).toContain('${XDG_DATA_HOME:-"$HOME/.local/share"}/hulala-node')
+  // The runtime belongs to Hulala, inside its own state root, and `hulala
+  // uninstall` removes exactly that directory. Nothing edits a shell profile to
+  // put it on PATH for other software.
+  expect(script).toContain('node_root=${HULALA_NODE_HOME:-"$state_root/runtime/node"}')
   expect(script).toContain('node_root/bin/node')
   expect(script).toContain('node_root/CURRENT')
-  expect(script).toContain('Install it now with')
-  expect(script).toContain('detect_node_install_method')
+  expect(script).toContain('Download it for Hulala (~50 MB)?')
   expect(script).toContain('install_node_standalone')
   expect(script).not.toContain('PATH=$node_root')
+  // A runtime this product installs must never become a machine-wide one: no
+  // package manager, no sudo, nothing outside the state root.
+  expect(script).not.toContain('install_node_with_homebrew')
+  expect(script).not.toContain('apt-get install -y nodejs')
+  expect(script).not.toContain('detect_node_install_method')
+})
+
+/** Run the rendered installer with the tools the version check needs. */
+function versionCheck(state: string, installed: string | undefined, name: string) {
+  const bin = join(mkdtempSync(join(tmpdir(), 'hulala version path ')), name)
+  mkdirSync(bin)
+  for (const tool of ['awk', 'cat', 'mkdir', 'mktemp', 'rmdir', 'rm', 'uname', 'head', 'sed']) {
+    const resolved = Bun.which(tool)
+    if (resolved !== null) Bun.spawnSync(['ln', '-s', resolved, join(bin, tool)])
+  }
+  if (installed !== undefined) {
+    const root = join(state, '.hulala/runtime/client')
+    mkdirSync(root, { recursive: true })
+    writeFileSync(join(root, 'active.json'), JSON.stringify({
+      format: 1,
+      current: { id: `${installed}-abcdef`, version: installed, manifestSha256: 'a'.repeat(64), dataFormat: 1 },
+    }, null, 2) + '\n')
+    writeFileSync(join(root, 'installation.json'), JSON.stringify({
+      format: 1, product: 'hulala-install', command: join(state, 'bin/hulala'), launcherSha256: 'a'.repeat(64), createdAt: 'now',
+    }, null, 2) + '\n')
+    mkdirSync(join(state, 'bin'), { recursive: true })
+    writeFileSync(join(state, 'bin/hulala'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+  }
+  const file = join(mkdtempSync(join(tmpdir(), 'hulala version script ')), 'install.sh')
+  writeFileSync(file, script)
+  const child = Bun.spawnSync(['/bin/sh', file], {
+    stdout: 'pipe', stderr: 'pipe',
+    env: { PATH: bin, HOME: state, HULALA_HOME: join(state, '.hulala'), HULALA_NO_START: '1' },
+  })
+  return { stdout: child.stdout.toString(), stderr: child.stderr.toString(), exitCode: child.exitCode }
+}
+
+test('re-running the installer does not download a release that is already installed', () => {
+  // The script was rendered for 1.2.3, so an equal installation is current.
+  const state = mkdtempSync(join(tmpdir(), 'hulala current '))
+  const result = versionCheck(state, '1.2.3', 'current-bin')
+  expect(result.exitCode).toBe(0)
+  expect(result.stdout).toContain('Hulala 1.2.3 is already installed')
+  expect(result.stderr).not.toContain('Downloading')
+  expect(result.stderr).not.toContain('Hulala runs on Node.js')
+})
+
+test('an installation whose command is missing is repaired, not reported as current', () => {
+  const state = mkdtempSync(join(tmpdir(), 'hulala missing command '))
+  const root = join(state, '.hulala/runtime/client')
+  mkdirSync(root, { recursive: true })
+  writeFileSync(join(root, 'active.json'), JSON.stringify({
+    format: 1,
+    current: { id: '1.2.3-abcdef', version: '1.2.3', manifestSha256: 'a'.repeat(64), dataFormat: 1 },
+  }, null, 2) + '\n')
+  // No installation.json and no command: the record alone proves nothing.
+  const result = versionCheck(state, undefined, 'missing-bin')
+  expect(result.stderr).toContain('its command is missing; repairing it')
+  expect(result.stdout).not.toContain('already installed')
+})
+
+test('an older installation is upgraded, and a newer one is never downgraded', () => {
+  const older = versionCheck(mkdtempSync(join(tmpdir(), 'hulala older ')), '1.2.2', 'older-bin')
+  expect(older.stderr).toContain('Updating Hulala 1.2.2 to 1.2.3')
+  const newer = versionCheck(mkdtempSync(join(tmpdir(), 'hulala newer ')), '1.2.4', 'newer-bin')
+  expect(newer.exitCode).toBe(0)
+  expect(newer.stderr).toContain('newer than this installer (1.2.3)')
+  expect(newer.stderr).not.toContain('Downloading')
 })
 
 /** Run the rendered installer with a PATH that holds no Node, curl or wget. */
@@ -152,7 +220,7 @@ test('a machine without Node is told what it needs, and nothing is downloaded', 
 
 test('a Node this installer installed earlier is reused without asking', () => {
   const state = join(mkdtempSync(join(tmpdir(), 'hulala reuse node ')), 'state')
-  const nodeRoot = join(state, 'hulala-node')
+  const nodeRoot = join(state, 'runtime/node')
   mkdirSync(join(nodeRoot, 'node-test/bin'), { recursive: true })
   writeFileSync(join(nodeRoot, 'node-test/bin/node'), '#!/bin/sh\ncase "$1" in --version) echo v24.9.0 ;; esac\n')
   chmodSync(join(nodeRoot, 'node-test/bin/node'), 0o755)
@@ -166,6 +234,64 @@ test('a Node this installer installed earlier is reused without asking', () => {
   expect(result.stderr).not.toContain('Hulala runs on Node.js 24.9 or newer')
   expect(result.stderr).toContain('Downloading from official source')
 })
+
+test('the standalone Node install leaves one entry point that follows CURRENT', async () => {
+  // Regression: the installer wrote CURRENT but never bin/node, although both the
+  // installer and the installed command look exactly there. Every run downloaded
+  // ~50 MB of Node, then claimed Node was still missing.
+  const target = `${process.platform}-${process.arch}`
+  const root = await mkdtemp(join(tmpdir(), 'hulala standalone node '))
+  const name = `node-v24.9.0-${target}`
+  const mirror = join(root, 'mirror')
+  mkdirSync(join(mirror, name, 'bin'), { recursive: true })
+  await writeFile(join(mirror, name, 'bin/node'), '#!/bin/sh\ncase "$1" in --version) echo v24.9.0 ;; *) echo stub ;; esac\n', { mode: 0o755 })
+  // The downloader strips what Hulala does not run but keeps the npm tree the
+  // release install needs; the npm symlink becomes a real script.
+  await writeFile(join(mirror, name, 'bin/npm'), '#!/bin/sh\necho npm\n', { mode: 0o755 })
+  mkdirSync(join(mirror, name, 'lib/node_modules/npm/bin'), { recursive: true })
+  await writeFile(join(mirror, name, 'lib/node_modules/npm/bin/npm-cli.js'), 'console.log("npm-cli")\n')
+  await writeFile(join(mirror, name, 'CHANGELOG.md'), 'changelog')
+  const archive = join(mirror, `${name}.tar.gz`)
+  expect(Bun.spawnSync(['tar', '-czf', archive, '-C', mirror, name]).exitCode).toBe(0)
+  const bytes = new Uint8Array(await Bun.file(archive).arrayBuffer())
+  const sums = `${createHash('sha256').update(bytes).digest('hex')}  ${name}.tar.gz\n`
+  const server = Bun.serve({
+    hostname: '127.0.0.1', port: 0,
+    fetch: request => new URL(request.url).pathname.endsWith('SHASUMS256.txt')
+      ? new Response(sums)
+      : new Response(bytes),
+  })
+  try {
+    const nodeRoot = join(root, 'state/runtime/node')
+    // Only the writer is under test, so the prompt and the release download are
+    // out of the picture: `main` is removed and the function is called directly.
+    const driver = script.replace(/\nmain "\$@"\n$/, '\n') + '\nnode_root=$1\nnode_line=latest-v24.x\ninstall_node_standalone\n'
+    const result = await run(['/bin/sh', '-c', driver, 'hulala-node', nodeRoot], {
+      ...process.env, HULALA_NODE_BASE: `http://127.0.0.1:${server.port}`,
+    })
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toContain('Node.js 24.9.0 installed for Hulala')
+    expect(result.stderr).toContain('other tools need their own')
+    expect(readFileSync(join(nodeRoot, 'CURRENT'), 'utf8')).toBe(name + '\n')
+    const entry = join(nodeRoot, 'bin/node')
+    expect(lstatSync(entry).isSymbolicLink()).toBe(false)
+    expect(statSync(entry).mode & 0o111).not.toBe(0)
+    // The entry point names no version, so a later CURRENT change keeps working.
+    expect(readFileSync(entry, 'utf8')).not.toContain(name)
+    expect((await run([entry, '--version'], { ...process.env })).stdout.trim()).toBe('v24.9.0')
+    // The version directory's npm symlink is gone; a real script next to bin/node
+    // runs the npm the release install needs for `npm ci`.
+    expect(existsSync(join(nodeRoot, name, 'bin/npm'))).toBe(false)
+    const npm = join(nodeRoot, 'bin/npm')
+    expect(lstatSync(npm).isSymbolicLink()).toBe(false)
+    expect(statSync(npm).mode & 0o111).not.toBe(0)
+    expect(readFileSync(npm, 'utf8')).toContain('lib/node_modules/npm/bin/npm-cli.js')
+    expect(existsSync(join(nodeRoot, name, 'lib/node_modules/npm/bin/npm-cli.js'))).toBe(true)
+    expect(existsSync(join(nodeRoot, name, 'include'))).toBe(false)
+  } finally {
+    server.stop(true)
+  }
+}, 60_000)
 
 test('the installer hands the package to its own install command', () => {
   // One versioned layout: `hulala install` writes versions/<id>, active.json,

@@ -24,7 +24,7 @@ const translations = {
       lede: "Hulala runs DeepSeek Harness in your terminal. One Host daemon owns the state root, every window attaches to it, and closing a window detaches instead of stopping the turn.",
       primary: "Install on macOS & Linux",
       secondary: "See what is inside",
-      availability: "macOS & Linux · Node.js 22.13+ · no tmux",
+      availability: "macOS & Linux · Node.js included · no tmux",
     },
     conviction: {
       label: "A SIMPLE CONVICTION",
@@ -97,7 +97,7 @@ const translations = {
       lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host 守护进程拥有状态根目录，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。",
       primary: "在 macOS 与 Linux 上安装",
       secondary: "看看里面有什么",
-      availability: "macOS 与 Linux · Node.js 22.13+ · 不需要 tmux",
+      availability: "macOS 与 Linux · 自带 Node.js · 不需要 tmux",
     },
     conviction: {
       label: "一个简单的信念",

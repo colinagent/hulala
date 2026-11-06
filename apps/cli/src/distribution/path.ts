@@ -6,7 +6,9 @@ import { createHash, randomUUID } from 'node:crypto'
 
 const exists = (file: string) => stat(file).then(() => true, () => false)
 
-export type PathRegistration = { kind: 'profile'; file: string; block: string } | { kind: 'windows'; directory: string }
+export type PathRegistration = { kind: 'profile'; files: string[]; block: string } | { kind: 'windows'; directory: string }
+/** Receipts written before the switch to `files` named a single `file`. */
+export type StoredPathRegistration = PathRegistration | { kind: 'profile'; file: string; block: string }
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'"
 
 /**
@@ -54,17 +56,26 @@ async function windowsPath(directory: string, remove = false): Promise<boolean> 
  * writes a login-only file leaves `hulala` missing in editor terminals and
  * non-login shells, which is the case pi's installer avoids the same way.
  */
-async function profileFor(shell: string, userHome: string, environment: NodeJS.ProcessEnv): Promise<{ file: string, line: (directory: string) => string } | undefined> {
+/**
+ * Every profile an interactive terminal of this shell reads, so a new window
+ * finds the command whether it starts a login shell or not.
+ *
+ * zsh reads `.zshrc` for every interactive shell. fish reads its config file for
+ * both kinds. bash is the awkward one: a terminal on macOS starts a login shell
+ * (`.bash_profile`, else `.profile`), while editor terminals and Linux usually
+ * start a non-login shell (`.bashrc`), so both files are registered.
+ */
+async function profileFor(shell: string, userHome: string, environment: NodeJS.ProcessEnv): Promise<{ files: string[], line: (directory: string) => string } | undefined> {
   const name = basename(shell)
-  if (name === 'zsh') return { file: join(environment.ZDOTDIR?.trim() || userHome, '.zshrc'), line: directory => `export PATH=${quote(directory)}:"$PATH"` }
-  if (name === 'fish') return { file: join(userHome, '.config/fish/config.fish'), line: directory => `fish_add_path ${quote(directory)}` }
+  const exportLine = (directory: string) => `export PATH=${quote(directory)}:"$PATH"`
+  if (name === 'zsh') return { files: [join(environment.ZDOTDIR?.trim() || userHome, '.zshrc')], line: exportLine }
+  if (name === 'fish') return { files: [join(environment.XDG_CONFIG_HOME?.trim() || join(userHome, '.config'), 'fish/config.fish')], line: directory => `fish_add_path ${quote(directory)}` }
   if (name === 'bash') {
-    const line = (directory: string) => `export PATH=${quote(directory)}:"$PATH"`
-    if (await exists(join(userHome, '.bashrc'))) return { file: join(userHome, '.bashrc'), line }
-    if (await exists(join(userHome, '.bash_profile'))) return { file: join(userHome, '.bash_profile'), line }
-    return { file: join(userHome, '.profile'), line }
+    const login = await exists(join(userHome, '.bash_profile')) ? '.bash_profile' : '.profile'
+    return { files: [join(userHome, '.bashrc'), join(userHome, login)], line: exportLine }
   }
-  if (['sh', 'dash', 'ksh'].includes(name)) return { file: join(userHome, '.profile'), line: directory => `export PATH=${quote(directory)}:"$PATH"` }
+  if (['sh', 'dash', 'ksh'].includes(name)) return { files: [join(userHome, '.profile')], line: exportLine }
+  // An unknown shell is never guessed at: the caller prints the export line.
   return undefined
 }
 export async function addCommandPath(directory: string, userHome: string, shell = process.env.SHELL || '/bin/sh', platform = process.platform, environment = process.env): Promise<PathRegistration | undefined> {
@@ -72,16 +83,23 @@ export async function addCommandPath(directory: string, userHome: string, shell 
   if (path.some(entry => platform === 'win32' ? entry.toLowerCase() === directory.toLowerCase() : entry === directory)) return
   if (platform === 'win32') return await windowsPath(directory) ? { kind: 'windows', directory } : undefined
   const profile = await profileFor(shell, userHome, environment)
-  if (profile === undefined) throw new Error('Add this directory to your shell PATH manually: ' + directory)
+  if (profile === undefined) return undefined
   const marker = createHash('sha256').update(directory).digest('hex').slice(0, 12)
   const block = `# >>> hulala ${marker}\n${profile.line(directory)}\n# <<< hulala ${marker}\n`
-  const before = await readFile(profile.file, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
-  if (before.includes(block)) return { kind: 'profile', file: profile.file, block }
-  await saveProfile(profile.file, before + (before && !before.endsWith('\n') ? '\n' : '') + block)
-  return { kind: 'profile', file: profile.file, block }
+  const files: string[] = []
+  for (const file of profile.files) {
+    const before = await readFile(file, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
+    if (before.includes(block)) { files.push(file); continue }
+    await saveProfile(file, before + (before && !before.endsWith('\n') ? '\n' : '') + block)
+    files.push(file)
+  }
+  return { kind: 'profile', files, block }
 }
-export async function removeCommandPath(registration: PathRegistration): Promise<void> {
+export async function removeCommandPath(registration: StoredPathRegistration): Promise<void> {
   if (registration.kind === 'windows') { await windowsPath(registration.directory, true); return }
-  const before = await readFile(registration.file, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
-  if (before.includes(registration.block)) await saveProfile(registration.file, before.replace(registration.block, ''))
+  const files = 'files' in registration ? registration.files : [registration.file]
+  for (const file of files) {
+    const before = await readFile(file, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
+    if (before.includes(registration.block)) await saveProfile(file, before.replace(registration.block, ''))
+  }
 }

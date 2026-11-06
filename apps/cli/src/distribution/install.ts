@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { verifyPackage, type PackageManifest } from '@hulala/distribution/manifest'
 import type { PathRegistration } from './path.js'
@@ -121,18 +122,25 @@ node_usable() {
   if [ "$minor" -ge 9 ]; then return 0; fi
   return 1
 }
-# The installer's Node lives in the shared data directory (so other software can
-# use it too); versions before 0.2.14 kept it inside the state root.
+# The installer's Node lives inside the state root. Releases 0.2.14 to 0.2.16
+# unpacked it into the shared data directory instead; that directory is still
+# recognized for those installations.
 installed=''
-if [ -x "\${XDG_DATA_HOME:-$HOME/.local/share}/hulala-node/bin/node" ]; then
-  installed="\${XDG_DATA_HOME:-$HOME/.local/share}/hulala-node/bin/node"
-fi
-if [ -z "$installed" ] && [ -f "$state/runtime/node/CURRENT" ]; then
+if [ -f "$state/runtime/node/CURRENT" ]; then
   name=$(cat "$state/runtime/node/CURRENT" 2>/dev/null) || name=''
   case "$name" in
     ''|.*|*[!0-9A-Za-z._-]*) ;;
-    *) if [ -x "$state/runtime/node/$name/bin/node" ]; then installed=$state/runtime/node/$name/bin/node; fi ;;
+    *)
+      # The stable entry point next to CURRENT is preferred because its
+      # directory also holds the npm script the release install uses; a runtime
+      # unpacked by an older installer only has the version directory.
+      if [ -x "$state/runtime/node/bin/node" ]; then installed=$state/runtime/node/bin/node
+      elif [ -x "$state/runtime/node/$name/bin/node" ]; then installed=$state/runtime/node/$name/bin/node
+      fi ;;
   esac
+fi
+if [ -z "$installed" ] && [ -x "\${XDG_DATA_HOME:-$HOME/.local/share}/hulala-node/bin/node" ]; then
+  installed="\${XDG_DATA_HOME:-$HOME/.local/share}/hulala-node/bin/node"
 fi
 node=''
 for candidate in "$installed" "$(command -v node 2>/dev/null || true)"; do
@@ -354,6 +362,10 @@ export class Installation {
     // it is only removed when Hulala itself put it there.
     const installedNode = join(this.stateRoot, 'runtime/node')
     if (await stat(join(installedNode, 'CURRENT')).then(() => true, () => false)) await rm(installedNode, { recursive: true, force: true })
+    // 0.2.14 to 0.2.16 unpacked that runtime into the shared data directory; it
+    // is still Hulala's, so uninstalling removes it as well.
+    const sharedNode = join(process.env.XDG_DATA_HOME?.trim() || join(homedir(), '.local/share'), 'hulala-node')
+    if (await stat(join(sharedNode, 'CURRENT')).then(() => true, () => false)) await rm(sharedNode, { recursive: true, force: true })
     // Leave the state root's bin directory only when the command was the last
     // thing in it; the bundled nvim and helpers live there too.
     await rm(dirname(real), { recursive: false }).catch(() => {})

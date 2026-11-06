@@ -3,11 +3,13 @@
  *
  * The archive carries the client, the embedded Host, and the bundled editor
  * binaries (`bin/nvim`, plus `bin/ime` on macOS), but no JavaScript runtime. A
- * machine without Node.js 24.9+ is offered an install from the package manager
- * it already has, or a SHA-256 verified standalone archive in
- * `<state root>/runtime/node`; the launcher reads that pointer, so nothing is
- * added to a shell profile. The script then downloads and verifies the release
- * archive for the detected platform, unpacks it, copies those binaries into
+ * machine without Node.js 24.9+ gets a SHA-256 verified standalone archive inside
+ * `<state root>/runtime/node` — never a package manager, so nothing outside the
+ * state root changes — and the launcher reads that pointer, so nothing is added
+ * to a shell profile. Before any download the installer compares the installed
+ * version with this release and does nothing when it is already current. The
+ * script then downloads and verifies the release archive for the detected
+ * platform, unpacks it, copies those binaries into
  * `<state root>/bin` as real files, and hands the extracted package to its own
  * `bin/hulala install`. That installer owns the versioned layout
  * (`versions/<id>`, `active.json`, `installation.json`) and the `<bin>/hulala`
@@ -77,9 +79,13 @@ transfer() {
   if command -v curl >/dev/null 2>&1; then
     protocol='=https'
     case "$url" in http://127.0.0.1:*|http://\\[::1\\]:*) protocol='=https,http' ;; esac
-    curl --silent --show-error --fail --location --connect-timeout 15 --max-time 900 --speed-limit 32768 --speed-time 20 --proto "$protocol" --proto-redir "$protocol" --continue-at - --output "$destination" "$url" 2>"$work/download-error"
+    # A progress bar only when a person is watching; a redirected stderr stays
+    # quiet and keeps the log readable.
+    curl_quiet='--silent'
+    if [ -t 2 ]; then curl_quiet='--progress-bar'; fi
+    curl $curl_quiet --show-error --fail --location --connect-timeout 15 --max-time 900 --speed-limit 32768 --speed-time 20 --proto "$protocol" --proto-redir "$protocol" --continue-at - --output "$destination" "$url"
   elif command -v wget >/dev/null 2>&1; then
-    wget --quiet --continue --timeout=20 --tries=1 -O "$destination" "$url" 2>"$work/download-error"
+    wget --quiet --continue --timeout=20 --tries=1 -O "$destination" "$url"
   else
     echo 'curl or wget is required to install Hulala.' >&2
     exit 1
@@ -125,10 +131,10 @@ check_writable() {
 }
 # Node is the only thing Hulala needs from the machine. The archive carries the
 # Host but no JavaScript runtime, so a machine without a usable Node gets one
-# here: from the package manager it already has, or as a verified standalone
-# download inside the state root. Nothing is installed system-wide without the
-# user answering a prompt, and no shell profile is edited either way.
-node_requirement='Hulala needs Node.js 24.9 or newer.'
+# here: a verified standalone archive inside the state root, never a package
+# manager and never a system-wide install. Nothing is added to a shell profile
+# either way.
+node_requirement='Hulala needs Node.js 24.9+.'
 # A machine behind a desktop proxy (Clash, Surge, V2Ray) usually has no proxy
 # environment variables: curl and npm read the environment, not the operating
 # system's proxy settings. Detect the system proxy once and export it for every
@@ -199,9 +205,8 @@ node_is_usable() {
   case "$node_seen" in v[0-9]*) ;; *) return 1 ;; esac
   node_version_is_new_enough "$node_seen"
 }
-# The Node this installer put in the shared data directory, if any. Its bin/node
-# is a real script (never a symlink) that follows the version the CURRENT pointer
-# names.
+# The Node this installer put in the state root, if any. Its bin/node is a real
+# script (never a symlink) that follows the version the CURRENT pointer names.
 node_bin_root() {
   [ -f "$node_root/CURRENT" ] || return 0
   node_name=$(cat "$node_root/CURRENT" 2>/dev/null) || return 0
@@ -213,81 +218,34 @@ use_node_bin() {
   PATH=$1:$PATH
   export PATH
 }
-detect_node_install_method() {
-  case "$(uname -s)" in
-    Darwin)
-      if command -v brew >/dev/null 2>&1; then printf 'homebrew'; else printf 'standalone'; fi ;;
-    Linux)
-      if command -v apt-get >/dev/null 2>&1 && command -v apt-cache >/dev/null 2>&1 && apt_node_is_new_enough; then printf 'apt'
-      elif command -v apk >/dev/null 2>&1 && apk_node_is_new_enough; then printf 'apk'
-      else printf 'standalone'; fi ;;
-    *) printf 'standalone' ;;
-  esac
-}
-apt_node_is_new_enough() {
-  node_candidate=$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/ { print $2; exit }')
-  [ -n "$node_candidate" ] && [ "$node_candidate" != '(none)' ] && node_version_is_new_enough "$node_candidate"
-}
-apk_node_is_new_enough() {
-  node_candidate=$(apk search -x nodejs 2>/dev/null | awk -F- '/^nodejs-/ { print $2; exit }')
-  [ -n "$node_candidate" ] && node_version_is_new_enough "$node_candidate"
-}
 # The installer runs inside a piped shell (curl ... | sh), so prompts go to the
 # terminal itself and never to stdin, which holds this script.
+#
+# One method only: a verified archive unpacked inside Hulala's state root. A
+# package manager would install a machine-wide Node this product would then have
+# to keep working, and would make hulala uninstall either lie or delete the
+# user's own runtime. A machine that already has a usable Node never reaches
+# here.
 install_node_interactive() {
-  node_method=$(detect_node_install_method)
-  case "$node_method" in
-    homebrew) node_label='Homebrew' ;;
-    apt) node_label='apt-get' ;;
-    apk) node_label='apk' ;;
-    *) node_label='a verified Node.js download inside the Hulala state directory' ;;
-  esac
   if ! ( : <>/dev/tty ) 2>/dev/null; then
     # Piped or container installs: never guess, and never touch a machine
     # silently. The caller prints the requirement and how to satisfy it.
     return 1
   fi
   exec 3<>/dev/tty
-  printf '%s Install it now with %s? [Y/n] ' "$node_requirement" "$node_label" >&3
+  printf '%s Download it for Hulala (~50 MB)? [Y/n] ' "$node_requirement" >&3
   node_answer=''
   # Enter accepts the default; a closed terminal is not consent to install.
   if ! IFS= read -r node_answer <&3; then node_answer='n'; fi
   exec 3>&-
   case "$node_answer" in n|N|no|NO) return 1 ;; esac
-  echo "Installing Node.js with $node_label..." >&2
-  install_node "$node_method" || return 1
-  # The package manager replaced a binary this shell may have looked up already.
+  echo 'Installing the Hulala Node.js runtime...' >&2
+  install_node_standalone || return 1
   hash -r 2>/dev/null || true
   if node_is_usable node; then return 0; fi
   node_installed=$(node_bin_root)
   [ -n "$node_installed" ] || return 1
   use_node_bin "$node_installed"
-}
-install_node() {
-  case "$1" in
-    homebrew) install_node_with_homebrew ;;
-    apt) install_node_with_apt ;;
-    apk) install_node_with_apk ;;
-    *) install_node_standalone ;;
-  esac
-}
-install_node_with_homebrew() {
-  if brew list node >/dev/null 2>&1; then brew upgrade node; else brew install node; fi
-}
-install_node_with_apt() {
-  if [ "$(id -u)" -eq 0 ]; then
-    apt-get update && apt-get install -y nodejs
-  elif command -v sudo >/dev/null 2>&1; then
-    echo 'This asks for your administrator password.' >&2
-    sudo sh -c 'apt-get update && apt-get install -y nodejs'
-  else
-    apt-get install -y nodejs
-  fi
-}
-install_node_with_apk() {
-  if [ "$(id -u)" -eq 0 ]; then apk add --update-cache nodejs
-  elif command -v sudo >/dev/null 2>&1; then sudo apk add --update-cache nodejs
-  else apk add --update-cache nodejs; fi
 }
 # One download and no administrator: nodejs.org publishes the archive and its
 # SHA-256 in the same directory, so the digest is checked before anything is
@@ -297,7 +255,9 @@ fetch() {
   if command -v curl >/dev/null 2>&1; then
     node_protocol='=https'
     case "$node_url" in http://127.0.0.1:*|http://\[::1\]:*) node_protocol='=https,http' ;; esac
-    curl --silent --show-error --fail --location --connect-timeout 15 --max-time 600 --proto "$node_protocol" --proto-redir "$node_protocol" --output "$node_target" "$node_url"
+    node_quiet='--silent'
+    if [ -t 2 ]; then node_quiet='--progress-bar'; fi
+    curl $node_quiet --show-error --fail --location --connect-timeout 15 --max-time 600 --proto "$node_protocol" --proto-redir "$node_protocol" --output "$node_target" "$node_url"
   elif command -v wget >/dev/null 2>&1; then
     wget --quiet --timeout=30 --tries=2 -O "$node_target" "$node_url"
   else
@@ -352,8 +312,10 @@ install_node_standalone() {
     return 1
   fi
   node_downloaded=''
+  node_version=\${node_name#node-v}
+  node_version=\${node_version%%-*}
   for node_mirror in $(node_bases); do
-    echo "Downloading Node.js $node_name from $node_mirror..." >&2
+    echo "Downloading Node.js $node_version for Hulala..." >&2
     if fetch "$node_mirror/$node_line/$node_file" "$node_work/$node_file" && [ "$(sha256 "$node_work/$node_file")" = "$node_expected" ]; then
       node_downloaded=$node_mirror
       break
@@ -369,9 +331,11 @@ install_node_standalone() {
   mkdir -p "$node_root" || { rm -rf "$node_work"; return 1; }
   rm -rf "$node_root/$node_name"
   if ! tar -xzf "$node_work/$node_file" -C "$node_root"; then rm -rf "$node_work"; return 1; fi
-  # The archive also carries npm, corepack, headers and man pages. Hulala runs one
-  # binary, and the rest would only put symlinks and disk in the state root.
-  rm -rf "$node_root/$node_name/include" "$node_root/$node_name/share" "$node_root/$node_name/lib/node_modules" "$node_root/$node_name/CHANGELOG.md" "$node_root/$node_name/README.md"
+  # The archive also carries corepack, headers and man pages. Keep the npm that
+  # hulala install needs for npm ci (the release publishes a lock, not a
+  # dependency tree), drop the rest, and replace the npm symlink with our own
+  # script so nothing under the state root is a symlink.
+  rm -rf "$node_root/$node_name/include" "$node_root/$node_name/share" "$node_root/$node_name/lib/node_modules/corepack" "$node_root/$node_name/CHANGELOG.md" "$node_root/$node_name/README.md"
   rm -f "$node_root/$node_name/bin/npm" "$node_root/$node_name/bin/npx" "$node_root/$node_name/bin/corepack"
   printf '%s\\n' "$node_name" > "$node_root/CURRENT.tmp" && mv -f "$node_root/CURRENT.tmp" "$node_root/CURRENT"
   # One runtime is enough: an older build this installer unpacked is dead weight.
@@ -379,24 +343,50 @@ install_node_standalone() {
     [ -d "$node_entry" ] || continue
     [ "$node_entry" = "$node_root/$node_name" ] || rm -rf "$node_entry"
   done
+  # One stable entry point for everything that needs this runtime: the rest of
+  # this installer, the installed hulala command, and any host child process.
+  # It follows CURRENT instead of naming a version directory, so the pointer can
+  # move without rewriting it, and it is a real script, never a symlink.
+  mkdir -p "$node_root/bin" || { rm -rf "$node_work"; return 1; }
+  cat > "$node_root/bin/node.tmp" <<'HULALA_NODE'
+#!/bin/sh
+# hulala-node: run the Node.js build CURRENT names.
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
+name=$(cat "$root/CURRENT" 2>/dev/null) || exit 1
+case "$name" in ''|.*|*[!0-9A-Za-z._-]*) exit 1 ;; esac
+exec "$root/$name/bin/node" "$@"
+HULALA_NODE
+  chmod 755 "$node_root/bin/node.tmp" && mv -f "$node_root/bin/node.tmp" "$node_root/bin/node" || { rm -rf "$node_work"; return 1; }
+  cat > "$node_root/bin/npm.tmp" <<'HULALA_NPM'
+#!/bin/sh
+# hulala-npm: run npm with the Node.js build CURRENT names.
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
+name=$(cat "$root/CURRENT" 2>/dev/null) || exit 1
+case "$name" in ''|.*|*[!0-9A-Za-z._-]*) exit 1 ;; esac
+exec "$root/$name/bin/node" "$root/$name/lib/node_modules/npm/bin/npm-cli.js" "$@"
+HULALA_NPM
+  chmod 755 "$node_root/bin/npm.tmp" && mv -f "$node_root/bin/npm.tmp" "$node_root/bin/npm" || { rm -rf "$node_work"; return 1; }
   rm -rf "$node_work"
-  echo "Node.js installed in $node_root/$node_name (also at $node_root/bin/node)." >&2
+  # This runtime belongs to Hulala. Saying so here is what keeps "Hulala
+  # installed Node" from reading as "this machine now has Node to share", which
+  # it does not: nothing outside Hulala is pointed at it.
+  echo "Node.js $node_version installed for Hulala (its own runtime; other tools need their own)." >&2
 }
 check_node() {
   if node_is_usable node; then return 0; fi
   installed=$(node_bin_root)
   if [ -n "$installed" ]; then use_node_bin "$installed"; return 0; fi
   if install_node_interactive; then return 0; fi
-  echo 'Hulala runs on Node.js 24.9 or newer. Install Node, then run this command again.' >&2
+  echo 'Hulala runs on Node.js 24.9 or newer. Install Node (for example with Homebrew: brew install node, or from https://nodejs.org), then run this command again.' >&2
   exit 1
 }
 preflight() {
   echo 'Checking platform and installation directory permissions...' >&2
   state_root=\${HULALA_HOME:-"$HOME/.hulala"}
-  # Node.js is a user-level runtime other software may want too, so it lives in
-  # the XDG data directory (pi does the same with ~/.local/share/pi-node), not
-  # inside Hulala's private state root.
-  node_root=\${HULALA_NODE_HOME:-\${XDG_DATA_HOME:-"$HOME/.local/share"}/hulala-node}
+  # Node.js lives inside Hulala's own state root: it is the runtime Hulala uses,
+  # not a system Node this installer is entitled to add to a shell profile, and
+  # hulala uninstall removes exactly what it installed here.
+  node_root=\${HULALA_NODE_HOME:-"$state_root/runtime/node"}
   install_root=\${HULALA_INSTALL_ROOT:-"$state_root/runtime/client"}
   command_bin=\${HULALA_BIN:-}
   while [ "$#" -gt 0 ]; do
@@ -408,11 +398,113 @@ preflight() {
     esac
     shift
   done
+  # Fail on an unsupported machine before the 50 MB Node download, not after it.
+  os=$(uname -s)
+  arch=$(uname -m)
+  case "$os" in Darwin) os=darwin ;; Linux) os=linux ;; *) echo 'Unsupported operating system. Hulala installs on macOS and Linux.' >&2; exit 1 ;; esac
+  case "$arch" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=x64 ;; *) echo 'Unsupported CPU architecture.' >&2; exit 1 ;; esac
+  if [ "$os" = linux ] && { [ -f /etc/alpine-release ] || ldd --version 2>&1 | grep -qi musl; }; then
+    echo 'This release targets glibc Linux; musl has not been validated.' >&2
+    exit 1
+  fi
   check_writable "$state_root"
   check_writable "$install_root"
   if [ -n "$command_bin" ]; then check_writable "$command_bin"; fi
   detect_system_proxy
-  check_node
+}
+# version is the release this script was rendered for, and latest/ always
+# serves the newest one, so an equal installed version means there is nothing to
+# download. The comparison is numeric and ignores a prerelease suffix.
+version_is_older() {
+  version_left=$(printf '%s' "$1" | sed 's/-.*//')
+  version_right=$(printf '%s' "$2" | sed 's/-.*//')
+  version_left_rest=\${version_left#*.}
+  version_right_rest=\${version_right#*.}
+  version_left_major=\${version_left%%.*}
+  version_left_minor=\${version_left_rest%%.*}
+  version_left_patch=\${version_left_rest#*.}
+  version_right_major=\${version_right%%.*}
+  version_right_minor=\${version_right_rest%%.*}
+  version_right_patch=\${version_right_rest#*.}
+  if [ "$version_left_rest" = "$version_left" ]; then version_left_minor=0; version_left_patch=0; fi
+  if [ "$version_right_rest" = "$version_right" ]; then version_right_minor=0; version_right_patch=0; fi
+  for version_part in "$version_left_major" "$version_left_minor" "$version_left_patch" "$version_right_major" "$version_right_minor" "$version_right_patch"; do
+    case "$version_part" in ''|*[!0-9]*) return 1 ;; esac
+  done
+  if [ "$version_left_major" -ne "$version_right_major" ]; then
+    if [ "$version_left_major" -lt "$version_right_major" ]; then return 0; fi
+    return 1
+  fi
+  if [ "$version_left_minor" -ne "$version_right_minor" ]; then
+    if [ "$version_left_minor" -lt "$version_right_minor" ]; then return 0; fi
+    return 1
+  fi
+  if [ "$version_left_patch" -lt "$version_right_patch" ]; then return 0; fi
+  return 1
+}
+# Neither file needs a JSON parser: hulala install writes one field per line,
+# and the first "version" in active.json is always the active record.
+installed_version() {
+  [ -f "$install_root/active.json" ] || return 1
+  awk -F'"' '/"version"/ { for (i = 1; i < NF; i++) if ($i == "version") { print $(i + 2); exit } }' "$install_root/active.json"
+}
+installed_command() {
+  [ -f "$install_root/installation.json" ] || return 0
+  awk -F'"' '/"command"/ { for (i = 1; i < NF; i++) if ($i == "command") { print $(i + 2); exit } }' "$install_root/installation.json"
+}
+# The installer is a child process, so it cannot change the shell that ran it.
+# Starting the installed command by its absolute path is what makes the first
+# run work without a PATH refresh; pi's installer offers exactly this.
+start_now() {
+  start_command=$1
+  [ -n "$start_command" ] || return 0
+  [ -x "$start_command" ] || return 0
+  [ "\${HULALA_NO_START:-0}" = '1' ] && return 0
+  ( : <>/dev/tty ) 2>/dev/null || return 0
+  exec 3<>/dev/tty
+  printf 'Start Hulala now? [Y/n] ' >&3
+  start_answer=''
+  # Enter accepts the default; a closed terminal is not consent to start.
+  if ! IFS= read -r start_answer <&3; then start_answer='n'; fi
+  exec 3>&-
+  case "$start_answer" in n|N|no|NO) return 0 ;; esac
+  exec "$start_command" </dev/tty
+}
+# Re-running the installer is the normal way people upgrade, so it must not
+# download, unpack and re-verify a release that is already on disk.
+check_installed() {
+  installed_version_seen=$(installed_version) || installed_version_seen=''
+  [ -n "$installed_version_seen" ] || return 0
+  if [ "$installed_version_seen" = "$version" ]; then
+    installed_command_seen=$(installed_command) || installed_command_seen=''
+    if [ -z "$installed_command_seen" ] || [ ! -x "$installed_command_seen" ]; then
+      # The version record survived but its command did not; reinstall instead of
+      # claiming a working installation.
+      echo "Hulala $version is installed but its command is missing; repairing it." >&2
+      return 0
+    fi
+    installed_display=$installed_command_seen
+    case "$installed_command_seen" in "$HOME"/*) installed_display="~\${installed_command_seen#$HOME}" ;; esac
+    echo "Hulala $version is already installed: $installed_display"
+    echo 'Run hulala update to check for a newer release.' >&2
+    start_now "$installed_command_seen"
+    # Reached only when the user declined or there is no terminal.
+    echo "Start it with:  $installed_display"
+    exit 0
+  fi
+  if version_is_older "$installed_version_seen" "$version"; then
+    echo "Updating Hulala $installed_version_seen to $version..." >&2
+    return 0
+  fi
+  if version_is_older "$version" "$installed_version_seen"; then
+    echo "Hulala $installed_version_seen is already installed, and it is newer than this installer ($version)." >&2
+    echo 'Nothing was changed. Use the installed command for newer releases.' >&2
+    exit 0
+  fi
+  # The record exists but cannot be compared; installing over it is safer than
+  # treating a broken record as current.
+  echo 'The installed release record is unreadable; reinstalling Hulala.' >&2
+  return 0
 }
 # Publish the archive's bundled binaries as real files in the state root, so
 # every part of Hulala finds the same nvim and helpers and nothing there is a
@@ -475,14 +567,10 @@ release_command() {
 }
 main() {
   preflight "$@"
-  os=$(uname -s)
-  arch=$(uname -m)
-  case "$os" in Darwin) os=darwin ;; Linux) os=linux ;; *) echo 'Unsupported operating system. Hulala installs on macOS and Linux.' >&2; exit 1 ;; esac
-  case "$arch" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=x64 ;; *) echo 'Unsupported CPU architecture.' >&2; exit 1 ;; esac
-  if [ "$os" = linux ] && { [ -f /etc/alpine-release ] || ldd --version 2>&1 | grep -qi musl; }; then
-    echo 'This release targets glibc Linux; musl has not been validated.' >&2
-    exit 1
-  fi
+  # An installation that is already current only needs to be started, not
+  # downloaded again; Node is only needed when something will be installed.
+  check_installed
+  check_node
   case "$os-$arch" in
 ${cases}
   *) echo "Unsupported platform: $os-$arch" >&2; exit 1 ;;
@@ -494,9 +582,6 @@ ${cases}
   package="$work/package"
   mkdir -p "$package"
   tar -xzf "$work/$archive" -C "$package" --strip-components=1
-  # The install command ends with the one line the user has to type ("Start it
-  # with: hulala"), so the update hint goes first.
-  echo 'Update Hulala later with: hulala update' >&2
   release_command "$package"
   install_binaries "$package"
   ensure_unzip || true

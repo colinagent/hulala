@@ -26,21 +26,28 @@ test('the command directory is added to the shell profile once and removed again
     await removeCommandPath(registration!)
     expect(await readFile(profile, 'utf8')).toBe('export EDITOR=vim\n')
 
-    // Each shell reads a different profile: zsh configDir/.zshrc, bash prefers
-    // .bashrc, fish gets fish_add_path. A login-only file would leave `hulala`
-    // missing in editor terminals, which are not login shells.
+    // Each shell reads a different profile: zsh configDir/.zshrc, fish gets
+    // fish_add_path, and bash is registered in both the non-login file and the
+    // login file, because a macOS terminal starts a login shell while an editor
+    // terminal does not.
     const health: NodeJS.ProcessEnv = { ...process.env, PATH: '/usr/bin' }
     const configDir = join(home, 'zdot')
-    const profileOf = async (shell: string, environment = health) => {
+    const profilesOf = async (shell: string, environment = health) => {
       const registration = await addCommandPath(directory, home, shell, 'darwin', environment)
       if (registration?.kind !== 'profile') throw new Error('expected a profile registration')
-      return registration.file
+      return registration.files
     }
-    expect(await profileOf('/bin/zsh', { ...health, ZDOTDIR: configDir })).toBe(join(configDir, '.zshrc'))
+    expect(await profilesOf('/bin/zsh', { ...health, ZDOTDIR: configDir })).toEqual([join(configDir, '.zshrc')])
     await writeFile(join(home, '.bashrc'), '')
-    expect(await profileOf('/bin/bash')).toBe(join(home, '.bashrc'))
-    expect(await profileOf('/usr/bin/fish')).toBe(join(home, '.config/fish/config.fish'))
+    await writeFile(join(home, '.bash_profile'), '')
+    expect(await profilesOf('/bin/bash')).toEqual([join(home, '.bashrc'), join(home, '.bash_profile')])
+    expect(await readFile(join(home, '.bash_profile'), 'utf8')).toContain(`export PATH='${directory}':"$PATH"`)
+    expect(await profilesOf('/usr/bin/fish')).toEqual([join(home, '.config/fish/config.fish')])
     expect(await readFile(join(home, '.config/fish/config.fish'), 'utf8')).toContain(`fish_add_path '${directory}'`)
+    // fish follows XDG_CONFIG_HOME when the user set one.
+    expect(await profilesOf('/usr/local/bin/fish', { ...health, XDG_CONFIG_HOME: join(home, 'xdg') })).toEqual([join(home, 'xdg/fish/config.fish')])
+    // An unknown shell is never guessed at; the caller prints the export line.
+    expect(await addCommandPath(directory, home, '/usr/bin/pwsh', 'darwin', health)).toBeUndefined()
   } finally { await rm(home, { recursive: true, force: true }) }
 })
 

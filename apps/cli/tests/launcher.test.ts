@@ -50,6 +50,22 @@ test('the launcher starts the Node the installer supplied inside the state root'
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test('the launcher prefers the stable entry point beside CURRENT', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'hulala launcher stable '))
+  try {
+    const { state, command } = await installed(root)
+    // An older installer only wrote the version directory; the stable entry
+    // point is preferred because its directory also holds the npm script the
+    // release install needs.
+    await place(join(state, 'runtime/node/node-v24.9.0-test/bin/node'), runtime('v24.9.0-version-dir'))
+    await place(join(state, 'runtime/node/bin/node'), runtime('v24.9.0-stable'))
+    await writeFile(join(state, 'runtime/node/CURRENT'), 'node-v24.9.0-test\n')
+    const result = Bun.spawnSync([command], { stdout: 'pipe', stderr: 'pipe' })
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.toString()).toContain('runtime v24.9.0-stable')
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
 test('the launcher skips a runtime below the DSH floor and falls back to node on PATH', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala launcher stale '))
   try {
