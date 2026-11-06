@@ -1298,8 +1298,8 @@
   },
   {
     "key": "hulala/web/0.2.11/install.sh",
-    "size": 21662,
-    "sha256": "42cb2053b43f0966c374101321a56a8e35b93494f4cdf6409f0cbcded0377825",
+    "size": 21792,
+    "sha256": "15e0542cc2e1e4631979483cbfbb7da66fa57f76508f5c222d8ad460f5aadd2f",
     "static": true
   },
   {
@@ -2238,8 +2238,8 @@
   },
   {
     "key": "hulala/web/latest/install.sh",
-    "size": 21662,
-    "sha256": "42cb2053b43f0966c374101321a56a8e35b93494f4cdf6409f0cbcded0377825",
+    "size": 21792,
+    "sha256": "15e0542cc2e1e4631979483cbfbb7da66fa57f76508f5c222d8ad460f5aadd2f",
     "static": true,
     "objectKey": "hulala/web/0.2.11/install.sh"
   },
