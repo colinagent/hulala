@@ -6,8 +6,10 @@ import { releaseTarget, RELEASE_TARGETS, type ReleaseTarget } from './targets.js
 export interface RuntimeAsset {
   /** `package-lock.json` fed to `npm ci`. */
   lock: { url: string; sha256: string }
-  /** Pre-installed, patched tree used when npm cannot be used. */
-  pack: { url: string; sha256: string }
+  /** Pre-installed, patched tree used when npm cannot be used. Optional: the
+   * release publishes only the lock, and a client that still accepts a pack must
+   * read it when it is absent. */
+  pack?: { url: string; sha256: string }
 }
 export interface ReleaseAsset { url: string; sha256: string; manifestSha256: string; runtime?: RuntimeAsset }
 export interface Release { version: string; dataFormat: number; platforms: Partial<Record<ReleaseTarget, ReleaseAsset>> }
@@ -41,10 +43,15 @@ export function parseReleaseIndex(value: any): ReleaseIndex {
       if (!Object.hasOwn(RELEASE_TARGETS, target) || typeof asset?.url !== 'string' || !/^[a-f0-9]{64}$/.test(asset.sha256) || !/^[a-f0-9]{64}$/.test(asset.manifestSha256)) throw new Error('Invalid release platform asset')
       downloadUrl(asset.url)
       if (asset.runtime !== undefined) {
-        for (const part of ['lock', 'pack'] as const) {
-          const value = asset.runtime[part]
-          if (typeof value?.url !== 'string' || !/^[a-f0-9]{64}$/.test(value.sha256)) throw new Error(`Invalid release runtime asset: ${part}`)
-          downloadUrl(value.url)
+        const lock = asset.runtime.lock
+        if (typeof lock?.url !== 'string' || !/^[a-f0-9]{64}$/.test(lock.sha256)) throw new Error('Invalid release runtime asset: lock')
+        downloadUrl(lock.url)
+        // The pack is optional: releases publish only the lock, and a client must
+        // not reject the index because a fallback it does not need is absent.
+        const pack = asset.runtime.pack
+        if (pack !== undefined) {
+          if (typeof pack.url !== 'string' || !/^[a-f0-9]{64}$/.test(pack.sha256)) throw new Error('Invalid release runtime asset: pack')
+          downloadUrl(pack.url)
         }
       }
     }

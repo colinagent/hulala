@@ -25,6 +25,24 @@ test('channel manifests reject ambiguous versions, unpinned assets and unsupport
   const unsupported = index(); (unsupported.releases[0]!.platforms as any).constructor = asset
   expect(() => parseReleaseIndex(unsupported)).toThrow('asset')
 })
+test('a release runtime carries a lock, and the optional pack is only checked when present', () => {
+  const lock = { url: 'https://example.com/runtime-package-lock.json', sha256: 'c'.repeat(64) }
+  const locked = index()
+  ;(locked.releases[0]!.platforms as any)['darwin-arm64'] = { ...asset, runtime: { lock } }
+  expect((parseReleaseIndex(locked).releases[0]!.platforms['darwin-arm64']!.runtime as any).pack).toBeUndefined()
+
+  // Releases stopped publishing the pack, so an index without it must be valid;
+  // a pack that is present but unpinned is still a broken index.
+  const withPack = index()
+  ;(withPack.releases[0]!.platforms as any)['darwin-arm64'] = { ...asset, runtime: { lock, pack: { url: 'https://example.com/runtime.tar.gz', sha256: 'd'.repeat(64) } } }
+  expect(parseReleaseIndex(withPack).releases[0]!.platforms['darwin-arm64']!.runtime!.pack!.sha256).toBe('d'.repeat(64))
+  const brokenPack = index()
+  ;(brokenPack.releases[0]!.platforms as any)['darwin-arm64'] = { ...asset, runtime: { lock, pack: { url: 'https://example.com/runtime.tar.gz', sha256: '' } } }
+  expect(() => parseReleaseIndex(brokenPack)).toThrow('pack')
+  const brokenLock = index()
+  ;(brokenLock.releases[0]!.platforms as any)['darwin-arm64'] = { ...asset, runtime: { lock: { url: lock.url, sha256: '' } } }
+  expect(() => parseReleaseIndex(brokenLock)).toThrow('lock')
+})
 test('release checks use a bounded explicit local mirror without selecting prereleases by default', async () => {
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => Response.json(index()) })
   try { expect((await fetchReleaseIndex(`http://127.0.0.1:${server.port}/index`)).channels).toEqual({ stable: '1.0.0', preview: '1.1.0-beta.2' }) }
