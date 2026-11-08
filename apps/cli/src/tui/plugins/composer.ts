@@ -54,7 +54,7 @@ export interface ComposerPluginConfig {
 
 /** Build the composer and claim `dock.input`. */
 export function apply(ctx: Context, config: ComposerPluginConfig): void {
-  const { screen, setPaging } = ctx.hulalaTerminal
+  const { screen, setPaging, setMenuPaging } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   const layout = ctx.hulalaLayout
   const nvim = ctx.hulalaEditor
@@ -64,6 +64,10 @@ export function apply(ctx: Context, config: ComposerPluginConfig): void {
   const editor = new PromptEditor(screen, theme.editor, {
     color: config.color,
     faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
+    // While the completion menu is up, PageUp/PageDown page its five-row window
+    // instead of the transcript — pi's `capturesViewportInput`, arbitrated here
+    // because the alt-screen viewport claims those keys before the editor.
+    onMenuOpen: open => setMenuPaging(open),
   })
   // `/model` and `/login` take the composer's place in the dock, as pi's
   // pickers do; the layout always holds this slot instead of the editor.

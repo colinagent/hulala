@@ -48,6 +48,16 @@ export interface TuiTerminal {
    * @param viewport - true when the transcript should own the paging keys.
    */
   setPaging(viewport: boolean): void
+  /**
+   * Decide whether the open completion menu owns `PageUp`/`PageDown`.
+   *
+   * The menu pages its own five-row window, so the viewport must not take the
+   * keys first. It is tracked apart from {@link TuiTerminal.setPaging} on
+   * purpose: a menu that closes while a column still has the keyboard must not
+   * hand the keys back to the transcript.
+   * @param menu - true while the completion menu is on screen.
+   */
+  setMenuPaging(menu: boolean): void
 }
 
 /** Streams and the composer's initial key mode. */
@@ -66,9 +76,18 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   // keys through the globally installed manager on every keystroke.
   const keybindings = new KeybindingsManager(TUI_KEYBINDINGS)
   setKeybindings(keybindings)
+  // Two independent owners of the paging keys: the transcript (or not, while a
+  // column has the keyboard) and the completion menu, which pages its own
+  // window while it is up. One boolean each, resolved into the one user-binding
+  // table pi-tui replaces wholesale.
+  let viewportPaging = config.composerPaging
+  let menuPaging = false
+  const applyPaging = (): void => {
+    keybindings.setUserBindings(composerBindings(viewportPaging && !menuPaging))
+  }
   // Install the composer's readline arrows before the first paint, not only
   // after the first focus change.
-  keybindings.setUserBindings(composerBindings(config.composerPaging))
+  applyPaging()
 
   const stop = (): void => {
     // pi-tui guards `stopped`, so the explicit stop in `shutdown()` and this
@@ -77,10 +96,15 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   }
   ctx.effect(() => stop, 'hulala: terminal restore')
   const setPaging = (viewport: boolean): void => {
-    keybindings.setUserBindings(composerBindings(viewport))
+    viewportPaging = viewport
+    applyPaging()
+  }
+  const setMenuPaging = (menu: boolean): void => {
+    menuPaging = menu
+    applyPaging()
   }
 
-  ctx.provide('hulalaTerminal', { terminal, screen, keybindings, stop, setPaging })
+  ctx.provide('hulalaTerminal', { terminal, screen, keybindings, stop, setPaging, setMenuPaging })
 }
 
 /** Cordis object-form plugin. */

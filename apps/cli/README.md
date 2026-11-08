@@ -40,6 +40,19 @@ so the frame never loses its last column; hiding it gives the sidebar the space
 the conversation had. `Ctrl-Q` exits, in the slot pi gives `Ctrl-D`, and still asks a dirty
 Neovim before leaving.
 
+## Completing commands
+
+A `/` at the start of the composer opens the command menu above the input box.
+The menu shows up to five rows at a time and slides with the selection, so every
+match stays reachable; while more matches remain it ends with a `(n/total)`
+counter.
+`Up`/`Down` (or `Ctrl-P`/`Ctrl-N`) move one row and wrap at both ends,
+`PageUp`/`PageDown` move a whole window, the wheel moves one row per notch, and
+`Tab` accepts the highlighted command. `Enter` on a slash command accepts it and
+submits, so `/quit` + `Enter` still leaves in one gesture. While the menu is up,
+`PageUp`/`PageDown` page the menu instead of the conversation; `Esc` closes the
+menu and leaves the draft alone.
+
 ## Interrupting a turn
 
 `Esc` aborts the running turn, like pi's `app.interrupt`: the Host cancels the

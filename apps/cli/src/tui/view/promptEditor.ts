@@ -6,6 +6,13 @@
  * subclass owns a small completion menu instead and renders it ABOVE the top
  * border, with the selected entry highlighted in the accent color.
  *
+ * The menu follows pi's search-list rules instead of inventing its own: a
+ * five-row window that slides with the selection, a `(n/total)` counter while
+ * the list does not fit, a command column that lines the descriptions up,
+ * arrows that wrap at both ends, PageUp/PageDown that move by one window, and
+ * a wheel that moves one entry per notch. Without the window a reader could
+ * only see the first few matches and had no way to reach the rest.
+ *
  * The base `Editor` also always draws a filled cursor, which stays visible as
  * pi-tui's reverse-video block. Without focus the cell is rewritten as the same
  * ghost block so the column still shows where its cursor is.
@@ -31,12 +38,37 @@ import {
   type TuiMouseEventResult,
 } from '@earendil-works/pi-tui'
 import { slashCommands, listMove } from '../keys.js'
+import { scrollLabel, windowOf } from './selector/chrome.js'
 import { buildStyles } from './theme.js'
 
 interface MenuEntry {
   value: string
   description?: string
+  /** Argument placeholder, folded into the description column like pi's menu. */
+  hint?: string
 }
+
+/**
+ * Rows the completion menu shows before it starts scrolling.
+ *
+ * pi's `autocompleteMaxVisible` default: the menu is a hint above the composer,
+ * not a browser, so five rows is enough to recognise the command and the
+ * counter carries the position in the whole list.
+ */
+const MENU_ROWS = 5
+
+/** Rows the menu leaves on screen for the transcript, the composer and the band. */
+const MENU_RESERVED_ROWS = 8
+
+/** Width of the command column, matching pi's slash-command list (12–32 cells). */
+const MENU_NAME_MIN_WIDTH = 12
+const MENU_NAME_MAX_WIDTH = 32
+
+/** Below this width a row drops the description column and shows the command alone. */
+const MENU_TWO_COLUMN_MIN_WIDTH = 40
+
+/** Room a description needs before the column is worth drawing at all. */
+const MENU_MIN_DESCRIPTION_WIDTH = 10
 
 /** Fallback for the dim cursor when colour output is disabled. */
 const HOLLOW_CURSOR = '□'
@@ -55,6 +87,14 @@ export interface PromptEditorOptions extends EditorOptions {
    * to a hollow glyph.
    */
   faintCursor?: () => string
+  /**
+   * Tell the terminal when the menu takes `PageUp`/`PageDown` for its window.
+   *
+   * The alt-screen viewport claims those keys before any component sees them,
+   * so the two owners have to be arbitrated above the editor rather than by
+   * focus: a menu can outlive a focus change.
+   */
+  onMenuOpen?: (open: boolean) => void
 }
 
 /**
@@ -78,6 +118,7 @@ function insetRule(line: string, inset: number): string {
 export class PromptEditor extends Editor {
   private readonly color: boolean
   private readonly faintCursor: (() => string) | undefined
+  private readonly onMenuOpen: ((open: boolean) => void) | undefined
   private readonly styles: ReturnType<typeof buildStyles>
   /**
    * Receive every submitted draft with the gesture that named its delivery
@@ -99,13 +140,20 @@ export class PromptEditor extends Editor {
   private menuStart = 0
   private menuToken = ''
   private requestId = 0
+  /** Rows the menu drew last frame, counter row included, for hit-testing. */
   private renderedMenuHeight = 0
+  /** First entry of the window the menu drew last frame. */
+  private renderedMenuStart = 0
+  /** Item rows the window drew last frame, without the counter row. */
+  private renderedMenuRows = 0
 
   constructor(tui: TUI, theme: EditorTheme, options: PromptEditorOptions) {
-    super(tui, theme, { paddingX: 2, ...options })
-    this.color = options.color
-    this.faintCursor = options.faintCursor
-    this.styles = buildStyles(options.color)
+    const { color, faintCursor, onMenuOpen, ...editorOptions } = options
+    super(tui, theme, { paddingX: 2, ...editorOptions })
+    this.color = color
+    this.faintCursor = faintCursor
+    this.onMenuOpen = onMenuOpen
+    this.styles = buildStyles(color)
     this.onSubmit = text => { this.onSubmitGesture?.(text, this.gesture) }
   }
 
@@ -153,16 +201,32 @@ export class PromptEditor extends Editor {
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
     // The completion menu renders above the editor body: route pointer events
-    // over it to the hovered entry, and shift the editor body down by the menu
-    // height before delegating.
+    // over it to the entry under the pointer, and shift the editor body down by
+    // the menu height before delegating.
     if (this.menu !== null && this.renderedMenuHeight > 0 && event.y < this.renderedMenuHeight) {
-      const index = event.y
-      const changed = index >= 0 && index < this.menu.length && index !== this.menuIndex
-      if (changed) {
-        this.menuIndex = index
-        this.tui.requestRender()
+      // A notch moves one entry, like pi's select list. The counter row belongs
+      // to the menu too, so the wheel never falls through to the transcript.
+      if (event.type === 'wheel') {
+        this.moveMenu(event.wheelDelta !== undefined && event.wheelDelta < 0 ? -1 : 1, false)
+        return { handled: true, focus: true, render: true }
       }
-      return { handled: true, focus: true, render: changed }
+      // The window slides with the selection, so the row under the pointer is
+      // only in the list after the start offset is added back. Hovering does not
+      // select: with a window centred on the selection, a hover that moved the
+      // window would drag a different entry under the pointer every event.
+      const index = this.renderedMenuStart + event.y
+      const left = event.button === 'left' && (event.type === 'press' || event.type === 'click')
+      if (event.y < this.renderedMenuRows && index < this.menu.length && left) {
+        const changed = index !== this.menuIndex
+        if (changed) {
+          this.menuIndex = index
+          this.tui.requestRender()
+        }
+        // A click accepts, exactly like Tab on the highlighted row.
+        if (event.type === 'click') this.acceptCompletion(this.menu[index])
+        return { handled: true, focus: true, render: changed }
+      }
+      return { handled: true, focus: true }
     }
     return super.handleMouse({ ...event, y: event.y - this.renderedMenuHeight })
   }
@@ -196,13 +260,21 @@ export class PromptEditor extends Editor {
         return
       }
       if (listMove(data, 'up')) {
-        this.menuIndex = Math.max(0, this.menuIndex - 1)
-        this.tui.requestRender()
+        this.moveMenu(-1, true)
         return
       }
       if (listMove(data, 'down')) {
-        this.menuIndex = Math.min(this.menu.length - 1, this.menuIndex + 1)
-        this.tui.requestRender()
+        this.moveMenu(1, true)
+        return
+      }
+      // One window at a time, clamped: the keyboard has no scrollbar, and the
+      // counter says where in the list the selection landed.
+      if (matchesKey(data, 'pageUp')) {
+        this.moveMenu(-this.menuCapacity(), false)
+        return
+      }
+      if (matchesKey(data, 'pageDown')) {
+        this.moveMenu(this.menuCapacity(), false)
         return
       }
       if (matchesKey(data, 'escape')) {
@@ -228,23 +300,121 @@ export class PromptEditor extends Editor {
    * entry the composer no longer holds.
    */
   private dismissMenu(): void {
-    this.menu = null
     this.menuToken = ''
     this.requestId += 1
+    this.setMenu(null)
+  }
+
+  /**
+   * Replace the menu, announcing when paging ownership changes.
+   *
+   * `PageUp`/`PageDown` are the viewport's by default; while the menu is up
+   * they page its window instead, so the owner is announced rather than
+   * inferred from focus.
+   * @param entries - the new matches, or null to close the menu.
+   * @param start - offset in the draft where the completed token began.
+   */
+  private setMenu(entries: MenuEntry[] | null, start?: number): void {
+    const wasOpen = this.completionMenuOpen
+    this.menu = entries === null || entries.length === 0 ? null : entries
+    if (start !== undefined) this.menuStart = start
+    if (this.menu !== null) this.menuIndex = 0
+    const open = this.completionMenuOpen
+    if (open !== wasOpen) this.onMenuOpen?.(open)
+    if (open || wasOpen) this.tui.requestRender()
+  }
+
+  /**
+   * Move the menu selection.
+   *
+   * The arrows wrap at both ends, as pi's select list does, so the last command
+   * stays reachable without counting rows. Paging and the wheel clamp instead,
+   * so the end of the list is not a jump back to the other end.
+   * @param delta - rows to move, negative for up.
+   * @param wrap - whether the ends continue at the other end.
+   */
+  private moveMenu(delta: number, wrap: boolean): void {
+    const menu = this.menu
+    if (menu === null || menu.length === 0) return
+    const next = wrap
+      ? (this.menuIndex + delta + menu.length) % menu.length
+      : Math.max(0, Math.min(menu.length - 1, this.menuIndex + delta))
+    if (next === this.menuIndex) return
+    this.menuIndex = next
+    this.tui.requestRender()
+  }
+
+  /**
+   * Rows the menu may use on this terminal.
+   *
+   * Five is pi's `autocompleteMaxVisible` default. The cap by terminal height
+   * keeps a short window from squeezing the composer and the transcript out of
+   * the dock, and two rows is the smallest window that still shows movement.
+   */
+  private menuCapacity(): number {
+    return Math.max(2, Math.min(MENU_ROWS, this.tui.terminal.rows - MENU_RESERVED_ROWS))
+  }
+
+  /**
+   * Width of the command column.
+   *
+   * Sized to the widest command in the whole match set, not only the visible
+   * window, so descriptions stay aligned while the window slides; clamped like
+   * pi's slash-command layout and narrowed to leave the description its room.
+   * @param width - composer width.
+   * @returns the column width, gap included.
+   */
+  private menuNameWidth(width: number): number {
+    const widest = (this.menu ?? []).reduce((max, entry) => Math.max(max, visibleWidth(entry.value)), 0) + 2
+    const room = width - 2 - MENU_MIN_DESCRIPTION_WIDTH - 2
+    return Math.max(MENU_NAME_MIN_WIDTH, Math.min(MENU_NAME_MAX_WIDTH, widest, room))
   }
 
   private renderMenu(width: number): string[] {
-    if (this.menu === null || this.menu.length === 0) return []
-    const items = this.menu.slice(0, 6)
-    if (this.menuIndex >= items.length) this.menuIndex = 0
-    return items.map((entry, index) => {
-      const selected = index === this.menuIndex
-      const label = entry.description === undefined ? entry.value : `${entry.value}  ${entry.description}`
-      const clipped = truncateToWidth(label, Math.max(1, width - 2))
-      const line = selected ? this.styles.accent(`❯ ${clipped}`) : `  ${clipped}`
-      const missing = width - visibleWidth(line)
-      return missing > 0 ? line + ' '.repeat(missing) : line
-    })
+    const menu = this.menu
+    if (menu === null || menu.length === 0) {
+      this.renderedMenuStart = 0
+      this.renderedMenuRows = 0
+      return []
+    }
+    const capacity = this.menuCapacity()
+    const window = windowOf(menu, this.menuIndex, capacity)
+    this.renderedMenuStart = window.start
+    this.renderedMenuRows = window.items.length
+    const nameWidth = this.menuNameWidth(width)
+    const lines = window.items.map((entry, offset) => this.renderMenuEntry(
+      entry,
+      window.start + offset === this.menuIndex,
+      width,
+      nameWidth,
+    ))
+    // pi shows the counter only while the window hides part of the list; a list
+    // that fits needs no position report.
+    const counter = scrollLabel(this.menuIndex, menu.length, window.start, capacity)
+    if (counter !== undefined) lines.push(padToWidth(this.styles.dim(counter), width))
+    return lines
+  }
+
+  /**
+   * One menu row: the command, then the hint-and-description column.
+   *
+   * The selected row's label takes the accent colour and nothing else changes:
+   * this client marks the current entry with text colour, never a filled row.
+   * A composer too narrow for two columns shows the command alone, as pi does.
+   */
+  private renderMenuEntry(entry: MenuEntry, selected: boolean, width: number, nameWidth: number): string {
+    const prefix = selected ? this.styles.accent('❯ ') : '  '
+    const name = truncateToWidth(entry.value, Math.max(1, Math.min(nameWidth - 2, width - 2)), '…')
+    const gap = Math.max(1, nameWidth - visibleWidth(name))
+    const description = descriptionOf(entry)
+    const room = width - 2 - visibleWidth(name) - gap - 2
+    if (description !== undefined && width > MENU_TWO_COLUMN_MIN_WIDTH && room > MENU_MIN_DESCRIPTION_WIDTH) {
+      const detail = truncateToWidth(description, room, '…')
+      const label = selected ? this.styles.accent(name) : name
+      return padToWidth(`${prefix}${label}${this.styles.dim(`${' '.repeat(gap)}${detail}`)}`, width)
+    }
+    const full = truncateToWidth(entry.value, Math.max(1, width - 2), '…')
+    return padToWidth(`${prefix}${selected ? this.styles.accent(full) : full}`, width)
   }
 
   private tokenUnderCursor(): { token: string; start: number } {
@@ -267,11 +437,11 @@ export class PromptEditor extends Editor {
     const { token, start } = this.tokenUnderCursor()
     const kind = this.providerKind(token, start)
     if (kind === null) {
-      this.menu = null
       this.menuToken = ''
       // Drop completions still in flight: a stale result would reopen the menu
       // after submit and make Enter accept the entry the composer no longer holds.
       this.requestId += 1
+      this.setMenu(null)
       return
     }
     if (!force && token === this.menuToken && this.menu !== null) return
@@ -280,15 +450,11 @@ export class PromptEditor extends Editor {
     const result = kind === 'slash' ? Promise.resolve(this.completeSlash(token)) : this.completePath(token)
     void result.then(entries => {
       if (requestId !== this.requestId) return
-      this.menu = entries.length === 0 ? null : entries
-      this.menuIndex = 0
-      this.menuStart = start
-      if (this.menu !== null) this.tui.requestRender()
+      this.setMenu(entries, start)
     })
   }
 
-  private acceptCompletion(): void {
-    const entry = this.menu?.[this.menuIndex] ?? this.menu?.[0]
+  private acceptCompletion(entry: MenuEntry | undefined = this.menu?.[this.menuIndex] ?? this.menu?.[0]): void {
     if (entry === undefined) return
     const text = this.getText()
     const cursor = this.getCursor().col
@@ -304,7 +470,11 @@ export class PromptEditor extends Editor {
     const needle = prefix.toLowerCase()
     return slashCommands()
       .filter(command => `/${command.name}`.toLowerCase().startsWith(needle))
-      .map(command => ({ value: `/${command.name}`, ...(command.description === undefined ? {} : { description: command.description }) }))
+      .map(command => ({
+        value: `/${command.name}`,
+        ...(command.argumentHint === undefined ? {} : { hint: command.argumentHint }),
+        ...(command.description === undefined ? {} : { description: command.description }),
+      }))
   }
 
   private async completePath(prefix: string): Promise<MenuEntry[]> {
@@ -329,4 +499,28 @@ export class PromptEditor extends Editor {
 
 function isPathLike(token: string): boolean {
   return token.startsWith('/') || token.startsWith('./') || token.startsWith('../') || token.startsWith('~')
+}
+
+/** Pad a rendered row to the composer width so a shorter line erases the old one. */
+function padToWidth(line: string, width: number): string {
+  const missing = width - visibleWidth(line)
+  return missing > 0 ? line + ' '.repeat(missing) : line
+}
+
+/** One line, so a wrapped description cannot add rows to the menu. */
+function singleLine(text: string): string {
+  return text.replace(/[\r\n]+/gu, ' ').trim()
+}
+
+/**
+ * A row's description column: the argument hint, then the description.
+ *
+ * pi's slash-command provider folds the hint into this column
+ * (`[level] — set the thinking level`), which keeps the command name narrow and
+ * scannable instead of pushing the description off the row.
+ */
+function descriptionOf(entry: MenuEntry): string | undefined {
+  const description = entry.description === undefined ? undefined : singleLine(entry.description)
+  if (entry.hint === undefined) return description
+  return description === undefined ? entry.hint : `${entry.hint} — ${description}`
 }
