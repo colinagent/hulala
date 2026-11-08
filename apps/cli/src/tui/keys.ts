@@ -2,60 +2,68 @@
  * Application-level keybindings and the slash-command completion table.
  *
  * Rendering and input parsing are owned by pi-tui; this module only names the
- * commands the composer completes and the keys the app intercepts globally.
+ * commands the composer completes and the keys the app intercepts globally. The
+ * chords themselves live in `../../keymap.ts` — every one of them is an action a
+ * user can rebind in `config/keybindings.json`, and nothing here spells a key out
+ * twice.
  *
  * The frame has three columns: the session rail on the left, the conversation in
  * the middle, and one sidebar column on the right — the built-in terminal on
- * `Ctrl-T`, Neovim on `Ctrl-F`. The two sidebar columns are mutually exclusive
- * but keep their own processes while the other is shown. Each column key is a
- * visibility toggle: a painted column is closed by its own key wherever the
- * keyboard is, and `Ctrl-F` asks Neovim to leave before closing it, so unwritten
- * buffers are a question rather than a kill. `Ctrl-D` puts the conversation
- * column away or brings it back; it refuses to hide while the rail and the
- * sidebar are both closed, because there would be nothing left on screen.
- * `Ctrl-Q` exits, in the slot pi gives
- * `Ctrl-D`. `Ctrl-G` is the rail's visibility toggle: a shown rail is put away,
- * a hidden one comes back with the keyboard on the list, and it never doubles as
- * a focus cycle. `Ctrl-[` / `Ctrl-]` move focus between the columns; `Ctrl-[` is
- * the same byte as `Esc`, so Neovim keeps it whenever it
- * has something to cancel (see `tui/pane/focus.ts`) and the terminal keeps it
- * while a full-screen program owns the alternate screen. `Ctrl-W` is not
- * intercepted while a column has focus, so Neovim's window prefix works; the
- * column keys do take `<C-t>` and `<C-f>` from Neovim, which is the price of
- * naming the two columns.
+ * `Ctrl-T`, Neovim on `Ctrl-D`. The two sidebar columns are mutually exclusive
+ * but keep their own processes while the other is shown. `Ctrl-D` is the editor's
+ * toggle because `Ctrl-F` belongs to every program in the frame (forward-char in
+ * the composer and a shell, page-down in Neovim). Each column key is a visibility
+ * toggle: a painted column is closed by its own key wherever the keyboard is, and
+ * `Ctrl-D` asks Neovim to leave before closing it, so unwritten buffers are a
+ * question rather than a kill. `Cmd-E` is the exception: it puts the rail and the
+ * conversation away and leaves Neovim alone, because "just the editor" is a place
+ * the reader wants to be, not a toggle they want to nudge.
+ * `Shift-Cmd-S` and `Shift-Cmd-C` show or put away the rail and the conversation;
+ * the conversation still refuses to hide while the rail and the sidebar are both
+ * closed, because there would be nothing left on screen. `Ctrl-Q` exits, in the
+ * slot pi gives `Ctrl-D`. `Ctrl-[` / `Ctrl-]` move focus between the columns;
+ * `Ctrl-[` is the same byte as `Esc`, so Neovim keeps it whenever it has
+ * something to cancel (see `tui/pane/focus.ts`) and the terminal keeps it while a
+ * full-screen program owns the alternate screen. `Ctrl-W` is not intercepted
+ * while a column has focus, so Neovim's window prefix works; the column keys do
+ * take `<C-t>` and `<C-d>` from Neovim, which is the price of naming the columns.
+ *
+ * The three Command chords are only delivered by a terminal that took the Kitty
+ * keyboard report (see `tui/terminal.ts`), which is why every one of them has a
+ * slash-command equal: `/rail`, `/chat`, `/nvim` and `/commands`.
  *
  * @module hulala-cli/tui/keys
  */
-import { matchesKey, type KeybindingsConfig, type SlashCommand } from '@earendil-works/pi-tui'
+import { editorBindingOverrides } from '../keymap.js'
+import { matchesKey, type KeybindingsConfig } from '@earendil-works/pi-tui'
+import { commandCatalog } from './commandCatalog.js'
 import { t } from './i18n/index.js'
+
+/** One row of the slash-command menu (pi-tui's `SlashCommand` plus the hash). */
+export interface CommandCompletion {
+  /** The word after the slash. */
+  readonly name: string
+  readonly description: string
+  /** The argument placeholder, `[optional]` or `<required>`. */
+  readonly argumentHint?: string
+  /** The action's shortcut label, for the right-hand column. */
+  readonly keys?: string
+}
 
 /**
  * Slash commands offered by the completion menu (`name` excludes the `/`).
  *
  * Built on demand instead of stored in a constant: the descriptions follow the
- * active interface language, and a switch must show up in the next completion
- * menu without a restart.
+ * active interface language, the shortcut column follows the active keymap, and
+ * a switch of either must show up in the next menu without a restart.
  */
-export function slashCommands(): SlashCommand[] {
-  return [
-    { name: 'help', description: t('slash.help') },
-    { name: 'sessions', description: t('slash.sessions') },
-    { name: 'new', description: t('slash.new') },
-    { name: 'resume', description: t('slash.resume'), argumentHint: '[id]' },
-    { name: 'model', description: t('slash.model'), argumentHint: '[provider/model]' },
-    { name: 'thinking', description: t('slash.thinking'), argumentHint: '[level]' },
-    { name: 'login', description: t('slash.login'), argumentHint: '[provider]' },
-    { name: 'rename', description: t('slash.rename'), argumentHint: '<title>' },
-    { name: 'cancel', description: t('slash.cancel') },
-    { name: 'status', description: t('slash.status') },
-    { name: 'editor', description: t('slash.editor') },
-    { name: 'terminal', description: t('slash.terminal') },
-    { name: 'reasoning', description: t('slash.reasoning') },
-    { name: 'clear', description: t('slash.clear') },
-    { name: 'update', description: t('slash.update') },
-    { name: 'language', description: t('slash.language'), argumentHint: '[en|zh-CN]' },
-    { name: 'quit', description: t('slash.quit') },
-  ]
+export function slashCommands(): CommandCompletion[] {
+  return commandCatalog().map(command => ({
+    name: command.name,
+    description: command.description,
+    ...(command.argumentHint === undefined ? {} : { argumentHint: command.argumentHint }),
+    ...(command.hint === '' ? {} : { keys: command.hint }),
+  }))
 }
 
 /** Alt-screen viewport bindings that would otherwise swallow a column's keys. */
@@ -116,10 +124,16 @@ export function viewportPagingBindings(transcriptOwnsPaging: boolean): Keybindin
  * Combines the list arrows with the transcript paging decision, because
  * `setUserBindings` replaces the whole map: losing one set while installing the
  * other would either strand `Ctrl-P`/`Ctrl-N` or hand PageUp/PageDown back to
- * the transcript while a column is focused.
+ * the transcript while a column is focused. The user's `tui.*` overrides from
+ * `config/keybindings.json` go on top, so a rebound editing gesture is not undone
+ * by the frames this function installs.
  * @param transcriptOwnsPaging - true while the composer has focus.
  * @returns user bindings to install for the running `KeybindingsManager`.
  */
 export function composerBindings(transcriptOwnsPaging: boolean): KeybindingsConfig {
-  return { ...COMPOSER_LIST_KEYS, ...viewportPagingBindings(transcriptOwnsPaging) }
+  return {
+    ...COMPOSER_LIST_KEYS,
+    ...viewportPagingBindings(transcriptOwnsPaging),
+    ...editorBindingOverrides(),
+  } as KeybindingsConfig
 }

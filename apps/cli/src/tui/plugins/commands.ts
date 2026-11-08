@@ -18,7 +18,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { TerminalPromptMode, TerminalSession } from '../data/remote.js'
 import { languageName, parseLanguage } from '../../language.js'
+import { KEY_ACTIONS, actionHint } from '../../keymap.js'
+import type { PaneKind } from '../pane/focus.js'
+import type { CatalogEntry } from '../commandCatalog.js'
 import { t } from '../i18n/index.js'
+import { CommandPaletteOverlay } from '../view/overlays/commandPalette.js'
 import { HelpOverlay } from '../view/overlays/help.js'
 import { VERSION } from '../../constants.js'
 
@@ -48,6 +52,23 @@ export interface TuiCommands {
   /** Ask the Host to abort the running turn. */
   cancel(): Promise<void>
   /**
+   * `Cmd-E` / `/nvim`: leave only the editor column, or come back from it.
+   *
+   * The mode lives here because both entry points must share one snapshot: the
+   * key and the slash command are the same action, and a command that opened the
+   * view without recording what it replaced would make the next `Cmd-E` restore
+   * nothing.
+   */
+  toggleEditorOnly(): void
+  /**
+   * Open the command palette from anywhere.
+   *
+   * The palette is the surface for a forgotten shortcut and for a terminal that
+   * cannot deliver a Command chord: it closes first, then runs the chosen
+   * command, so a command that opens its own panel is not stacking two modals.
+   */
+  openPalette(): Promise<void>
+  /**
    * Add a `/command` from outside this plugin (a user plugin's `tui.command`).
    * @param name - the word after the slash, lowercased on lookup.
    * @param description - one line for `/help`.
@@ -55,6 +76,14 @@ export interface TuiCommands {
    * @returns idempotent removal.
    */
   registerCommand(name: string, description: string, run: (argument: string) => void | Promise<void>): () => void
+}
+
+/** The frame to come back to after Neovim-only mode. */
+interface FrameSnapshot {
+  readonly rail: boolean
+  readonly chat: boolean
+  readonly focus: 'composer' | 'rail' | 'pane'
+  readonly pane: PaneKind | undefined
 }
 
 /** Colour flag for the help overlay. */
@@ -69,7 +98,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const overlays = ctx.hulalaOverlays
   const session = ctx.hulalaSession
   const panes = ctx.hulalaPanes
-  const { terminal } = ctx.hulalaTerminal
+  const keymap = ctx.hulalaKeymap
+  const { terminal, screen } = ctx.hulalaTerminal
   const updater = ctx.hulalaUpdate
   const rail = ctx.hulalaRail
   const layout = ctx.hulalaLayout
@@ -84,6 +114,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   /** Commands contributed by user plugins, keyed by the word after the slash. */
   const extra = new Map<string, { description: string; run: (argument: string) => void | Promise<void> }>()
   let cancelRequested = false
+  /** The layout from before `Cmd-E`, while Neovim-only mode is on. */
+  let beforeEditorOnly: FrameSnapshot | undefined
 
   const repaint = (): void => { render.repaint() }
   const failure = (caught: unknown): void => {
@@ -102,6 +134,101 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       cancelRequested = false
       failure(caught)
     }
+  }
+
+  /**
+   * `Cmd-E`: leave only the editor column.
+   *
+   * The conversation refuses to hide while the rail and the sidebar are both
+   * closed (`layout.setConversationVisible`), so the editor is shown and focused
+   * first, then the rail goes away, then the conversation. Neovim failing to
+   * start is the one case that must not produce an empty frame: the column never
+   * registers, the layout is left exactly as it was, and the pane plugin has
+   * already said why.
+   */
+  const enterEditorOnly = (): void => {
+    const snapshot: FrameSnapshot = {
+      rail: layout.railWanted,
+      chat: layout.conversationShown,
+      focus: rail.focused ? 'rail' : panes.focused ? 'pane' : 'composer',
+      pane: panes.visible,
+    }
+    panes.focus('editor', session.cwd)
+    if (layout.paneId === undefined) return
+    layout.setRailVisible(false)
+    layout.setConversationVisible(false)
+    beforeEditorOnly = snapshot
+    repaint()
+  }
+
+  /** `Cmd-E` again: the rail, the conversation and the keyboard as they were. */
+  const leaveEditorOnly = (): void => {
+    const snapshot = beforeEditorOnly
+    beforeEditorOnly = undefined
+    layout.setConversationVisible(snapshot?.chat ?? true)
+    layout.setRailVisible(snapshot?.rail ?? true)
+    if (snapshot?.focus === 'rail') {
+      rail.focus()
+      return
+    }
+    if (snapshot?.focus === 'pane' && snapshot.pane !== undefined) {
+      panes.focus(snapshot.pane, session.cwd)
+      return
+    }
+    panes.blur()
+    repaint()
+  }
+
+  /**
+   * `Cmd-E` / `/nvim` toggles Neovim-only mode.
+   *
+   * A mode whose column disappeared on its own (Neovim quit, the Session changed)
+   * is not a mode any more: the frame has already brought the conversation back,
+   * so the next press starts a fresh one instead of restoring a stale layout.
+   */
+  const toggleEditorOnly = (): void => {
+    if (beforeEditorOnly !== undefined && layout.paneId !== undefined) leaveEditorOnly()
+    else {
+      beforeEditorOnly = undefined
+      enterEditorOnly()
+    }
+  }
+
+  /**
+   * The command palette.
+   *
+   * A command that cannot run without its argument is not executed: the composer
+   * comes forward with `/name ` typed, which is the same place the `/` menu would
+   * have left the reader.
+   */
+  const openPalette = async (): Promise<void> => {
+    const chosen = await overlays.modal<CatalogEntry | undefined>(done => new CommandPaletteOverlay({
+      color: config.color,
+      rows: () => terminal.rows,
+      onResolve: done,
+    }), { anchor: 'center', width: 78 })
+    if (chosen === undefined || lifecycle.closing) return
+    if (chosen.requiresArgument === true) {
+      editor.setText(`/${chosen.name} `)
+      screen.setFocus(editor)
+      render.repaint()
+      return
+    }
+    await runCommand(`/${chosen.name}`)
+  }
+
+  /** `/keys`: reload the file, then print what is in force and what was ignored. */
+  const showKeys = (): void => {
+    const problems = keymap.reload()
+    reducer.addNotice(`${keymap.path}`)
+    for (const action of KEY_ACTIONS) {
+      const keys = actionHint(action.id)
+      const label = keys === '' ? t('keymap.none') : keys
+      reducer.addNotice(`${label.padEnd(20)}${t(action.label)}`)
+    }
+    for (const problem of problems) reducer.addError(keymap.describe(problem))
+    reducer.addNotice(t('keymap.reloaded', { count: keymap.actionCount }))
+    repaint()
   }
 
   const runCommand = async (line: string): Promise<void> => {
@@ -205,6 +332,45 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'terminal':
       case 'shell':
         panes.toggle('terminal', session.cwd)
+        return
+      case 'nvim':
+        // The same action as `Cmd-E`, snapshot included: a command that built the
+        // view without recording what it replaced would make the next `Cmd-E`
+        // restore nothing.
+        toggleEditorOnly()
+        return
+      case 'rail':
+        rail.toggle()
+        return
+      case 'chat':
+        if (layout.conversationShown) {
+          if (!layout.railShown && layout.paneId === undefined) {
+            reducer.addNotice(t('input.keepColumn'))
+            repaint()
+            return
+          }
+          layout.setConversationVisible(false)
+          // The composer left the frame with the conversation. A column that
+          // already owns the keyboard keeps it; the composer's keyboard goes to a
+          // column still painted, or to the rail.
+          if (!panes.focused && !rail.focused) {
+            if (panes.visible !== undefined) panes.focus(panes.visible, session.cwd)
+            else rail.focus()
+          }
+        } else {
+          layout.setConversationVisible(true)
+          if (panes.focused) panes.blur()
+          else if (rail.focused) rail.blur()
+          else screen.setFocus(editor)
+        }
+        repaint()
+        return
+      case 'commands':
+      case 'palette':
+        await openPalette()
+        return
+      case 'keys':
+        showKeys()
         return
       default: {
         const contributed = extra.get(command)
@@ -310,6 +476,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   ctx.provide('hulalaCommands', {
     submit,
     dequeue,
+    openPalette,
+    toggleEditorOnly,
     modeFor: gesture => (gesture === 'accelerated' || !reducer.busy ? 'queue' : 'steer'),
     cancel,
     registerCommand: (name: string, description: string, run: (argument: string) => void | Promise<void>) => {
@@ -342,6 +510,7 @@ export const commandsPlugin = {
     'hulalaComposer',
     'hulalaLanguage',
     'hulalaTerminal',
+    'hulalaKeymap',
   ],
   apply,
 }

@@ -34,7 +34,7 @@ export interface TuiRail {
   /** The rail is drawn at this terminal width. */
   readonly shown: boolean
   /**
-   * `Ctrl-G`: show the rail, or put it away.
+   * `Shift-Cmd-S`: show the rail, or put it away.
    *
    * Visibility only. A rail already on screen is put away even when the
    * composer or a column has the keyboard; a hidden rail comes back with the
@@ -230,7 +230,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   }
 
   /**
-   * `Ctrl-G`: a shown rail is put away, a hidden one comes back.
+   * `Shift-Cmd-S`: a shown rail is put away, a hidden one comes back.
    *
    * The decision is made on whether the rail is painted, never on where the
    * keyboard is: a rail beside a focused editor column must still close, and a
@@ -261,7 +261,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   layout.onChange(() => {
     if (focused && !layout.railShown) {
       focused = false
-      // The rail can be taken away by a narrow terminal as well as by `Ctrl-G`.
+      // The rail can be taken away by a narrow terminal as well as by `Shift-Cmd-S`.
       // Either way the keyboard cannot stay on a column that is not painted.
       if (!layout.conversationShown) layout.setConversationVisible(true)
       screen.setFocus(composer.editor)

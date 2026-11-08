@@ -46,6 +46,8 @@ interface MenuEntry {
   description?: string
   /** Argument placeholder, folded into the description column like pi's menu. */
   hint?: string
+  /** The action's shortcut, right-aligned at the end of the row. */
+  keys?: string
 }
 
 /**
@@ -69,6 +71,9 @@ const MENU_TWO_COLUMN_MIN_WIDTH = 40
 
 /** Room a description needs before the column is worth drawing at all. */
 const MENU_MIN_DESCRIPTION_WIDTH = 10
+
+/** Widest shortcut column the menu draws; longer labels are clipped. */
+const MENU_KEYS_MAX_WIDTH = 16
 
 /** Fallback for the dim cursor when colour output is disabled. */
 const HOLLOW_CURSOR = '□'
@@ -405,13 +410,24 @@ export class PromptEditor extends Editor {
   private renderMenuEntry(entry: MenuEntry, selected: boolean, width: number, nameWidth: number): string {
     const prefix = selected ? this.styles.accent('❯ ') : '  '
     const name = truncateToWidth(entry.value, Math.max(1, Math.min(nameWidth - 2, width - 2)), '…')
+    const label = selected ? this.styles.accent(name) : name
+    const keys = entry.keys === undefined ? '' : truncateToWidth(entry.keys, MENU_KEYS_MAX_WIDTH, '')
     const gap = Math.max(1, nameWidth - visibleWidth(name))
     const description = descriptionOf(entry)
-    const room = width - 2 - visibleWidth(name) - gap - 2
+    // The shortcut column is reserved before the description: it is what a reader
+    // came for, and the description is the part that can be cut.
+    const room = width - 2 - visibleWidth(name) - gap - 2 - (keys === '' ? 0 : visibleWidth(keys) + 2)
+    const tail = keys === '' ? '' : `${this.styles.dim(keys)}`
     if (description !== undefined && width > MENU_TWO_COLUMN_MIN_WIDTH && room > MENU_MIN_DESCRIPTION_WIDTH) {
       const detail = truncateToWidth(description, room, '…')
-      const label = selected ? this.styles.accent(name) : name
-      return padToWidth(`${prefix}${label}${this.styles.dim(`${' '.repeat(gap)}${detail}`)}`, width)
+      const used = 2 + visibleWidth(name) + gap + visibleWidth(detail) + (tail === '' ? 0 : visibleWidth(keys) + 1)
+      const pad = Math.max(1, width - used)
+      return padToWidth(`${prefix}${label}${this.styles.dim(`${' '.repeat(gap)}${detail}`)}${' '.repeat(pad)}${tail}`, width)
+    }
+    if (tail !== '') {
+      const used = 2 + visibleWidth(name) + visibleWidth(keys)
+      const pad = Math.max(1, width - used)
+      return padToWidth(`${prefix}${label}${' '.repeat(pad)}${tail}`, width)
     }
     const full = truncateToWidth(entry.value, Math.max(1, width - 2), '…')
     return padToWidth(`${prefix}${selected ? this.styles.accent(full) : full}`, width)
@@ -474,6 +490,7 @@ export class PromptEditor extends Editor {
         value: `/${command.name}`,
         ...(command.argumentHint === undefined ? {} : { hint: command.argumentHint }),
         ...(command.description === undefined ? {} : { description: command.description }),
+        ...(command.keys === undefined ? {} : { keys: command.keys }),
       }))
   }
 

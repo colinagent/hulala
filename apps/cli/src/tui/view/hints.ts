@@ -8,7 +8,8 @@
  *
  * @module hulala-cli/tui/view/hints
  */
-import { t } from '../i18n/index.js'
+import { actionHint } from '../../keymap.js'
+import { t, type MessageKey } from '../i18n/index.js'
 
 /** One hint: the keys, and what they do. */
 export interface UsageHint {
@@ -23,21 +24,42 @@ export const HINT_INTERVAL_MS = 15_000
  * The rotation, in the order a new user needs it.
  *
  * Opening a Session comes before closing a column: the rail is how a Session is
- * chosen, and the columns are what you do once one is open.
+ * chosen, and the columns are what you do once one is open. Each entry names the
+ * key action it prints, so the band teaches the keys in force rather than the
+ * defaults, and an action the user disabled leaves its hint out instead of
+ * naming a key that does nothing.
  */
 export function usageHints(): readonly UsageHint[] {
-  return [
-    { keys: 'Ctrl-G', text: t('hint.rail') },
-    { keys: 'Ctrl-T', text: t('hint.terminal') },
-    { keys: 'Ctrl-F', text: t('hint.editor') },
-    { keys: 'Ctrl-[ Ctrl-]', text: t('hint.focus') },
-    { keys: 'Ctrl-Q', text: t('hint.quit') },
-    { keys: 'Esc', text: t('hint.escape') },
-    { keys: 'Ctrl-O', text: t('hint.expand') },
-    { keys: 'Shift-Tab', text: t('hint.thinking') },
+  const hints: Array<UsageHint | undefined> = [
+    bound('panel.rail', 'hint.rail'),
+    bound('panel.terminal', 'hint.terminal'),
+    bound('panel.editor', 'hint.editor'),
+    bound('panel.editorOnly', 'hint.editorOnly'),
+    focusBinding(),
+    bound('panel.commands', 'hint.palette'),
+    bound('app.quit', 'hint.quit'),
+    bound('app.interrupt', 'hint.escape'),
+    bound('app.expand', 'hint.expand'),
+    bound('app.thinking', 'hint.thinking'),
+    // pi's own submit gesture, not a hulala action: it is not rebindable here.
     { keys: 'Alt-Enter', text: t('hint.queue') },
     { keys: '/', text: t('hint.commands') },
   ]
+  return hints.filter((hint): hint is UsageHint => hint !== undefined)
+}
+
+/** One action's hint, or nothing when the action is disabled. */
+function bound(id: string, key: MessageKey): UsageHint | undefined {
+  const keys = actionHint(id)
+  return keys === '' ? undefined : { keys, text: t(key) }
+}
+
+/** Both ends of the focus movement, on the row that explains it. */
+function focusBinding(): UsageHint | undefined {
+  const left = actionHint('panel.focusLeft')
+  const right = actionHint('panel.focusRight')
+  const keys = [left, right].filter(part => part !== '').join(' / ')
+  return keys === '' ? undefined : { keys, text: t('hint.focus') }
 }
 
 /**

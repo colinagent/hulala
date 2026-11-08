@@ -14,10 +14,10 @@ runs inside.
 <p align="center">
   <img src="assets/screens/03-files.png" alt="The editor column on the Session directory: the real file tree with a file open beside it" width="900" />
   <br />
-  <sub><code>Ctrl-F</code>: Neovim on the Session directory — the bundled file tree, a file opened from it, and buffers kept while the column is hidden.</sub>
+  <sub><code>Ctrl-D</code>: Neovim on the Session directory — the bundled file tree, a file opened from it, and buffers kept while the column is hidden.</sub>
 </p>
 
-`Ctrl-F` opens the editor on the Session directory, so it is also the file tree:
+`Ctrl-D` opens the editor on the Session directory, so it is also the file tree:
 the bundled explorer (`apps/cli/vendor/snacks.nvim`) replaces netrw, and picking
 a file opens it beside the tree in the same column.
 
@@ -31,7 +31,7 @@ a file opens it beside the tree in the same column.
 
 - **Three columns, one window** — the Session rail on the left, the conversation
   in the middle, and one sidebar on the right: the built-in terminal on `Ctrl+T`,
-  Neovim on `Ctrl+F`.
+  Neovim on `Ctrl-D`, and `Cmd-E` for Neovim alone.
 - **Neovim and ripgrep included** — nothing to install. Every bundled binary is
   a real file in `$HULALA_HOME/bin`, and `bin/` is appended to the children's
   `PATH`, so your own tools still win.
@@ -84,10 +84,12 @@ The frame is drivable without a mouse:
 | Keys | Does |
 |---|---|
 | `Ctrl-T` | open the built-in terminal in the right column; press again to close it |
-| `Ctrl-F` | open Neovim in the same column; press again to close it (it asks before dropping unwritten buffers) |
+| `Ctrl-D` | open Neovim in the same column; press again to close it (it asks before dropping unwritten buffers) |
+| `Cmd-E` | Neovim only: put the Session rail and the conversation away and leave the editor column alone; press again to restore the layout from before |
+| `Shift-Cmd-S` | show or hide the Session rail |
+| `Shift-Cmd-C` | put the conversation away while a column is open |
+| `Shift-Cmd-P` | the command palette: every command, what it does, and its shortcut, from any column and with the conversation put away |
 | `Ctrl-[` / `Ctrl-]` | move the keyboard between the Session rail, the conversation and the painted column |
-| `Ctrl-G` | show or hide the Session rail |
-| `Ctrl-D` | put the conversation away while a column is open |
 | `Ctrl-Q` | detach: the window closes and the Host keeps running the turn |
 | `Esc` | stop the running turn; with nothing running, move into the rail |
 | `Ctrl-C` | stop the running turn; on an idle composer clear the draft, then quit |
@@ -101,7 +103,38 @@ The frame is drivable without a mouse:
 | drag the divider | the same move with the pointer, on either side of the frame |
 | `Shift-PgUp` / `Shift-PgDn` | page the terminal column's own history |
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
-| `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/thinking`, `/editor`, `/terminal`, `/cancel`, `/quit` |
+| `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/thinking`, `/editor`, `/terminal`, `/nvim`, `/rail`, `/chat`, `/keys`, `/cancel`, `/quit` |
+
+The Command chords (`Cmd-E`, `Shift-Cmd-S`, `Shift-Cmd-C`, `Shift-Cmd-P`) are
+delivered only by a terminal that speaks the Kitty keyboard protocol — Ghostty,
+kitty, WezTerm and iTerm2 do, Terminal.app does not. Every one of them has a
+slash-command equal, so the layout is reachable from any terminal:
+`/nvim`, `/rail`, `/chat`, `/commands`. Ctrl-`F` is not taken by anything: it
+stays forward-char in the composer and a shell, and page-down in Neovim.
+
+### Custom keybindings
+
+Every chord above can be rebound in `$HULALA_HOME/config/keybindings.json`:
+
+```json
+{
+  "panel.editor": ["ctrl+f"],
+  "panel.rail": ["ctrl+g"],
+  "panel.commands": ["shift+super+p", "f1"]
+}
+```
+
+A value is a list of key spellings (the same names the tables use: `ctrl`, `alt`,
+`shift`, `super`, plus a letter, `escape`, `enter`, `tab`, `space`, `pageup`,
+`left`, `f1`…); the label form works too, so `Shift-Cmd-S` and `super+shift+s` are
+the same chord. An empty list disables the action, and an action the file does not
+mention keeps its default. pi-tui's own composer bindings (`tui.editor.*`) are
+accepted in the same file. A typo, an unknown action or one key bound to two
+actions is reported in the client and never silently swallowed, and at least one
+way to quit always stays bound.
+
+`/keys` prints the bindings in force and re-reads the file; the startup hints and
+`/help` always print the keys that are actually bound, never the defaults.
 
 `/help` prints the same list inside the client, which is the version to trust if
 a key is swallowed by your terminal or input method.

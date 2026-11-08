@@ -28,9 +28,9 @@ test('the version and the key hints sit beside the mark', () => {
   setCapabilities({ images: 'kitty', trueColor: true, hyperlinks: false })
   const lines = brandBannerLines(120).map(strip)
   expect(lines.some((line) => line.includes(`hulala v${VERSION}`))).toBe(true)
-  expect(lines.some((line) => line.includes('esc') && line.includes('commands'))).toBe(true)
-  expect(lines.some((line) => line.includes('ctrl+t') && line.includes('terminal'))).toBe(true)
-  expect(lines.some((line) => line.includes('ctrl+f') && line.includes('editor'))).toBe(true)
+  expect(lines.some((line) => line.includes('Esc') && line.includes('interrupt'))).toBe(true)
+  expect(lines.some((line) => line.includes('Ctrl-T') && line.includes('terminal'))).toBe(true)
+  expect(lines.some((line) => line.includes('Ctrl-D') && line.includes('editor'))).toBe(true)
   // Three hint rows beside the mark's cell box, plus the version row.
   expect(lines.length).toBe(6)
 })

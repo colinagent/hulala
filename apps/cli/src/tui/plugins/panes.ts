@@ -2,10 +2,10 @@
  * The sidebar: one child program in a pty, rendered as terminal cells.
  *
  * The column shows either the built-in terminal (`Ctrl-T`) or Hulala's Neovim
- * (`Ctrl-F`); at most one is painted at a time, but neither process is the
+ * (`Ctrl-D`); at most one is painted at a time, but neither process is the
  * other's casualty. Switching columns, losing focus to the composer and hiding
  * the sidebar all keep the shell's jobs and Neovim's buffers alive. A process
- * ends when it exits on its own, when `Ctrl-F` asks Neovim to leave, when the
+ * ends when it exits on its own, when `Ctrl-D` asks Neovim to leave, when the
  * Session changes, or when the window closes.
  *
  * That ownership is the reason this is a plugin. A pty is the one resource in this
@@ -69,7 +69,7 @@ export interface TuiPanes {
    */
   open(kind: PaneKind, cwd: string): boolean
   /**
-   * `Ctrl-T` / `Ctrl-F`: open `kind` and focus it, or put the sidebar away when
+   * `Ctrl-T` / `Ctrl-D`: open `kind` and focus it, or put the sidebar away when
    * that same column is already painted.
    *
    * Visibility only, decided on which column is painted and never on where the
@@ -235,7 +235,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     setPaging(true)
     setDividerHover(false)
     // Leaving the column returns to the conversation, bringing it back if it was
-    // put away with `Ctrl-D`: the composer has to be on screen to take the
+    // put away with `Shift-Cmd-C`: the composer has to be on screen to take the
     // keyboard. The sidebar itself stays open.
     if (!layout.conversationShown) layout.setConversationVisible(true)
     if (composer !== undefined) screen.setFocus(composer)

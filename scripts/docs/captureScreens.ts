@@ -74,12 +74,12 @@ const answer = (seq: number, seconds: number, text: string): TerminalSessionEven
 
 /** The one transcript every screenshot shows, so the set stays consistent. */
 const transcript: TerminalSessionEvent[] = [
-  user(1, 90, 'Add Ctrl-F as a real editor column, and keep its buffers when I hide it.'),
+  user(1, 90, 'Add Ctrl-D as a real editor column, and keep its buffers when I hide it.'),
   call(2, 88, 'c1', 'read', { file_path: `${CWD}/apps/cli/src/tui/plugins/panes.ts` }),
   result(3, 87, 'c1', 'export interface TuiPanes { ... }'),
   call(4, 86, 'c2', 'bash', { command: 'bun run test apps/cli/tests/client', description: 'Run the terminal client tests' }),
   result(5, 80, 'c2', '3 pass\n0 fail\n[exit code: 0]'),
-  answer(6, 76, 'The sidebar is one `ctx.effect`, so a hidden column keeps its process.\n\n- `Ctrl-T` runs your shell in the Session directory\n- `Ctrl-F` runs Neovim on `.`\n- `Ctrl-[` moves the keyboard back without closing either'),
+  answer(6, 76, 'The sidebar is one `ctx.effect`, so a hidden column keeps its process.\n\n- `Ctrl-T` runs your shell in the Session directory\n- `Ctrl-D` runs Neovim on `.`\n- `Ctrl-[` moves the keyboard back without closing either'),
   user(7, 70, 'Good. Now confirm nothing stops the Host when I close the window.'),
   call(8, 68, 'c3', 'bash', { command: 'hulala host status', description: 'Ask the Host whether it is still running' }),
   result(9, 64, 'c3', '{"state":"running","pid":27963,"protocol":2}\n[exit code: 0]'),

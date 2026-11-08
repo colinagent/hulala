@@ -13,7 +13,7 @@ const translations = {
       label: "THE CLIENT, UNRETOUCHED",
       conversation: "Session rail, conversation, tool rows and the composer.",
       terminal: "Ctrl-T: your shell in the Session directory.",
-      files: "Ctrl-F: Neovim on the Session directory — the bundled file tree, with a file open beside it.",
+      files: "Ctrl-D: Neovim on the Session directory — the bundled file tree, with a file open beside it.",
     },
     nav: ["The terminal", "The screens", "What we refuse"],
     cta: "Install Hulala",
@@ -37,9 +37,9 @@ const translations = {
       title: ["One window.", "Three surfaces."],
       lede: "The Session rail, the conversation, and one sidebar that is either your shell or Neovim — in one frame, driven by keys you already know.",
       items: [
-        ["Conversation", "The Agent Loop, streaming.", "Prompts, streaming output, approvals, questions and a model picker, straight from DeepSeek Harness's own surfaces.", "Ctrl-G · /sessions · /model"],
+        ["Conversation", "The Agent Loop, streaming.", "Prompts, streaming output, approvals, questions and a model picker, straight from DeepSeek Harness's own surfaces.", "Shift-Cmd-S · /sessions · /model"],
         ["Shell", "Your shell, in the Session directory.", "A real pty with your rc files, aliases and PATH. Jobs keep running while the column is hidden.", "Ctrl-T · Ctrl-[ · Ctrl-]"],
-        ["Editor", "Neovim, bundled.", "The real Neovim with its own colours, keymaps and buffers, shipped as a real binary so nothing has to be installed.", "Ctrl-F · autosave · Ctrl-S"],
+        ["Editor", "Neovim, bundled.", "The real Neovim with its own colours, keymaps and buffers, shipped as a real binary so nothing has to be installed.", "Ctrl-D · Cmd-E · Ctrl-S"],
       ],
     },
     continuity: {
@@ -92,7 +92,7 @@ const translations = {
       label: "客户端原样截图",
       conversation: "会话栏、对话、工具行和 composer。",
       terminal: "Ctrl-T：会话目录里你自己的 shell。",
-      files: "Ctrl-F：在会话目录上打开 Neovim——内置文件树，旁边打开着一个文件。",
+      files: "Ctrl-D：在会话目录上打开 Neovim——内置文件树，旁边打开着一个文件。",
     },
     nav: ["终端", "截图", "我们不做什么"],
     cta: "安装 Hulala",
@@ -116,7 +116,7 @@ const translations = {
       title: ["一个窗口，", "三个面。"],
       lede: "左边会话栏，中间对话，右边一个侧栏——要么是你的 shell，要么是 Neovim。全在一个帧里，用你熟悉的键切换。",
       items: [
-        ["对话", "Agent Loop 的原生面。", "prompt、流式输出、审批、提问和选模型，都是 DeepSeek Harness 自己的面，不是另抄一套。", "Ctrl-G · /sessions · /model"],
+        ["对话", "Agent Loop 的原生面。", "prompt、流式输出、审批、提问和选模型，都是 DeepSeek Harness 自己的面，不是另抄一套。", "Shift-Cmd-S · /sessions · /model"],
         ["Shell", "会话目录里你自己的 shell。", "真实 pty，带着你的 rc、alias 和 PATH。列收起来，作业照样在跑。", "Ctrl-T · Ctrl-[ · Ctrl-]"],
         ["编辑器", "内置 Neovim。", "真正的 Neovim，自己的配色、键位和缓冲区；以真实二进制发布，机器上什么都不用装。", "Ctrl-F · 自动保存 · Ctrl-S"],
       ],

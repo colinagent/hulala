@@ -36,22 +36,73 @@ export interface MessageTable {
   'slash.update': string
   'slash.quit': string
   'slash.language': string
+  'slash.nvim': string
+  'slash.rail': string
+  'slash.chat': string
+  'slash.commands': string
+  'slash.keys': string
   'list.moveHint': string
+
+  'keymap.action.quit': string
+  'keymap.action.interrupt': string
+  'keymap.action.cancel': string
+  'keymap.action.thinking': string
+  'keymap.action.dequeue': string
+  'keymap.action.expand': string
+  'keymap.action.redraw': string
+  'keymap.action.focusLeft': string
+  'keymap.action.focusRight': string
+  'keymap.action.rail': string
+  'keymap.action.chat': string
+  'keymap.action.terminal': string
+  'keymap.action.editor': string
+  'keymap.action.editorOnly': string
+  'keymap.action.commands': string
+  'keymap.action.dividerLeft': string
+  'keymap.action.dividerRight': string
+  'keymap.title': string
+  'keymap.footer': string
+  'keymap.none': string
+  'keymap.reloaded': (params: { count: number }) => string
+  'keymap.problem.unreadable': (params: { reason: string }) => string
+  'keymap.problem.malformed': (params: { reason: string }) => string
+  'keymap.problem.unknownAction': (params: { action: string }) => string
+  'keymap.problem.badKeys': (params: { action: string }) => string
+  'keymap.problem.badKey': (params: { action: string; key: string }) => string
+  'keymap.problem.duplicate': (params: { key: string; first: string; second: string }) => string
+  'keymap.problem.noExit': string
+
+  'palette.title': string
+  'palette.footer': string
+  'palette.noMatch': string
+  'palette.hint': string
+  'palette.group.session': string
+  'palette.group.model': string
+  'palette.group.frame': string
+  'palette.group.app': string
 
   'help.title': string
   'help.keys': string
   'help.close': string
   'help.key.submit': string
   'help.key.move': string
-  'help.key.thinking': string
-  'help.key.escape': string
-  'help.key.exit': string
-  'help.key.columns': string
-  'help.key.railKeys': string
+  'help.key.thinking': (params: { thinking: string }) => string
+  'help.key.escape': (params: { interrupt: string }) => string
+  'help.key.exit': (params: { cancel: string; quit: string; redraw: string; expand: string }) => string
+  'help.key.columns': (params: {
+    rail: string
+    chat: string
+    terminal: string
+    editor: string
+    editorOnly: string
+    dividerLeft: string
+    dividerRight: string
+  }) => string
+  'help.key.railKeys': (params: { rail: string; focusLeft: string; focusRight: string }) => string
+  'help.key.commands': (params: { commands: string }) => string
   'help.key.rail': string
   'help.key.more': string
   'help.key.mouse': string
-  'help.columns': string
 
   'approval.title': string
   'approval.footer': string
@@ -127,6 +178,8 @@ export interface MessageTable {
   'hint.rail': string
   'hint.terminal': string
   'hint.editor': string
+  'hint.editorOnly': string
+  'hint.palette': string
   'hint.focus': string
   'hint.quit': string
   'hint.escape': string

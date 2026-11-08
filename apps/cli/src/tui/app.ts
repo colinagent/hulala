@@ -40,6 +40,7 @@ import { createTerminalKernel, provideBackend, type TerminalKernel } from './ker
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
 import { imePlugin } from './plugins/ime.js'
+import { keymapPlugin } from './plugins/keymap.js'
 import { layoutPlugin } from './plugins/layout.js'
 import { panesPlugin } from './plugins/panes.js'
 import { overlaysPlugin } from './plugins/overlays.js'
@@ -168,6 +169,9 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     }
     await ctx.plugin(terminalPlugin, { input, output, composerPaging: true })
     await ctx.plugin(renderPlugin)
+    // Before anything that reads a chord or prints one: the composer's menu, the
+    // input pipeline, `/keys` and the startup hints all read the active keymap.
+    await ctx.plugin(keymapPlugin, { dataRoot })
     await ctx.plugin(layoutPlugin)
     await ctx.plugin(editorPlugin)
     // The input source is a window-wide fact: the rail and both sidebar columns
@@ -350,7 +354,8 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     void commands.submit(text, commands.modeFor(gesture))
   }
 
-  // Global keys that pi-tui does not own (Esc, Ctrl-C/D/F/L/O/Q/T/W/]/[).
+  // Global keys that pi-tui does not own; every one of them is an action in
+  // `config/keybindings.json` (see `src/keymap.ts`).
   // Backend subscriptions.
   backend.onApproval(async request => {
     const outcome = await overlays.showApproval(request)

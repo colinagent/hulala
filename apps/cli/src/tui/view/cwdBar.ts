@@ -3,7 +3,7 @@
  *
  * Only the rail-less frames use it: while the session rail is painted its header
  * already carries the path, so the dock drops this row. When the rail is put
- * away — `Ctrl-G`, or a terminal too narrow for three columns — this row is the
+ * away — `Shift-Cmd-S`, or a terminal too narrow for three columns — this row is the
  * only place the directory is visible.
  *
  * The line also yields to the composer's completion menu: while a slash command

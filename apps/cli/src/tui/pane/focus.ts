@@ -2,7 +2,7 @@
  * Sidebar focus policy: which column `Ctrl-]` reopens and who owns `Ctrl-[`.
  *
  * The sidebar is one column beside the conversation, showing either the shell
- * (`Ctrl-T`) or Neovim (`Ctrl-F`). The two processes are independent and both
+ * (`Ctrl-T`) or Neovim (`Ctrl-D`). The two processes are independent and both
  * stay alive while hidden, so switching columns is not closing anything.
  *
  * `Ctrl-[` is the same byte as `Esc`, so it cannot simply be taken away from the

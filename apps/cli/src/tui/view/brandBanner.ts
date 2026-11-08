@@ -21,6 +21,7 @@
  * @module hulala-cli/tui/view/brandBanner
  */
 import { HStack, Image, Text, allocateImageId, getCapabilities } from '@earendil-works/pi-tui'
+import { actionHint, keymapVersion } from '../../keymap.js'
 import { LOGO_PNG_BASE64 } from '../../brand/logoPng.js'
 import { VERSION } from '../../constants.js'
 import { activeLanguage, t } from '../i18n/index.js'
@@ -46,6 +47,7 @@ const imageId = allocateImageId()
 interface Built {
   width: number
   language: string
+  keymap: number
   lines: string[]
   imageId: number | undefined
 }
@@ -56,7 +58,10 @@ let built: Built | undefined
 export function brandBannerLines(width: number): string[] {
   if (getCapabilities().images === null) return []
   const language = activeLanguage()
-  if (built !== undefined && built.width === width && built.language === language) return built.lines
+  const keymap = keymapVersion()
+  if (built !== undefined && built.width === width && built.language === language && built.keymap === keymap) {
+    return built.lines
+  }
 
   const styles = buildStyles(true)
   const image = new Image(
@@ -66,15 +71,22 @@ export function brandBannerLines(width: number): string[] {
     { maxWidthCells: LOGO_CELLS, imageId, filename: 'hulala pinwheel' },
   )
   const keys = (key: string) => styles.dim(key)
+  /** One hint, or nothing when the action is disabled in the user's file. */
+  const hint = (key: string, label: string): string => key === '' ? '' : `${keys(key)} ${label}`
+  /** `hint`, for actions whose key comes from the keymap in force. */
+  const action = (id: string, label: string): string => hint(actionHint(id), label)
+  const line = (...parts: string[]): string => parts.filter(part => part !== '').join(' · ')
   // The full hint set needs the room beside the mark; below that it wraps into a
-  // paragraph, so narrow terminals get the keys that matter.
+  // paragraph, so narrow terminals get the keys that matter. Every key printed
+  // here is the one in force: the file the user edited is the file this banner
+  // describes, and a disabled action simply leaves its hint out.
   const hints = width >= 96
     ? [
-        `${keys('esc')} ${t('banner.interrupt')} · ${keys('ctrl+c')} ${t('banner.clearExit')} · ${keys('/')} ${t('banner.commands')} · ${keys('!')} ${t('banner.bash')}`,
-        `${keys('ctrl+g')} ${t('banner.sessions')} · ${keys('ctrl+t')} ${t('banner.terminal')} · ${keys('ctrl+f')} ${t('banner.editor')}`,
-        `${keys('ctrl+d')} ${t('banner.chat')} · ${keys('ctrl+o')} ${t('banner.expand')} · ${keys('/help')} ${t('banner.more')}`,
+        line(hint('/', t('banner.commands')), hint('!', t('banner.bash')), action('app.interrupt', t('banner.interrupt')), action('app.cancel', t('banner.clearExit'))),
+        line(action('panel.rail', t('banner.sessions')), action('panel.terminal', t('banner.terminal')), action('panel.editor', t('banner.editor'))),
+        line(action('panel.chat', t('banner.chat')), action('panel.commands', t('banner.commands')), hint('/help', t('banner.more'))),
       ]
-    : [`${keys('esc')} ${t('banner.interrupt')} · ${keys('ctrl+c')} ${t('banner.clearExit')} · ${keys('ctrl+t')} ${t('banner.terminal')} · ${keys('/')} ${t('banner.commands')}`]
+    : [line(hint('/', t('banner.commands')), action('app.interrupt', t('banner.interrupt')), action('panel.terminal', t('banner.terminal')))]
   const text = new Text([`${styles.bold('hulala')} ${styles.dim(`v${VERSION}`)}`, ...hints].join('\n'))
   // The image gets a fixed column and the hints take the rest, so the text wraps
   // on a narrow terminal instead of pushing the mark off the row.
@@ -83,7 +95,7 @@ export function brandBannerLines(width: number): string[] {
     { component: text, grow: 1 },
   ])
   const lines = banner.render(width)
-  built = { width, language, lines, imageId }
+  built = { width, language, keymap, lines, imageId }
   return lines
 }
 

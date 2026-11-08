@@ -18,6 +18,16 @@ import type {
   TerminalSessionHandlers,
 } from '../../src/tui/data/remote.js'
 
+/** Command chords as a terminal that took the Kitty keyboard report delivers them. */
+const CMD_E = '\u001b[101;9u' // Neovim-only mode
+const SHIFT_CMD_S = '\u001b[115;10u' // Session rail
+const SHIFT_CMD_C = '\u001b[99;10u' // conversation
+const SHIFT_CMD_P = '\u001b[112;10u' // command palette
+/** `Ctrl-D` in a legacy encoding: the editor column's toggle. */
+const CTRL_D = '\u0004'
+/** `Ctrl-T` in a legacy encoding: the terminal column's toggle. */
+const CTRL_T = '\u0014'
+
 interface FakeBackend {
   backend: TerminalBackend
   prompts: string[]
@@ -342,9 +352,9 @@ test('TTY mode moves Escape onto the rail, and the picker returns once the rail 
   await waitFor(() => fake.created.length === 1, 'new Session')
   // The new Session lands in the open Session's directory, not the launch one.
   expect(fake.workspaces).toEqual(['/workspace'])
-  // Ctrl-G is a visibility toggle: the visible rail goes away without taking the
+  // Shift-Cmd-S is a visibility toggle: the visible rail goes away without taking the
   // keyboard, and the double-Esc picker is the fallback once it is gone.
-  input.write('\u0007')
+  input.write(SHIFT_CMD_S)
   await new Promise(resolve => setTimeout(resolve, 80))
   input.write('\u001b')
   await new Promise(resolve => setTimeout(resolve, 40))
@@ -381,19 +391,19 @@ test('Ctrl-[ then Ctrl-N and Enter switches to the next Session in the rail', as
   await expect(run).resolves.toBe(0)
 })
 
-test('Ctrl-G shows the rail and puts it away, and showing it takes the keyboard', async () => {
+test('Shift-Cmd-S shows the rail and puts it away, and showing it takes the keyboard', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail')
-  // The rail is on screen and the composer has the keyboard. Ctrl-G is not a
+  // The rail is on screen and the composer has the keyboard. Shift-Cmd-S is not a
   // focus cycle: the first press puts the rail away instead of moving into it.
   const hiddenMark = tty.painted().length
-  tty.input.write('\u0007')
+  tty.input.write(SHIFT_CMD_S)
   await waitFor(() => !plain(tty.painted().slice(hiddenMark)).includes('+ new session'), 'rail hidden')
   // A hidden rail comes back with the keyboard on the list, which `n` proves by
   // creating a Session instead of typing into the composer.
   const shownMark = tty.painted().length
-  tty.input.write('\u0007')
+  tty.input.write(SHIFT_CMD_S)
   await waitFor(() => plain(tty.painted().slice(shownMark)).includes('+ new session'), 'rail shown')
   tty.input.write('n')
   await waitFor(() => fake.created.length === 1, 'new Session')
@@ -401,18 +411,18 @@ test('Ctrl-G shows the rail and puts it away, and showing it takes the keyboard'
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Ctrl-G puts the rail away from the editor column and keeps Neovim focused', async () => {
+test('Shift-Cmd-S puts the rail away from the editor column and keeps Neovim focused', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-rail-toggle-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
-  tty.input.write('\u0006') // Ctrl-F: show and focus the Neovim column
+  tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
-  // The rail is painted beside the editor. Ctrl-G hides it without stealing the
+  // The rail is painted beside the editor. Shift-Cmd-S hides it without stealing the
   // keyboard: leaving the column is Ctrl-[, and this key only shows or hides.
   const mark = tty.painted().length
-  tty.input.write('\u0007')
+  tty.input.write(SHIFT_CMD_S)
   await waitFor(() => !plain(tty.painted().slice(mark)).includes('+ new session'), 'rail hidden')
   tty.input.write('x')
   await waitFor(() => editor.writes().includes('x'), 'keys still reach nvim')
@@ -421,18 +431,18 @@ test('Ctrl-G puts the rail away from the editor column and keeps Neovim focused'
   expect(editor.writes()).toContain(':qa')
 })
 
-test('Ctrl-D puts the conversation away beside the rail, and brings the draft back', async () => {
+test('Shift-Cmd-C puts the conversation away beside the rail, and brings the draft back', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   tty.input.write('draft kept')
   await new Promise(resolve => setTimeout(resolve, 60))
   const mark = tty.painted().length
-  tty.input.write('\u0004') // Ctrl-D: hide the conversation, keyboard lands on the rail
+  tty.input.write(SHIFT_CMD_C) // Shift-Cmd-C: hide the conversation, keyboard lands on the rail
   await waitFor(() => !plain(tty.painted().slice(mark)).includes('history answer'), 'conversation hidden')
   // The keyboard moved onto the rail, whose rows now fill the frame.
   await waitFor(() => plain(tty.painted().slice(mark)).includes('+ new session'), 'rail keeps the frame')
-  tty.input.write('\u0004') // Ctrl-D again: the conversation and its composer return
+  tty.input.write(SHIFT_CMD_C) // Shift-Cmd-C again: the conversation and its composer return
   await waitFor(() => plain(tty.painted().slice(mark)).includes('❯'), 'composer restored')
   tty.input.write('\r')
   await waitFor(() => fake.prompts.includes('draft kept'), 'the draft survived the round trip')
@@ -440,14 +450,14 @@ test('Ctrl-D puts the conversation away beside the rail, and brings the draft ba
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Ctrl-D refuses to hide the conversation when both side columns are closed', async () => {
+test('Shift-Cmd-C refuses to hide the conversation when both side columns are closed', async () => {
   // 40 columns cannot hold the rail beside the conversation and no editor is
   // open, so there is nothing to hide the conversation behind.
   const fake = fakeBackend()
   const tty = startTty(fake, 40)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   const mark = tty.painted().length
-  tty.input.write('\u0004')
+  tty.input.write(SHIFT_CMD_C)
   await waitFor(() => plain(tty.painted().slice(mark)).includes('before hiding'), 'refusal notice')
   tty.input.write('still-home\r')
   await waitFor(() => fake.prompts.includes('still-home'), 'the composer kept the keyboard')
@@ -455,30 +465,30 @@ test('Ctrl-D refuses to hide the conversation when both side columns are closed'
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Ctrl-D hides the conversation from the editor and keeps Neovim focused', async () => {
+test('Shift-Cmd-C hides the conversation from the editor and keeps Neovim focused', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-chat-toggle-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
-  tty.input.write('\u0006') // Ctrl-F: show and focus the Neovim column
+  tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
   const mark = tty.painted().length
-  tty.input.write('\u0004') // Ctrl-D: the conversation goes, the editor keeps the keyboard
+  tty.input.write(SHIFT_CMD_C) // Shift-Cmd-C: the conversation goes, the editor keeps the keyboard
   await waitFor(() => !plain(tty.painted().slice(mark)).includes('history answer'), 'conversation hidden')
   tty.input.write('x')
   await waitFor(() => editor.writes().includes('x'), 'keys still reach nvim')
-  tty.input.write('\u0004') // Ctrl-D again: the composer comes back with the keyboard
+  tty.input.write(SHIFT_CMD_C) // Shift-Cmd-C again: the composer comes back with the keyboard
   await waitFor(() => plain(tty.painted().slice(mark)).includes('❯'), 'composer restored')
   tty.input.write('back-home\r')
   await waitFor(() => fake.prompts.includes('back-home'), 'composer takes input again')
 
-  // Hiding again and closing the editor with Ctrl-F brings the conversation
+  // Hiding again and closing the editor with Ctrl-D brings the conversation
   // back with the composer, instead of leaving the keyboard on nothing.
   const closeMark = tty.painted().length
-  tty.input.write('\u0004')
+  tty.input.write(SHIFT_CMD_C)
   await waitFor(() => !plain(tty.painted().slice(closeMark)).includes('history answer'), 'conversation hidden again')
-  tty.input.write('\u0006') // Ctrl-F: close the editor; it is clean
+  tty.input.write(CTRL_D) // Ctrl-D: close the editor; it is clean
   await waitFor(() => plain(tty.painted().slice(closeMark)).includes('❯'), 'conversation back after close')
   tty.input.write('after-close\r')
   await waitFor(() => fake.prompts.includes('after-close'), 'composer focus after closing the editor')
@@ -493,7 +503,7 @@ test('leaving the rail with Escape brings a hidden conversation back', async () 
   const tty = startTty(fake)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   const mark = tty.painted().length
-  tty.input.write('\u0004') // hide: the keyboard lands on the rail
+  tty.input.write(SHIFT_CMD_C) // hide: the keyboard lands on the rail
   await waitFor(() => !plain(tty.painted().slice(mark)).includes('history answer'), 'conversation hidden')
   tty.input.write('\u001b') // Escape leaves the rail, so the composer has to come back
   await waitFor(() => plain(tty.painted().slice(mark)).includes('❯'), 'composer restored')
@@ -622,7 +632,7 @@ test('a Session the rail started blank takes its title from the journal', async 
   await expect(run).resolves.toBe(0)
 })
 
-test('TTY mode opens the terminal with Ctrl-T and the editor with Ctrl-F', async () => {
+test('TTY mode opens the terminal with Ctrl-T and the editor with Ctrl-D', async () => {
   // A directory that does not exist: each column reports why it cannot start,
   // which names the column the key chose without spawning a process.
   const fake = fakeBackend('/hulala-missing-column-dir')
@@ -633,16 +643,16 @@ test('TTY mode opens the terminal with Ctrl-T and the editor with Ctrl-F', async
   cleanups.push(() => { input.destroy(); output.destroy() })
   const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234' })
   await waitFor(() => text.includes('history answer'), 'transcript')
-  input.write('\u0014') // Ctrl-T: the built-in terminal
+  input.write(CTRL_T) // Ctrl-T: the built-in terminal
   await waitFor(() => text.includes('terminal unavailable'), 'terminal column')
   expect(text).not.toContain('editor unavailable')
-  input.write('\u0006') // Ctrl-F: Neovim
+  input.write(CTRL_D) // Ctrl-D: Neovim
   await waitFor(() => text.includes('editor unavailable'), 'editor column')
   input.write('/quit\r')
   await expect(run).resolves.toBe(0)
 })
 
-test('TTY mode leaves Ctrl-F to an open overlay', async () => {
+test('TTY mode leaves Ctrl-D to an open overlay', async () => {
   const fake = fakeBackend('/hulala-missing-column-dir')
   const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
   const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100 })
@@ -653,7 +663,7 @@ test('TTY mode leaves Ctrl-F to an open overlay', async () => {
   await waitFor(() => text.includes('history answer'), 'transcript')
   input.write('/help\r')
   await waitFor(() => text.includes('any key closes'), 'help overlay')
-  input.write('\u0006') // Ctrl-F closes the overlay instead of opening the editor
+  input.write(CTRL_D) // Ctrl-D closes the overlay instead of opening the editor
   await new Promise(resolve => setTimeout(resolve, 100))
   expect(text).not.toContain('editor unavailable')
   input.write('/quit\r')
@@ -667,14 +677,14 @@ test('TTY mode keeps the sidebar open across focus changes and hands nvim its ke
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0006') // Ctrl-F opens the Neovim column with the keyboard in it
+  tty.input.write(CTRL_D) // Ctrl-D opens the Neovim column with the keyboard in it
   await waitFor(() => editor.spawned(), 'editor column')
   // The composer lost focus: its cursor stays visible as a half-opacity block
   // (or the hollow glyph when the test environment has colour off).
   await waitFor(() => /\u001b\[48;[25];/.test(tty.painted()) || tty.painted().includes('□'), 'dim composer cursor')
 
   // Ctrl-W is Neovim's: the window prefix reaches it instead of closing the
-  // column. Ctrl-F is the column key and is covered by the close below.
+  // column. Ctrl-D is the column key and is covered by the close below.
   tty.input.write('\u0017')
   await waitFor(() => editor.writes().includes('\u0017'), 'nvim gets Ctrl-W')
 
@@ -687,7 +697,7 @@ test('TTY mode keeps the sidebar open across focus changes and hands nvim its ke
   tty.input.write('back-in-nvim')
   await waitFor(() => editor.writes().includes('back-in-nvim'), 'keys return to nvim')
 
-  tty.input.write('\u0006') // Ctrl-F closes: Neovim is clean, so it leaves at once
+  tty.input.write(CTRL_D) // Ctrl-D closes: Neovim is clean, so it leaves at once
   await new Promise(resolve => setTimeout(resolve, 200))
   tty.input.write('\u0011') // and the client quits
   await expect(tty.run).resolves.toBe(0)
@@ -700,7 +710,7 @@ test('Cmd-Ctrl-[ / ] and Ctrl-Shift move the pane divider in the key direction',
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0006') // Ctrl-F opens the Neovim column with the keyboard in it
+  tty.input.write(CTRL_D) // Ctrl-D opens the Neovim column with the keyboard in it
   await waitFor(() => editor.spawned(), 'editor column')
   await waitFor(() => editor.width() !== undefined, 'the pane asked for a pty width')
   const start = editor.width()!
@@ -729,7 +739,7 @@ test('Cmd-Ctrl-[ / ] and Ctrl-Shift move the pane divider in the key direction',
   tty.input.write('\u001b[1;6C') // Ctrl-Shift-→ narrows
   await waitFor(() => editor.width() === start, 'Ctrl-Shift-→ narrows')
 
-  tty.input.write('\u0006') // Ctrl-F closes: Neovim is clean, so it leaves at once
+  tty.input.write(CTRL_D) // Ctrl-D closes: Neovim is clean, so it leaves at once
   await new Promise(resolve => setTimeout(resolve, 200))
   tty.input.write('\u0011') // and the client quits
   await expect(tty.run).resolves.toBe(0)
@@ -812,7 +822,7 @@ test('an extended key report reaches the column as the legacy byte it stands for
   // the only way a macOS terminal reports a Command chord.
   expect(tty.painted()).toContain('\u001b[>1u')
 
-  tty.input.write('\u0014') // Ctrl-T: the shell column opens with the keyboard in it
+  tty.input.write(CTRL_T) // Ctrl-T: the shell column opens with the keyboard in it
   await waitFor(() => panes.panes.length === 1, 'terminal column')
   tty.input.write('git status')
   await waitFor(() => shellWrites().includes('git status'), 'keys reach the shell')
@@ -832,7 +842,7 @@ test('an extended key report reaches the column as the legacy byte it stands for
   expect(tty.painted()).toContain('\u001b[<u')
 })
 
-test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl-F', async () => {
+test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl-D', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-terminal-'))
   const fake = fakeBackend(home)
   const panes = fakePanes()
@@ -840,7 +850,7 @@ test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0014') // Ctrl-T: the shell column opens with the keyboard in it
+  tty.input.write(CTRL_T) // Ctrl-T: the shell column opens with the keyboard in it
   await waitFor(() => panes.panes.length === 1, 'terminal column')
   tty.input.write('git status')
   await waitFor(() => shellWrites().includes('git status'), 'keys reach the shell')
@@ -859,14 +869,14 @@ test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl
   tty.input.write('reentered')
   await waitFor(() => shellWrites().includes('reentered'), 'the shell kept its process')
 
-  // Ctrl-F swaps the painted column to Neovim. The shell stays alive.
-  tty.input.write('\u0006')
+  // Ctrl-D swaps the painted column to Neovim. The shell stays alive.
+  tty.input.write(CTRL_D)
   await waitFor(() => panes.panes.length === 2, 'editor column')
   tty.input.write('nvim-key')
   await waitFor(() => (panes.panes[1]?.writes.join('') ?? '').includes('nvim-key'), 'keys reach nvim')
 
   // Ctrl-T swaps back to the same shell, not a fresh one.
-  tty.input.write('\u0014')
+  tty.input.write(CTRL_T)
   tty.input.write('back-in-shell')
   await waitFor(() => shellWrites().includes('back-in-shell'), 'the shell survived the swap')
   expect(panes.panes[0]?.kills).toBe(0)
@@ -874,7 +884,7 @@ test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl
 
   // Ctrl-T on the focused terminal hides the sidebar and keeps the shell and
   // its jobs alive.
-  tty.input.write('\u0014')
+  tty.input.write(CTRL_T)
   await new Promise(resolve => setTimeout(resolve, 80))
   panes.panes[0]?.emit('\r\nHIDDEN-MARKER')
   await new Promise(resolve => setTimeout(resolve, 120))
@@ -903,7 +913,7 @@ test('Ctrl-T hides a terminal column that is painted but not focused', async () 
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0014') // Ctrl-T: the shell column opens with the keyboard in it
+  tty.input.write(CTRL_T) // Ctrl-T: the shell column opens with the keyboard in it
   await waitFor(() => panes.panes.length === 1, 'terminal column')
   tty.input.write('\u001b') // Ctrl-[: back to the composer, the column stays
   await new Promise(resolve => setTimeout(resolve, 60))
@@ -912,7 +922,7 @@ test('Ctrl-T hides a terminal column that is painted but not focused', async () 
 
   // The column is still painted, but Ctrl-T is a visibility toggle and not the
   // focus key: it hides the sidebar and leaves the shell running.
-  tty.input.write('\u0014')
+  tty.input.write(CTRL_T)
   await new Promise(resolve => setTimeout(resolve, 80))
   panes.panes[0]?.emit('\r\nUNFOCUSED-HIDDEN')
   await new Promise(resolve => setTimeout(resolve, 120))
@@ -929,14 +939,14 @@ test('Ctrl-T hides a terminal column that is painted but not focused', async () 
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Ctrl-F asks a painted but unfocused editor column to leave', async () => {
+test('Ctrl-D asks a painted but unfocused editor column to leave', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-editor-unfocused-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0006') // Ctrl-F: open and focus Neovim
+  tty.input.write(CTRL_D) // Ctrl-D: open and focus Neovim
   await waitFor(() => editor.spawned(), 'editor column')
   tty.input.write('\u001b') // Ctrl-[: back to the composer, the column stays
   await new Promise(resolve => setTimeout(resolve, 60))
@@ -945,7 +955,7 @@ test('Ctrl-F asks a painted but unfocused editor column to leave', async () => {
 
   // No focus check: the column is painted, so the key closes it and Neovim is
   // asked to leave rather than stealing the keyboard back.
-  tty.input.write('\u0006')
+  tty.input.write(CTRL_D)
   await waitFor(() => editor.writes().includes(':qa'), 'Neovim asked to leave')
   tty.input.write('\u0011')
   await expect(tty.run).resolves.toBe(0)
@@ -959,7 +969,7 @@ test('Ctrl-[ belongs to a full-screen program in the terminal', async () => {
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0014')
+  tty.input.write(CTRL_T)
   await waitFor(() => panes.panes.length === 1, 'terminal column')
   // A pager or `fzf` switches to the alternate screen and owns Esc itself.
   panes.panes[0]?.emit('\u001b[?1049h')
@@ -994,6 +1004,13 @@ function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean): {
   const output = Object.assign(new PassThrough(), { isTTY: true as const, columns })
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  // A test never reads the developer's own state root: the keymap plugin would
+  // otherwise pick up a real `config/keybindings.json` and the assertions here
+  // would depend on the machine. A test that already pointed the state root at
+  // its own directory (the language tests) keeps it.
+  const previousHome = process.env.HULALA_HOME
+  const home = previousHome ?? mkdtempSync(join(tmpdir(), 'hulala-tty-'))
+  process.env.HULALA_HOME = home
   const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', ...(promptLanguage === undefined ? {} : { promptLanguage }) })
   // Detach even when an assertion threw, so a failure cannot leave the client's
   // repaint timer keeping the test process alive.
@@ -1002,6 +1019,12 @@ function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean): {
     await Promise.race([run, new Promise(resolve => setTimeout(resolve, 500))])
     input.destroy()
     output.destroy()
+    if (previousHome === undefined) {
+      delete process.env.HULALA_HOME
+      rmSync(home, { recursive: true, force: true })
+    } else {
+      process.env.HULALA_HOME = previousHome
+    }
   })
   return { input, output, painted: () => text, run }
 }
@@ -1344,7 +1367,7 @@ function startPtyTty(
 
 /** Open the editor column and hand the keyboard back to the composer. */
 async function openEditorAndBlur(tty: ReturnType<typeof startPtyTty>, editor: ReturnType<typeof fakeEditor>): Promise<void> {
-  tty.input.write('\u0006') // Ctrl-F: show and focus the Neovim column
+  tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
   tty.input.write('\u001b') // Ctrl-[ : back to the composer, column stays
   await new Promise(resolve => setTimeout(resolve, 60))
@@ -1473,16 +1496,16 @@ test('/update reports a failed install and keeps the client running', async () =
   await expect(run).resolves.toBe(0)
 })
 
-test('the composer takes input again after Ctrl-F closes the editor column', async () => {
+test('the composer takes input again after Ctrl-D closes the editor column', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-reclose-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0006') // Ctrl-F: open and focus the Neovim column
+  tty.input.write(CTRL_D) // Ctrl-D: open and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
-  tty.input.write('\u0006') // Ctrl-F: close it again (Neovim is clean)
+  tty.input.write(CTRL_D) // Ctrl-D: close it again (Neovim is clean)
   await new Promise(resolve => setTimeout(resolve, 300))
 
   tty.input.write('after-close\r')
@@ -1498,9 +1521,9 @@ test('the composer takes input after discarding an unsaved buffer on close', asy
   const tty = startPtyTty(home, fake, editor.module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
-  tty.input.write('\u0006')
+  tty.input.write(CTRL_D)
   await waitFor(() => editor.spawned(), 'editor column')
-  tty.input.write('\u0006') // close: Neovim refuses, so the dialog appears
+  tty.input.write(CTRL_D) // close: Neovim refuses, so the dialog appears
   await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
   tty.input.write('d') // discard
   await new Promise(resolve => setTimeout(resolve, 300))
@@ -1538,9 +1561,9 @@ test('a dialog left open when the editor exits does not disable the keyboard', a
   }
   const tty = startPtyTty(home, fake, module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
-  tty.input.write('\u0006')
+  tty.input.write(CTRL_D)
   await waitFor(() => spawned, 'editor column')
-  tty.input.write('\u0006') // close: no exit yet, so the dialog appears
+  tty.input.write(CTRL_D) // close: no exit yet, so the dialog appears
   await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
   await new Promise(resolve => setTimeout(resolve, 900)) // the process leaves with the dialog up
 
@@ -1578,9 +1601,9 @@ test('a slow but committed quit is not mistaken for unsaved work', async () => {
   }
   const tty = startPtyTty(home, fake, module)
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
-  tty.input.write('\u0006')
+  tty.input.write(CTRL_D)
   await waitFor(() => spawned, 'editor column')
-  tty.input.write('\u0006') // close: committed, just slow
+  tty.input.write(CTRL_D) // close: committed, just slow
   await new Promise(resolve => setTimeout(resolve, 2600))
 
   expect(tty.painted()).not.toContain('There are unsaved files')
@@ -1785,4 +1808,145 @@ test('plain mode uses the saved language without asking or writing', async () =>
   } finally {
     state.restore()
   }
+})
+
+test('Cmd-E leaves only Neovim, and the second press restores the frame', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-editor-only-'))
+  const fake = fakeBackend(home)
+  const editor = fakeEditor({ clean: true })
+  const tty = startPtyTty(home, fake, editor.module)
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  tty.input.write(CMD_E)
+  await waitFor(() => editor.spawned(), 'editor column')
+  // The rail and the transcript are both gone: Neovim is the only column left.
+  const focused = tty.painted().length
+  await new Promise(resolve => setTimeout(resolve, 120))
+  const after = plain(tty.painted().slice(focused))
+  expect(after).not.toContain('+ new session')
+  expect(plain(tty.painted().slice(focused))).not.toContain('history answer')
+  // A second press restores the layout from before, its rail included.
+  tty.input.write(CMD_E)
+  await waitFor(() => plain(tty.painted().slice(focused)).includes('+ new session'), 'rail restored')
+  await waitFor(() => plain(tty.painted().slice(focused)).includes('history answer'), 'conversation restored')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('Cmd-E reports a column that cannot start instead of blanking the frame', async () => {
+  // A directory that does not exist, so Neovim never registers a column. The
+  // mode must leave the frame exactly as it was: the rail is still painted and
+  // the failure names the column.
+  const fake = fakeBackend('/hulala-missing-column-dir')
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100 })
+  let text = ''
+  output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234' })
+  await waitFor(() => plain(text).includes('history answer'), 'transcript')
+  input.write(CMD_E)
+  await waitFor(() => plain(text).includes('editor unavailable'), 'editor column')
+  expect(plain(text)).toContain('+ new session')
+  expect(plain(text)).toContain('history answer')
+  input.write('/quit\r')
+  await expect(run).resolves.toBe(0)
+})
+
+test('Shift-Cmd-P lists every command with its shortcut and runs it on Enter', async () => {
+  const tty = startTty(fakeBackend())
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  const mark = tty.painted().length
+  tty.input.write(SHIFT_CMD_P)
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('/editor'), 'palette rows')
+  // The row carries the command, what it does, and the key that runs it.
+  const palette = plain(tty.painted().slice(mark))
+  expect(palette).toContain('Ctrl-D')
+  expect(palette).toContain('open or close the nvim column')
+  expect(palette).toContain('Shift-Tab')
+  // Typing filters, and Enter runs the highlighted command without the composer.
+  tty.input.write('status')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('/status'), 'filtered')
+  tty.input.write('\r')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('hulala  v'), '/status ran')
+  tty.input.write('\u0011')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('the palette runs the highlighted row, not the first one', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  tty.input.write(SHIFT_CMD_P)
+  await waitFor(() => plain(tty.painted()).includes('/sessions'), 'palette')
+  // The rows are grouped by kind, so the second row is /new even though /help
+  // comes first in the catalog: the cursor and the rows must share one order.
+  tty.input.write('\u001b[B')
+  tty.input.write('\r')
+  await waitFor(() => fake.created.length === 1, 'new Session')
+  tty.input.write('\u0011')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('the palette opens with the conversation put away, and /chat brings it back', async () => {
+  const tty = startTty(fakeBackend())
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  const mark = tty.painted().length
+  // `/chat` is the fallback for a terminal that cannot deliver Shift-Cmd-C.
+  tty.input.write('/chat\r')
+  await waitFor(() => !plain(tty.painted().slice(mark)).includes('history answer'), 'conversation hidden')
+  // With no composer on screen the palette is the only way back to a command.
+  tty.input.write(SHIFT_CMD_P)
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('Commands'), 'palette without a composer')
+  tty.input.write('chat')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('/chat'), 'filtered to /chat')
+  tty.input.write('\r')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('history answer'), 'conversation restored')
+  tty.input.write('\u0011')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('/rail and /nvim are the fallbacks for the two layout chords', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-fallbacks-'))
+  const fake = fakeBackend(home)
+  const editor = fakeEditor({ clean: true })
+  const tty = startPtyTty(home, fake, editor.module)
+  await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail')
+  const mark = tty.painted().length
+  tty.input.write('/rail\r')
+  await waitFor(() => !plain(tty.painted().slice(mark)).includes('+ new session'), 'rail hidden')
+  tty.input.write('/nvim\r')
+  await waitFor(() => editor.spawned(), 'editor column')
+  await waitFor(() => !plain(tty.painted().slice(mark)).includes('history answer'), 'conversation hidden')
+  tty.input.write('\u0011') // Ctrl-Q is the exit key
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('keybindings.json rebinds a chord, and /keys reports what it ignored', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-keymap-'))
+  const fake = fakeBackend(home)
+  const editor = fakeEditor({ clean: true })
+  mkdirSync(join(home, 'config'), { recursive: true })
+  writeFileSync(join(home, 'config', 'keybindings.json'), JSON.stringify({
+    'panel.editor': ['ctrl+f'],
+    'panel.contour': ['ctrl+x'],
+  }))
+  const tty = startPtyTty(home, fake, editor.module)
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  // Ctrl-F used to belong to Neovim's paging; the file gave it to the column.
+  tty.input.write('\u0006')
+  await waitFor(() => editor.spawned(), 'editor column')
+  tty.input.write('\u0006')
+  await waitFor(() => editor.writes().includes(':qa'), 'editor asked to leave')
+  tty.input.write('/keys\r')
+  await waitFor(() => plain(tty.painted()).includes('unknown action "panel.contour"'), 'problem reported')
+  await waitFor(() => plain(tty.painted()).includes('key bindings reloaded'), 'the table is printed')
+  // `/keys` re-reads the file, so a rebind takes effect without a restart.
+  writeFileSync(join(home, 'config', 'keybindings.json'), JSON.stringify({ 'panel.rail': ['ctrl+y'] }))
+  tty.input.write('/keys\r')
+  await waitFor(() => plain(tty.painted()).includes('Ctrl-Y'), 'reloaded table')
+  const mark = tty.painted().length
+  tty.input.write('\u0019') // Ctrl-Y: the rail, by the file's leave
+  await waitFor(() => !plain(tty.painted().slice(mark)).includes('+ new session'), 'reloaded key acts')
+  tty.input.write('\u0011')
+  await expect(tty.run).resolves.toBe(0)
 })

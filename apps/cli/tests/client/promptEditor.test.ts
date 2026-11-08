@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { matchesKey, type TUI, type TuiMouseEvent } from '@earendil-works/pi-tui'
+import { matchesKey, visibleWidth, type TUI, type TuiMouseEvent } from '@earendil-works/pi-tui'
 import { PromptEditor } from '../../src/tui/view/promptEditor.js'
 import { buildTheme } from '../../src/tui/view/theme.js'
 
@@ -153,7 +153,7 @@ test('the menu window follows the selection and reports its position', async () 
   for (let index = 0; index < 6; index += 1) editor.handleInput('\u001b[B') // Down
   const lines = editor.render(80)
   // pi's `(selected/total)` line, under a window that slid with the selection.
-  expect(lines.some(line => line.includes('(7/17)'))).toBe(true)
+  expect(lines.some(line => line.includes('(7/22)'))).toBe(true)
   expect(lines.some(line => line.includes('❯ /login'))).toBe(true)
   // The first matches scrolled out instead of clipping the selection away.
   expect(lines.some(line => line.includes('/help'))).toBe(false)
@@ -166,7 +166,7 @@ test('Up from the first match wraps to the last, as pi does', async () => {
   editor.handleInput('\u001b[A') // Up at the top
   const lines = editor.render(80)
   expect(lines.some(line => line.includes('❯ /quit'))).toBe(true)
-  expect(lines.some(line => line.includes('(17/17)'))).toBe(true)
+  expect(lines.some(line => line.includes('(22/22)'))).toBe(true)
 })
 
 test('PageDown moves one window at a time and PageUp clamps at the top', async () => {
@@ -176,11 +176,11 @@ test('PageDown moves one window at a time and PageUp clamps at the top', async (
   editor.handleInput('\u001b[6~') // PageDown
   const paged = editor.render(80)
   expect(paged.some(line => line.includes('❯ /thinking'))).toBe(true)
-  expect(paged.some(line => line.includes('(6/17)'))).toBe(true)
+  expect(paged.some(line => line.includes('(6/22)'))).toBe(true)
   editor.handleInput('\u001b[5~') // PageUp
   expect(editor.render(80).some(line => line.includes('❯ /help'))).toBe(true)
   editor.handleInput('\u001b[5~') // Already at the top: clamped, not wrapped
-  expect(editor.render(80).some(line => line.includes('(1/17)'))).toBe(true)
+  expect(editor.render(80).some(line => line.includes('(1/22)'))).toBe(true)
 })
 
 test('the wheel moves the menu one entry per notch', async () => {
@@ -222,6 +222,17 @@ test('the counter is hidden while every match fits', async () => {
   const lines = editor.render(80)
   expect(lines.some(line => line.includes('❯ /quit'))).toBe(true)
   expect(lines.some(line => line.includes('(1/1)'))).toBe(false)
+})
+
+test('a slash row ends with the command’s shortcut', async () => {
+  const { editor } = makeEditor()
+  type(editor, '/editor')
+  await settle()
+  const row = editor.render(80).find(line => line.includes('/editor')) ?? ''
+  // The shortcut column is what a reader came for; the description gives way.
+  expect(row).toContain('Ctrl-D')
+  expect(visibleWidth(row)).toBeLessThanOrEqual(80)
+  expect(row.indexOf('Ctrl-D')).toBeGreaterThan(row.indexOf('nvim'))
 })
 
 test('an argument hint leads the description column, as in pi', async () => {

@@ -79,7 +79,7 @@ export interface TuiLayout {
   /** The rail is drawn at this width. */
   readonly railShown: boolean
   /**
-   * Show the conversation column, or put it away with `Ctrl-D`.
+   * Show the conversation column, or put it away with `Shift-Cmd-C`.
    *
    * A hidden conversation is refused while neither side column is drawn: the
    * frame never becomes empty. The seat registrations stay in place, so

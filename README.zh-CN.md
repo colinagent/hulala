@@ -13,10 +13,10 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 <p align="center">
   <img src="assets/screens/03-files.png" alt="编辑器列开在会话目录上：真实文件树，旁边打开着一个文件" width="900" />
   <br />
-  <sub><code>Ctrl-F</code>：在会话目录上打开 Neovim——内置文件树、从树里打开的文件，列隐藏时缓冲区还在。</sub>
+  <sub><code>Ctrl-D</code>：在会话目录上打开 Neovim——内置文件树、从树里打开的文件，列隐藏时缓冲区还在。</sub>
 </p>
 
-`Ctrl-F` 是在会话目录上打开编辑器，所以它同时也是文件树：内置的浏览器
+`Ctrl-D` 是在会话目录上打开编辑器，所以它同时也是文件树：内置的浏览器
 （`apps/cli/vendor/snacks.nvim`）替代了 netrw，选中文件就在同一列里、树的旁边打开。
 
 <p align="center">
@@ -28,7 +28,7 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 ## 特性
 
 - **一个窗口三列** —— 左边会话栏，中间对话，右边一个侧栏：`Ctrl+T` 是内置终端，
-  `Ctrl+F` 是 Neovim。
+  `Ctrl-D` 是 Neovim，`Cmd-E` 只留 Neovim。
 - **不需要 tmux，也不需要启动脚本** —— Host 本身就是守护进程。每个窗口都是连到它的
   客户端，`Ctrl-Q` 只是断开，turn 继续跑。
 - **自带 Neovim 和 ripgrep** —— 什么都不用装。每个内置二进制都是 `$HULALA_HOME/bin`
@@ -72,10 +72,12 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
 | 按键 | 作用 |
 |---|---|
 | `Ctrl-T` | 在右列打开内置终端；再按一次关掉 |
-| `Ctrl-F` | 在同一列打开 Neovim；再按一次关掉（未保存的缓冲区会先问你） |
+| `Ctrl-D` | 在同一列打开 Neovim；再按一次关掉（未保存的缓冲区会先问你） |
+| `Cmd-E` | 只留 Neovim：收起会话栏和对话栏，编辑器列不动；再按一次恢复进入前的布局 |
+| `Shift-Cmd-S` | 显示或收起会话栏 |
+| `Shift-Cmd-C` | 列打开时把对话收起来 |
+| `Shift-Cmd-P` | 命令面板：每条命令做什么、快捷键是什么；在任何列里、对话收起时都能打开 |
 | `Ctrl-[` / `Ctrl-]` | 在会话栏、对话和已画出的列之间移动键盘 |
-| `Ctrl-G` | 显示或收起会话栏 |
-| `Ctrl-D` | 列打开时把对话收起来 |
 | `Ctrl-Q` | 断开：窗口关掉，Host 把 turn 继续跑完 |
 | `Esc` | 停掉正在跑的 turn；没有在跑时，进入会话栏 |
 | `Ctrl-C` | 停掉正在跑的 turn；composer 空闲时先清空草稿，再按一次退出 |
@@ -89,7 +91,33 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
 | 拖动分割线 | 用指针做同一件事，两侧的线都可以拖 |
 | `Shift-PgUp` / `Shift-PgDn` | 翻终端列自己的历史 |
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
-| `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/cancel`、`/quit` |
+| `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/nvim`、`/rail`、`/chat`、`/keys`、`/cancel`、`/quit` |
+
+带 Command 的几个键（`Cmd-E`、`Shift-Cmd-S`、`Shift-Cmd-C`、`Shift-Cmd-P`）只有说
+Kitty 键盘协议的终端才送得到：Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app 不行。
+所以每一个都有等价的斜杠命令：`/nvim`、`/rail`、`/chat`、`/commands`。`Ctrl-F` 不再被
+任何东西占用：它在 composer、shell 里还是前移光标，在 Neovim 里还是下翻一屏。
+
+### 自定义键位
+
+上面每个键都能在 `$HULALA_HOME/config/keybindings.json` 里改：
+
+```json
+{
+  "panel.editor": ["ctrl+f"],
+  "panel.rail": ["ctrl+g"],
+  "panel.commands": ["shift+super+p", "f1"]
+}
+```
+
+值是一组键名（和表里一样：`ctrl`、`alt`、`shift`、`super` 加一个字母，或 `escape`、
+`enter`、`tab`、`space`、`pageup`、`left`、`f1` 等）；表里印的写法也能直接抄，`Shift-Cmd-S`
+和 `super+shift+s` 是同一个键。空数组表示禁用该动作，文件里没提到的动作保持默认。同一个文件也接受 pi-tui 自己的 composer 绑定（`tui.editor.*`）。
+写错键名、写了不存在的动作、同一个键绑给两个动作，都会在客户端里明确提示而不是被静默
+吞掉；无论如何至少保留一种退出方式。
+
+`/keys` 打印当前生效的键位并重新读取配置文件；启动提示和 `/help` 印的永远是真正生效的
+键，不会是默认值。
 
 客户端里输入 `/help` 会印出同一张表——如果你的终端或输入法吃掉了某个键，以它为准。
 
