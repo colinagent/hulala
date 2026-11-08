@@ -16,9 +16,11 @@ import SettingsRemote from '@deepseek-ai/dsh-api-settings-controller/remote'
 import WorkspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
 import type { WorkspaceCreateRequest } from '@deepseek-ai/dsh-api-workspace-controller/types'
 import { installConnection, type ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import CommandsRemote from '@deepseek-ai/dsh-commands/remote'
 import type { AssistantStreamRecord, LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import LlmRemote from '@deepseek-ai/dsh-llm/remote'
+import PermissionPresetsRemote from '@deepseek-ai/dsh-permission-presets/remote'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import type {} from '@deepseek-ai/dsh-user-approval/types'
@@ -27,6 +29,9 @@ import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
 import WebSocket from 'ws'
 import type { HostAttachment } from '../../hostAttach.js'
 import { t } from '../i18n/index.js'
+
+/** Host settings namespace that owns `defaultPreset` for new Sessions. */
+const PERMISSION_SETTINGS_NS = 'permission'
 
 /** One non-subagent Session as presented by the Host. */
 export interface TerminalSession {
@@ -38,6 +43,8 @@ export interface TerminalSession {
   /** Normalized title from the `session/title` projection; absent until one lands. */
   title?: string
   model?: TerminalModel
+  /** Effective permission preset from the `permissions` projection; absent until one lands. */
+  permission?: string
   agentAvailable?: boolean
 }
 
@@ -114,6 +121,28 @@ export interface TerminalModelCatalog {
   default: TerminalModel
   groups: readonly TerminalModelGroup[]
   failures: ReadonlyArray<{ id: string; name: string; message: string }>
+}
+
+/** One selectable permission preset, as the Host catalog describes it. */
+export interface TerminalPermissionPreset {
+  /** Stable preset key (`read-only`, `workspace-write`, `danger-full-access`, …). */
+  value: string
+  /** Host-supplied label; the key itself when the preset sets no name. */
+  name: string
+  /** Host-supplied sentence; absent for presets configured without one. */
+  description?: string
+}
+
+/**
+ * The Host's process-level permission catalog.
+ *
+ * `options` is every selectable preset; `defaultOptions` is the subset the Host
+ * accepts as a new-session default (the derived `custom` value is in neither).
+ */
+export interface TerminalPermissionCatalog {
+  options: readonly TerminalPermissionPreset[]
+  defaultOptions: readonly TerminalPermissionPreset[]
+  defaultPreset: string
 }
 
 /** One pending approval. */
@@ -195,6 +224,8 @@ export interface TerminalSessionHandlers {
   onContextPressure?(pressure: { projectedTokens?: number; contextWindow?: number }): void
   /** Both durable pending lists from the `inbox` projection (snapshot and control stream). */
   onInbox?(inbox: TerminalInbox): void
+  /** Effective permission preset from the `permissions` projection. */
+  onPermission?(preset: string): void
 }
 
 /** A durable journal event. */
@@ -220,6 +251,18 @@ export interface TerminalBackend {
   cancel(sessionId: string): Promise<void>
   modelCatalog(): Promise<TerminalModelCatalog>
   selectModel(sessionId: string, selection: TerminalModel): Promise<void>
+  /** Every preset the Host offers as a current-session choice, plus their default. */
+  permissionCatalog(): Promise<TerminalPermissionCatalog>
+  /**
+   * Switch one Session's preset through the Host's `/permission` command.
+   *
+   * The command is the single write path: it appends the selection and both
+   * knob events to the Session log, so the change survives reconnect and every
+   * other client sees it through the projection.
+   */
+  setPermission(sessionId: string, preset: string): Promise<void>
+  /** Write the new-session default; it applies to Sessions created afterwards. */
+  setDefaultPermission(preset: string): Promise<void>
   /** Provider routes this build can configure with an API key. */
   loginProviders(): Promise<TerminalProvider[]>
   /**
@@ -250,6 +293,16 @@ export interface TerminalBackend {
 function unwrap<T>(result: RemoteResult<T>): T {
   if (result.ok) return result.value
   throw new Error(`${result.error.code}: ${result.error.message}`)
+}
+
+/** Read the `permissions` projection's current preset out of a value block. */
+function permissionOf(values: unknown): string | undefined {
+  if (values === null || typeof values !== 'object') return undefined
+  const selection = (values as { permissions?: { currentValue?: unknown } }).permissions
+  if (selection === null || typeof selection !== 'object') return undefined
+  return typeof selection.currentValue === 'string' && selection.currentValue !== ''
+    ? selection.currentValue
+    : undefined
 }
 
 /** Read the `contextPressure` projection out of a projection value block. */
@@ -359,9 +412,11 @@ export function inboxOf(value: unknown): TerminalInbox {
 function sessionOf(summary: SessionSummary): TerminalSession {
   const values = summary.projections?.values as {
     modelSelection?: { next?: TerminalModel | null }
+    permissions?: { currentValue?: unknown }
     title?: unknown
   } | undefined
   const selection = values?.modelSelection?.next
+  const permission = permissionOf(values)
   const title = typeof values?.title === 'string' && values.title.trim() !== '' ? values.title : undefined
   return {
     sessionId: summary.sessionId,
@@ -369,6 +424,7 @@ function sessionOf(summary: SessionSummary): TerminalSession {
     running: summary.running,
     blank: summary.blank,
     agentAvailable: summary.agentAvailable,
+    ...(permission === undefined ? {} : { permission }),
     ...(summary.cwd === undefined ? {} : { cwd: summary.cwd }),
     ...(title === undefined ? {} : { title }),
     ...(selection === undefined || selection === null ? {} : { model: { ...selection } }),
@@ -434,6 +490,8 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   await ctx.remote.$mount(WorkspaceRemote)
   await ctx.remote.$mount(LlmRemote)
   await ctx.remote.$mount(SettingsRemote)
+  await ctx.remote.$mount(CommandsRemote)
+  await ctx.remote.$mount(PermissionPresetsRemote)
   ctx.typert.contexts.registerClient('agent', {
     identity: () => undefined,
     resolve: () => ctx,
@@ -534,6 +592,8 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
             if (frame.type === 'snapshot') {
               const pressure = pressureOf(frame.projections.values)
               if (pressure !== undefined) handlers.onContextPressure?.(pressure)
+              const permission = permissionOf(frame.projections.values)
+              if (permission !== undefined) handlers.onPermission?.(permission)
               handlers.onInbox?.(inboxOf((frame.projections.values as { inbox?: unknown }).inbox))
               for (const record of frame.records) emit(record.event)
               lastSeq = Math.max(lastSeq, frame.cursor)
@@ -584,6 +644,8 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
               const block = frame.value.projections[sessionId as never]
               const pressure = pressureOf(block?.values)
               if (pressure !== undefined) handlers.onContextPressure?.(pressure)
+              const permission = permissionOf(block?.values)
+              if (permission !== undefined) handlers.onPermission?.(permission)
               handlers.onInbox?.(inboxOf((block?.values as { inbox?: unknown } | undefined)?.inbox))
             } else if (frame.type === 'projection' && frame.sessionId === sessionId) {
               // One update carries every key the committed event changed.
@@ -593,6 +655,9 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
                   if (pressure !== undefined) handlers.onContextPressure?.(pressure)
                 } else if (change.key === 'inbox') {
                   handlers.onInbox?.(inboxOf(change.val))
+                } else if (change.key === 'permissions') {
+                  const permission = permissionOf({ permissions: change.val })
+                  if (permission !== undefined) handlers.onPermission?.(permission)
                 }
               }
             }
@@ -645,6 +710,37 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
         ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort as never }),
       }
       unwrap(await ctx.remote.session.selectModel(request))
+    },
+
+    async permissionCatalog() {
+      const catalog = unwrap(await ctx.remote.permissionPresets.catalog())
+      const narrow = (option: { value: string; name: string; description?: string }): TerminalPermissionPreset => ({
+        value: option.value,
+        name: option.name,
+        ...(option.description === undefined ? {} : { description: option.description }),
+      })
+      return {
+        options: catalog.options.map(narrow),
+        defaultOptions: catalog.defaultOptions.map(narrow),
+        defaultPreset: catalog.defaultPreset,
+      }
+    },
+
+    async setPermission(sessionId, preset) {
+      unwrap(await ctx.remote.commands.execute(sessionId as never, `/permission ${preset}`, []))
+    },
+
+    async setDefaultPermission(preset) {
+      // The revision is read immediately before the write: a Settings document
+      // edited from another client in between must fail rather than overwrite.
+      const described = unwrap(await ctx.remote.settings.describe())
+      const namespace = described.namespaces.find(candidate => candidate.ns === PERMISSION_SETTINGS_NS)
+      if (namespace === undefined) throw new Error(t('error.permissionDefaultUnavailable'))
+      unwrap(await ctx.remote.settings.mutate(
+        PERMISSION_SETTINGS_NS,
+        [{ op: 'set', path: ['defaultPreset'], value: preset }],
+        namespace.revision,
+      ))
     },
 
     async loginProviders() {

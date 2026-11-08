@@ -25,11 +25,14 @@ test('the list is grouped and each row carries its shortcut', () => {
   // the counter reports the rest, so every command is reachable.
   for (const name of ['Session', 'Model', 'Layout']) expect(text).toContain(name)
   expect(text).toContain('/sessions')
-  expect(text).toContain('Ctrl-D')
-  expect(text).toContain('open or close the nvim column')
-  expect(text).toContain('(1/22)')
+  expect(text).toContain('(1/23)')
   // The shortcut sits after the description on the same row.
-  const row = text.split('\n').find(line => line.includes('/editor')) ?? ''
+  const thinking = text.split('\n').find(line => line.includes('/thinking')) ?? ''
+  expect(thinking).toContain('Shift-Tab')
+  expect(thinking.indexOf('Shift-Tab')).toBeGreaterThan(thinking.indexOf('thinking level'))
+  // A row below the first window is reached by typing, and keeps its shortcut.
+  for (const char of 'editor') palette.handleInput(char)
+  const row = palette.render(78).join('\n').split('\n').find(line => line.includes('/editor')) ?? ''
   expect(row).toContain('Ctrl-D')
   expect(row.indexOf('Ctrl-D')).toBeGreaterThan(row.indexOf('nvim'))
 })

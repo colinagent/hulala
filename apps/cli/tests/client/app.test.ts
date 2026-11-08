@@ -48,6 +48,10 @@ interface FakeBackend {
   created: string[]
   /** Session ids the client attached its follow stream to, in call order. */
   followed: string[]
+  /** Presets the client asked the Host to apply to a Session, in request order. */
+  permissions: string[]
+  /** Presets the client asked the Host to store as the new-Session default. */
+  permissionDefaults: string[]
   /** How many times the Session list was fetched (the picker fetches it again). */
   listSessionsCalls(): number
   handlers: TerminalSessionHandlers | undefined
@@ -55,6 +59,8 @@ interface FakeBackend {
   ask(questions: readonly TerminalQuestion[]): Promise<{ answers: TerminalQuestionAnswer[] } | undefined>
   /** Publish both pending lists the way the Host's `inbox` projection does. */
   inbox(inbox: TerminalInbox): void
+  /** Publish the `permissions` projection the way the Host's control stream does. */
+  permission(preset: string): void
   /** Publish one Host Session-list event. */
   listEvent(event: SessionListEvent): void
   /** Sessions the fake Host hands out from `listSessions`. */
@@ -74,6 +80,8 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
   /** Session ids the fake Host handed out. */
   const created: string[] = []
   const followed: string[] = []
+  const permissions: string[] = []
+  const permissionDefaults: string[] = []
   let listSessionsCalls = 0
   let approval: ((request: TerminalApproval) => Promise<TerminalApprovalOutcome>) | undefined
   let question: ((questions: readonly TerminalQuestion[], signal?: AbortSignal) => Promise<{ answers: TerminalQuestionAnswer[] } | undefined>) | undefined
@@ -139,6 +147,13 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
       models.push(`${selection.provider}/${selection.model}`)
       efforts.push(selection.reasoningEffort)
     },
+    async permissionCatalog() {
+      const preset = (value: string) => ({ value, name: value })
+      const options = [preset('read-only'), preset('workspace-write'), preset('danger-full-access')]
+      return { options, defaultOptions: options, defaultPreset: 'workspace-write' }
+    },
+    async setPermission(_sessionId, preset) { permissions.push(preset) },
+    async setDefaultPermission(preset) { permissionDefaults.push(preset) },
     async loginProviders() {
       return [
         { id: 'deepseek-official', name: 'DeepSeek', active: false, configured: false, baseURL: 'https://api.deepseek.com' },
@@ -166,6 +181,8 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
     workspaces,
     created,
     followed,
+    permissions,
+    permissionDefaults,
     listSessionsCalls: () => listSessionsCalls,
     get handlers() { return liveHandlers },
     approve: request => {
@@ -179,6 +196,10 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
     inbox: inbox => {
       if (liveHandlers === undefined) throw new Error('follow handler is not subscribed')
       liveHandlers.onInbox?.(inbox)
+    },
+    permission: preset => {
+      if (liveHandlers === undefined) throw new Error('follow handler is not subscribed')
+      liveHandlers.onPermission?.(preset)
     },
     listEvent: event => {
       if (sessionList === undefined) throw new Error('session list handler is not subscribed')
@@ -1198,6 +1219,91 @@ test('a model selection from another client reaches the footer', async () => {
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
+
+test('the /permission picker applies a preset to the Session after the full-access gate', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.permission('workspace-write')
+  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
+
+  tty.input.write('/permission\r')
+  await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
+  const picker = plain(tty.painted())
+  expect(picker).toContain('Workspace Write')
+  // The default badge sits on the row the Host reports as the default, not on
+  // the cursor: the cursor is the current Session's preset.
+  expect(picker).toContain('default for new Sessions')
+
+  tty.input.write('\u001b[B') // ↓ to Full access
+  tty.input.write('\r')
+  await waitFor(() => plain(tty.painted()).includes('Full access also turns the approval prompts off'), 'full-access gate')
+  tty.input.write('y')
+  await waitFor(() => fake.permissions.length === 1, 'permission applied')
+  expect(fake.permissions).toEqual(['danger-full-access'])
+  expect(fake.permissionDefaults).toEqual([])
+  await waitFor(() => tty.painted().includes('permission: Full access'), 'permission notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('Ctrl-S applies the highlighted preset and stores it as the Session default', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.permission('workspace-write')
+  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
+
+  tty.input.write('/permission\r')
+  await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
+  tty.input.write('\u0013') // Ctrl-S
+  await waitFor(() => fake.permissionDefaults.length === 1, 'default written')
+  expect(fake.permissions).toEqual(['workspace-write'])
+  expect(fake.permissionDefaults).toEqual(['workspace-write'])
+  await waitFor(() => tty.painted().includes('permission: Workspace Write · default for new Sessions'), 'notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('/permission default <preset> writes the default without switching the Session', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+
+  tty.input.write('/permission default read-only\r')
+  await waitFor(() => fake.permissionDefaults.length === 1, 'default written')
+  expect(fake.permissionDefaults).toEqual(['read-only'])
+  expect(fake.permissions).toEqual([])
+  await waitFor(() => tty.painted().includes('default permission for new Sessions: Read Only'), 'notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('/permission takes a preset directly and rejects one the Host does not offer', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+
+  tty.input.write('/permission read-only\r')
+  await waitFor(() => fake.permissions.length === 1, 'permission applied')
+  expect(fake.permissions).toEqual(['read-only'])
+
+  tty.input.write('/permission turbo\r')
+  await waitFor(() => tty.painted().includes('unknown permission preset "turbo"'), 'rejection')
+  expect(fake.permissions).toEqual(['read-only'])
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a permission change from another client reaches the footer', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.permission('danger-full-access')
+  await waitFor(() => tty.painted().includes('permission Full access'), 'footer preset')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
 test('TTY mode adds a provider API key through the /login panels', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
@@ -1852,18 +1958,25 @@ test('Cmd-E reports a column that cannot start instead of blanking the frame', a
   await expect(run).resolves.toBe(0)
 })
 
-test('Shift-Cmd-P lists every command with its shortcut and runs it on Enter', async () => {
+test('Shift-Cmd-P lists commands with their shortcuts and runs one on Enter', async () => {
   const tty = startTty(fakeBackend())
   await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
   const mark = tty.painted().length
   tty.input.write(SHIFT_CMD_P)
-  await waitFor(() => plain(tty.painted().slice(mark)).includes('/editor'), 'palette rows')
-  // The row carries the command, what it does, and the key that runs it.
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('/sessions'), 'palette rows')
+  // The window is height-bounded, so a command below the first page is reached
+  // by typing what the reader remembers rather than by scrolling past headings.
+  tty.input.write('editor')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('/editor'), 'filtered editor')
   const palette = plain(tty.painted().slice(mark))
   expect(palette).toContain('Ctrl-D')
   expect(palette).toContain('open or close the nvim column')
-  expect(palette).toContain('Shift-Tab')
+  tty.input.write('\u0015') // Ctrl-U: back to the whole list
+  tty.input.write('thinking')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('/thinking'), 'filtered thinking')
+  expect(plain(tty.painted().slice(mark))).toContain('Shift-Tab')
   // Typing filters, and Enter runs the highlighted command without the composer.
+  tty.input.write('\u0015')
   tty.input.write('status')
   await waitFor(() => plain(tty.painted().slice(mark)).includes('/status'), 'filtered')
   tty.input.write('\r')

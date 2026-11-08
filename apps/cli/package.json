@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.2.26",
+  "version": "0.2.27",
   "description": "Launch the local-first Hulala Agent workbench with one npx command.",
   "type": "module",
   "bin": {
@@ -51,7 +51,9 @@
     "@deepseek-ai/dsh-api-settings-controller": "0.2.2-rc.1",
     "@deepseek-ai/dsh-api-workspace-controller": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-commands": "0.2.2-rc.1",
     "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-permission-presets": "0.2.2-rc.1",
     "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.1",
     "@deepseek-ai/dsh-typert-registry": "0.2.2-rc.1",
     "@deepseek-ai/dsh-user-approval": "0.2.2-rc.1",

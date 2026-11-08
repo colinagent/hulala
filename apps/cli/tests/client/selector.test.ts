@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test'
 import { visibleWidth } from '@earendil-works/pi-tui'
-import type { TerminalModel, TerminalModelCatalog, TerminalProvider, TerminalThinkingLevel } from '../../src/tui/data/remote.js'
+import type { TerminalModel, TerminalModelCatalog, TerminalPermissionPreset, TerminalProvider, TerminalThinkingLevel } from '../../src/tui/data/remote.js'
 import { ApiKeyPanel, ProviderSelector, type ProviderPickerResult } from '../../src/tui/view/selector/login.js'
 import { ModelSelector, type ModelPickerResult } from '../../src/tui/view/selector/model.js'
+import { PermissionSelector, type PermissionPickerResult } from '../../src/tui/view/selector/permission.js'
 import { ThinkingSelector, type ThinkingPickerResult } from '../../src/tui/view/selector/thinking.js'
+import { permissionLabel } from '../../src/tui/view/permission.js'
 
 const strip = (lines: readonly string[]): string[] => lines.map(line => line
   .replace(/\u001b\[[0-9;]*m/gu, '')
@@ -222,4 +224,87 @@ test('Escape and Ctrl-C cancel the thinking picker', () => {
 test('the thinking picker never paints past a narrow terminal', () => {
   const lines = strip(thinking().render(28))
   for (const line of lines) expect(visibleWidth(line) <= 28).toBe(true)
+})
+
+function permission(
+  onResolve: (result: PermissionPickerResult) => void = () => undefined,
+  overrides: Partial<{ current: string; defaultPreset: string; presets: readonly TerminalPermissionPreset[] }> = {},
+): PermissionSelector {
+  const picker = new PermissionSelector({
+    presets: overrides.presets ?? [
+      { value: 'read-only', name: 'read-only' },
+      { value: 'workspace-write', name: 'workspace-write' },
+      { value: 'danger-full-access', name: 'danger-full-access' },
+    ],
+    current: overrides.current ?? 'workspace-write',
+    defaultPreset: overrides.defaultPreset ?? 'workspace-write',
+    color: false,
+    rows: () => 30,
+    onResolve,
+  })
+  picker.focused = true
+  return picker
+}
+
+test('the permission selector ticks the Session preset and badges the default separately', () => {
+  const lines = strip(permission().render(80))
+  const rendered = lines.join('\n')
+  expect(lines[0]).toBe('─'.repeat(80))
+  expect(lines.at(-1)).toBe('─'.repeat(80))
+  expect(rendered).toContain('Permission — Workspace Write')
+  expect(rendered).toContain('→ ✓ Workspace Write  default')
+  expect(rendered).toContain('    Read Only')
+  expect(rendered).toContain('    Full access')
+  expect(rendered).toContain('↑↓/Ctrl-N/P move · Enter apply · Ctrl-S store default · Esc cancel')
+  expect(rendered).toContain('Ctrl-S also makes the choice the default for new Sessions')
+  for (const line of lines) expect(visibleWidth(line) <= 80).toBe(true)
+})
+
+test('Enter applies the cursor preset and Ctrl-S also stores it as the default', () => {
+  const seen: PermissionPickerResult[] = []
+  const picker = permission(result => seen.push(result))
+  picker.handleInput('\u001b[B') // ↓ to Full access
+  picker.handleInput('\r')
+  picker.handleInput('\u0013') // Ctrl-S stores the same row
+  expect(seen).toEqual([
+    { kind: 'select', preset: 'danger-full-access' },
+    { kind: 'save', preset: 'danger-full-access' },
+  ])
+})
+
+test('Escape and Ctrl-C cancel the permission selector', () => {
+  const seen: PermissionPickerResult[] = []
+  const picker = permission(result => seen.push(result))
+  picker.handleInput('\u001b')
+  picker.handleInput('\u0003')
+  expect(seen).toEqual([{ kind: 'cancel' }, { kind: 'cancel' }])
+})
+
+test('a custom preset keeps its configured name, and a current value it cannot show is only in the title', () => {
+  const presets = [
+    { value: 'read-only', name: 'read-only' },
+    { value: 'team-wide', name: 'Team wide', description: 'Every directory on this machine.' },
+  ]
+  const rendered = strip(permission(undefined, { presets, current: 'custom', defaultPreset: 'read-only' }).render(80)).join('\n')
+  expect(rendered).toContain('Permission — Custom')
+  expect(rendered).toContain('Team wide  Every directory on this machine.')
+  expect(rendered).toContain('Read Only  default')
+  // `custom` is derived-only: it is never a row, so nothing is ticked.
+  expect(rendered).not.toContain('✓')
+})
+
+test('the permission selector never paints past a narrow terminal', () => {
+  const lines = strip(permission().render(32))
+  for (const line of lines) expect(visibleWidth(line) <= 32).toBe(true)
+})
+
+test('permission labels name the built-in presets and leave unknown keys readable', () => {
+  expect(permissionLabel('read-only')).toBe('Read Only')
+  expect(permissionLabel('workspace-write')).toBe('Workspace Write')
+  expect(permissionLabel('danger-full-access')).toBe('Full access')
+  expect(permissionLabel('custom')).toBe('Custom')
+  expect(permissionLabel('auto')).toBe('Auto review')
+  expect(permissionLabel('team-wide', 'Team wide')).toBe('Team wide')
+  expect(permissionLabel('team-wide')).toBe('Team Wide')
+  expect(permissionLabel('团队')).toBe('团队')
 })

@@ -22,6 +22,7 @@ import { KEY_ACTIONS, actionHint } from '../../keymap.js'
 import type { PaneKind } from '../pane/focus.js'
 import type { CatalogEntry } from '../commandCatalog.js'
 import { t } from '../i18n/index.js'
+import { permissionLabel } from '../view/permission.js'
 import { CommandPaletteOverlay } from '../view/overlays/commandPalette.js'
 import { HelpOverlay } from '../view/overlays/help.js'
 import { VERSION } from '../../constants.js'
@@ -277,6 +278,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'thinking':
         await session.chooseThinking(argument)
         return
+      case 'permission':
+        await session.choosePermission(argument)
+        return
       case 'login':
         await session.login(argument)
         return
@@ -305,6 +309,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         row(t('status.label.cwd'), session.cwd)
         const route = session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`
         row(t('status.label.model'), session.thinkingLevel === undefined ? route : `${route} • ${session.thinkingLevel}`)
+        row(t('status.label.permission'), session.permission === undefined ? '-' : permissionLabel(session.permission))
         row(t('status.label.pane'), panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ` ${t('status.value.focus')}` : ''}`)
         row(t('status.label.rail'), layout.railWanted ? (rail.focused ? `${t('status.value.visible')} ${t('status.value.focus')}` : t('status.value.visible')) : t('status.value.hidden'))
         row(t('status.label.chat'), layout.conversationShown ? t('status.value.visible') : t('status.value.hidden'))

@@ -22,6 +22,7 @@ import type {
   SessionListEvent,
   TerminalModel,
   TerminalModelCatalog,
+  TerminalPermissionCatalog,
   TerminalProvider,
   TerminalSession,
   TerminalSessionHandlers,
@@ -29,8 +30,11 @@ import type {
 } from '../data/remote.js'
 import { ApiKeyPanel, ProviderSelector, type ProviderPickerResult } from '../view/selector/login.js'
 import { ModelSelector, type ModelPickerResult, type ModelSelection } from '../view/selector/model.js'
+import { PermissionSelector, type PermissionPickerResult } from '../view/selector/permission.js'
+import { FULL_ACCESS_PRESET, permissionLabel } from '../view/permission.js'
 import { ThinkingSelector, type ThinkingPickerResult } from '../view/selector/thinking.js'
 import { ResumeOverlay, type ResumeResult } from '../view/overlays/resume.js'
+import { PermissionConfirmOverlay } from '../view/overlays/permissionConfirm.js'
 import {
   defaultThinkingLevelOf,
   thinkingLevelOf,
@@ -96,6 +100,10 @@ export interface TuiSession {
   chooseThinking(argument: string): Promise<void>
   /** `Shift-Tab`: advance to the next level the current model advertises. */
   cycleThinking(): Promise<void>
+  /** The effective permission preset of the open Session; `undefined` until the Host reports one. */
+  readonly permission: string | undefined
+  /** `/permission [default] [preset]`: switch this Session or write the new-Session default. */
+  choosePermission(argument: string): Promise<void>
 }
 
 /** Colour flag for the pickers. */
@@ -120,6 +128,8 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
   let model: TerminalModel | undefined
   /** The Host catalog, kept for the thinking level and for `/model`. */
   let catalog: TerminalModelCatalog | undefined
+  /** The open Session's effective permission preset, mirrored from its projection. */
+  let permission: string | undefined
   let sessions: TerminalSession[] = []
   let disconnected = false
   let followDispose: (() => void) | undefined
@@ -275,6 +285,10 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       reducer.setInbox(inbox)
       repaint()
     },
+    onPermission: preset => {
+      permission = preset
+      repaint()
+    },
   }
 
   const open = async (next: string, directory?: string): Promise<void> => {
@@ -290,6 +304,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     const summary = sessions.find(session => session.sessionId === next)
     cwd = summary?.cwd ?? directory ?? config.cwd
     model = summary?.model
+    permission = summary?.permission
     // A column belongs to the directory it was started in, so a different
     // Session ends both processes instead of leaving the editor in the old tree.
     // A reconnect re-opens the same Session and keeps them alive.
@@ -480,6 +495,114 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     await applyThinking(next.id, thinking.route)
   }
 
+  /** Ask once before a preset that also turns the Host's approval prompts off. */
+  const confirmFullAccess = async (): Promise<boolean> => overlays.modal<boolean>(done => new PermissionConfirmOverlay({
+    color: config.color,
+    onDecide: done,
+  }), { anchor: 'center', width: 64 })
+
+  /** The Host permission catalog, or the reason there is none. */
+  const loadPermissions = async (): Promise<TerminalPermissionCatalog | undefined> => {
+    try {
+      return await backend.permissionCatalog()
+    } catch (caught) {
+      error(caught)
+      return undefined
+    }
+  }
+
+  /** One preset's label for a notice, preferring the Host's configured name. */
+  const permissionNameOf = (loaded: TerminalPermissionCatalog, value: string): string =>
+    permissionLabel(value, loaded.options.find(option => option.value === value)?.name)
+
+  /**
+   * Switch the Session, and optionally the default for Sessions created later.
+   *
+   * Both writes are the Host's: the Session through its `/permission` command,
+   * the default through the `permission` settings namespace. A failed default
+   * write leaves the Session switched and reports the failure instead of
+   * pretending the pair succeeded.
+   */
+  const applyPermission = async (
+    loaded: TerminalPermissionCatalog,
+    preset: string,
+    saveDefault: boolean,
+  ): Promise<void> => {
+    if (id === undefined) return
+    if (preset === FULL_ACCESS_PRESET && !await confirmFullAccess()) return
+    try {
+      await backend.setPermission(id, preset)
+      if (saveDefault) await backend.setDefaultPermission(preset)
+    } catch (caught) {
+      error(caught)
+      return
+    }
+    permission = preset
+    const name = permissionNameOf(loaded, preset)
+    reducer.addNotice(saveDefault ? t('notice.permissionDefault', { preset: name }) : t('notice.permission', { preset: name }))
+    repaint()
+  }
+
+  /** Write the new-Session default without touching this Session. */
+  const applyDefaultPermission = async (loaded: TerminalPermissionCatalog, preset: string): Promise<void> => {
+    if (preset === FULL_ACCESS_PRESET && !await confirmFullAccess()) return
+    try {
+      await backend.setDefaultPermission(preset)
+    } catch (caught) {
+      error(caught)
+      return
+    }
+    reducer.addNotice(t('notice.permissionDefaultOnly', { preset: permissionNameOf(loaded, preset) }))
+    repaint()
+  }
+
+  /**
+   * `/permission [default] [preset]`.
+   *
+   * A preset switches this Session; `default <preset>` writes the default only.
+   * Neither form invents a permission of its own — the Host owns both writes.
+   */
+  const choosePermission = async (argument: string): Promise<void> => {
+    if (id === undefined) return
+    const words = argument.trim().split(/\s+/u).filter(word => word !== '')
+    const wantsDefault = words[0] === 'default'
+    if (words.length > (wantsDefault ? 2 : 1)) {
+      error(new Error(t('error.permissionUsage')))
+      return
+    }
+    const wanted = wantsDefault ? words[1] ?? '' : words[0] ?? ''
+    const loaded = await loadPermissions()
+    if (loaded === undefined) return
+    if (wanted !== '') {
+      const preset = loaded.options.find(option => option.value === wanted)
+      if (preset === undefined) {
+        error(new Error(t('error.permissionUnknown', {
+          preset: wanted,
+          presets: loaded.options.map(option => option.value).join(', '),
+        })))
+        return
+      }
+      if (wantsDefault) await applyDefaultPermission(loaded, preset.value)
+      else await applyPermission(loaded, preset.value, false)
+      return
+    }
+    if (wantsDefault) {
+      error(new Error(t('error.permissionUsage')))
+      return
+    }
+    const picked = await composer.panel<PermissionPickerResult>(done => new PermissionSelector({
+      presets: loaded.options,
+      ...(permission === undefined ? {} : { current: permission }),
+      defaultPreset: loaded.defaultPreset,
+      color: config.color,
+      rows: () => terminal.rows,
+      onResolve: done,
+    }))
+    if (picked.kind === 'cancel') return
+    if (picked.kind === 'save') await applyPermission(loaded, picked.preset, true)
+    else await applyPermission(loaded, picked.preset, false)
+  }
+
   const pickModel = async (): Promise<ModelPickerResult> => {
     let loaded: TerminalModelCatalog
     try {
@@ -629,6 +752,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     get cwd() { return cwd },
     get model() { return model },
     get thinkingLevel() { return thinkingLevelOf(model, catalog) },
+    get permission() { return permission },
     get sessions() { return sessions },
     get disconnected() { return disconnected },
     refresh,
@@ -642,6 +766,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     login,
     chooseThinking,
     cycleThinking,
+    choosePermission,
   })
 }
 
