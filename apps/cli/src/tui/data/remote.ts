@@ -238,7 +238,7 @@ export interface TerminalSessionEvent {
 
 /** One attached Host backend. */
 export interface TerminalBackend {
-  readonly host: { url: string; home?: string }
+  readonly host: { url: string; home?: string; /** Daemon instance this transport belongs to. */ instanceId?: string }
   ready(): Promise<void>
   listSessions(): Promise<TerminalSession[]>
   searchSessions(query: string): Promise<{ items: TerminalSearchItem[]; hasMore: boolean }>
@@ -526,7 +526,11 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   return {
     get host() {
       const hostHome = home()
-      return { url: attachment.baseUrl, ...(hostHome === undefined ? {} : { home: hostHome }) }
+      return {
+        url: attachment.baseUrl,
+        instanceId: attachment.record.descriptor.instanceId,
+        ...(hostHome === undefined ? {} : { home: hostHome }),
+      }
     },
 
     async ready() {

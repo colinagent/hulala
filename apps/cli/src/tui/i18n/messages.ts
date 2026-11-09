@@ -35,6 +35,7 @@ export interface MessageTable {
   'slash.reasoning': string
   'slash.clear': string
   'slash.update': string
+  'slash.restart': string
   'slash.quit': string
   'slash.language': string
   'slash.nvim': string
@@ -175,7 +176,7 @@ export interface MessageTable {
   'permission.preset.custom': string
   'permission.preset.auto': string
 
-  'status.disconnected': string
+  'status.disconnected': (params: { restart: string }) => string
   'status.update': (params: { version: string }) => string
   'status.updateAvailable': (params: { version: string }) => string
   'status.label.host': string
@@ -262,6 +263,10 @@ export interface MessageTable {
   'notice.savedKey': (params: { provider: string }) => string
   'notice.approval': (params: { outcome: string }) => string
   'notice.connectionUnavailable': (params: { reason: string }) => string
+  'notice.hostStopped': (params: { version: string }) => string
+  'notice.hostReplaced': string
+  'notice.hostMismatch': (params: { host: string; client: string }) => string
+  'notice.resumeMissing': (params: { id: string }) => string
 
   'error.unknownCommand': (params: { command: string }) => string
   'error.unknownProvider': (params: { provider: string }) => string
@@ -291,6 +296,13 @@ export interface MessageTable {
   'update.cannotSelf': string
   'update.available': (params: { current: string; latest: string }) => string
   'update.downloaded': (params: { version: string }) => string
+  'update.restarting': (params: { version: string }) => string
+  'update.preflight.title': string
+  'update.preflight.host': (params: { version: string }) => string
+  'update.preflight.running': (params: { count: number }) => string
+  'update.preflight.windows': string
+  'update.preflight.editor': string
+  'update.preflight.footer': string
   'update.entryMissing': string
   'update.installed': string
   'update.exitCode': (params: { code: number }) => string

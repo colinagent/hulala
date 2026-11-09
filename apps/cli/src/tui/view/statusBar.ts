@@ -62,7 +62,7 @@ export class StatusBar implements Component {
       styles.band(`${' '.repeat(gutter)}${padEnd(text, usable)}${' '.repeat(gutter)}`),
     ]
 
-    if (state.disconnected) return band(t('status.disconnected'))
+    if (state.disconnected) return band(t('status.disconnected', { restart: '/restart' }))
 
     const readings = this.readings(state)
     // The right slot keeps its own ink: the model first, then the level, so a

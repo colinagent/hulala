@@ -356,8 +356,19 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
 
   const bootstrap = async (resume: string | undefined, directory: string): Promise<string | undefined> => {
     cwd = directory
-    sessions = await backend.listSessions().catch(() => [] as TerminalSession[])
-    const first = resume ?? await create()
+    // A resumed id comes from another process (`/update` hands it over) or from
+    // the command line, so it can name a Session that no longer exists. Opening
+    // it would leave a dead subscription retrying forever; say so and start a
+    // new one instead. An unreadable list proves nothing, so it is not a reason
+    // to discard the id.
+    const listed = await backend.listSessions().then(value => value, () => undefined)
+    sessions = listed ?? []
+    let first: string | undefined
+    if (resume !== undefined && resume !== '') {
+      if (listed === undefined || listed.some(session => session.sessionId === resume)) first = resume
+      else reducer.addNotice(t('notice.resumeMissing', { id: resume }))
+    }
+    first ??= await create()
     if (first === undefined) return undefined
     await open(first, directory)
     return first

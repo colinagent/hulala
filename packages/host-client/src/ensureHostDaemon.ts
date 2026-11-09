@@ -81,6 +81,13 @@ export interface EnsureHostDaemonOptions {
    * stopping a Host that other clients may use stays a user action.
    */
   version?: string
+  /**
+   * Whether a launch spec may stop a live Host that answers with another
+   * version. Defaults to true for the installer and an explicit `host start`;
+   * a plain client passes false so two installed releases sharing one state
+   * root cannot pull the daemon back and forth.
+   */
+  replaceStale?: boolean
   fetch?: typeof fetch
   /** Replace the detached launcher; tests capture the spec instead of spawning. */
   launch?: HostDaemonLauncher
@@ -100,12 +107,14 @@ export interface HostDaemonConnection {
  * Attach to the Host daemon for a state root, starting one if necessary.
  *
  * The daemon outlives its clients: closing a client detaches instead of stopping
- * the daemon, and a Host that another client may still be using is replaced only
- * when this call is allowed to start one *and* it answers with another product
- * version — the user launched a client of the installed version, so serving the
- * plugin set the old daemon booted with would be wrong. The replacement is
- * sequential: the old daemon is stopped before the new one starts, so a state
- * root never holds two Hosts.
+ * the daemon. A live Host serving another product version is replaced only when
+ * the caller allows it (`replaceStale`, which the installer and an explicit
+ * `hulala host start` pass): the user launched a client of the installed
+ * version, so serving the plugin set the old daemon booted with would be wrong.
+ * A plain client refuses instead, because two installed releases sharing a
+ * state root would otherwise pull the daemon back and forth, dropping every
+ * window each time. The replacement is sequential: the old daemon is stopped
+ * before the new one starts, so a state root never holds two Hosts.
  *
  * @param options - daemon files plus the optional launch spec.
  * @returns the live endpoint record and its health document.
@@ -117,7 +126,7 @@ export async function ensureHostDaemon(options: EnsureHostDaemonOptions): Promis
   const discovery = await discoverHostDaemon(files, probe)
   const stale = discovery.status === 'ready' && options.version !== undefined && discovery.record.version !== options.version
   if (discovery.status === 'ready' && !stale) return { record: discovery.record, health: discovery.health, started: false }
-  if (stale && (options.spawn === undefined || options.spawn === false)) throw versionMismatch(discovery.record, options.version!)
+  if (stale && (options.spawn === undefined || options.spawn === false || options.replaceStale === false)) throw versionMismatch(discovery.record, options.version!)
   if (discovery.status === 'incompatible') throw incompatible(discovery.record)
   const spec = options.spawn
   if (spec === undefined || spec === false) throw notRunning(files, discovery)

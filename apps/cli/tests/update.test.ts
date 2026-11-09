@@ -77,7 +77,7 @@ test('a newer release is reported and cached for the next startup', async () => 
   const first = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 1_000 })
   expect(first).toEqual({ currentVersion: '0.1.8', latestVersion: '0.2.0' })
   expect(t('update.available', { current: first!.currentVersion, latest: first!.latestVersion })).toContain('0.1.8 → 0.2.0')
-  expect(t('update.available', { current: first!.currentVersion, latest: first!.latestVersion })).toContain('hulala update')
+  expect(t('update.available', { current: first!.currentVersion, latest: first!.latestVersion })).toContain('/update')
 
   const cached = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 2_000 })
   expect(cached).toEqual(first)
@@ -278,10 +278,10 @@ test('a release that is already downloaded is announced as ready to install', as
   const source = mirror(() => index())
   const env = { HULALA_RELEASE_INDEX_URL: source.url }
 
-  // Nothing downloaded yet: the reminder points at the shell command.
+  // Nothing downloaded yet: the reminder names the in-client command.
   const available = await checkForUpdate({ currentVersion: '0.1.8', paths, env, now: 1_000 })
   expect(available?.downloaded).toBeUndefined()
-  expect(t('update.available', { current: available!.currentVersion, latest: available!.latestVersion })).toContain('hulala update')
+  expect(t('update.available', { current: available!.currentVersion, latest: available!.latestVersion })).toContain('/update')
 
   // `hulala update --background` leaves the archive next to its index facts.
   const archive = releaseArchivePath(paths.data, '0.2.0')

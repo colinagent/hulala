@@ -299,7 +299,7 @@ test('TTY mode announces a newer release and keeps the hint in the status bar', 
   })
   await waitFor(() => text.includes('Update available'), 'update notice')
   expect(text).toContain('0.1.8 → 9.9.9')
-  expect(text).toContain('hulala update')
+  expect(text).toContain('/update installs it and restarts')
   expect(text).toContain('update 9.9.9')
   input.write('/quit\r')
   await expect(run).resolves.toBe(0)
@@ -1573,8 +1573,77 @@ test('/update installs the downloaded release and restarts into it', async () =>
   // The first screen already says the release is downloaded and names the command.
   await waitFor(() => text.includes('/update'), 'downloaded update notice')
   input.write('/update\r')
+  // The consequences are named before the machine goes down; Enter accepts.
+  await waitFor(() => text.includes('Update and restart'), 'update confirmation')
+  input.write('\r')
   await expect(run).resolves.toBe(0)
   expect(applied).toBe(1)
+  expect(restarted).toBe('session-1234')
+})
+
+test('/restart reopens the window on the installed release without installing', async () => {
+  const fake = fakeBackend()
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100 })
+  let text = ''
+  output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  let applied = 0
+  let restarted: string | undefined
+  const run = runTerminalClient({
+    backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234',
+    applyUpdate: async () => { applied += 1; return { ok: true, message: 'unused' } },
+    restartClient: resume => { restarted = resume },
+  })
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  input.write('/restart\r')
+  await expect(run).resolves.toBe(0)
+  expect(applied).toBe(0)
+  expect(restarted).toBe('session-1234')
+})
+
+test('/update switches a stale window onto the installed release without installing', async () => {
+  // Another terminal already installed 9.9.9; this process still runs an older
+  // one, so `/update` is a swap, not a download.
+  const home = mkdtempSync(join(tmpdir(), 'hulala-stale-'))
+  const dataRoot = join(home, 'hulala')
+  const root = join(dataRoot, 'runtime', 'tui')
+  mkdirSync(join(dataRoot, 'bin'), { recursive: true })
+  mkdirSync(join(root, 'versions', '9.9.9-e4dce47'), { recursive: true })
+  writeFileSync(join(dataRoot, 'bin', 'hulala'), `#!/bin/sh\n# hulala-launcher {"format":1,"root":${JSON.stringify(root)},"state":${JSON.stringify(dataRoot)}}\n`)
+  writeFileSync(join(root, 'active.json'), JSON.stringify({
+    format: 1,
+    current: { id: '9.9.9-e4dce47', version: '9.9.9', manifestSha256: 'a'.repeat(64), dataFormat: 1 },
+  }))
+  const previousHome = process.env.HULALA_HOME
+  const previousRoot = process.env.HULALA_INSTALL_ROOT
+  process.env.HULALA_HOME = dataRoot
+  process.env.HULALA_INSTALL_ROOT = root
+  cleanups.push(() => {
+    if (previousHome === undefined) delete process.env.HULALA_HOME
+    else process.env.HULALA_HOME = previousHome
+    if (previousRoot === undefined) delete process.env.HULALA_INSTALL_ROOT
+    else process.env.HULALA_INSTALL_ROOT = previousRoot
+  })
+
+  const fake = fakeBackend()
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100 })
+  let text = ''
+  output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  let applied = 0
+  let restarted: string | undefined
+  const run = runTerminalClient({
+    backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234',
+    updateCheck: async () => ({ currentVersion: '0.1.15', latestVersion: '9.9.9', downloaded: true }),
+    applyUpdate: async () => { applied += 1; return { ok: true, message: 'unused' } },
+    restartClient: resume => { restarted = resume },
+  })
+  await waitFor(() => text.includes('/update'), 'downloaded update notice')
+  input.write('/update\r')
+  await expect(run).resolves.toBe(0)
+  expect(applied).toBe(0)
   expect(restarted).toBe('session-1234')
 })
 
@@ -1594,6 +1663,8 @@ test('/update reports a failed install and keeps the client running', async () =
   })
   await waitFor(() => text.includes('/update'), 'downloaded update notice')
   input.write('/update\r')
+  await waitFor(() => text.includes('Update and restart'), 'update confirmation')
+  input.write('\r')
   await waitFor(() => text.includes('SHA-256 mismatch'), 'failure notice')
   expect(restarted).toBe(false)
   input.write('still-here\r')
@@ -2063,3 +2134,40 @@ test('keybindings.json rebinds a chord, and /keys reports what it ignored', asyn
   tty.input.write('\u0011')
   await expect(tty.run).resolves.toBe(0)
 })
+
+test('a mouse report split by the input timeout is not typed into the column', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-mouse-'))
+  const fake = fakeBackend(home)
+  const panes = fakePanes()
+  const tty = startPtyTty(home, fake, panes.module)
+  const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+
+  tty.input.write(CTRL_T) // Ctrl-T: the shell column opens with the keyboard in it
+  await waitFor(() => panes.panes.length === 1, 'terminal column')
+  const mark = shellWrites().length
+
+  // The terminal tracks every pointer movement, so reports are a flood. One
+  // split across the sequence buffer's 50 ms window used to arrive as a head and
+  // then as plain characters; a column with the keyboard typed both into the pty,
+  // where the shell printed `35;67;18M` on its input line.
+  tty.input.write('\u001b[<35;6')
+  await new Promise(resolve => setTimeout(resolve, 120))
+  tty.input.write('7;18M')
+  await new Promise(resolve => setTimeout(resolve, 80))
+  expect(shellWrites().slice(mark)).toBe('')
+
+  // A whole report is still consumed as a click rather than delivered to the pty.
+  tty.input.write('\u001b[<0;52;29M')
+  await new Promise(resolve => setTimeout(resolve, 80))
+  expect(shellWrites().slice(mark)).toBe('')
+
+  // The swallowed tail never eats what the reader types next.
+  tty.input.write('ls\r')
+  await waitFor(() => shellWrites().includes('ls\r'), 'keys still reach the shell')
+
+  tty.input.write('\u001b')
+  await new Promise(resolve => setTimeout(resolve, 60))
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+}, 20_000)

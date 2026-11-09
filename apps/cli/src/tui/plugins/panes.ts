@@ -101,6 +101,15 @@ export interface TuiPanes {
   ownsEscape(): boolean
   /** Ask Neovim to leave, settling a refusal with a dialog. */
   leave(): Promise<boolean>
+  /**
+   * Write every buffer Neovim can write, without asking about the ones it cannot.
+   *
+   * A forced restart has no dialog to fall back on: `:wall` flushes the last
+   * second of typing that the debounced autosave has not seen yet, and the
+   * buffers it refuses (unnamed, read-only, changed on disk) stay as they are
+   * rather than blocking the swap.
+   */
+  saveAll(): Promise<void>
   /** The one-column drag target the frame draws beside the sidebar. */
   readonly divider: Component
   setDividerHover(hovered: boolean): void
@@ -500,6 +509,15 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     for (const kind of [...runtimes.keys()]) drop(kind)
   }
 
+  const saveAll = async (): Promise<void> => {
+    const editor = runtimes.get('editor')
+    if (editor === undefined) return
+    // `silent!` keeps a refusal (an unnamed buffer) from painting over the frame;
+    // the wait is the pty round trip, not the size of the file.
+    editor.session.input('\u001b:silent! wall\r')
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+
   /** Stop every process without repainting: the window is going away. */
   const dispose = (): void => {
     if (conflictTimer !== undefined) {
@@ -546,6 +564,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       })
     },
     leave,
+    saveAll,
     get divider() { return divider.component },
     setDividerHover,
     dragDividerTo,

@@ -73,6 +73,13 @@ function hostEntry(): string {
 
 /**
  * Attach to the Host, starting a detached daemon when none answers.
+ *
+ * A client never replaces a live Host: if the daemon answers with another
+ * product version, the user updated another installation (or started another
+ * product sharing this state root), and pulling the daemon to this process's
+ * version would drop every other window in a loop. Attaching is refused with an
+ * actionable error instead; only `hulala update` and `hulala host stop`
+ * replace a daemon.
  * @returns the endpoint plus the API cookie the Host issued.
  */
 export async function attachHost(): Promise<HostAttachment> {
@@ -83,6 +90,7 @@ export async function attachHost(): Promise<HostAttachment> {
   const { record } = await ensureHostDaemon({
     paths: daemonRoots(paths),
     version: VERSION,
+    replaceStale: false,
     spawn: {
       command: nodeExecutable(),
       args: ['--experimental-sqlite', hostEntry(), '--daemon', '--hulala-home', paths.data, '--port', '0'],

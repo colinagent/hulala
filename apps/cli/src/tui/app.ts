@@ -121,6 +121,11 @@ async function defaultApplyUpdate(): Promise<{ ok: boolean; message: string }> {
 
 /** Hand the terminal to the newly activated release, resuming this Session. */
 function restartClient(dataRoot: string, resume: string | undefined): void {
+  // Only a process the launcher started may hand the terminal back to it: in a
+  // source checkout `bin/hulala` belongs to the release installed beside it, and
+  // starting that instead of the code being edited would be a surprise, not a
+  // restart. `bun run start` is how a checkout comes back.
+  if ((process.env.HULALA_INSTALL_ROOT ?? '').trim() === '') return
   const launcher = join(dataRoot, 'bin', 'hulala')
   const args = [launcher, ...(resume === undefined ? [] : ['--resume', resume])]
   try {
@@ -159,6 +164,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
   const ctx = kernel.ctx
   provideBackend(ctx, options.backend)
   const dataRoot = resolvePaths().data
+  const production = ownsTerminal(options)
   const language = options.language ?? resolveLanguage(process.env, dataRoot)
   setActiveLanguage(language.code)
   try {
@@ -196,10 +202,14 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(viewPlugin, { color: colorEnabled() })
     await ctx.plugin(commandsPlugin, { color: colorEnabled() })
     await ctx.plugin(inputPlugin, { debug: debugLog })
-    await ctx.plugin(updatePlugin, { ...(options.applyUpdate === undefined ? {} : { applyUpdate: options.applyUpdate }) })
+    const applyUpdate = options.applyUpdate ?? (production ? defaultApplyUpdate : undefined)
+    await ctx.plugin(updatePlugin, {
+      color: colorEnabled(),
+      dataRoot,
+      ...(applyUpdate === undefined ? {} : { applyUpdate }),
+    })
     // Last: a user plugin may register into any service above.
     await ctx.plugin(userPluginsPlugin, { dataRoot: resolvePaths().data, debug: debugLog })
-    const production = ownsTerminal(options)
     return await runInteractive({ ...options, kernel }, production)
   } finally {
     await kernel.dispose()
@@ -275,9 +285,12 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   const rerender = (): void => { render.repaint() }
 
   // A swap only happens from the running client, so the exit is always the
-  // updater's cue to hand the terminal over.
+  // updater's cue to hand the terminal over. An update ends the turn either way,
+  // so it writes what the editor can write and leaves instead of asking about the
+  // buffers it cannot: a question there would strand the window the swap was
+  // asked from. `/quit` keeps the question.
   ctx.on('hulala/quit', () => { void requestShutdown() })
-  ctx.on('hulala/update-installed', () => { void requestShutdown() })
+  ctx.on('hulala/update-installed', () => { void requestShutdown({ force: true }) })
 
   const shutdown = async (code: number): Promise<void> => {
     if (!lifecycle.beginClose()) return
@@ -319,10 +332,15 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     }
   }
 
-  /** Quit the client: settle the editor first, then stop. */
-  const requestShutdown = async (): Promise<void> => {
+  /**
+   * Quit the client: settle the editor first, then stop.
+   * @param options - `force` writes what the editor can write and does not wait
+   *   on the confirmation for the buffers it cannot; a swap cannot be refused.
+   */
+  const requestShutdown = async (options: { force?: boolean } = {}): Promise<void> => {
     if (lifecycle.closing) return
-    if (!await panes.leave()) return
+    if (options.force === true) await panes.saveAll()
+    else if (!await panes.leave()) return
     await shutdown(0)
   }
 

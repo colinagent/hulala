@@ -298,6 +298,12 @@ export async function runDistributionCommand(command: string, args: string[]): P
       throw error
     }
   }
+  // Replacing the code under a live daemon ends every attached client, so say it
+  // before a download starts rather than only in the last line of output.
+  if (command === 'install' || command === 'update' || command === 'rollback') {
+    const live = await inspectHost().catch(() => ({ state: 'stopped' } as const))
+    if (live.state === 'running') console.log(`The Hulala Host ${live.record.version} is running: it will be stopped, and running turns and attached clients will be interrupted.`)
+  }
   return withInstallationLock(root, async () => {
     if (await stat(join(root, 'removal.json')).then(() => true, () => false)) throw new Error('Hulala removal is already in progress; check its completion result before changing this installation')
     // Re-running the installer for a version that is already active must say so

@@ -331,6 +331,11 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'update':
         await updater.install()
         return
+      case 'restart':
+        // The installed release may already be newer than this process (another
+        // window updated); a swap needs no network and no confirmation.
+        updater.requestRestart()
+        return
       case 'editor':
         panes.toggle('editor', session.cwd)
         return

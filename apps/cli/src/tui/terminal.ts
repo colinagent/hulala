@@ -24,6 +24,15 @@ const PUSH_DISAMBIGUATE = '\u001b[>1u'
 /** Pop it again, restoring whatever the terminal had before the client started. */
 const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 
+/** A whole SGR mouse report: `ESC [ < button ; x ; y` and its final `M`/`m`. */
+const SGR_MOUSE_REPORT = /^\u001b\[<\d+;\d+;\d+[Mm]$/u
+
+/** The head of one, which the sequence buffer hands on when it stops waiting. */
+const SGR_MOUSE_HEAD = /^\u001b\[<[\d;]*$/u
+
+/** What can still continue that head: more numbers, then one final byte. */
+const SGR_MOUSE_TAIL = /^(?:[\d;]{1,10}|[Mm])$/u
+
 export interface TerminalStreams {
   input: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void; setEncoding?: (encoding: string) => void }
   output: NodeJS.WritableStream & { isTTY?: boolean; columns?: number; rows?: number }
@@ -37,6 +46,8 @@ export class StreamTerminal implements Terminal {
   private wasRaw = false
   private rawData: ((chunk: string | Buffer) => void) | undefined
   private detachResize: (() => void) | undefined
+  /** True while the tail of a report whose head was dropped is being swallowed. */
+  private droppingMouseTail = false
 
   constructor(streams: TerminalStreams) {
     this.streams = streams
@@ -73,7 +84,8 @@ export class StreamTerminal implements Terminal {
 
     this.stdinBuffer = new StdinBuffer()
     this.stdinBuffer.on('data', sequence => {
-      if (this.inputHandler) this.inputHandler(sequence)
+      const kept = this.dropSplitMouseReport(sequence)
+      if (kept !== undefined && this.inputHandler) this.inputHandler(kept)
     })
     this.stdinBuffer.on('paste', content => {
       if (this.inputHandler) this.inputHandler(`\u001b[200~${content}\u001b[201~`)
@@ -100,6 +112,7 @@ export class StreamTerminal implements Terminal {
   stop(): void {
     if (this.rawData !== undefined) this.streams.input.off('data', this.rawData)
     this.rawData = undefined
+    this.droppingMouseTail = false
     this.stdinBuffer?.clear()
     this.stdinBuffer = undefined
     this.detachResize?.()
@@ -111,6 +124,38 @@ export class StreamTerminal implements Terminal {
     this.streams.input.setRawMode?.(this.wasRaw)
     this.inputHandler = undefined
     this.resizeHandler = undefined
+  }
+
+  /**
+   * Drop the two halves of a mouse report the sequence buffer gave up on.
+   *
+   * `StdinBuffer` flushes a sequence it could not finish inside its 50 ms window,
+   * so a report split by a slow read arrives as `ESC [ < 35;6` and then as plain
+   * characters. Everything above this layer reads those as keystrokes, and a
+   * column with the keyboard forwards them to its program: the shell's line
+   * editor swallows `ESC [ <`, beeps, and prints `35;67;18M` on its input line as
+   * text instead of treating it as a click. Whole reports still pass through —
+   * that is what pi-tui's own mouse handling reads.
+   * @param sequence - one sequence from the input buffer.
+   * @returns the sequence to deliver, or undefined when it belonged to a report.
+   */
+  private dropSplitMouseReport(sequence: string): string | undefined {
+    if (this.droppingMouseTail) {
+      // The tail is typed as ordinary characters, one per event. Anything that
+      // cannot continue a report means the reader is typing again, so the key is
+      // delivered rather than eaten.
+      if (!SGR_MOUSE_TAIL.test(sequence)) {
+        this.droppingMouseTail = false
+        return sequence
+      }
+      if (sequence === 'M' || sequence === 'm') this.droppingMouseTail = false
+      return undefined
+    }
+    if (SGR_MOUSE_HEAD.test(sequence) && !SGR_MOUSE_REPORT.test(sequence)) {
+      this.droppingMouseTail = true
+      return undefined
+    }
+    return sequence
   }
 
   write(data: string): void {
