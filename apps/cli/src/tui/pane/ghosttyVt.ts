@@ -25,11 +25,16 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 
+/** Shape a program asked for with DECSCUSR, as the engine names it. */
+export type VtCursorShape = 'bar' | 'block' | 'underline' | 'hollow'
+
 /** Cursor placement inside the visible viewport. */
 export interface VtCursor {
   readonly visible: boolean
   readonly x: number
   readonly y: number
+  /** The shape the program chose; a program that never chose one gets a block. */
+  readonly shape: VtCursorShape
 }
 
 /** Scrollable area and where the viewport sits inside it. */
@@ -161,6 +166,14 @@ function colorSgr(prefix: 38 | 48, tag: number, index: number, rgb: VtRgb, tags:
   return ''
 }
 
+/** Name one `GhosttyRenderStateCursorVisualStyle` value, defaulting to a block. */
+function cursorShape(style: number, values: Record<string, number>): VtCursorShape {
+  if (style === values.BAR) return 'bar'
+  if (style === values.UNDERLINE) return 'underline'
+  if (style === values.BLOCK_HOLLOW) return 'hollow'
+  return 'block'
+}
+
 /** Pad or truncate one rendered row to exactly `width` visible cells. */
 function fit(line: string, width: number): string {
   const current = visibleWidth(line)
@@ -248,6 +261,7 @@ export class GhosttyVt {
     readonly render: Record<string, number>
     readonly terminal: Record<string, number>
     readonly scroll: Record<string, number>
+    readonly shape: Record<string, number>
   }
   private readonly sizes: {
     readonly cursor: number
@@ -287,6 +301,7 @@ export class GhosttyVt {
       render: values('GhosttyRenderStateData'),
       terminal: values('GhosttyTerminalData'),
       scroll: values('GhosttyTerminalScrollViewportTag'),
+      shape: values('GhosttyRenderStateCursorVisualStyle'),
     }
     this.sizes = {
       cursor: type('GhosttyRenderStateCursor').size,
@@ -468,21 +483,23 @@ export class GhosttyVt {
     return new DataView(this.exports.memory.buffer).getUint32(this.slot, true) === 1
   }
 
-  /** Cursor placement inside the viewport, as the program last left it. */
+  /** Cursor placement and shape inside the viewport, as the program last left them. */
   cursor(): VtCursor {
-    if (this.disposed) return { visible: false, x: 0, y: 0 }
+    if (this.disposed) return { visible: false, x: 0, y: 0, shape: 'block' }
     const ex = this.exports
     ex.ghostty_render_state_update(this.renderState, this.terminal)
     ex.ghostty_render_state_get(this.renderState, this.tags.render.CURSOR ?? 18, this.cursorBuffer)
     const view = new DataView(ex.memory.buffer)
     const fields = this.offsets.cursor
     const hasValue = view.getUint8(this.cursorBuffer + (fields.viewport_has_value?.offset ?? 4)) !== 0
+    const style = view.getInt32(this.cursorBuffer + (fields.visual_style?.offset ?? 16), true)
     return {
       // A program that hides the cursor (DEC 25) still has a cursor cell; the
       // pane has always drawn it, so `visible` reports the cell's existence.
       visible: hasValue,
       x: view.getUint16(this.cursorBuffer + (fields.viewport_x?.offset ?? 6), true),
       y: view.getUint16(this.cursorBuffer + (fields.viewport_y?.offset ?? 8), true),
+      shape: cursorShape(style, this.tags.shape),
     }
   }
 

@@ -31,8 +31,9 @@ const RESET = '\u001b[0m'
 /**
  * How the cell under the program cursor is drawn.
  *
- * - `focused`: emit pi-tui's cursor marker and fake cursor, which renders as a
- *   filled reverse-video block — a shell never paints a cursor of its own.
+ * - `focused`: emit pi-tui's cursor marker and fake cursor, in the shape the
+ *   program asked for — a filled reverse-video block for a shell, which never
+ *   paints a cursor of its own, and a bar while an editor is in insert mode.
  * - `dim`: the same block faded into the background, which is what the column
  *   shows while the keyboard is in the other one. The block is a low blend of the theme's
  *   foreground into its background, with the character cut out in the background
@@ -47,6 +48,16 @@ export type CursorKind = 'focused' | 'dim' | 'none'
  * the height; there is no full-cell outline glyph.
  */
 const HOLLOW_CURSOR = '□'
+
+/**
+ * The bar a vertical caret is drawn with.
+ *
+ * A cell carries one glyph, so the bar takes the place of the character under
+ * the cursor instead of being composited over it the way a hardware cursor is.
+ * In insert mode that character is the one the next keystroke goes in front of,
+ * and a blank cell — where typing usually happens — shows nothing but the bar.
+ */
+const BAR_CURSOR = '▏'
 
 export interface ScreenSessionOptions {
   readonly pty: PtyModule
@@ -149,9 +160,12 @@ export class ScreenSession {
    * command still runs possible.
    *
    * The program's cell under the cursor is drawn as a reverse-video block
-   * (`renderFakeCursor` + `CURSOR_MARKER`, pi-tui's composer-cursor mechanism).
-   * A column without focus draws the same cell as a ghost of it instead, so both
-   * columns show where their cursor is.
+   * (`renderFakeCursor` + `CURSOR_MARKER`, pi-tui's composer-cursor mechanism),
+   * or as the shape the program asked for with DECSCUSR: Neovim sends a bar
+   * while it is in insert mode, so the column says which mode the editor is in
+   * without the user reading the mode line. A column without focus draws the
+   * same cell as a ghost of it instead, so both columns show where their cursor
+   * is.
    * @param width - pane width in cells.
    * @param height - pane height in rows.
    * @param cursor - how to draw the cell under the program cursor.
@@ -166,7 +180,15 @@ export class ScreenSession {
       ? undefined
       : {
           draw: (text: string): string => {
-            if (cursor === 'focused') return CURSOR_MARKER + renderFakeCursor(text === '' ? ' ' : text)
+            if (cursor === 'focused') {
+              if (where?.shape === 'bar') return CURSOR_MARKER + BAR_CURSOR
+              // A horizontal caret keeps the character it is under, the way the
+              // shape means: a line along the bottom of the cell, not a reversed
+              // one. The underline is closed again so the following cells keep
+              // the pen the row's own tracking assumes.
+              if (where?.shape === 'underline') return `${CURSOR_MARKER}\u001b[4m${text === '' ? ' ' : text}\u001b[24m`
+              return CURSOR_MARKER + renderFakeCursor(text === '' ? ' ' : text)
+            }
             if (faintSgr === '') return RESET + HOLLOW_CURSOR
             return `${RESET}${faintSgr}${text === '' ? ' ' : text}${RESET}`
           },

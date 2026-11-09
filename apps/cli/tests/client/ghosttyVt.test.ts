@@ -65,6 +65,19 @@ test('the cell under the cursor is drawn on a reset pen', () => {
   // has to be reset first or every column's cursor takes a different colour.
   paint(vt, '\u001b[38;2;240;198;116m\u001b[48;2;40;44;52mAB')
   const ink = { draw: (text: string): string => `<${text}>` }
-  const line = vt.renderRows(6, 1, { visible: true, x: 1, y: 0 }, ink)[0] ?? ''
+  const line = vt.renderRows(6, 1, { visible: true, x: 1, y: 0, shape: 'block' }, ink)[0] ?? ''
   expect(line).toContain('\u001b[0m<B>')
+})
+
+test('the cursor reports the shape the program asked for', () => {
+  const vt = new GhosttyVt(6, 2)
+  // Neovim sends the insert-mode bar with DECSCUSR and puts the block back when
+  // it leaves the mode; the pane draws the cursor itself, so it has to read this.
+  expect(vt.cursor().shape).toBe('block')
+  paint(vt, '\u001b[6 q')
+  expect(vt.cursor().shape).toBe('bar')
+  paint(vt, '\u001b[4 q')
+  expect(vt.cursor().shape).toBe('underline')
+  paint(vt, '\u001b[2 q')
+  expect(vt.cursor().shape).toBe('block')
 })
