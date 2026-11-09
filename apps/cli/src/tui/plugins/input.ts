@@ -159,6 +159,12 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
    * column into the pane's width. Steps the pointer could also take: the boundary
    * follows the key, which widens the column on its right and narrows the one on
    * its left.
+   *
+   * With both side columns away (the editor alone, as `Cmd-E` leaves it) the frame
+   * has no boundary at all, so the key goes to the editor's own: Neovim's file
+   * tree draws the one rule still on screen, and it moves on this same key. There
+   * is nothing to trade it against, which is why the hand-off is safe here and not
+   * in the layouts that do have a boundary.
    * @param direction - `-1` moves the boundary left, `1` moves it right.
    */
   const moveDivider = (direction: -1 | 1): void => {
@@ -166,7 +172,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     const paneShown = layout.paneId !== undefined
     if (!layout.conversationShown) {
       if (railShown) rails.moveDivider(direction)
-      else if (paneShown) panes.moveDivider(direction)
+      else if (paneShown && !panes.handOffDivider(direction)) panes.moveDivider(direction)
       return
     }
     if (panes.focused && paneShown) {

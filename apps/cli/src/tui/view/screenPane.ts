@@ -20,8 +20,9 @@
  * @module hulala-cli/tui/view/screenPane
  */
 import type { Component, Focusable, TuiMouseEvent, TuiMouseEventResult } from '@earendil-works/pi-tui'
-import { matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
+import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { CursorKind } from '../pane/screenSession.js'
+import { sgrMouse } from './sgrMouse.js'
 import { legacyKeys } from '../pane/legacyKeys.js'
 import { buildStyles } from './theme.js'
 import { padEnd } from './pathText.js'
@@ -64,10 +65,46 @@ export interface ScreenPaneOptions {
   readonly onScroll?: () => void
   /** The pointer entered the pane, which ends any divider hover. */
   readonly onPointer?: () => void
+  /**
+   * A divider the program inside this pane draws, reported by the program.
+   *
+   * Only the editor has one: Neovim's file tree is a split of its own, and the
+   * boundary between the tree and the buffer is the same kind of rule as the
+   * frame's dividers. Neovim owns the resize (the pointer reports reach it); the
+   * client adds what a program cannot: the resize pointer shape, and the accent
+   * the rule takes while the pointer rests on it, drawn over the program's cell.
+   */
+  readonly divider?: PaneDivider
+  /**
+   * Hand the pointer to the program as terminal mouse reports.
+   *
+   * Only the editor column sets this: Neovim tracks the mouse (`mouse=a`) and
+   * uses it for clicks, selection and the file tree's own divider, while a shell
+   * usually does not — and the client cannot see whether a program asked for
+   * reports, because the screen model does not expose the modes it parsed.
+   */
+  readonly mouse?: boolean
+}
+
+/** A program-drawn divider this pane reports the pointer for. */
+export interface PaneDivider {
+  /** Zero-based pane column of the rule, or undefined when it is not drawn. */
+  column(): number | undefined
+  /** Whether the pointer is resting on it. */
+  hovered(): boolean
+  setHovered(hovered: boolean): void
 }
 
 export class ScreenPane implements Component, Focusable {
   focused = false
+  /**
+   * A press started on the program's divider and has not been released.
+   *
+   * The hover has to survive the whole gesture — the same way the frame's own
+   * dividers keep their accent while being dragged — even though the pointer
+   * leaves the rule column as soon as the boundary starts to follow it.
+   */
+  private grabbing = false
   private lastSize = ''
 
   constructor(private readonly options: ScreenPaneOptions) {}
@@ -90,6 +127,7 @@ export class ScreenPane implements Component, Focusable {
       ? Array.from({ length: height }, () => ' '.repeat(width))
       : lines.map(line => fitToWidth(line, width))
     if (history > 0) fitted[fitted.length - 1] = this.historyRow(width, history)
+    this.paintDividerHover(fitted, width)
     return fitted
   }
 
@@ -115,9 +153,69 @@ export class ScreenPane implements Component, Focusable {
     this.options.screen.input(legacyKeys(data))
   }
 
-  handleMouse(_event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    this.options.onPointer?.()
-    return undefined
+  /**
+   * Overlay the program's divider cell while the pointer rests on it.
+   *
+   * The cell keeps the program's own column — Neovim draws its separator there
+   * and repaints it on every resize — so only the one cell is replaced, with the
+   * same accent the frame's dividers take when hovered.
+   */
+  private paintDividerHover(lines: string[], width: number): void {
+    const divider = this.options.divider
+    if (divider === undefined || !divider.hovered()) return
+    const column = divider.column()
+    if (column === undefined || column < 0 || column >= width) return
+    const styles = buildStyles(this.options.color)
+    const glyph = styles.accent('▎')
+    for (let row = 0; row < lines.length; row += 1) {
+      lines[row] = compositeTuiLine(lines[row]!, glyph, column, 1, width)
+    }
+  }
+
+  /**
+   * Forward the pointer, and keep the gesture while it lasts.
+   *
+   * A press is answered, which is what hands the following drags and the release
+   * to this column even when the pointer leaves it: a boundary drag is followed
+   * past the pane's own edge.
+   *
+   * Bare motion is not forwarded (a program only sees it with `mousemoveevent`),
+   * but it is what tells the client whether the pointer is on the program's
+   * divider — the hover the frame's own dividers have.
+   */
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    // The frame ends its own divider hovers as soon as the pointer is inside a
+    // column. A gesture on the program's own divider must not be ended by that:
+    // the pointer is supposed to stay on that rule for as long as it is held.
+    if (!this.grabbing) this.options.onPointer?.()
+    if (this.options.mouse !== true) return undefined
+    const divider = this.options.divider
+    if (divider !== undefined) {
+      switch (event.type) {
+        case 'press':
+          this.grabbing = divider.column() === event.x
+          divider.setHovered(this.grabbing)
+          break
+        case 'drag':
+          if (this.grabbing) divider.setHovered(true)
+          break
+        case 'release': {
+          const was = this.grabbing
+          this.grabbing = false
+          if (was) divider.setHovered(divider.column() === event.x)
+          break
+        }
+        case 'move':
+          if (!this.grabbing) divider.setHovered(divider.column() === event.x)
+          break
+        default:
+          break
+      }
+    }
+    const report = sgrMouse(event)
+    if (report === undefined) return undefined
+    this.options.screen.input(report)
+    return { handled: true }
   }
 
   invalidate(): void {

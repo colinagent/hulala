@@ -832,6 +832,52 @@ test('the rail divider is dragged with the pointer, and the key moves it too', a
   await expect(tty.run).resolves.toBe(0)
 }, 20_000)
 
+test('with the editor alone, the divider chord moves the boundary inside Neovim', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-editor-only-divider-'))
+  const fake = fakeBackend(home)
+  const editor = fakeEditor({ clean: true })
+  const tty = startPtyTty(home, fake, editor.module)
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+  tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
+  await waitFor(() => editor.spawned(), 'editor column')
+
+  // Side by side the chord belongs to the frame: it moves the boundary between the
+  // two columns and never reaches the program.
+  tty.input.write('\u001b[91;13u') // Cmd-Ctrl-[
+  await new Promise(resolve => setTimeout(resolve, 80))
+  expect(editor.writes()).not.toContain('\u001b[1;5D')
+
+  // Cmd-E leaves the editor as the only column, so no frame boundary is drawn and
+  // the chord has nothing to move here. It goes to Neovim, whose file tree draws
+  // the one boundary still on screen, as the legacy Ctrl-Left / Ctrl-Right pair.
+  // (Option-Left cannot be the tree's key: macOS takes Control-Left for switching
+  // spaces, and what a terminal sends for Option-Left varies — one arrives as a
+  // bare Escape and closes the tree instead of moving it.)
+  tty.input.write(CMD_E)
+  await new Promise(resolve => setTimeout(resolve, 120))
+  // Every spelling of the divider chord reaches the tree here, because they are
+  // all the same action: Command or Shift on a bracket, or Shift on an arrow.
+  const handOffs: Array<[string, string]> = [
+    ['\u001b[91;13u', 'Cmd-Ctrl-[ steps the tree boundary left'],
+    ['\u001b[93;13u', 'Cmd-Ctrl-] steps the tree boundary right'],
+    ['\u001b[91;6u', 'Ctrl-Shift-[ steps the tree boundary left'],
+    ['\u001b[93;6u', 'Ctrl-Shift-] steps the tree boundary right'],
+    ['\u001b[1;6D', 'Ctrl-Shift-← steps the tree boundary left'],
+    ['\u001b[1;6C', 'Ctrl-Shift-→ steps the tree boundary right'],
+  ]
+  for (const [key, label] of handOffs) {
+    const seen = editor.writes()
+    tty.input.write(key)
+    await waitFor(() => editor.writes() !== seen, label)
+  }
+  const handed = editor.writes()
+  expect(handed.match(/\u001b\[1;5D/g)?.length ?? 0).toBe(3)
+  expect(handed.match(/\u001b\[1;5C/g)?.length ?? 0).toBe(3)
+
+  tty.input.write('\u0011') // and the client quits, Neovim being clean
+  await expect(tty.run).resolves.toBe(0)
+})
+
 test('an extended key report reaches the column as the legacy byte it stands for', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-kitty-'))
   const fake = fakeBackend(home)

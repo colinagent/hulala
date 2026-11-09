@@ -64,6 +64,16 @@ export interface TuiEditor {
   setTheme(theme: EditorTheme): void
   /** Neovim's mode from its last `ModeChanged`, or undefined before one. */
   mode(): string | undefined
+  /**
+   * Where the editor's own file tree draws its boundary, in pane columns.
+   *
+   * The tree is a split inside Neovim, so only Neovim knows the column; it
+   * reports it to a marker file whenever the layout changes. The client needs it
+   * to give the boundary the same pointer shape and hover colour as its own
+   * dividers.
+   * @returns the zero-based pane column of the rule, or undefined with no tree.
+   */
+  treeEdge(): number | undefined
   /** Forget the mode, so a fresh process does not inherit the last one's. */
   resetMode(): void
   /** Delete all three per-process markers. */
@@ -90,6 +100,7 @@ export function apply(ctx: Context): void {
   const modeFile = join(cache, `mode-${process.pid}.txt`)
   const conflictFile = join(cache, `conflict-${process.pid}.txt`)
   const leaveFile = join(cache, `leave-${process.pid}.txt`)
+  const treeFile = join(cache, `tree-${process.pid}.txt`)
 
   let home: EditorHome = resolveEditorHome(dataRoot)
   let published = false
@@ -99,6 +110,7 @@ export function apply(ctx: Context): void {
     rmSync(modeFile, { force: true })
     rmSync(conflictFile, { force: true })
     rmSync(leaveFile, { force: true })
+    rmSync(treeFile, { force: true })
   }
 
   ctx.effect(() => clearMarkers, 'hulala: editor markers')
@@ -125,6 +137,7 @@ export function apply(ctx: Context): void {
       HULALA_NVIM_MODE_FILE: modeFile,
       HULALA_NVIM_CONFLICT_FILE: conflictFile,
       HULALA_NVIM_LEAVE_FILE: leaveFile,
+      HULALA_NVIM_TREE_FILE: treeFile,
     }),
     mode: () => {
       try {
@@ -135,6 +148,16 @@ export function apply(ctx: Context): void {
     },
     resetMode: () => {
       rmSync(modeFile, { force: true })
+    },
+    treeEdge: () => {
+      try {
+        // "<left column> <width>": the rule sits one column right of the tree.
+        const [left, width] = readFileSync(treeFile, 'utf8').trim().split(' ')
+        const column = Number.parseInt(left ?? '', 10) + Number.parseInt(width ?? '', 10)
+        return Number.isInteger(column) ? column : undefined
+      } catch {
+        return undefined
+      }
     },
     clearMarkers,
     takeConflict: () => {

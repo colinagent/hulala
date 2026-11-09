@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { CURSOR_MARKER, visibleWidth } from '@earendil-works/pi-tui'
+import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { CursorKind } from '../../src/tui/pane/screenSession.js'
 import { ScreenPane, type PaneScreen } from '../../src/tui/view/screenPane.js'
 
@@ -154,4 +154,108 @@ test('an editor without history passes the paging keys to the program', () => {
   pane.handleInput(PAGE_UP)
   pane.handleInput(PAGE_DOWN)
   expect(screen.inputs).toEqual([PAGE_UP, PAGE_DOWN])
+})
+
+test('an editor pane hands the pointer to its program', () => {
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false, mouse: true })
+  const press = { type: 'press', button: 'left', x: 4, y: 1, screenX: 44, screenY: 1, width: 40, height: 3, shift: false, alt: false, ctrl: false } as const
+  expect(pane.handleMouse(press)).toEqual({ handled: true })
+  expect(pane.handleMouse({ ...press, type: 'drag', x: 9, y: 1, screenX: 49 })).toEqual({ handled: true })
+  expect(pane.handleMouse({ ...press, type: 'release', x: 9, y: 1, screenX: 49 })).toEqual({ handled: true })
+  expect(screen.inputs).toEqual(['\u001b[<0;5;2M', '\u001b[<32;10;2M', '\u001b[<0;10;2m'])
+})
+
+test('a pane without mouse support leaves the pointer to the frame', () => {
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false })
+  const press = { type: 'press', button: 'left', x: 4, y: 1, screenX: 44, screenY: 1, width: 40, height: 3, shift: false, alt: false, ctrl: false } as const
+  expect(pane.handleMouse(press)).toBeUndefined()
+  // Repaints and hovers still end a divider hover, but nothing reaches the shell.
+  expect(screen.inputs).toEqual([])
+})
+
+test('an editor pane reports the pointer resting on the program divider', () => {
+  const screen = new FakeScreen()
+  let column: number | undefined = 3
+  let hovered = false
+  const pane = new ScreenPane({
+    screen,
+    rows: () => 2,
+    color: false,
+    mouse: true,
+    divider: {
+      column: () => column,
+      hovered: () => hovered,
+      setHovered: (next: boolean) => { hovered = next },
+    },
+  })
+  const move = { type: 'move', button: 'none', x: 3, y: 0, screenX: 43, screenY: 0, width: 40, height: 2, shift: false, alt: false, ctrl: false } as const
+  pane.handleMouse(move)
+  expect(hovered).toBe(true)
+  pane.handleMouse({ ...move, x: 4 })
+  expect(hovered).toBe(false)
+  // Bare motion is never written to the program: it only drives the hover.
+  expect(screen.inputs).toEqual([])
+  column = undefined
+  pane.handleMouse(move)
+  expect(hovered).toBe(false)
+})
+
+test('an editor pane draws the accent over the program divider while hovered', () => {
+  const screen = new FakeScreen()
+  screen.content = ['one', 'two', 'three']
+  let hovered = true
+  const pane = new ScreenPane({
+    screen,
+    rows: () => 2,
+    color: true,
+    mouse: true,
+    divider: {
+      column: () => 1,
+      hovered: () => hovered,
+      setHovered: (next: boolean) => { hovered = next },
+    },
+  })
+  const painted = pane.render(6)
+  // The block replaces the program's own cell in that column, nothing else.
+  expect(stripTerminalSequences(painted[0]!)).toBe('o▎e   ')
+  expect(visibleWidth(painted[0]!)).toBe(6)
+  hovered = false
+  const idle = pane.render(6)
+  expect(stripTerminalSequences(idle[0]!)).toBe('one   ')
+})
+
+test('a drag on the program divider keeps the hover for the whole gesture', () => {
+  const screen = new FakeScreen()
+  let column = 3
+  let hovered = false
+  const seen: boolean[] = []
+  const pane = new ScreenPane({
+    screen,
+    rows: () => 2,
+    color: false,
+    mouse: true,
+    divider: {
+      column: () => column,
+      hovered: () => hovered,
+      setHovered: (next: boolean) => { hovered = next; seen.push(next) },
+    },
+  })
+  const base = { button: 'left', x: 3, y: 0, screenX: 43, screenY: 0, width: 40, height: 2, shift: false, alt: false, ctrl: false } as const
+  pane.handleMouse({ ...base, type: 'press' })
+  // The boundary follows the pointer, so the rule is no longer under it — the
+  // hover must survive anyway, the way the frame's own dividers do.
+  for (const moved of [4, 5, 6]) {
+    column = moved
+    pane.handleMouse({ ...base, type: 'drag', x: moved })
+  }
+  // The pane keeps asking for the hover; it never asks to end it mid-drag.
+  expect(seen.every(Boolean)).toBe(true)
+  expect(hovered).toBe(true)
+  pane.handleMouse({ ...base, type: 'release', x: 6 })
+  // Released on the rule it dragged: still under the pointer, so still hovered.
+  expect(hovered).toBe(true)
+  pane.handleMouse({ ...base, type: 'move', x: 10 })
+  expect(hovered).toBe(false)
 })

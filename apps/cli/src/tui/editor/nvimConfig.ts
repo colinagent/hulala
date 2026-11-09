@@ -478,6 +478,199 @@ if snacks_ready then
   vim.keymap.set("n", "<leader>fr", function() Snacks.picker.recent() end, { desc = "Recent files" })
 end
 
+-- The file tree's boundary, moved like the column dividers around it: the tree
+-- is an ordinary split window, so its edge is a window width, and the picker's
+-- own floats (the prompt line and the list) keep their offsets inside it. A
+-- drag reports the pointer's column, a key moves it by a step, and both land on
+-- the same clamp. The share the user leaves behind is written back to the
+-- picker's source, so reopening the tree does not undo the drag, and to a small
+-- state file, so it outlives the editor process.
+if snacks_ready then
+  local TREE_MIN = 40   -- the sidebar preset's own floor: narrower is not a tree
+  local TREE_STEP = 2   -- cells one keypress moves, the same nudge as a short drag
+  local TREE_STATE = vim.fn.stdpath("state") .. "/explorer-width.json"
+
+  -- The tree currently on screen: the picker that owns a real split window.
+  local function tree()
+    local ok, pickers = pcall(Snacks.picker.get, { source = "explorer" })
+    if not ok or pickers == nil then return nil end
+    for _, picker in ipairs(pickers) do
+      local layout = picker.layout
+      if layout and layout.root and layout.root.win and vim.api.nvim_win_is_valid(layout.root.win) then
+        return picker, layout
+      end
+    end
+    return nil
+  end
+
+  -- Widest the tree may become: the pane on its right keeps a usable width.
+  local function tree_max() return math.max(TREE_MIN, vim.o.columns - 33) end
+
+  -- Where the boundary is, for the client: it paints the pointer shape and the
+  -- hover colour for its own dividers, and this one belongs to the same family
+  -- even though Neovim draws it. Reported only when it changes.
+  local TREE_FILE = vim.env.HULALA_NVIM_TREE_FILE
+  local reported = nil
+  local function report_tree()
+    if TREE_FILE == nil or TREE_FILE == "" then return end
+    local _, layout = tree()
+    local line = ""
+    if layout ~= nil then
+      local root = layout.root.win
+      line = ("%d %d"):format(vim.api.nvim_win_get_position(root)[2], vim.api.nvim_win_get_width(root))
+    end
+    if line == reported then return end
+    reported = line
+    pcall(vim.fn.writefile, { line }, TREE_FILE)
+  end
+
+  -- Opening or closing the tree creates or removes its window; a resize moves the
+  -- boundary. Both are seen here, after the layout has settled.
+  vim.api.nvim_create_autocmd({ "WinNew", "WinClosed", "VimResized", "TabEnter" }, {
+    callback = function() vim.schedule(report_tree) end,
+  })
+
+
+  -- Remember one width as a share of the editor column, so it restores at any size.
+  local function tree_remember(columns)
+    local share = columns / math.max(1, vim.o.columns)
+    local config = Snacks.config.picker
+    local source = config and config.sources and config.sources.explorer
+    if source and source.layout and source.layout.layout then source.layout.layout.width = share end
+    pcall(function()
+      vim.fn.mkdir(vim.fn.stdpath("state"), "p")
+      vim.fn.writefile({ vim.json.encode({ width = share }) }, TREE_STATE)
+    end)
+  end
+
+  -- Move the boundary. \`remember\` is off mid-drag: one write per gesture.
+  local function tree_resize(columns, remember)
+    local picker, layout = tree()
+    if picker == nil then return false end
+    local root = layout.root.win
+    local wanted = math.max(TREE_MIN, math.min(tree_max(), math.floor(columns + 0.5)))
+    local current = vim.api.nvim_win_get_width(root)
+    if wanted ~= current then
+      local offsets = {}
+      for name, widget in pairs(layout.wins) do
+        if widget.opts and widget.opts.position == "float" and widget.win and vim.api.nvim_win_is_valid(widget.win) then
+          offsets[name] = vim.api.nvim_win_get_width(widget.win) - current
+        end
+      end
+      vim.api.nvim_win_set_width(root, wanted)
+      -- The share, not the column count: a terminal resize then keeps the
+      -- proportion the user left instead of an absolute width.
+      layout.opts.layout.width = wanted / math.max(1, vim.o.columns)
+      for name, offset in pairs(offsets) do
+        local widget = layout.wins[name]
+        widget.opts.max_width = wanted
+        widget.opts.width = wanted + offset
+      end
+      -- A mouse mapping runs under textlock, where the picker may not redraw:
+      -- schedule the reflow instead of failing in the middle of a drag.
+      vim.schedule(function()
+        if picker.layout == layout and not layout.closed then pcall(function() layout:update() end) end
+      end)
+      vim.schedule(report_tree)
+    end
+    if remember then tree_remember(wanted) end
+    return true
+  end
+
+  -- A narrower editor column cannot keep a wide tree: the clamp is re-applied
+  -- when the pane is resized (which is how Hulala's own divider drags the column).
+  vim.api.nvim_create_autocmd("VimResized", {
+    callback = function()
+      local _, layout = tree()
+      if layout == nil then return end
+      tree_resize(vim.api.nvim_win_get_width(layout.root.win), false)
+    end,
+  })
+
+  -- The column the boundary is drawn in: the tree's left edge plus its width.
+  local function tree_edge()
+    local _, layout = tree()
+    if layout == nil then return nil end
+    return vim.api.nvim_win_get_position(layout.root.win)[2] + vim.api.nvim_win_get_width(layout.root.win)
+  end
+
+  -- The keys this column answers are the client's column-divider chord, which it
+  -- writes into the pty as Ctrl-Left / Ctrl-Right. That is the only spelling that
+  -- arrives: the chord belongs to Hulala (so no window manager takes it first),
+  -- and the bytes are already inside this process by the time Neovim sees them.
+  -- Option-Left and Control-Left cannot be used for it: macOS owns Control-Left
+  -- for switching spaces and takes it before the terminal, and what a terminal
+  -- sends for Option-Left differs per terminal setting — one of them arrives as
+  -- a bare Escape and closes the tree instead of moving it.
+  --
+  -- The key names the boundary's direction, never the tree's width: the tree sits
+  -- on the left of its rule, so a boundary that moves left makes the tree
+  -- narrower. That is the rule the column divider chord follows too (\`Cmd-Ctrl-[\`
+  -- moves the frame's rule left) and the one Neovim's own \`<C-W><\` follows, which
+  -- is why the bracket and the arrow point the same way.
+  local function tree_nudge(direction)
+    local _, layout = tree()
+    if layout == nil then return end
+    tree_resize(vim.api.nvim_win_get_width(layout.root.win) + direction * TREE_STEP, true)
+  end
+  vim.keymap.set("n", "<C-Left>", function() tree_nudge(-1) end, { desc = "File tree: move the boundary left" })
+  vim.keymap.set("n", "<C-Right>", function() tree_nudge(1) end, { desc = "File tree: move the boundary right" })
+  -- Unmodified keys, so the tree moves in any client and on any keyboard: a bare
+  -- bracket or arrow is forwarded untouched by every layer between the keyboard
+  -- and this process, while a modified arrow is taken by a window manager
+  -- (Control-Left switches spaces on macOS) or encoded differently by each
+  -- terminal. The brackets keep Neovim's habit of naming the direction, and the
+  -- arrows say the same thing for anyone who would rather not leave the arrows.
+  vim.keymap.set("n", "g[", function() tree_nudge(-1) end, { desc = "File tree: move the boundary left" })
+  vim.keymap.set("n", "g]", function() tree_nudge(1) end, { desc = "File tree: move the boundary right" })
+  vim.keymap.set("n", "<Left>", function() tree_nudge(-1) end, { desc = "File tree: move the boundary left" })
+  vim.keymap.set("n", "<Right>", function() tree_nudge(1) end, { desc = "File tree: move the boundary right" })
+
+  -- Mouse. The boundary column belongs to neither window, so the press has to be
+  -- caught by the current window's mapping: the column under it is read from
+  -- \`getmousepos\` instead of from which window the pointer is over. Every other
+  -- press, drag and release is handed back exactly as it arrived, which is what
+  -- keeps clicking, double-clicking and visual selection working.
+  local drag = nil
+  local function keycode(key) return vim.api.nvim_replace_termcodes(key, true, false, true) end
+  local function passthrough(key) vim.api.nvim_feedkeys(keycode(key), "n", false) end
+  local function on_edge()
+    local edge = tree_edge()
+    return edge ~= nil and vim.fn.getmousepos().screencol - 1 == edge
+  end
+
+  vim.keymap.set("n", "<LeftMouse>", function()
+    if not on_edge() then return passthrough("<LeftMouse>") end
+    local _, layout = tree()
+    drag = { columns = vim.api.nvim_win_get_width(layout.root.win), start = vim.fn.getmousepos().screencol }
+  end, { desc = "File tree: grab the boundary" })
+
+  vim.keymap.set("n", "<LeftDrag>", function()
+    if drag == nil then return passthrough("<LeftDrag>") end
+    tree_resize(drag.columns + vim.fn.getmousepos().screencol - drag.start, false)
+  end, { desc = "File tree: drag the boundary" })
+
+  vim.keymap.set("n", "<LeftRelease>", function()
+    if drag == nil then return passthrough("<LeftRelease>") end
+    drag = nil
+    local _, layout = tree()
+    if layout ~= nil then tree_remember(vim.api.nvim_win_get_width(layout.root.win)) end
+  end, { desc = "File tree: drop the boundary" })
+
+  vim.schedule(report_tree)
+
+  -- A width the user dragged last time, before the tree is first opened.
+  pcall(function()
+    local saved = vim.json.decode(vim.fn.readfile(TREE_STATE)[1] or "")
+    local share = saved ~= nil and tonumber(saved.width) or nil
+    local config = Snacks.config.picker
+    local source = config and config.sources and config.sources.explorer
+    if share ~= nil and share > 0 and source and source.layout and source.layout.layout then
+      source.layout.layout.width = share
+    end
+  end)
+end
+
 vim.keymap.set("n", "<leader>w", "<cmd>write<cr>", { desc = "Write" })
 vim.keymap.set("n", "<leader>q", "<cmd>quit<cr>", { desc = "Quit" })
 vim.keymap.set("n", "<esc>", "<cmd>nohlsearch<cr>", { desc = "Clear search" })

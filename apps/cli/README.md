@@ -328,6 +328,39 @@ focus back into it without hiding anything.
 | `Ctrl+S` | save the current file (works in insert and visual mode too) |
 | `/editor` | same as `Ctrl-D` |
 
+The file tree is a column of its own inside the editor: drag its boundary with
+the mouse, or step it from the tree's own list with `g[` / `g]` or plain `←` /
+`→`. The key names the direction the rule moves, so `g[` and `←` take it left
+(the tree narrows) and `g]` / `→` take it right — the same reading as the column
+divider chord. Those are unmodified keys on purpose: a bare bracket or arrow is
+the only spelling every layer between the keyboard and Neovim forwards unchanged,
+while a modified arrow is taken by the window manager (`Control-←` switches
+spaces on macOS) or encoded differently by each terminal.
+
+With Neovim alone (`Cmd-E`) every spelling of the column divider chord moves this
+boundary as well — `Ctrl-Cmd-[` / `Ctrl-Cmd-]`, `Ctrl-Shift-[` / `Ctrl-Shift-]`
+and `Ctrl-Shift-←` / `Ctrl-Shift-→`: one column means no frame boundary left to
+move, so the chord goes to the one rule still on screen. Side by side, the same
+chords keep resizing the editor column, and the tree's own keys above move the
+tree.
+
+That boundary is the one rule on screen the program draws rather than the frame,
+so the client subscribes to it: Neovim reports the column it sits in, and the
+pointer turns into a resize cursor over it and the rule takes the accent colour
+the other dividers take on hover — and both are held for the whole gesture while
+it is dragged, exactly as the frame's own dividers hold theirs, even though the
+rule moves out from under the pointer. Dragging it is Neovim's own: the pointer
+reports go to the program, which moves the boundary and remembers the width.
+
+The chord is answered by the client and written into the editor's pty, never read
+from the terminal, so nothing can take it first: `Control-←/→` belongs to macOS
+for switching spaces, and what a terminal sends for `Option-←/→` differs per
+setting — one of them arrives as a bare Escape, which closes the tree instead of
+moving it. The width the tree is left at is remembered, and it never takes more
+than the buffer needs: it stops at 40 columns on the narrow side. Neovim receives
+the pointer in this column, so clicking, double-clicking a file and dragging out a
+selection all work there as they do in a terminal.
+
 Closing asks Neovim to leave first: it exits when everything can be written, and
 when a buffer cannot be written the client asks — `[s] 保存全部` / `[d] 放弃改动`
 / `[Esc] 取消` — instead of killing the process. As with `Ctrl-T`, the key

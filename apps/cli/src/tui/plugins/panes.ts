@@ -124,6 +124,19 @@ export interface TuiPanes {
    * conversation could trade against.
    */
   moveDivider(direction: -1 | 1): void
+  /**
+   * Hand the frame's divider key to the editor's own divider.
+   *
+   * With the conversation and the rail put away there is one column left and no
+   * frame boundary to move, so the key has nowhere to land. The only boundary on
+   * screen is then the editor's own — Neovim's file tree — and its generated
+   * config binds that to Ctrl-Left / Ctrl-Right. Kept here rather than in the
+   * client's keymap because only this plugin knows which column is painted and
+   * whether the program in it has a boundary of its own.
+   * @param direction - `-1` moves the boundary left, `1` moves it right.
+   * @returns whether the key was handed over; false leaves it to the frame.
+   */
+  handOffDivider(direction: -1 | 1): boolean
   /** The component focus returns to when a column lets go. */
   setComposer(composer: Component): void
 }
@@ -168,6 +181,10 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   let composer: Component | undefined
   let conflictTimer: ReturnType<typeof setInterval> | undefined
   let dividerHovered = false
+  /** The pointer rests on the editor's own tree boundary. */
+  let treeHovered = false
+  /** The shape the terminal is currently showing. */
+  let pointerResize = false
   /**
    * Width share per column, kept across closing and resizes. Both columns start
    * at a third of the terminal: the conversation keeps two thirds of the reading
@@ -215,13 +232,53 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     dragDividerTo(width - columns(kind) - 1 + direction * DIVIDER_STEP)
   }
 
+  /**
+   * Give the divider key to the painted editor, which has a boundary of its own.
+   *
+   * The bytes are the legacy encoding of Ctrl-Left / Ctrl-Right, the pair the
+   * generated Neovim config binds to the file tree's edge: the column's program
+   * speaks the same legacy encoding a terminal would send it.
+   * @param direction - `-1` moves the boundary left, `1` moves it right.
+   * @returns whether the editor took the key.
+   */
+  const handOffDivider = (direction: -1 | 1): boolean => {
+    if (!focused || visibleKind !== 'editor') return false
+    const runtime = runtimes.get('editor')
+    if (runtime === undefined) return false
+    runtime.session.input(direction < 0 ? '\u001b[1;5D' : '\u001b[1;5C')
+    return true
+  }
+
+  /**
+   * The pointer shape the terminal shows: a resize cursor while it rests on any
+   * divider, whether the frame draws it or the program in the column does.
+   *
+   * OSC 22 is how a terminal program asks for a pointer shape (Ghostty, kitty,
+   * xterm); terminals without it simply ignore the sequence.
+   */
+  const applyPointerShape = (): void => {
+    const resize = dividerHovered || treeHovered
+    if (resize === pointerResize) return
+    pointerResize = resize
+    terminal.write(resize ? '\u001b]22;ew-resize\u001b\\' : '\u001b]22;default\u001b\\')
+    render.request()
+  }
+
   const setDividerHover = (hovered: boolean): void => {
     if (dividerHovered === hovered) return
     dividerHovered = hovered
-    // OSC 22 is how a terminal program asks for a resize pointer (Ghostty,
-    // kitty, xterm); terminals without it simply ignore the sequence.
-    terminal.write(hovered ? '\u001b]22;ew-resize\u001b\\' : '\u001b]22;default\u001b\\')
-    render.request()
+    applyPointerShape()
+  }
+
+  /** The tree's own rule, which Neovim draws and resizes but cannot shape. */
+  const treeDivider = {
+    column: () => nvim.treeEdge(),
+    hovered: () => treeHovered,
+    setHovered: (hovered: boolean) => {
+      if (treeHovered === hovered) return
+      treeHovered = hovered
+      applyPointerShape()
+    },
   }
 
   const divider = splitDivider({
@@ -277,7 +334,10 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       // When the conversation is put away the rail absorbs the leftover width,
       // so the rail's divider is the pane's right edge and this seat owns it.
       onResize: (width: number) => dragDividerTo(terminal.columns - Math.round(width) - 1),
-      onConversationPointer: () => divider.setHovered(false),
+      onConversationPointer: () => {
+        divider.setHovered(false)
+        treeDivider.setHovered(false)
+      },
     }))
   }
 
@@ -338,6 +398,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       rows,
       color: config.color,
       faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
+      // Neovim is the one column that always tracks the mouse: clicks, visual
+      // selection and the file tree's own boundary all run on these reports.
+      ...(kind === 'editor' ? { mouse: true, divider: treeDivider } : {}),
       onScroll: () => { if (visibleKind === kind) render.request() },
       onPointer: () => layout.clearDividerHover(),
     })
@@ -569,6 +632,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     setDividerHover,
     dragDividerTo,
     moveDivider,
+    handOffDivider,
     setComposer: (component: Component) => { composer = component },
   })
 }
