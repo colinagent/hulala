@@ -12,6 +12,12 @@ export type CandidateValidator = (directory: string, version: string) => Promise
 const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex')
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
 const versionId = /^[0-9A-Za-z][0-9A-Za-z.-]{0,160}$/
+/** Marker `ensureRuntimeDependencies` writes once a machine's dependency tree is complete. */
+const runtimeMarker = join('runtime', 'node_modules', '.hulala-runtime.json')
+/** Whether one package directory carries an installed dependency tree. */
+async function carriesRuntime(directory: string): Promise<boolean> {
+  return await stat(join(directory, runtimeMarker)).then(entry => entry.isFile(), () => false)
+}
 async function readJson(path: string): Promise<any> { return JSON.parse(await readFile(path, 'utf8')) }
 async function atomic(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
@@ -202,7 +208,7 @@ export class Installation {
   async checkData(version: InstalledVersion): Promise<void> {
     if (version.dataFormat < await this.dataFormat()) throw new Error('This version cannot read the current user data format. Restore a compatible backup before rolling back.')
   }
-  async stage(source: string, validate: CandidateValidator): Promise<InstalledVersion> {
+  async stage(source: string, validate: CandidateValidator, force = false): Promise<InstalledVersion> {
     const nesting = relative(resolve(source), this.root)
     if (!nesting || (!nesting.startsWith('..' + sep) && nesting !== '..' && !isAbsolute(nesting))) throw new Error('Install outside the extracted package directory')
     const manifest = await verifyPackage(source)
@@ -211,14 +217,29 @@ export class Installation {
     const version: InstalledVersion = { id: manifest.version + '-' + sha.slice(0, 24), version: manifest.version, manifestSha256: sha, dataFormat: manifest.dataFormat! }
     await this.checkData(version)
     const destination = installedDirectory(this.root, version)
-    try { await verifyInstalled(this.root, version); return version }
+    let installed = false
+    try { await verifyInstalled(this.root, version); installed = true }
     catch (error) { if (!missing(error)) throw error }
+    // A tree that verifies can still be unusable: a client from before the
+    // dependency lock copied the files without the runtime tree its Host needs,
+    // and the package manifest cannot describe a per-machine tree. When this
+    // candidate carries dependencies and the installed copy has none, the copy
+    // is repaired instead of returned. `--force` replaces a complete one too.
+    if (installed && !force && (!await carriesRuntime(source) || await carriesRuntime(destination))) return version
     await mkdir(join(this.root, 'versions'), { recursive: true, mode: 0o700 })
     const staging = await mkdtemp(join(this.root, 'versions/.staging-'))
+    let replaced: string | undefined
     try {
       await cp(source, staging, { recursive: true, dereference: false })
       await verifyPackage(staging)
       await validate(staging, manifest.version)
+      // Two renames rather than delete-then-copy: the version directory is
+      // missing only between them, so a client starting mid-update still finds a
+      // tree at the path its `active.json` names.
+      if (installed) {
+        replaced = destination + '.replaced-' + randomUUID()
+        await rename(destination, replaced).catch(error => { if (!missing(error)) throw error })
+      }
       const deadline = Date.now() + 5000
       for (;;) {
         try { await rename(staging, destination); break }
@@ -235,7 +256,10 @@ export class Installation {
         }
       }
       return version
-    } finally { await rm(staging, { recursive: true, force: true }) }
+    } finally {
+      await rm(staging, { recursive: true, force: true })
+      if (replaced !== undefined) await rm(replaced, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => undefined)
+    }
   }
   async activate(version: InstalledVersion): Promise<ActiveInstallation> {
     await verifyInstalled(this.root, version); await this.checkData(version)

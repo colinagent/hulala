@@ -355,7 +355,7 @@ export async function runDistributionCommand(command: string, args: string[]): P
       const newest = pinned ?? cached[0]
       const chosen = newest !== undefined && (indexed === undefined || compareVersions(newest.version, indexed.release.version) >= 0) ? newest : undefined
       if (chosen !== undefined) {
-        if (command === 'update' && !input.version && compareVersions(chosen.version, VERSION) <= 0) { console.log(`Hulala ${VERSION} is already up to date.`); return 0 }
+        if (command === 'update' && !input.version && !input.force && compareVersions(chosen.version, VERSION) <= 0) { console.log(`Hulala ${VERSION} is already up to date.`); return 0 }
         console.log(`Using the downloaded release ${chosen.version}.`)
         source = chosen.archive
         input.sha256 = chosen.sha256
@@ -363,7 +363,7 @@ export async function runDistributionCommand(command: string, args: string[]): P
         expectedManifest = chosen.manifestSha256
         expectedDataFormat = chosen.dataFormat
       } else if (indexed !== undefined) {
-        if (command === 'update' && !input.version && compareVersions(indexed.release.version, VERSION) <= 0) { console.log(`Hulala ${VERSION} is already up to date.`); return 0 }
+        if (command === 'update' && !input.version && !input.force && compareVersions(indexed.release.version, VERSION) <= 0) { console.log(`Hulala ${VERSION} is already up to date.`); return 0 }
         source = indexed.asset.url; input.sha256 = indexed.asset.sha256; expectedManifest = indexed.asset.manifestSha256; expectedVersion = indexed.release.version; expectedDataFormat = indexed.release.dataFormat
         assets = indexed.asset.runtime
       } else {
@@ -409,7 +409,7 @@ export async function runDistributionCommand(command: string, args: string[]): P
       console.log('Installing program files and validating this platform...')
       const heartbeat = setInterval(() => console.log('Installation is still running: copying and validating program files...'), 5000)
       let candidate
-      try { candidate = await install.stage(source, validateNativeCandidate) } finally { clearInterval(heartbeat) }
+      try { candidate = await install.stage(source, validateNativeCandidate, input.force) } finally { clearInterval(heartbeat) }
       console.log('Activating Hulala and registering the command...')
       const active = await install.activate(candidate)
       // Another terminal may still be running the version that started this

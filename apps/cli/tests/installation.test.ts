@@ -108,3 +108,36 @@ test('pruning keeps the active version, the previous one and a version still run
     expect((await readdir(join(root, 'install/versions'))).sort()).toEqual([running.id, versions[2]!.id].sort())
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+test('staging repairs a version installed without its runtime tree, and --force replaces a complete one', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'hulala install runtime '))
+  try {
+    const location = join(root, 'install')
+    const install = new Installation(location, join(root, 'state'))
+    const source = await fixture(root, '1.0.0')
+    // The candidate the updater stages has already had its dependency tree
+    // installed. `packageFiles` skips that tree, so the manifest digest — and the
+    // version id — do not change because of it.
+    await mkdir(join(source, 'runtime/node_modules'), { recursive: true })
+    await writeFile(join(source, 'runtime/node_modules/.hulala-runtime.json'), '{"source":"npm"}')
+    const first = await install.stage(source, async () => {})
+    const installed = installedDirectory(location, first)
+
+    // A client from before the dependency lock leaves exactly this: files that
+    // verify, and no tree the Host could boot.
+    await rm(join(installed, 'runtime/node_modules'), { recursive: true, force: true })
+    expect((await install.stage(source, async () => {})).id).toBe(first.id)
+    expect(JSON.parse(await readFile(join(installed, 'runtime/node_modules/.hulala-runtime.json'), 'utf8'))).toEqual({ source: 'npm' })
+
+    // A complete tree is not copied again: a second update is a read, not 300 MB
+    // of disk work.
+    await writeFile(join(installed, 'runtime/node_modules/installed-marker.txt'), 'kept')
+    await install.stage(source, async () => {})
+    expect(await readFile(join(installed, 'runtime/node_modules/installed-marker.txt'), 'utf8')).toBe('kept')
+
+    // `--force` is the documented "reinstall even when already current".
+    await install.stage(source, async () => {}, true)
+    await expect(readFile(join(installed, 'runtime/node_modules/installed-marker.txt'), 'utf8')).rejects.toThrow()
+    expect((await readdir(join(location, 'versions'))).filter(name => name.includes('.replaced-'))).toEqual([])
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
