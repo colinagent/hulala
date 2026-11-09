@@ -18,6 +18,7 @@ import { matchesKey } from '@earendil-works/pi-tui'
 import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** What the user decided about the editor's unwritten buffers. */
 export type ConfirmChoice = 'save' | 'discard' | 'cancel'
@@ -30,6 +31,8 @@ export interface ConfirmOverlayOptions {
 }
 
 export class ConfirmOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ConfirmOverlayOptions
 
   constructor(options: ConfirmOverlayOptions) {

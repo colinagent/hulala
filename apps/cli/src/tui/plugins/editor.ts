@@ -14,8 +14,8 @@
  *
  * @module hulala-cli/tui/plugins/editor
  */
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, rmSync, watch, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   editorEnvironment,
@@ -64,6 +64,18 @@ export interface TuiEditor {
   setTheme(theme: EditorTheme): void
   /** Neovim's mode from its last `ModeChanged`, or undefined before one. */
   mode(): string | undefined
+  /**
+   * Hear every mode Neovim reports while the caller is interested.
+   *
+   * The mode lands in `HULALA_NVIM_MODE_FILE` because the editor runs in a pty:
+   * the client only learns that insert mode started by watching that file. The
+   * caller subscribes while the column holds the keyboard and unsubscribes when
+   * it lets go, so a hidden editor costs nothing.
+   * @param listener - called with the mode just written, or undefined when the
+   *   marker was cleared or removed.
+   * @returns a function that stops watching.
+   */
+  watchMode(listener: (mode: string | undefined) => void): () => void
   /**
    * Where the editor's own file tree draws its boundary, in pane columns.
    *
@@ -148,6 +160,29 @@ export function apply(ctx: Context): void {
     },
     resetMode: () => {
       rmSync(modeFile, { force: true })
+    },
+    watchMode: (listener: (mode: string | undefined) => void) => {
+      const name = basename(modeFile)
+      /** Neovim rewrites the file on every mode change; only changes matter here. */
+      let reported: string | undefined
+      let seen = false
+      const watcher = watch(cache, (_event, changed) => {
+        if (changed !== name) return
+        let mode: string | undefined
+        try {
+          const text = readFileSync(modeFile, 'utf8').trim()
+          mode = text === '' ? undefined : text
+        } catch {
+          mode = undefined
+        }
+        // The directory watcher can fire twice for one write, and Neovim may
+        // rewrite the same mode; neither is a mode change.
+        if (seen && mode === reported) return
+        seen = true
+        reported = mode
+        listener(mode)
+      })
+      return () => { watcher.close() }
     },
     treeEdge: () => {
       try {

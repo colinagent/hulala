@@ -27,6 +27,7 @@ import { t } from '../i18n/index.js'
 import { listMove } from '../keys.js'
 import { fitPath, padEnd } from './pathText.js'
 import { buildStyles } from './theme.js'
+import type { ImePolicy } from '../pane/focus.js'
 
 /**
  * Hard limit on the current directory's first page.
@@ -240,6 +241,8 @@ export interface SessionRailOptions {
 }
 
 export class SessionRail implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   /** Set by pi-tui when the rail owns the keyboard; only then is a row accented. */
   focused = false
   private readonly options: SessionRailOptions

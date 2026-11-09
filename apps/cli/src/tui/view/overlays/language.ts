@@ -15,6 +15,7 @@ import { languageProblemText, t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 export interface LanguageOverlayOptions {
   readonly color: boolean
@@ -32,6 +33,8 @@ export interface LanguageOverlayOptions {
 const OPTIONS: readonly LanguageCode[] = ['en', 'zh-CN']
 
 export class LanguageOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: LanguageOverlayOptions
   private cursor: number
 

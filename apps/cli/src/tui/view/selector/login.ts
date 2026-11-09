@@ -29,6 +29,7 @@ import { t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 export type ProviderPickerResult = { kind: 'select'; provider: TerminalProvider } | { kind: 'cancel' }
 
@@ -56,6 +57,8 @@ function statusOf(provider: TerminalProvider, styles: ReturnType<typeof buildSty
 }
 
 export class ProviderSelector extends Container implements Focusable {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ProviderSelectorOptions
   private readonly styles: ReturnType<typeof buildStyles>
   private readonly search: Input
@@ -186,6 +189,8 @@ export interface ApiKeyPanelOptions {
  * (history, completion, rendering the text) would expose it.
  */
 export class ApiKeyPanel extends Container implements Focusable {
+  /** A secret is ASCII: the client switches to English so composition cannot eat it. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ApiKeyPanelOptions
   private readonly styles: ReturnType<typeof buildStyles>
   private readonly field: Component

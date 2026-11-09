@@ -220,6 +220,9 @@ export const en: MessageTable = {
   'rail.years': ({ n }) => `${n}y`,
   'rail.tooNarrow': 'the Session rail needs a wider terminal; close the editor column first',
 
+  'ime.noEnglishSource':
+    'no English keyboard layout is enabled, so the editor and the panels keep your input source; add ABC in System Settings → Keyboard → Input Sources',
+
   'transcript.summary': 'Summary',
   'tool.in': 'IN',
   'tool.out': 'OUT',

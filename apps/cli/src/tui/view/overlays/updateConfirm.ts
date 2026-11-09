@@ -18,6 +18,7 @@ import { matchesKey } from '@earendil-works/pi-tui'
 import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** What the update dialog needs to know about this window. */
 export interface UpdateConfirmFacts {
@@ -39,6 +40,8 @@ export interface UpdateConfirmOverlayOptions {
 }
 
 export class UpdateConfirmOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   constructor(private readonly options: UpdateConfirmOverlayOptions) {}
 
   invalidate(): void {}

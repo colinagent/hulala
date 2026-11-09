@@ -73,7 +73,7 @@ export interface OverlaysPluginConfig {
 
 /** Provide the overlay surface. */
 export function apply(ctx: Context, config: OverlaysPluginConfig): void {
-  const { screen } = ctx.hulalaTerminal
+  const { screen, announce, refreshIme } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   let open = 0
   /** Dialogs the editor column owns; settled when that column disappears. */
@@ -105,11 +105,20 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
         release()
         editorModals.delete(cancelWith)
         handle?.hide()
+        // The keyboard is back on whatever the overlay covered: say what that
+        // surface reads, so a dialog over the composer gives English back.
+        refreshIme()
         resolve(value)
       }
       const cancelWith = (): void => { if (cancel !== undefined) finish(cancel.value) }
       if (cancel !== undefined) editorModals.add(cancelWith)
-      handle = screen.showOverlay(build(finish), options)
+      const overlay = build(finish)
+      handle = screen.showOverlay(overlay, options)
+      // An overlay is pushed onto the screen's stack rather than focused through
+      // the terminal, so it reports itself here: a confirmation is a command
+      // surface, a question with a free-text answer is not. A non-capturing
+      // overlay never took the keyboard, so it has nothing to report.
+      if (screen.getFocusedComponent() === overlay) announce(overlay)
     })
   }
 

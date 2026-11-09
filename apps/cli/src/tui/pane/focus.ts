@@ -62,3 +62,43 @@ export function paneForSwitch(focus: SidebarFocus, has: (kind: PaneKind) => bool
   if (focus.last !== undefined && has(focus.last)) return focus.last
   return PANE_KINDS.find(kind => has(kind))
 }
+
+/**
+ * What a surface that holds the keyboard does with the keystrokes.
+ *
+ * `command` means the keys are an instruction — a vim motion, a shortcut, a list
+ * row, a yes/no — so a Chinese input method must not be allowed to turn them
+ * into a composition. `text` means the keys are the user's own writing, so the
+ * input source is theirs and the client leaves it alone.
+ */
+export type ImePolicy = 'text' | 'command'
+
+/**
+ * The policy a component declares, defaulting to `text`.
+ *
+ * Components carry this as a plain field rather than through a constructor, so a
+ * surface whose keys change meaning over time — Neovim, which reads text in
+ * insert mode and commands everywhere else — can flip it while it owns the
+ * keyboard and ask the terminal to re-read it.
+ * @param component - the component that now holds the keyboard.
+ * @returns the declared policy, or `text` when nothing is declared.
+ */
+export function imePolicyOf(component: object): ImePolicy {
+  const declared = (component as { imePolicy?: unknown }).imePolicy
+  return declared === 'command' ? 'command' : 'text'
+}
+
+/**
+ * Whether a Neovim mode is one where the user is writing text.
+ *
+ * `ModeChanged` reports compound names (`ic`, `Rc`, `ix`), so the prefix is what
+ * matters: insert and replace take text, select mode replaces it. Everything
+ * else — normal, visual, command-line, terminal — is a command surface. A mode
+ * that has not been reported yet is Neovim's startup state, normal mode.
+ * @param mode - Neovim's current mode, as it reports it.
+ * @returns true when the mode takes the user's own input source.
+ */
+export function modeReadsText(mode: string | undefined): boolean {
+  if (mode === undefined) return false
+  return mode.startsWith('i') || mode.startsWith('R') || mode === 's' || mode === 'S'
+}

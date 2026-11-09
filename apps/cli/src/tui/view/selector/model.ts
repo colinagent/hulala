@@ -28,6 +28,7 @@ import { t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** One model selection accepted by the Host. */
 export interface ModelSelection {
@@ -71,6 +72,8 @@ function selectionOf(model: TerminalModel): string {
 }
 
 export class ModelSelector extends Container implements Focusable {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ModelSelectorOptions
   private readonly styles: ReturnType<typeof buildStyles>
   private readonly search: Input

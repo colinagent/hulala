@@ -31,6 +31,7 @@ import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { padEnd } from '../pathText.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** What `/thinking` ended with. */
 export type ThinkingPickerResult =
@@ -56,6 +57,8 @@ export interface ThinkingSelectorOptions {
 const CHROME_ROWS = 8
 
 export class ThinkingSelector extends Container implements Focusable {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ThinkingSelectorOptions
   private readonly styles: ReturnType<typeof buildStyles>
   private readonly list = new Container()

@@ -18,12 +18,14 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import {
+  type Component,
   KeybindingsManager,
   setKeybindings,
   TUI_KEYBINDINGS,
   TuiAltScreen,
 } from '@earendil-works/pi-tui'
 import { composerBindings } from '../keys.js'
+import { imePolicyOf, type ImePolicy } from '../pane/focus.js'
 import { StreamTerminal, type TerminalStreams } from '../terminal.js'
 
 declare module '@deepseek-ai/cordis' {
@@ -48,6 +50,43 @@ export interface TuiTerminal {
    * @param viewport - true when the transcript should own the paging keys.
    */
   setPaging(viewport: boolean): void
+  /**
+   * Move the keyboard and report what the new surface reads keys as.
+   *
+   * This is the only way focus moves: the input source is a consequence of the
+   * surface, and a surface states its own semantics with an `imePolicy` field
+   * (`../pane/focus.ts`). A surface that omits the field reads text, so the
+   * client leaves the user's source alone until something declares otherwise.
+   * @param component - the component taking the keyboard.
+   */
+  focus(component: Component): void
+  /**
+   * Report what a component reads keys as when it takes the keyboard outside
+   * {@link TuiTerminal.focus}.
+   *
+   * A pi-tui overlay (an approval, a question, a conflict dialog) is pushed onto
+   * the screen's own stack, not moved through focus, so it has to say what it is
+   * the same way: once with itself while it is up, and once through
+   * {@link TuiTerminal.refreshIme} when it closes.
+   * @param component - the surface that just took the keyboard.
+   */
+  announce(component: Component): void
+  /**
+   * Re-read the policy of the component that already holds the keyboard.
+   *
+   * For a surface whose keys change meaning while it stays focused — Neovim in
+   * insert mode — which updates its own `imePolicy` field and then asks for the
+   * new answer.
+   */
+  refreshIme(): void
+  /**
+   * Hear every change of what the focused surface reads keys as.
+   *
+   * The listener runs only when the policy actually changes, so a window that
+   * moves between two command surfaces never reports anything.
+   * @param observer - what to call with the new policy.
+   */
+  observeIme(observer: (policy: ImePolicy) => void): void
   /**
    * Decide whether the open completion menu owns `PageUp`/`PageDown`.
    *
@@ -104,7 +143,50 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     applyPaging()
   }
 
-  ctx.provide('hulalaTerminal', { terminal, screen, keybindings, stop, setPaging, setMenuPaging })
+  // What the surface that holds the keyboard reads the keys as. The client's
+  // input source follows this and nothing else (`editor/inputSource.ts`).
+  let imePolicy: ImePolicy = 'text'
+  const imeObservers: ((policy: ImePolicy) => void)[] = []
+
+  const publish = (next: ImePolicy): void => {
+    if (next === imePolicy) return
+    imePolicy = next
+    for (const observer of imeObservers) observer(next)
+  }
+
+  const announcePolicy = (component: Component): void => {
+    publish(imePolicyOf(component))
+  }
+
+  const refreshIme = (): void => {
+    // Read the component that actually holds the keyboard rather than the one
+    // just asked for: pi-tui may retarget focus around an overlay.
+    const component = screen.getFocusedComponent()
+    if (component === null) return
+    announcePolicy(component)
+  }
+
+  const focus = (component: Component): void => {
+    screen.setFocus(component)
+    refreshIme()
+  }
+
+  const observeIme = (observer: (policy: ImePolicy) => void): void => {
+    imeObservers.push(observer)
+  }
+
+  ctx.provide('hulalaTerminal', {
+    terminal,
+    screen,
+    keybindings,
+    stop,
+    setPaging,
+    setMenuPaging,
+    focus,
+    announce: announcePolicy,
+    refreshIme,
+    observeIme,
+  })
 }
 
 /** Cordis object-form plugin. */

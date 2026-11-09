@@ -83,7 +83,7 @@ function isEscapeInput(data: string): boolean {
 
 /** Install the pipeline. */
 export function apply(ctx: Context, config: InputPluginConfig): void {
-  const { screen } = ctx.hulalaTerminal
+  const { screen, focus: focusOn } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   const overlays = ctx.hulalaOverlays
   const rails = ctx.hulalaRail
@@ -146,7 +146,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     // held the keyboard.
     if (panes.focused) panes.blur()
     else if (rails.focused) rails.blur()
-    else screen.setFocus(editor)
+    else focusOn(editor)
     render.repaint()
   }
 

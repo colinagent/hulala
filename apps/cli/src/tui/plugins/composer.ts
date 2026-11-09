@@ -54,7 +54,7 @@ export interface ComposerPluginConfig {
 
 /** Build the composer and claim `dock.input`. */
 export function apply(ctx: Context, config: ComposerPluginConfig): void {
-  const { screen, setPaging, setMenuPaging } = ctx.hulalaTerminal
+  const { screen, focus: focusOn, setPaging, setMenuPaging } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   const layout = ctx.hulalaLayout
   const nvim = ctx.hulalaEditor
@@ -84,7 +84,7 @@ export function apply(ctx: Context, config: ComposerPluginConfig): void {
         release()
         slot.restore()
         setPaging(true)
-        screen.setFocus(editor)
+        focusOn(editor)
         render.request(true)
         resolve(value)
       }
@@ -94,7 +94,7 @@ export function apply(ctx: Context, config: ComposerPluginConfig): void {
       // The selector pages its own list, so the transcript must not claim
       // PageUp/PageDown while it is up.
       setPaging(false)
-      screen.setFocus(built)
+      focusOn(built)
       render.request(true)
     })
   }

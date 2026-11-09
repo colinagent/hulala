@@ -221,6 +221,9 @@ export const zhCN: MessageTable = {
   'rail.years': ({ n }) => `${n}年`,
   'rail.tooNarrow': '会话栏需要更宽的终端；请先关闭编辑器列',
 
+  'ime.noEnglishSource':
+    '没有启用任何英文键盘布局，编辑器与面板会保留你的输入源；请到「系统设置 → 键盘 → 输入法」里加入 ABC',
+
   'transcript.summary': '摘要',
   'tool.in': '输入',
   'tool.out': '输出',

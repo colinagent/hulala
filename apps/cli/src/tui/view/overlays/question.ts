@@ -22,6 +22,7 @@ import { t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 export interface QuestionAnswer {
   selected: string[]
@@ -71,6 +72,8 @@ function tailToWidth(text: string, width: number): string {
 }
 
 export class QuestionOverlay implements Component {
+  /** Keys here are the user's own writing, answers included: their source stays. */
+  imePolicy: ImePolicy = 'text'
   private readonly options: QuestionOverlayOptions
   private cursor = 0
   private readonly toggled = new Set<number>()

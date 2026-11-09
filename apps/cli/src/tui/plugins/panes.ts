@@ -23,7 +23,7 @@ import type { Component } from '@earendil-works/pi-tui'
 import type { PtyModule } from '../editor/pty.js'
 import { loadNodePty } from '../editor/pty.js'
 import { startNvimSession } from '../editor/nvimSession.js'
-import { paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
+import { modeReadsText, paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
 import { startShellSession } from '../pane/shellSession.js'
 import type { ScreenSession } from '../pane/screenSession.js'
 import { faintCursorSgr } from '../view/theme.js'
@@ -160,12 +160,11 @@ function isLocalDirectory(path: string): boolean {
 
 /** Provide the sidebar. */
 export function apply(ctx: Context, config: PanesPluginConfig): void {
-  const { terminal, screen, setPaging } = ctx.hulalaTerminal
+  const { terminal, focus: focusOn, refreshIme, setPaging } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   const layout = ctx.hulalaLayout
   const overlays = ctx.hulalaOverlays
   const nvim = ctx.hulalaEditor
-  const ime = ctx.hulalaIme
   const { reducer } = ctx.hulalaViewModel
 
   /** Live column processes, keyed by kind. A hidden column keeps its process. */
@@ -178,6 +177,8 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   let lastKind: PaneKind | undefined
   /** The keyboard is in the visible column. */
   let focused = false
+  /** Stops hearing Neovim's mode; set only while the editor column has the keys. */
+  let stopModeWatch: (() => void) | undefined
   let composer: Component | undefined
   let conflictTimer: ReturnType<typeof setInterval> | undefined
   let dividerHovered = false
@@ -298,13 +299,17 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     config.debug(`blurPane focused=${String(focused)} visible=${String(visibleKind)} overlays=${overlays.open}`)
     if (!focused) return
     focused = false
+    // Nobody is asking what Neovim's mode means any more, and a hidden column
+    // must not move the input source under whoever does hold the keyboard.
+    stopModeWatch?.()
+    stopModeWatch = undefined
     setPaging(true)
     setDividerHover(false)
     // Leaving the column returns to the conversation, bringing it back if it was
     // put away with `Shift-Cmd-C`: the composer has to be on screen to take the
     // keyboard. The sidebar itself stays open.
     if (!layout.conversationShown) layout.setConversationVisible(true)
-    if (composer !== undefined) screen.setFocus(composer)
+    if (composer !== undefined) focusOn(composer)
     render.request()
   }
 
@@ -319,7 +324,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     // `blur()` brings a hidden conversation back when the sidebar had the
     // keyboard. Without focus, the rail keeps the keyboard it had; a frame with
     // no side column left restores the conversation in the layout itself.
-    if (hadFocus) screen.setFocus(composer!)
+    if (hadFocus) focusOn(composer!)
     render.request()
   }
 
@@ -474,6 +479,28 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     return true
   }
 
+  /**
+   * Let Neovim decide whether this column reads text or commands.
+   *
+   * Insert mode is the user writing, so it takes their own input source; normal,
+   * visual, command-line and terminal modes are instructions. The mode arrives
+   * through `HULALA_NVIM_MODE_FILE`, so this is a watch, not a question — and it
+   * only runs while the column holds the keyboard.
+   * @param runtime - the column that just took the keyboard.
+   */
+  const followEditorMode = (runtime: PaneRuntime): void => {
+    stopModeWatch?.()
+    stopModeWatch = undefined
+    if (runtime.kind !== 'editor') return
+    // The mode may already be insert: reading it before focus makes the first
+    // switch right instead of corrected a frame later.
+    runtime.view.imePolicy = modeReadsText(nvim.mode()) ? 'text' : 'command'
+    stopModeWatch = nvim.watchMode(mode => {
+      runtime.view.imePolicy = modeReadsText(mode) ? 'text' : 'command'
+      refreshIme()
+    })
+  }
+
   const focus = (kind: PaneKind, cwd: string): void => {
     config.debug(`focusPane kind=${kind} overlay=${overlays.open}`)
     if (!open(kind, cwd)) return
@@ -483,15 +510,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     lastKind = kind
     focused = true
     setPaging(false)
-    // A column is a program reading raw keys, so it types in English: Neovim a
-    // normal-mode command, the shell a command line. Nothing ever switches the
-    // source back, so the composer keeps English until the user changes it.
-    ime.ensure()
     // Register before showing so the pane seat already holds this column when
     // the frame is rebuilt; registering alone does not paint a hidden sidebar.
     registerSeat(kind, runtime)
     layout.setPane(SIDEBAR_ID)
-    screen.setFocus(runtime.view)
+    followEditorMode(runtime)
+    focusOn(runtime.view)
     render.repaint()
   }
 
@@ -640,6 +664,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 /** Cordis object-form plugin. */
 export const panesPlugin = {
   name: 'hulala-panes',
-  inject: ['hulalaTerminal', 'hulalaRender', 'hulalaLayout', 'hulalaOverlays', 'hulalaEditor', 'hulalaViewModel', 'hulalaIme'],
+  inject: ['hulalaTerminal', 'hulalaRender', 'hulalaLayout', 'hulalaOverlays', 'hulalaEditor', 'hulalaViewModel'],
   apply,
 }

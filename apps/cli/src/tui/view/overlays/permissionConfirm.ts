@@ -13,6 +13,7 @@ import { matchesKey } from '@earendil-works/pi-tui'
 import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 export interface PermissionConfirmOptions {
   readonly color: boolean
@@ -20,6 +21,8 @@ export interface PermissionConfirmOptions {
 }
 
 export class PermissionConfirmOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: PermissionConfirmOptions
 
   constructor(options: PermissionConfirmOptions) {

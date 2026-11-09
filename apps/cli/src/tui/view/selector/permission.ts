@@ -29,6 +29,7 @@ import { AUTO_REVIEW_PRESET, permissionLabel } from '../permission.js'
 import { padEnd } from '../pathText.js'
 import { buildStyles } from '../theme.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** What `/permission` ended with. */
 export type PermissionPickerResult =
@@ -53,6 +54,8 @@ export interface PermissionSelectorOptions {
 const CHROME_ROWS = 9
 
 export class PermissionSelector extends Container implements Focusable {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: PermissionSelectorOptions
   private readonly styles: ReturnType<typeof buildStyles>
   private readonly list = new Container()

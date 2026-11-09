@@ -21,6 +21,7 @@ import { t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** Rows the palette shows before it scrolls. */
 const MAX_ROWS = 14
@@ -45,6 +46,8 @@ type Row =
   | { readonly kind: 'item'; readonly entry: CatalogEntry; readonly index: number }
 
 export class CommandPaletteOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: CommandPaletteOptions
   private query = ''
   private cursor = 0

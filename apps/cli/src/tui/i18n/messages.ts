@@ -229,6 +229,8 @@ export interface MessageTable {
   'rail.years': (params: { n: number }) => string
   'rail.tooNarrow': string
 
+  'ime.noEnglishSource': string
+
   'transcript.summary': string
   'tool.in': string
   'tool.out': string

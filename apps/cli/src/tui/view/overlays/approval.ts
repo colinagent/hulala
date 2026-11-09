@@ -13,6 +13,7 @@ import type { TerminalApprovalOutcome } from '../../data/remote.js'
 import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 export interface ApprovalOverlayOptions {
   toolName: string
@@ -22,6 +23,8 @@ export interface ApprovalOverlayOptions {
 }
 
 export class ApprovalOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ApprovalOverlayOptions
 
   constructor(options: ApprovalOverlayOptions) {

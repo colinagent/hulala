@@ -26,6 +26,7 @@ import { sgrMouse } from './sgrMouse.js'
 import { legacyKeys } from '../pane/legacyKeys.js'
 import { buildStyles } from './theme.js'
 import { padEnd } from './pathText.js'
+import type { ImePolicy } from '../pane/focus.js'
 
 /** History paging, present only on sessions started with scrollback. */
 export interface PaneScroll {
@@ -96,6 +97,12 @@ export interface PaneDivider {
 }
 
 export class ScreenPane implements Component, Focusable {
+  /**
+   * Keys here are an instruction, not writing: a column is a program reading raw
+   * keys, so the client switches to English. The editor flips this while Neovim
+   * is in insert mode and asks the terminal to re-read it.
+   */
+  imePolicy: ImePolicy = 'command'
   focused = false
   /**
    * A press started on the program's divider and has not been released.

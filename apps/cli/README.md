@@ -419,12 +419,17 @@ installation or the user's own config:
 Publication happens on the first open after an upgrade, keyed to the package
 digest, so rollback and pruning of old versions never break the editor. A
 package without a bundled Neovim falls back to `nvim` on `PATH`, which is what
-keeps `bun run dev` working. On macOS every panel switches the input source to
-`com.apple.keylayout.ABC` while it owns the keyboard: the Session rail (its
-filter box included), the editor column and the shell column all read keys as
-program input. The composer is never switched — not to English and not back — so
-whatever the user selects there by hand survives the round trip through the
-sidebar; only a panel that takes the keyboard afterwards selects English again.
+keeps `bun run dev` working. On macOS the input source follows what the focused
+surface does with the keys. A surface that reads them as commands switches to an
+English layout while it owns the keyboard: the Session rail (its filter box
+included), the editor column in normal mode, the shell column, the selectors and
+the confirmations. A surface that reads them as text keeps the user's own source:
+the composer, a question's free-text answer, and Neovim in insert mode, which the
+client learns from `ModeChanged`. Coming back to a text surface gives the source
+back, but only when the client moved it and it is still the one the client set: a
+source the user picked by hand inside a panel always wins, and a user whose own
+default is already English is never switched at all. A machine with no English
+layout enabled gets one notice instead of a silently broken switch.
 The switch runs through `$HULALA_HOME/bin/ime`. A release package ships it; a
 source checkout has no package to publish it from, so the client entry (`hulala`,
 and therefore `bun run start` and `bun run start:attach`) compiles

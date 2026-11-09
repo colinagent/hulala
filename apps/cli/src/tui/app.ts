@@ -220,7 +220,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   const backend = options.backend
   const kernel = options.kernel!
   const ctx = kernel.ctx
-  const { terminal, screen: ui } = ctx.hulalaTerminal
+  const { terminal, screen: ui, focus: focusOn } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   const overlays = ctx.hulalaOverlays
   const layout = ctx.hulalaLayout
@@ -240,7 +240,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   const commands = ctx.hulalaCommands
 
   layout.rebuild()
-  ui.setFocus(editor)
+  focusOn(editor)
 
   // The editor ships with Hulala: bundled binary, vendored plugin, its own
   // config under the state root. Only the theme comes from the terminal. The
@@ -387,7 +387,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // The first frame is the three-column layout: the rail is on by default, so
   // the initial plain build above only holds the slot until this point.
   rebuildLayout()
-  ui.setFocus(editor)
+  focusOn(editor)
 
   ui.start()
   // The language picker (when the language is unset) is a first-frame surface:

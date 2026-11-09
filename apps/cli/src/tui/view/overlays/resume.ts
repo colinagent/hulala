@@ -14,6 +14,7 @@ import { t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 export type ResumeResult = { kind: 'session'; sessionId: string } | { kind: 'new' } | { kind: 'cancel' }
 
@@ -35,6 +36,8 @@ function shortId(sessionId: string): string {
 }
 
 export class ResumeOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ResumeOverlayOptions
   private tab: 'cwd' | 'all' = 'cwd'
   private query = ''

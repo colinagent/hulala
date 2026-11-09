@@ -100,7 +100,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const session = ctx.hulalaSession
   const panes = ctx.hulalaPanes
   const keymap = ctx.hulalaKeymap
-  const { terminal, screen } = ctx.hulalaTerminal
+  const { terminal, focus: focusOn } = ctx.hulalaTerminal
   const updater = ctx.hulalaUpdate
   const rail = ctx.hulalaRail
   const layout = ctx.hulalaLayout
@@ -211,7 +211,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     if (chosen === undefined || lifecycle.closing) return
     if (chosen.requiresArgument === true) {
       editor.setText(`/${chosen.name} `)
-      screen.setFocus(editor)
+      focusOn(editor)
       render.repaint()
       return
     }
@@ -371,7 +371,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
           layout.setConversationVisible(true)
           if (panes.focused) panes.blur()
           else if (rail.focused) rail.blur()
-          else screen.setFocus(editor)
+          else focusOn(editor)
         }
         repaint()
         return

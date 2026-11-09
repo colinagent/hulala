@@ -19,6 +19,7 @@ import { catalogEntry, type CatalogEntry } from '../../commandCatalog.js'
 import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** The commands this panel lists, in reading order. */
 const COMMANDS = [
@@ -118,6 +119,8 @@ export interface HelpOverlayOptions {
 }
 
 export class HelpOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: HelpOverlayOptions
 
   constructor(options: HelpOverlayOptions) {

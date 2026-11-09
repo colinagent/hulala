@@ -74,10 +74,9 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   const render = ctx.hulalaRender
   const layout = ctx.hulalaLayout
   const session = ctx.hulalaSession
-  const { terminal, screen } = ctx.hulalaTerminal
+  const { terminal, focus: focusOn } = ctx.hulalaTerminal
   const { reducer } = ctx.hulalaViewModel
   const composer = ctx.hulalaComposer
-  const ime = ctx.hulalaIme
 
   let focused = false
   let query = ''
@@ -205,7 +204,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     // leaving the rail brings it back rather than focusing a column that is not
     // painted; the rail itself stays open.
     if (!layout.conversationShown) layout.setConversationVisible(true)
-    screen.setFocus(composer.editor)
+    focusOn(composer.editor)
     render.request()
   }
 
@@ -218,13 +217,11 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     }
     focused = true
     query = ''
-    // The rail owns the keyboard as keys, not as text — the filter box included:
-    // `j`, `n`, `r` and a title search are all typed in English, and composing
-    // Chinese there is a manual switch.
-    ime.ensure()
+    // The rail reads keys, not text (`imePolicy` on `SessionRail`), so focus is
+    // what switches the input source to English — here and only here.
     rail.startEditing(session.id)
     layout.setRailVisible(true)
-    screen.setFocus(rail)
+    focusOn(rail)
     syncTimer()
     render.request()
   }
@@ -251,7 +248,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     // Putting the rail away can leave the frame without the conversation; the
     // layout refuses to draw an empty frame, so bring it back before focusing.
     if (!layout.conversationShown) layout.setConversationVisible(true)
-    if (hadKeyboard) screen.setFocus(composer.editor)
+    if (hadKeyboard) focusOn(composer.editor)
     syncTimer()
     render.request()
   }
@@ -264,9 +261,9 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
       // The rail can be taken away by a narrow terminal as well as by `Shift-Cmd-S`.
       // Either way the keyboard cannot stay on a column that is not painted.
       if (!layout.conversationShown) layout.setConversationVisible(true)
-      screen.setFocus(composer.editor)
+      focusOn(composer.editor)
     } else if (focused) {
-      screen.setFocus(rail)
+      focusOn(rail)
     }
     syncTimer()
   })
@@ -310,6 +307,6 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
 /** Cordis object-form plugin. */
 export const railPlugin = {
   name: 'hulala-rail',
-  inject: ['hulalaRender', 'hulalaLayout', 'hulalaSession', 'hulalaTerminal', 'hulalaViewModel', 'hulalaComposer', 'hulalaIme'],
+  inject: ['hulalaRender', 'hulalaLayout', 'hulalaSession', 'hulalaTerminal', 'hulalaViewModel', 'hulalaComposer'],
   apply,
 }

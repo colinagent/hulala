@@ -317,13 +317,18 @@ shown, and neither process is closed when the other is. A hidden column keeps it
 process, so shell jobs and Neovim buffers survive. See [Keyboard](#keyboard) for
 the keys and `apps/cli/README.md` for the full contract.
 
-On macOS every panel switches the input source to English
-(`com.apple.keylayout.ABC`) while it owns the keyboard — the Session rail and its
-filter box, the editor column, the shell column — because a panel reads keys as
-program input. The composer is never switched: it keeps exactly the source the
-user left there, including a manual switch to Chinese. The helper that does the
-switching is `bin/ime`, shipped by the release package and built from
-`apps/cli/native/ime.c` on the first start of a source checkout.
+On macOS the input source follows what the focused surface does with keys. A
+surface that reads them as commands switches to English (`com.apple.keylayout.ABC`,
+or whatever English layout the machine has enabled) while it owns the keyboard — the
+Session rail and its filter box, the editor column in normal mode, the shell column,
+selectors, confirmations, the command palette. A surface that reads them as text keeps
+the user's own source — the composer, a question's free-text answer, Neovim in insert
+mode. Leaving English gives back the source the client found, and only that: it never
+restores "Chinese", so a user whose default is already English is never switched, and a
+source chosen by hand inside a panel is never overridden. A machine with no English
+layout enabled gets one notice saying so instead of a silently broken switch. The
+helper that does the switching is `bin/ime`, shipped by the release package and built
+from `apps/cli/native/ime.c` on the first start of a source checkout.
 
 ## Run from source
 

@@ -15,6 +15,7 @@ import { matchesKey } from '@earendil-works/pi-tui'
 import { t } from '../../i18n/index.js'
 import { buildStyles } from '../theme.js'
 import { panel } from './panel.js'
+import type { ImePolicy } from '../../pane/focus.js'
 
 /** What the user decided about a buffer whose file changed on disk. */
 export type ConflictChoice = 'keep' | 'reload' | 'later'
@@ -27,6 +28,8 @@ export interface ConflictOverlayOptions {
 }
 
 export class ConflictOverlay implements Component {
+  /** Keys here are an instruction, not writing: the client switches to English. */
+  imePolicy: ImePolicy = 'command'
   private readonly options: ConflictOverlayOptions
 
   constructor(options: ConflictOverlayOptions) {
