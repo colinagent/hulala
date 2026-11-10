@@ -7,7 +7,11 @@
  * turn is the `RunningRow` clock.
  *
  * Components are cached per item so streaming deltas update one `Markdown` in
- * place instead of rebuilding the transcript.
+ * place instead of rebuilding the transcript. Each of them answers a repaint with
+ * the array it returned last time while nothing it draws changed, so a frame that
+ * only scrolled the viewport gets the document it already had back: scrolling a
+ * long conversation costs the rows in the viewport, not the rows it has ever
+ * drawn.
  *
  * A step row's first line is also a mouse target: a primary click folds or
  * unfolds that one row, the way the web transcript's disclosure rows behave.
@@ -52,6 +56,21 @@ export class Transcript implements Component {
   private readonly flipped = new Set<TranscriptItem>()
   private hovered: TranscriptItem | undefined
   private ranges: Array<{ item: TranscriptItem; start: number; end: number }> = []
+  /**
+   * The last assembled document: one rendered chunk per item, in order.
+   *
+   * Every row answers a repaint with the same array it returned last time while
+   * nothing about it changed, so a frame that only scrolled the viewport can
+   * hand the renderer the document it already had. Concatenating tens of
+   * thousands of cached lines per wheel notch was the whole cost of scrolling a
+   * long conversation.
+   */
+  private assembled: {
+    width: number
+    parts: readonly string[][]
+    running: string | undefined
+    lines: string[]
+  } | undefined
   private expandAll = false
   private reasoningMode: ReasoningMode = 'summary'
   private runningStartedAt: number | undefined
@@ -93,7 +112,10 @@ export class Transcript implements Component {
     return this.reasoningMode
   }
 
-  invalidate(): void {}
+  invalidate(): void {
+    this.assembled = undefined
+    for (const item of this.items) this.components.get(item)?.invalidate()
+  }
 
   /**
    * Mirror an assistant item's current text into its cached `Markdown`.
@@ -112,21 +134,41 @@ export class Transcript implements Component {
     this.syncedText.set(item, text)
   }
 
+  /**
+   * Build the document: every item's cached chunk, then the live turn's clock.
+   *
+   * The arrays handed out here are shared with the renderer and with the rows
+   * that produced them, so a caller must treat the lines as read-only. Returning
+   * the previous document unchanged is the point: the renderer clips it to the
+   * viewport itself.
+   */
   render(width: number): string[] {
     // Home screen: nothing said yet, so the banner stands in for the transcript.
     if (this.items.length === 0 && this.runningStartedAt === undefined) return brandBannerLines(width)
+    const assembled = this.assembled
+    const parts: string[][] = []
+    let stale = assembled === undefined || assembled.width !== width || assembled.parts.length !== this.items.length
+    for (let index = 0; index < this.items.length; index += 1) {
+      const item = this.items[index]!
+      if (item.kind === 'assistant') this.syncAssistant(item)
+      const rendered = this.componentFor(item).render(width)
+      parts.push(rendered)
+      if (!stale && assembled!.parts[index] !== rendered) stale = true
+    }
+    // The running clock is compared as text: it is one line that changes every
+    // second, not a reason to rebuild the document.
+    const running = this.runningStartedAt === undefined ? undefined : this.runningRow.render(width).join('\n')
+    if (!stale && running === assembled!.running) return assembled!.lines
+
     const lines: string[] = []
     this.ranges = []
-    for (const item of this.items) {
-      if (item.kind === 'assistant') this.syncAssistant(item)
-      const component = this.componentFor(item)
-      const rendered = component.render(width)
-      this.ranges.push({ item, start: lines.length, end: lines.length + rendered.length })
+    for (let index = 0; index < parts.length; index += 1) {
+      const rendered = parts[index]!
+      this.ranges.push({ item: this.items[index]!, start: lines.length, end: lines.length + rendered.length })
       for (const line of rendered) lines.push(line)
     }
-    if (this.runningStartedAt !== undefined) {
-      for (const line of this.runningRow.render(width)) lines.push(line)
-    }
+    if (running !== undefined) for (const line of running.split('\n')) lines.push(line)
+    this.assembled = { width, parts, running, lines }
     return lines
   }
 

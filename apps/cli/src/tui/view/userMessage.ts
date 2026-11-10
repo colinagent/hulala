@@ -24,21 +24,28 @@ const RIGHT_PADDING = 1
 
 export class UserMessage implements Component {
   private readonly styles: ReturnType<typeof buildStyles>
+  /** The wrapped panel for one width; a frame in a long transcript asks again and again. */
+  private cached: { width: number; lines: string[] } | undefined
 
   constructor(private readonly text: string, color: boolean) {
     this.styles = buildStyles(color)
   }
 
+  invalidate(): void {
+    this.cached = undefined
+  }
+
   render(width: number): string[] {
+    if (this.cached !== undefined && this.cached.width === width) return this.cached.lines
     const contentWidth = Math.max(1, width - PREFIX_WIDTH - RIGHT_PADDING)
     const lines = wrapTextWithAnsi(this.text.replace(/\t/gu, '   '), contentWidth)
     // Bracket the panel with a blank row so the block reads as its own turn
     // instead of running into the assistant text above and below it.
     const blank = ' '.repeat(Math.max(0, width))
-    return [blank, ...lines.map((line, index) => this.panelLine(line, index === 0, width)), blank]
+    const rendered = [blank, ...lines.map((line, index) => this.panelLine(line, index === 0, width)), blank]
+    this.cached = { width, lines: rendered }
+    return rendered
   }
-
-  invalidate(): void {}
 
   private panelLine(text: string, first: boolean, width: number): string {
     const marker = first ? `${this.styles.userArrow('❯')} ` : '  '

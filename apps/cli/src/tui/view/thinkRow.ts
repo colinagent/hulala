@@ -13,7 +13,7 @@
  */
 import { Markdown, truncateToWidth, visibleWidth, type Component, type MarkdownTheme } from '@earendil-works/pi-tui'
 import type { TranscriptItem } from '../data/viewModel.js'
-import { t } from '../i18n/index.js'
+import { activeLanguage, t } from '../i18n/index.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -24,6 +24,9 @@ export type ReasoningMode = 'summary' | 'full' | 'hidden'
 const ICON = '✳'
 /** Indent of the expanded body. */
 const PADDING = 2
+
+/** A row that draws nothing, shared so an empty render keeps its identity. */
+const NO_LINES: string[] = []
 
 type ReasoningItem = Extract<TranscriptItem, { kind: 'reasoning' }>
 
@@ -64,6 +67,23 @@ export function latestParagraphLine(text: string): string {
 
 export class ThinkRow implements Component {
   private markdown: { text: string; component: Markdown } | undefined
+  /**
+   * The whole row, for one width and one mode.
+   *
+   * A frame that only scrolled must not re-derive the summary line: a long
+   * conversation is a long list of rows asked again and again, and answering
+   * "nothing changed" is the difference between a scroll and a redraw. The
+   * language is part of the answer because the label comes from `t()`.
+   */
+  private cachedRender: {
+    width: number
+    mode: ReasoningMode
+    text: string
+    streaming: boolean
+    gutter: string
+    language: string
+    lines: string[]
+  } | undefined
 
   constructor(
     private readonly item: ReasoningItem,
@@ -75,23 +95,41 @@ export class ThinkRow implements Component {
 
   invalidate(): void {
     this.markdown = undefined
+    this.cachedRender = undefined
   }
 
   render(width: number): string[] {
     const mode = this.mode()
-    if (mode === 'hidden') return []
+    if (mode === 'hidden') return NO_LINES
     const text = reasoningText(this.item.text)
-    if (text.trim() === '') return []
+    if (text.trim() === '') return NO_LINES
 
+    const gutter = this.gutter()
+    const language = activeLanguage()
+    const cached = this.cachedRender
+    if (
+      cached !== undefined
+      && cached.width === width
+      && cached.mode === mode
+      && cached.text === text
+      && cached.streaming === this.item.streaming
+      && cached.gutter === gutter
+      && cached.language === language
+    ) return cached.lines
+
+    const head = this.head(width, text, gutter)
+    const lines = mode === 'summary' ? [head] : [head, ...this.body(text, width)]
+    this.cachedRender = { width, mode, text, streaming: this.item.streaming, gutter, language, lines }
+    return lines
+  }
+
+  /** The summary row: glyph, label, and as much of the last paragraph as fits. */
+  private head(width: number, text: string, gutter: string): string {
     const s = buildStyles(this.color)
     const summary = this.item.streaming ? latestParagraphLine(text) : firstLine(text)
-    const gutter = this.gutter()
-    const head = `${this.item.streaming ? s.accent(iconBox(ICON)) : s.dim(iconBox(ICON))} ${t('think.label')}`
-    const room = Math.max(1, width - visibleWidth(gutter) - visibleWidth(head) - 3)
-    const line = `${gutter}${summary === '' ? head : `${head} · ${s.dim(truncateToWidth(summary.replaceAll('**', ''), room, '…'))}`}`
-
-    if (mode === 'summary') return [line]
-    return [line, ...this.body(text, width)]
+    const label = `${this.item.streaming ? s.accent(iconBox(ICON)) : s.dim(iconBox(ICON))} ${t('think.label')}`
+    const room = Math.max(1, width - visibleWidth(gutter) - visibleWidth(label) - 3)
+    return `${gutter}${summary === '' ? label : `${label} · ${s.dim(truncateToWidth(summary.replaceAll('**', ''), room, '…'))}`}`
   }
 
   private body(text: string, width: number): string[] {

@@ -14,7 +14,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from '@earendil-works/pi-tui'
 import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
 import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
-import { t } from '../i18n/index.js'
+import { activeLanguage, t } from '../i18n/index.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -40,7 +40,34 @@ const INDENT = '  '
 type ToolItem = Extract<TranscriptItem, { kind: 'tool' }>
 
 export class ToolRowView implements Component {
-  private cached: { status: ToolStatus; result: string | undefined; row: ToolRow } | undefined
+  /** The derived row, rebuilt only when an input the derivation reads changed. */
+  private cachedRow: {
+    status: ToolStatus
+    result: string | undefined
+    errorCode: string | undefined
+    meta: unknown
+    cwd: string | undefined
+    home: string | undefined
+    row: ToolRow
+  } | undefined
+  /**
+   * The drawn row, for one width, one disclosure state and one language.
+   *
+   * A frame scrolls the whole transcript through the viewport, so every row
+   * asks again whether anything it draws changed; comparing the inputs is what
+   * keeps a long conversation's scroll cost out of the number of rows in it.
+   * The language is one of those inputs because the row's labels come from
+   * `t()` at render time, and a switch only asks for a repaint.
+   */
+  private cachedRender: {
+    width: number
+    expanded: boolean
+    gutter: string
+    durationMs: number | undefined
+    language: string
+    row: ToolRow
+    lines: string[]
+  } | undefined
 
   constructor(
     private readonly item: ToolItem,
@@ -50,13 +77,33 @@ export class ToolRowView implements Component {
     private readonly gutter: () => string,
   ) {}
 
-  invalidate(): void {}
+  invalidate(): void {
+    this.cachedRow = undefined
+    this.cachedRender = undefined
+  }
 
   render(width: number): string[] {
-    const s = buildStyles(this.color)
     const row = this.row()
     const expanded = this.expanded()
     const gutter = this.gutter()
+    const language = activeLanguage()
+    const cached = this.cachedRender
+    if (
+      cached !== undefined
+      && cached.width === width
+      && cached.expanded === expanded
+      && cached.gutter === gutter
+      && cached.durationMs === this.item.durationMs
+      && cached.language === language
+      && cached.row === row
+    ) return cached.lines
+    const lines = this.draw(width, row, expanded, gutter)
+    this.cachedRender = { width, expanded, gutter, durationMs: this.item.durationMs, language, row, lines }
+    return lines
+  }
+
+  private draw(width: number, row: ToolRow, expanded: boolean, gutter: string): string[] {
+    const s = buildStyles(this.color)
     const inner = Math.max(1, width - visibleWidth(gutter))
     const marker = row.state === 'error' ? s.error
       : row.state === 'stopped' ? s.warn
@@ -94,11 +141,17 @@ export class ToolRowView implements Component {
   }
 
   private row(): ToolRow {
-    const cached = this.cached
-    if (cached !== undefined && cached.status === this.item.status && cached.result === this.item.result) {
-      return cached.row
-    }
     const roots = this.roots()
+    const cached = this.cachedRow
+    if (
+      cached !== undefined
+      && cached.status === this.item.status
+      && cached.result === this.item.result
+      && cached.errorCode === this.item.errorCode
+      && cached.meta === this.item.meta
+      && cached.cwd === roots.cwd
+      && cached.home === roots.home
+    ) return cached.row
     const row = toolRow({
       name: this.item.name,
       args: this.item.args,
@@ -109,7 +162,15 @@ export class ToolRowView implements Component {
       ...roots.cwd === undefined ? {} : { cwd: roots.cwd },
       ...roots.home === undefined ? {} : { home: roots.home },
     })
-    this.cached = { status: this.item.status, result: this.item.result, row }
+    this.cachedRow = {
+      status: this.item.status,
+      result: this.item.result,
+      errorCode: this.item.errorCode,
+      meta: this.item.meta,
+      cwd: roots.cwd,
+      home: roots.home,
+      row,
+    }
     return row
   }
 

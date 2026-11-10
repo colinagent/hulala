@@ -151,7 +151,28 @@ export function faintCursorSgr(color: boolean, background: string, foreground: s
   return `${bgOpen(fill)}${fgOpen(bg)}`
 }
 
-function buildStyles(color: boolean): {
+/**
+ * Styles rebuilt per frame by every row that draws is a per-frame cost with no
+ * content: the same closures, the same escape sequences, once per row. One set
+ * per terminal capability is all a window ever needs.
+ */
+const stylesByCapability = new Map<string, ReturnType<typeof createStyles>>()
+
+/**
+ * The style set for a terminal, built once per colour capability.
+ * @param color - whether colour output is enabled at all.
+ * @returns the shared style set.
+ */
+function buildStyles(color: boolean): ReturnType<typeof createStyles> {
+  const key = color ? (supportsTrueColor() ? 'color-24bit' : 'color-256') : 'plain'
+  const existing = stylesByCapability.get(key)
+  if (existing !== undefined) return existing
+  const styles = createStyles(color)
+  stylesByCapability.set(key, styles)
+  return styles
+}
+
+function createStyles(color: boolean): {
   dim: (text: string) => string
   accent: (text: string) => string
   highlight: (text: string) => string
