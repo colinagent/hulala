@@ -691,6 +691,42 @@ test('TTY mode leaves Ctrl-D to an open overlay', async () => {
   await expect(run).resolves.toBe(0)
 })
 
+test('a focused column hands the caret to the terminal, in the shape nvim asked for', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-caret-'))
+  const fake = fakeBackend(home)
+  const editor = fakeEditor({ clean: true })
+  const tty = startPtyTty(home, fake, editor.module)
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+
+  // The composer paints its own caret, so the terminal's cursor stays hidden and
+  // untouched while the keyboard is in the prompt.
+  await waitFor(() => tty.painted().includes('\u001b[?25l'), 'the client owns the caret')
+  expect(tty.painted()).not.toContain('\u001b[2 q')
+
+  tty.input.write(CTRL_D) // Ctrl-D: the column takes the keyboard and the caret
+  await waitFor(() => editor.spawned(), 'editor column')
+  // A program that never asked for a shape gets the block a shell has always had,
+  // drawn by the terminal at the cell the program marked.
+  await waitFor(() => tty.painted().includes('\u001b[2 q'), 'block caret for the column')
+  await waitFor(() => /\u001b\[\d+;\d+H\u001b\[\?25h/.test(tty.painted()), 'the terminal cursor is placed and shown')
+
+  // InsertEnter: Neovim asks for a bar (DECSCUSR 6), the way it does in a
+  // terminal of its own. The bar is the terminal's, so it composites over the
+  // character instead of replacing it — the reason the caret is not a glyph.
+  editor.emit('\u001b[6 q')
+  await waitFor(() => tty.painted().includes('\u001b[6 q'), 'bar caret in insert mode')
+
+  // Ctrl-[ leaves the column for the composer, and the caret goes with it.
+  tty.input.write('\u001b')
+  await waitFor(() => tty.painted().includes('\u001b[0 q'), 'the caret returns to the client')
+
+  tty.input.write('\u001d') // Ctrl-]: back into the column
+  tty.input.write(CTRL_D) // and close it; Neovim is clean, so it leaves at once
+  await new Promise(resolve => setTimeout(resolve, 200))
+  tty.input.write('\u0011') // quit
+  await expect(tty.run).resolves.toBe(0)
+})
+
 test('TTY mode keeps the sidebar open across focus changes and hands nvim its keys', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-sidebar-'))
   const fake = fakeBackend(home)
@@ -1421,6 +1457,8 @@ function fakeEditor(options: { clean: boolean }): {
   saves(): number
   /** Columns of the last resize the pane asked the pty for. */
   width(): number | undefined
+  /** Paint bytes as the program would, e.g. the DECSCUSR of an insert mode. */
+  emit(chunk: string): void
 } {
   const writes: string[] = []
   let clean = options.clean
@@ -1428,13 +1466,14 @@ function fakeEditor(options: { clean: boolean }): {
   let saves = 0
   let cols: number | undefined
   let exit: ((event: { exitCode: number }) => void) | undefined
+  let deliver: ((chunk: string) => void) | undefined
   const module: PtyModule = {
     spawn() {
       spawned = true
       let data: ((chunk: string) => void) | undefined
       return {
         pid: 1,
-        onData(handler) { data = handler },
+        onData(handler) { data = handler; deliver = handler },
         onExit(handler) { exit = handler },
         write(chunk) {
           writes.push(chunk)
@@ -1447,7 +1486,15 @@ function fakeEditor(options: { clean: boolean }): {
       }
     },
   }
-  return { module, writes: () => writes.join(''), spawned: () => spawned, saves: () => saves, width: () => cols }
+  return {
+    module,
+    writes: () => writes.join(''),
+    spawned: () => spawned,
+    saves: () => saves,
+    width: () => cols,
+    /** Paint bytes as the editor program: what it writes is what the column shows. */
+    emit: (chunk: string) => deliver?.(chunk),
+  }
 }
 
 /** A pty backend whose children are the test: no shell or editor really starts. */

@@ -21,7 +21,7 @@
  */
 import type { Component, Focusable, TuiMouseEvent, TuiMouseEventResult } from '@earendil-works/pi-tui'
 import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
-import type { CursorKind } from '../pane/screenSession.js'
+import type { CursorKind, CaretShape } from '../pane/screenSession.js'
 import { sgrMouse } from './sgrMouse.js'
 import { legacyKeys } from '../pane/legacyKeys.js'
 import { buildStyles } from './theme.js'
@@ -44,6 +44,8 @@ export interface PaneScroll {
 export interface PaneScreen {
   resize(cols: number, rows: number): void
   renderScreen(width: number, height: number, cursor: CursorKind, faintSgr: string): string[]
+  /** The caret shape the program inside this pane asks the terminal for. */
+  caretShape(): CaretShape
   input(data: string): void
 }
 
@@ -62,6 +64,13 @@ export interface ScreenPaneOptions {
    * to a hollow glyph.
    */
   readonly faintCursor?: () => string
+  /**
+   * The shape the terminal should draw the caret in while this column has the
+   * keyboard. Reported from `render`, so the shape on screen is the shape the
+   * frame was painted with — a program may change it (Neovim's insert mode)
+   * without the keyboard moving at all.
+   */
+  readonly onCaret?: (shape: CaretShape) => void
   /** Paging moved the viewport; the caller repaints. */
   readonly onScroll?: () => void
   /** The pointer entered the pane, which ends any divider hover. */
@@ -116,6 +125,20 @@ export class ScreenPane implements Component, Focusable {
 
   constructor(private readonly options: ScreenPaneOptions) {}
 
+  /**
+   * The caret shape the program inside this column asked for.
+   *
+   * A focused column is the only thing on screen whose cell carries pi-tui's
+   * cursor marker, so it is also the only thing that gets to say what shape the
+   * terminal's own cursor takes: Neovim's insert mode is a bar, its normal mode
+   * a block. This is read when the keyboard moves and whenever the column
+   * reports a mode change, not on every frame.
+   * @returns the shape to hand to the terminal.
+   */
+  caretShape(): CaretShape {
+    return this.options.screen.caretShape()
+  }
+
   render(width: number): string[] {
     const height = Math.max(1, this.options.rows())
     const size = `${width}x${height}`
@@ -129,6 +152,9 @@ export class ScreenPane implements Component, Focusable {
     // without focus keeps showing it faded, so the cursor does not disappear
     // when the keyboard moves to the other column.
     const cursor: CursorKind = history > 0 ? 'none' : this.focused ? 'focused' : 'dim'
+    // The caret is the terminal's own cursor here, so its shape rides with the
+    // frame that carries the marker instead of with the focus change.
+    if (cursor === 'focused') this.options.onCaret?.(this.options.screen.caretShape())
     const lines = this.options.screen.renderScreen(width, height, cursor, this.options.faintCursor?.() ?? '')
     const fitted = lines.length === 0
       ? Array.from({ length: height }, () => ' '.repeat(width))

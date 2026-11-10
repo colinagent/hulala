@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
-import type { CursorKind } from '../../src/tui/pane/screenSession.js'
+import type { CaretShape, CursorKind } from '../../src/tui/pane/screenSession.js'
 import { ScreenPane, type PaneScreen } from '../../src/tui/view/screenPane.js'
 
 /** Records what the pane asked the session to do. */
@@ -31,6 +31,13 @@ class FakeScreen implements PaneScreen {
 
   input(data: string): void {
     this.inputs.push(data)
+  }
+
+  /** Shape the pane reports for the terminal's cursor. */
+  shape: CaretShape = 'block'
+
+  caretShape(): CaretShape {
+    return this.shape
   }
 }
 

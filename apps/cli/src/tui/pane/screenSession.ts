@@ -22,18 +22,30 @@
  *
  * @module hulala-cli/tui/pane/screenSession
  */
-import { CURSOR_MARKER, renderFakeCursor } from '@earendil-works/pi-tui'
+import { CURSOR_MARKER } from '@earendil-works/pi-tui'
 import type { PtyModule, PtyProcess } from '../editor/pty.js'
-import { GhosttyVt } from './ghosttyVt.js'
+import { GhosttyVt, sgrSequence } from './ghosttyVt.js'
 
 const RESET = '\u001b[0m'
 
 /**
+ * Shape of the caret a column's program asks for (DECSCUSR), narrowed to the
+ * shapes the client can hand to the outer terminal.
+ *
+ * A grid cell holds one glyph, so a bar cannot be drawn *and* keep the
+ * character under it: the caret is the terminal's own cursor instead, shown in
+ * this shape, exactly the way Neovim's bar looks in the terminal it runs in.
+ */
+export type CaretShape = 'block' | 'bar' | 'underline'
+
+/**
  * How the cell under the program cursor is drawn.
  *
- * - `focused`: emit pi-tui's cursor marker and fake cursor, in the shape the
- *   program asked for — a filled reverse-video block for a shell, which never
- *   paints a cursor of its own, and a bar while an editor is in insert mode.
+ * - `focused`: emit pi-tui's cursor marker and leave the character alone. The
+ *   caret itself is the terminal's own cursor, positioned on the marker and
+ *   drawn in the shape the program asked for (`caretShape`), so a bar in insert
+ *   mode composites over the character the way a hardware cursor always has
+ *   instead of replacing it.
  * - `dim`: the same block faded into the background, which is what the column
  *   shows while the keyboard is in the other one. The block is a low blend of the theme's
  *   foreground into its background, with the character cut out in the background
@@ -48,16 +60,6 @@ export type CursorKind = 'focused' | 'dim' | 'none'
  * the height; there is no full-cell outline glyph.
  */
 const HOLLOW_CURSOR = '□'
-
-/**
- * The bar a vertical caret is drawn with.
- *
- * A cell carries one glyph, so the bar takes the place of the character under
- * the cursor instead of being composited over it the way a hardware cursor is.
- * In insert mode that character is the one the next keystroke goes in front of,
- * and a blank cell — where typing usually happens — shows nothing but the bar.
- */
-const BAR_CURSOR = '▏'
 
 export interface ScreenSessionOptions {
   readonly pty: PtyModule
@@ -159,13 +161,14 @@ export class ScreenSession {
    * keeps the viewport offset, which is what makes reading history while a
    * command still runs possible.
    *
-   * The program's cell under the cursor is drawn as a reverse-video block
-   * (`renderFakeCursor` + `CURSOR_MARKER`, pi-tui's composer-cursor mechanism),
-   * or as the shape the program asked for with DECSCUSR: Neovim sends a bar
-   * while it is in insert mode, so the column says which mode the editor is in
-   * without the user reading the mode line. A column without focus draws the
-   * same cell as a ghost of it instead, so both columns show where their cursor
-   * is.
+   * The program's cell under the cursor keeps its character and carries
+   * pi-tui's cursor marker: the caret is the terminal's own cursor, positioned
+   * there and drawn in the shape the program asked for with DECSCUSR. That is
+   * what lets Neovim's insert mode be a bar *over* the character — the way it
+   * looks in the terminal it runs in — instead of a glyph taken out of the grid,
+   * which is the only thing a cell could otherwise do with one glyph. A column
+   * without focus draws the same cell as a ghost of it instead, so both columns
+   * show where their cursor is.
    * @param width - pane width in cells.
    * @param height - pane height in rows.
    * @param cursor - how to draw the cell under the program cursor.
@@ -179,21 +182,34 @@ export class ScreenSession {
     const ink = cursor === 'none'
       ? undefined
       : {
-          draw: (text: string): string => {
+          draw: (text: string, sgr: string): string => {
             if (cursor === 'focused') {
-              if (where?.shape === 'bar') return CURSOR_MARKER + BAR_CURSOR
-              // A horizontal caret keeps the character it is under, the way the
-              // shape means: a line along the bottom of the cell, not a reversed
-              // one. The underline is closed again so the following cells keep
-              // the pen the row's own tracking assumes.
-              if (where?.shape === 'underline') return `${CURSOR_MARKER}\u001b[4m${text === '' ? ' ' : text}\u001b[24m`
-              return CURSOR_MARKER + renderFakeCursor(text === '' ? ' ' : text)
+              // The character stays exactly as the program drew it: the caret is
+              // the terminal's cursor, so the bar is composited over the glyph
+              // rather than replacing it. The cell's own colours are restored
+              // because the renderer resets the pen before an ink cell, and the
+              // pen is left at the defaults for the cells that follow.
+              return `${CURSOR_MARKER}${sgrSequence(sgr)}${text === '' ? ' ' : text}${RESET}`
             }
             if (faintSgr === '') return RESET + HOLLOW_CURSOR
             return `${RESET}${faintSgr}${text === '' ? ' ' : text}${RESET}`
           },
         }
     return this.vt.renderRows(width, height, where, ink)
+  }
+
+  /**
+   * The caret shape the program asked the terminal for (DECSCUSR).
+   *
+   * Neovim sends a bar while it is in insert mode, so the focused column tells
+   * the terminal which cursor to draw; a hollow block is not a DECSCUSR shape,
+   * so it is drawn as the block it stands in for.
+   * @returns the shape to hand to the terminal.
+   */
+  caretShape(): CaretShape {
+    if (this.disposed) return 'block'
+    const shape = this.vt.cursor().shape
+    return shape === 'hollow' ? 'block' : shape
   }
 
   /**

@@ -26,7 +26,11 @@ import {
 } from '@earendil-works/pi-tui'
 import { composerBindings } from '../keys.js'
 import { imePolicyOf, type ImePolicy } from '../pane/focus.js'
+import type { CaretShape } from '../pane/screenSession.js'
 import { StreamTerminal, type TerminalStreams } from '../terminal.js'
+
+/** DECSCUSR code for each caret shape the client hands the terminal. */
+const CURSOR_SHAPE_CODES: Record<CaretShape, number> = { block: 2, underline: 4, bar: 6 }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -40,7 +44,19 @@ export interface TuiTerminal {
   readonly terminal: StreamTerminal
   readonly screen: TuiAltScreen
   readonly keybindings: KeybindingsManager
-  /** Give the terminal back. Idempotent; the context also calls it on dispose. */
+  /**
+   * Hand the caret to the terminal in this shape.
+   *
+   * A program column draws no caret of its own: its cell carries pi-tui's
+   * cursor marker and the terminal draws the cursor there, in the shape the
+   * program asked for (DECSCUSR). Focus decides who owns the caret at all; a
+   * surface that declares no shape gets its own fake cursor back.
+   * @param shape - the caret shape the column's program asked for.
+   */
+  setCaretShape(shape: CaretShape): void
+  /**
+   * Give the terminal back. Idempotent; the context also calls it on dispose.
+   */
   stop(): void
   /**
    * Decide whether the transcript or the focused column owns `PageUp`/`PageDown`.
@@ -110,7 +126,13 @@ export interface TerminalPluginConfig {
 /** Construct the terminal, install the keybinding table, and own both. */
 export function apply(ctx: Context, config: TerminalPluginConfig): void {
   const terminal = new StreamTerminal({ input: config.input, output: config.output } as TerminalStreams)
-  const screen = new TuiAltScreen(terminal)
+  // The hardware cursor is the caret a program column shows. A grid cell holds
+  // one glyph, so drawing Neovim's insert-mode bar in the grid would have to
+  // delete the character under it; the terminal's own cursor composites over the
+  // character instead, which is exactly how a bar looks in the terminal Neovim
+  // runs in. It only drives the caret while a column holds the keyboard (see
+  // `setCaretShape`), so the rest of the client keeps its own fake cursors.
+  const screen = new TuiAltScreen(terminal, true)
   // One manager instance, mutated later: `TuiAltScreen` resolves its viewport
   // keys through the globally installed manager on every keystroke.
   const keybindings = new KeybindingsManager(TUI_KEYBINDINGS)
@@ -133,6 +155,8 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     // one cannot fight each other.
     screen.stop()
   }
+  /** The shape the terminal is currently asked to draw the caret in. */
+  let caretShape: CaretShape | undefined
   ctx.effect(() => stop, 'hulala: terminal restore')
   const setPaging = (viewport: boolean): void => {
     viewportPaging = viewport
@@ -147,12 +171,35 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   // input source follows this and nothing else (`editor/inputSource.ts`).
   let imePolicy: ImePolicy = 'text'
   const imeObservers: ((policy: ImePolicy) => void)[] = []
-
   const publish = (next: ImePolicy): void => {
     if (next === imePolicy) return
     imePolicy = next
     for (const observer of imeObservers) observer(next)
   }
+
+  /**
+   * Hand the caret to the terminal, in the shape a focused column's program
+   * asked for.
+   *
+   * Neovim sends a bar in insert mode and a block in normal mode, so the caret
+   * the terminal draws says which mode the editor is in — the same signal its
+   * own window shows — without the client replacing the character with a bar
+   * glyph (a grid cell holds one glyph, so that would delete the character).
+   * A component that declares no shape keeps its own fake cursor.
+   * @param shape - the caret shape, or `undefined` for the terminal's own.
+   */
+  const setCaretShape = (shape: CaretShape | undefined): void => {
+    if (shape === caretShape) return
+    caretShape = shape
+    screen.setShowHardwareCursor(shape !== undefined)
+    // Steady shapes: the shape is the program's signal, and a blink it did not
+    // ask for would read as the terminal's.
+    terminal.write(shape === undefined ? '\u001b[0 q' : `\u001b[${CURSOR_SHAPE_CODES[shape]} q`)
+  }
+
+  /** The shape a surface declares, if it declares one at all. */
+  const caretOf = (component: Component | null): CaretShape | undefined =>
+    (component as { caretShape?: () => CaretShape } | null)?.caretShape?.()
 
   const announcePolicy = (component: Component): void => {
     publish(imePolicyOf(component))
@@ -164,6 +211,8 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     const component = screen.getFocusedComponent()
     if (component === null) return
     announcePolicy(component)
+    // An overlay that closes puts the caret back on the surface under it.
+    setCaretShape(caretOf(component))
   }
 
   const focus = (component: Component): void => {
@@ -186,6 +235,7 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     announce: announcePolicy,
     refreshIme,
     observeIme,
+    setCaretShape,
   })
 }
 

@@ -174,6 +174,20 @@ function cursorShape(style: number, values: Record<string, number>): VtCursorSha
   return 'block'
 }
 
+/**
+ * The SGR escape that paints a cell in its own colours, or `''` for the
+ * terminal's defaults.
+ *
+ * `styleSgr` builds its parameters with a leading separator so flag fragments
+ * can be appended to nothing, so the separator is dropped here rather than at
+ * every call site.
+ * @param sgr - the parameters `styleSgr` produced.
+ * @returns one complete escape sequence, or `''`.
+ */
+export function sgrSequence(sgr: string): string {
+  return sgr === '' ? '' : `\u001b[${sgr.slice(1)}m`
+}
+
 /** Pad or truncate one rendered row to exactly `width` visible cells. */
 function fit(line: string, width: number): string {
   const current = visibleWidth(line)
@@ -601,7 +615,9 @@ export class GhosttyVt {
             // Without the reset the block takes the colour of whatever cell came
             // before it — the line number's amber in an editor, a label's accent
             // in a list — so the same cursor changed colour between columns.
-            out += RESET + ink.draw(' ', cell.sgr)
+            // The cell's own style goes to the ink, which needs it to keep a
+            // character visible under a caret.
+            out += RESET + ink.draw(cell.text, cell.sgr)
             open = ''
             column += 1
             continue
@@ -610,7 +626,7 @@ export class GhosttyVt {
           // its background is what makes a panel a panel, so the cell keeps its
           // own style instead of being reset to the terminal's default.
           if (cell.sgr !== open) {
-            out += RESET + (cell.sgr === '' ? '' : `\u001b[${cell.sgr.slice(1)}m`)
+            out += RESET + sgrSequence(cell.sgr)
             open = cell.sgr
           }
           out += ' '
@@ -621,7 +637,7 @@ export class GhosttyVt {
           out += RESET + ink.draw(cell.text, cell.sgr)
           open = ''
         } else if (cell.sgr !== open) {
-          out += RESET + (cell.sgr === '' ? '' : `\u001b[${cell.sgr.slice(1)}m`)
+          out += RESET + sgrSequence(cell.sgr)
           open = cell.sgr
           out += cell.text
         } else {

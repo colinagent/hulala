@@ -403,6 +403,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       rows,
       color: config.color,
       faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
+      // The column's caret is the terminal's own cursor, so the shape Neovim asks
+      // for with DECSCUSR is passed on with the frame that carries the caret.
+      onCaret: shape => ctx.hulalaTerminal.setCaretShape(shape),
       // Neovim is the one column that always tracks the mouse: clicks, visual
       // selection and the file tree's own boundary all run on these reports.
       ...(kind === 'editor' ? { mouse: true, divider: treeDivider } : {}),

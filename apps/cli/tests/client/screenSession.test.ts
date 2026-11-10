@@ -31,33 +31,41 @@ function startSession(): { session: ScreenSession; paint: (text: string) => void
   return { session, paint: (text: string) => deliver?.(text) }
 }
 
-test('a program that never chose a cursor shape gets the filled block', () => {
+test('the cell under the cursor keeps its character and takes the marker', () => {
   const { session, paint } = startSession()
   paint('ab')
   const line = session.renderScreen(12, 2, 'focused', '')[0] ?? ''
-  // pi-tui turns the fake cursor's markers into reverse video, which is the block
-  // a shell has always shown: a shell paints no cursor of its own.
-  expect(line).toContain('\u001b_pi:fc\u0007')
+  // The caret is the terminal's own cursor, so nothing is drawn over the grid:
+  // pi-tui positions the cursor on the marker and the character stays readable.
+  expect(line).toContain('\u001b_pi:c\u0007')
+  expect(line).not.toContain('\u001b_pi:fc\u0007')
   expect(line).not.toContain('▏')
-  session.dispose()
-})
-
-test('an editor in insert mode gets a bar instead of the block', () => {
-  const { session, paint } = startSession()
-  // What Neovim writes on InsertEnter (DECSCUSR 6: steady bar).
-  paint('\u001b[6 qab')
-  const line = session.renderScreen(12, 2, 'focused', '')[0] ?? ''
-  expect(line).toContain('▏')
   expect(line).not.toContain('\u001b[7m')
   session.dispose()
 })
 
-test('a horizontal cursor keeps the character it is under', () => {
+test('an editor in insert mode keeps the glyph under the caret', () => {
   const { session, paint } = startSession()
-  // DECSCUSR 4 is the underline shape, for a `guicursor` written as `hor`.
-  paint('\u001b[4 qab')
+  // What Neovim writes on InsertEnter (DECSCUSR 6), with the cursor back over
+  // the `a`. A bar drawn in the grid would have to take that cell's only glyph.
+  paint('\u001b[6 qab\u001b[2D')
   const line = session.renderScreen(12, 2, 'focused', '')[0] ?? ''
-  expect(line).toContain('\u001b[4m \u001b[24m')
+  expect(line).toContain('\u001b_pi:c\u0007a')
+  expect(line).not.toContain('▏')
+  expect(session.caretShape()).toBe('bar')
+  session.dispose()
+})
+
+test('the caret shape is the one the program asked to the terminal for', () => {
+  const { session, paint } = startSession()
+  expect(session.caretShape()).toBe('block')
+  // DECSCUSR 4 is the underline shape, for a `guicursor` written as `hor`.
+  paint('\u001b[4 q')
+  expect(session.caretShape()).toBe('underline')
+  paint('\u001b[6 q')
+  expect(session.caretShape()).toBe('bar')
+  paint('\u001b[2 q')
+  expect(session.caretShape()).toBe('block')
   session.dispose()
 })
 
