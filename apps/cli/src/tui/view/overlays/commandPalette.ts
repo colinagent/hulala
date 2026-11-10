@@ -30,7 +30,7 @@ const MAX_ROWS = 14
 const MAX_HINT_WIDTH = 16
 
 /** The groups in the order the palette lists them. */
-const GROUP_ORDER: readonly CommandGroup[] = ['session', 'model', 'frame', 'app']
+const GROUP_ORDER: readonly CommandGroup[] = ['session', 'model', 'frame', 'app', 'host']
 
 export interface CommandPaletteOptions {
   color: boolean

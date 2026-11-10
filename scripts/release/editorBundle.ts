@@ -2,7 +2,8 @@
  * Bundle the editor into the TUI package.
  *
  * The terminal editor is part of Hulala: one Neovim build per release platform
- * plus the vendored plugins (`snacks.nvim`, `reader.nvim`). The binary ships as `bin/nvim`,
+ * plus the vendored plugins (`snacks.nvim`, `reader.nvim`, `render-markdown.nvim`).
+ * The binary ships as `bin/nvim`,
  * like every other executable, while its runtime tree, parsers and the plugin
  * stay under `runtime/editor/`. The client publishes both into the state root
  * (`apps/cli/src/tui/editor/editorHome.ts`), so a user never needs Neovim or a
@@ -88,9 +89,10 @@ export async function bundleEditor(options: BundleEditorOptions): Promise<void> 
   const editorRoot = join(options.staging, 'runtime', 'editor')
 
   // Every vendored plugin ships inside the archive: the file tree and pickers
-  // (`snacks.nvim`) and the EPUB reader (`reader.nvim`). The client publishes
-  // this directory into the state root, so a user never downloads a plugin.
-  for (const plugin of ['snacks.nvim', 'reader.nvim']) {
+  // (`snacks.nvim`), the EPUB reader (`reader.nvim`) and the in-buffer Markdown
+  // renderer (`render-markdown.nvim`). The client publishes this directory into
+  // the state root, so a user never downloads a plugin.
+  for (const plugin of ['snacks.nvim', 'reader.nvim', 'render-markdown.nvim']) {
     await cp(
       join(options.repositoryRoot, 'apps', 'cli', 'vendor', plugin),
       join(editorRoot, 'nvim-plugins', plugin),

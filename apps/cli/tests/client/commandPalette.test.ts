@@ -25,7 +25,7 @@ test('the list is grouped and each row carries its shortcut', () => {
   // the counter reports the rest, so every command is reachable.
   for (const name of ['Session', 'Model', 'Layout']) expect(text).toContain(name)
   expect(text).toContain('/sessions')
-  expect(text).toContain('(1/24)')
+  expect(text).toContain('(1/25)')
   // The shortcut sits after the description on the same row.
   const thinking = text.split('\n').find(line => line.includes('/thinking')) ?? ''
   expect(thinking).toContain('Shift-Tab')

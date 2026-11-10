@@ -38,6 +38,23 @@ export type TranscriptItem =
       time: number
       durationMs?: number
     }
+  | {
+      kind: 'command'
+      /** Pairing id `command/run` and `command/done` share. */
+      commandId: string
+      /** The word after the slash, as the Host logged it. */
+      name: string
+      /** Settlement text; absent while the command still runs. */
+      text?: string
+      status: 'running' | 'ok' | 'error'
+      /** History items the manual compaction shadowed, when one folded in. */
+      shadowedItems?: number
+      /** Heuristic token price of that shadowed history. */
+      shadowedTokens?: number
+      /** The summary the compaction wrote, unfolded on request. */
+      summary?: string
+      time: number
+    }
   | { kind: 'error'; message: string; time: number }
   | { kind: 'summary'; text: string; time: number }
   | { kind: 'notice'; text: string; tone?: 'warn' | 'info'; time: number }
@@ -230,6 +247,8 @@ export class ViewModelReducer {
   /** Index of the first item the live attempt streamed; -1 outside an attempt. */
   private attemptStart = -1
   private readonly toolCalls = new Map<string, ToolTracking>()
+  /** Open `/command` rows by pairing id, so their settlement finds them. */
+  private readonly commands = new Map<string, number>()
   private readonly turnNumbers = new Set<number>()
 
   /** Distinct turns that carried at least one closed step (like DSH's sessionStats). */
@@ -248,6 +267,7 @@ export class ViewModelReducer {
     this.decodeStartedAt = 0
     this.attemptStart = -1
     this.toolCalls.clear()
+    this.commands.clear()
     this.turnNumbers.clear()
   }
 
@@ -392,8 +412,61 @@ export class ViewModelReducer {
         })
         return
       }
+      case 'command/run': {
+        const commandId = stringAt(event.data, 'commandId')
+        if (commandId === undefined) return
+        // A command is not a model step: whatever attempt was open settles here,
+        // exactly as the web client closes the row before it.
+        this.attemptStart = -1
+        this.items.push({
+          kind: 'command',
+          commandId,
+          name: stringAt(event.data, 'name') ?? '',
+          status: 'running',
+          time: event.time,
+        })
+        this.commands.set(commandId, this.items.length - 1)
+        return
+      }
+      case 'command/done': {
+        const commandId = stringAt(event.data, 'commandId')
+        const text = stringAt(event.data, 'text')
+        const status = stringAt(event.data, 'kind') === 'error' ? 'error' : 'ok'
+        const tracked = commandId === undefined ? undefined : this.commands.get(commandId)
+        if (commandId !== undefined) this.commands.delete(commandId)
+        const item = tracked === undefined ? undefined : this.items[tracked]
+        if (item !== undefined && item.kind === 'command') {
+          item.status = status
+          if (text !== undefined) item.text = text
+          return
+        }
+        // Only the settlement is in this window (a reloaded transcript): show
+        // what settled rather than dropping a command the log recorded.
+        this.items.push({
+          kind: 'command',
+          commandId: commandId ?? '',
+          name: '',
+          status,
+          ...(text === undefined ? {} : { text }),
+          time: event.time,
+        })
+        return
+      }
       case 'compaction/summary': {
         const text = textOf((event.data as { summary?: unknown }).summary)
+        const sourceCommandId = stringAt(event.data, 'sourceCommandId')
+        const tracked = sourceCommandId === undefined ? undefined : this.commands.get(sourceCommandId)
+        const command = tracked === undefined ? undefined : this.items[tracked]
+        if (command !== undefined && command.kind === 'command') {
+          // A manual `/compact` owns its own row: the web client folds this
+          // evidence into it instead of printing a second marker.
+          const seqs = (event.data as { shadowedSeqs?: unknown }).shadowedSeqs
+          const tokens = (event.data as { shadowedTokenCount?: unknown }).shadowedTokenCount
+          if (Array.isArray(seqs)) command.shadowedItems = seqs.length
+          if (typeof tokens === 'number' && Number.isSafeInteger(tokens) && tokens >= 0) command.shadowedTokens = tokens
+          if (text.trim() !== '') command.summary = text
+          return
+        }
         if (text.trim() !== '') this.items.push({ kind: 'summary', text, time: event.time })
         return
       }

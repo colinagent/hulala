@@ -170,6 +170,19 @@ export class PromptEditor extends Editor {
     return this.menu !== null && this.menu.length > 0
   }
 
+  /**
+   * Recompute the completion menu for the draft as it stands.
+   *
+   * The menu is otherwise rebuilt only when the draft changes, so a completion
+   * source that arrives late — the Host's command catalog after a Session
+   * opens — would stay invisible until the next keystroke. A draft that no
+   * longer names a completion closes the menu, which is the same thing typing
+   * would have done.
+   */
+  refreshMenu(): void {
+    this.refresh(true)
+  }
+
   render(width: number): string[] {
     const menu = this.renderMenu(width)
     this.renderedMenuHeight = menu.length

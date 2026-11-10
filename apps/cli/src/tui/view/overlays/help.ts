@@ -24,7 +24,7 @@ import type { ImePolicy } from '../../pane/focus.js'
 /** The commands this panel lists, in reading order. */
 const COMMANDS = [
   'help', 'sessions', 'new', 'resume', 'model', 'thinking', 'login', 'rename', 'cancel',
-  'status', 'editor', 'terminal', 'nvim', 'rail', 'chat', 'commands', 'keys',
+  'status', 'changelog', 'editor', 'terminal', 'nvim', 'rail', 'chat', 'commands', 'keys',
   'language', 'quit',
 ] as const
 

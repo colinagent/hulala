@@ -21,6 +21,7 @@ import { languageName, parseLanguage } from '../../language.js'
 import { KEY_ACTIONS, actionHint } from '../../keymap.js'
 import type { PaneKind } from '../pane/focus.js'
 import type { CatalogEntry } from '../commandCatalog.js'
+import { resolveHostCommand, setHostCommands } from '../commandCatalog.js'
 import { t } from '../i18n/index.js'
 import { permissionLabel } from '../view/permission.js'
 import { CommandPaletteOverlay } from '../view/overlays/commandPalette.js'
@@ -102,6 +103,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const keymap = ctx.hulalaKeymap
   const { terminal, focus: focusOn } = ctx.hulalaTerminal
   const updater = ctx.hulalaUpdate
+  const changelog = ctx.hulalaChangelog
   const rail = ctx.hulalaRail
   const layout = ctx.hulalaLayout
   const view = ctx.hulalaView
@@ -121,6 +123,26 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const repaint = (): void => { render.repaint() }
   const failure = (caught: unknown): void => {
     reducer.addError(caught instanceof Error ? caught.message : String(caught))
+    repaint()
+  }
+
+  /**
+   * Read the Host's command rows for the Session that just opened.
+   *
+   * The catalog is per agent and only changes when its composition does, so it
+   * is read once per open rather than on every completion keystroke. A Host that
+   * cannot answer leaves the client's own commands in place instead of keeping a
+   * previous Session's rows.
+   */
+  const loadHostCommands = async (opened: string): Promise<void> => {
+    try {
+      setHostCommands(await backend.commandCatalog(opened))
+    } catch {
+      setHostCommands([])
+    }
+    // A draft already holding `/` was completed before these rows arrived; the
+    // menu follows the catalog without waiting for another keystroke.
+    editor.refreshMenu()
     repaint()
   }
 
@@ -321,6 +343,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         reducer.reset()
         repaint()
         return
+      case 'changelog':
+        changelog.show(argument)
+        return
       case 'reasoning': {
         const mode = view.cycleReasoning()
         const label = mode === 'summary' ? 'reasoning.summary' : mode === 'full' ? 'reasoning.full' : 'reasoning.hidden'
@@ -392,8 +417,26 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
           }
           return
         }
-        reducer.addError(t('error.unknownCommand', { command }))
-        repaint()
+        // Not a client command: the Host's catalog may still own the word
+        // (`/compact` is a plugin row). Dispatch it and say nothing here — the
+        // outcome arrives as the durable `command/run`/`command/done` pair the
+        // transcript renders, exactly as the web client leaves it to the log.
+        const hosted = resolveHostCommand(command)
+        if (hosted === undefined || session.id === undefined) {
+          reducer.addError(t('error.unknownCommand', { command }))
+          repaint()
+          return
+        }
+        try {
+          const line = argument === '' ? `/${hosted.name}` : `/${hosted.name} ${argument}`
+          if (await backend.runCommand(session.id, line) === undefined) {
+            reducer.addError(t('error.unknownCommand', { command }))
+            repaint()
+          }
+        } catch (caught) {
+          failure(caught)
+        }
+        return
       }
     }
   }
@@ -471,9 +514,10 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     if (!running) cancelRequested = false
   })
 
-  ctx.on('hulala/session-opened', () => {
+  ctx.on('hulala/session-opened', id => {
     cancelRequested = false
     void (async () => {
+      await loadHostCommands(id)
       for (const draft of pendingLines.splice(0)) await submit(draft.line, draft.mode)
     })()
   })
@@ -481,6 +525,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   ctx.effect(() => () => {
     stopStatus()
     pendingLines.length = 0
+    setHostCommands([])
   }, 'hulala: pending drafts')
 
   ctx.provide('hulalaCommands', {
@@ -521,6 +566,9 @@ export const commandsPlugin = {
     'hulalaLanguage',
     'hulalaTerminal',
     'hulalaKeymap',
+    // `/changelog` runs through this plugin; naming it here is what makes the
+    // service present when this plugin applies, instead of undefined.
+    'hulalaChangelog',
   ],
   apply,
 }

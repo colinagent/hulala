@@ -53,6 +53,7 @@ import { brandBannerImageId } from './view/brandBanner.js'
 import { inputPlugin } from './plugins/input.js'
 import { lifecyclePlugin } from './plugins/lifecycle.js'
 import { commandsPlugin } from './plugins/commands.js'
+import { changelogPlugin } from './plugins/changelog.js'
 import { userPluginsPlugin } from './plugins/user.js'
 import { viewPlugin } from './plugins/view.js'
 import { terminalPlugin } from './plugins/terminal.js'
@@ -205,6 +206,8 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(titlePlugin)
     await ctx.plugin(railPlugin, { color: colorEnabled(), isClosing: () => ctx.hulalaLifecycle.closing })
     await ctx.plugin(viewPlugin, { color: colorEnabled() })
+    // Before the command surface: `/changelog` reads the service it provides.
+    await ctx.plugin(changelogPlugin, { dataRoot })
     await ctx.plugin(commandsPlugin, { color: colorEnabled() })
     await ctx.plugin(inputPlugin, { debug: debugLog })
     const applyUpdate = options.applyUpdate ?? (production ? defaultApplyUpdate : undefined)
@@ -233,6 +236,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   const panes = ctx.hulalaPanes
   const session = ctx.hulalaSession
   const updater = ctx.hulalaUpdate
+  const changelog = ctx.hulalaChangelog
   const composerKit = ctx.hulalaComposer
   const done = Promise.withResolvers<number>()
   const lifecycle = ctx.hulalaLifecycle
@@ -441,6 +445,10 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // The check may have finished before the first Session existed; the notice is
   // shown now that there is a transcript to show it in.
   updater.announce()
+  // Same reason as the update notice: the changelog block needs a transcript,
+  // and it is spent once per state root and version. A window this process does
+  // not own (a test harness, a piped run) keeps its transcript clean.
+  if (exitProcess) changelog.announce()
   if (lifecycle.closing) return await done.promise
   return await done.promise
 }
@@ -584,7 +592,21 @@ async function runPlain(
       } else if (command === 'cancel') {
         if (sessionId !== undefined) await backend.cancel(sessionId)
       } else {
-        write(t('plain.unknownCommand', { command: command ?? '' }))
+        // Not one of the few client commands plain mode carries: the Host's own
+        // catalog may still own the word, `/compact` among them. Print what
+        // settled, because a line-based session has no step rows to show it.
+        if (sessionId === undefined) {
+          write(t('plain.unknownCommand', { command: command ?? '' }))
+          return
+        }
+        try {
+          const settled = await backend.runCommand(sessionId, text)
+          if (settled === undefined) write(t('plain.unknownCommand', { command: command ?? '' }))
+          else if (settled.kind === 'error') write(`! ${settled.text}`)
+          else if (settled.text !== undefined) write(settled.text)
+        } catch (caught) {
+          write(`! ${caught instanceof Error ? caught.message : String(caught)}`)
+        }
       }
       return
     }

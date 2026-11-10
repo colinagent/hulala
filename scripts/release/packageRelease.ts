@@ -9,7 +9,8 @@
  *   bin/nvim                   bundled Neovim binary for this platform
  *   bin/ime                    macOS input-source helper (darwin targets only)
  *   runtime/editor/nvim/       Neovim runtime tree and tree-sitter parsers
- *   runtime/editor/nvim-plugins/  vendored plugins (snacks.nvim, reader.nvim)
+ *   runtime/editor/nvim-plugins/  vendored plugins (snacks.nvim, reader.nvim,
+ *                                 render-markdown.nvim)
  *   runtime/package.json       dependency list the released npm lock resolves
  *   runtime/package-lock.json  the lock `npm ci` uses at install time
  *   runtime/patches/           the two bun patches, applied after npm ci
@@ -168,7 +169,7 @@ async function assertNoPrivateContent(directory: string): Promise<void> {
     for (const marker of forbidden) if (text.includes(marker)) throw new Error(`package contains private content (${marker}): ${path}`)
   }
 }
-console.log('Bundling the editor (Neovim + snacks.nvim + reader.nvim)...')
+console.log('Bundling the editor (Neovim + snacks.nvim + reader.nvim + render-markdown.nvim)...')
 await bundleEditor({ staging, target, repositoryRoot })
 
 console.log('Building native helpers...')

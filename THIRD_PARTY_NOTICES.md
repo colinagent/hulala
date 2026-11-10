@@ -47,6 +47,13 @@ those of its declared CLI dependencies under `licenses/cli/`, with a versioned
 inventory. It parses archive records; Hulala applies its own path, entry-type,
 size and package-integrity checks before accepting an installation.
 
+## grok-mermaid
+
+- Project: [xl0/grok-mermaid](https://github.com/xl0/grok-mermaid)
+- Package: `grok-mermaid` 0.2.3
+- Use: renders Mermaid code blocks in the conversation as Unicode diagrams
+- License: Apache-2.0
+
 ## Neovim
 
 - Project: [neovim/neovim](https://github.com/neovim/neovim)
@@ -68,3 +75,10 @@ size and package-integrity checks before accepting an installation.
 - Commit: `1603abdf0b3d2082f8d39c6fe2cbde11cc419fa2`
 - Use: the editor's EPUB reader (`:Reader book.epub`)
 - License: MIT; vendored under `apps/cli/vendor/reader.nvim/`
+
+## render-markdown.nvim
+
+- Project: [MeanderingProgrammer/render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim)
+- Tag: `v8.14.0`, commit `640a3ec6d538bad17c328be373c7cad0293d9589`
+- Use: in-buffer Markdown rendering in the editor column
+- License: MIT; vendored under `apps/cli/vendor/render-markdown.nvim/`

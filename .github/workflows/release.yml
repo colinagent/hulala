@@ -39,6 +39,10 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      # Fail in seconds, not after four platform builds: a tag must name a
+      # version whose changelog section already exists.
+      - name: Check the changelog section for this tag
+        run: bun scripts/release/changelog.ts check --version "${GITHUB_REF_NAME#hulala-v}"
       - name: Package Hulala
         run: bun scripts/release/packageRelease.ts --target ${{ matrix.target }} --output dist/release
       - uses: actions/upload-artifact@v4
@@ -52,6 +56,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -67,23 +75,12 @@ jobs:
             cp "dist/hulala-${GITHUB_REF_NAME#hulala-v}-${target}.tar.gz" release-assets/
             cp "dist/hulala-${GITHUB_REF_NAME#hulala-v}-${target}.tar.gz.sha256" release-assets/
           done
+      # The release body IS the changelog section for this tag: publishing it
+      # from the tagged file is what keeps the release page, the client's
+      # `/changelog` and the repository from disagreeing.
+      - name: Generate release notes from CHANGELOG.md
+        run: bun scripts/release/changelog.ts notes --version "${GITHUB_REF_NAME#hulala-v}" --out release-notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
-          generate_release_notes: true
-          body: |
-            Download the archive for your platform and run `bin/hulala`, or install it:
-
-            ```sh
-            curl -fsSL https://hulala.ai/install.sh | sh
-            ```
-
-            | Platform | File |
-            |---|---|
-            | macOS (Apple silicon) | `hulala-<version>-darwin-arm64.tar.gz` |
-            | macOS (Intel) | `hulala-<version>-darwin-x64.tar.gz` |
-            | Linux (x64) | `hulala-<version>-linux-x64.tar.gz` |
-            | Linux (arm64) | `hulala-<version>-linux-arm64.tar.gz` |
-
-            The installer fetches the dependencies and, when Node.js 24.9+ is missing,
-            a verified Node.js runtime; it needs nothing else from you.
+          body_path: release-notes.md

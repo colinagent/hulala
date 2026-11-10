@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, existsSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
+import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 import { runTerminalClient } from '../../src/tui/app.js'
 import type { PtyModule } from '../../src/tui/editor/pty.js'
 import type {
@@ -42,6 +43,8 @@ interface FakeBackend {
   models: string[]
   /** Reasoning effort of each model selection, in call order. */
   efforts: Array<string | undefined>
+  /** Command lines the client dispatched to the Host. */
+  hostCommands: string[]
   /** Directories a new Session was requested in. */
   workspaces: string[]
   /** Session ids the fake Host created. */
@@ -82,6 +85,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
   const followed: string[] = []
   const permissions: string[] = []
   const permissionDefaults: string[] = []
+  const hostCommands: string[] = []
   let listSessionsCalls = 0
   let approval: ((request: TerminalApproval) => Promise<TerminalApprovalOutcome>) | undefined
   let question: ((questions: readonly TerminalQuestion[], signal?: AbortSignal) => Promise<{ answers: TerminalQuestionAnswer[] } | undefined>) | undefined
@@ -153,6 +157,21 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
       return { options, defaultOptions: options, defaultPreset: 'workspace-write' }
     },
     async setPermission(_sessionId, preset) { permissions.push(preset) },
+    async commandCatalog() {
+      return [{
+        name: 'compact',
+        description: 'Compact older conversation history',
+        definitionId: CommandDefinitionId('@deepseek-ai/dsh-command-compact'),
+      }]
+    },
+    async runCommand(_sessionId, line) {
+      hostCommands.push(line)
+      // The Host's registry answers `undefined` for a line no command claims,
+      // which is how a client tells "unknown" from "failed".
+      const name = line.slice(1).split(/\s+/u)[0]?.toLowerCase()
+      if (name !== 'compact' && name !== '压缩') return undefined
+      return { kind: 'success' as const, text: 'Compacted 3 history items (~1200 tokens).' }
+    },
     async setDefaultPermission(preset) { permissionDefaults.push(preset) },
     async loginProviders() {
       return [
@@ -183,6 +202,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
     followed,
     permissions,
     permissionDefaults,
+    hostCommands,
     listSessionsCalls: () => listSessionsCalls,
     get handlers() { return liveHandlers },
     approve: request => {
@@ -2282,3 +2302,70 @@ test('a mouse report split by the input timeout is not typed into the column', a
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 }, 20_000)
+
+test('/compact dispatches to the Host command the Session catalog offers', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+
+  // The row is the Host's, not the client's: typing the first letters offers it.
+  tty.input.write('/comp')
+  await waitFor(() => plain(tty.painted()).includes('Compact older conversation history'), 'catalog completion')
+  for (let index = 0; index < '/comp'.length; index += 1) tty.input.write('\u007f')
+
+  tty.input.write('/compact\r')
+  await waitFor(() => fake.hostCommands.length === 1, 'command dispatched')
+  expect(fake.hostCommands).toEqual(['/compact'])
+  // The client says nothing itself: the outcome is the Host's step row.
+  expect(plain(tty.painted())).not.toContain('unknown command')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('/压缩 is the same command as /compact and dispatches under its registered name', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  tty.input.write('/压缩\r')
+  await waitFor(() => fake.hostCommands.length === 1, 'command dispatched')
+  expect(fake.hostCommands).toEqual(['/compact'])
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a dispatched command renders as one step row: running, then its outcome', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+
+  tty.input.write('/compact\r')
+  await waitFor(() => fake.hostCommands.length === 1, 'command dispatched')
+  fake.handlers?.onEvent({
+    type: 'command/run',
+    seq: 10,
+    time: Date.now(),
+    data: { commandId: 'c1', name: 'compact', source: { kind: 'user' } },
+  })
+  await waitFor(() => plain(tty.painted()).includes('Compacting context…'), 'running row')
+  fake.handlers?.onEvent({
+    type: 'compaction/summary',
+    seq: 11,
+    time: Date.now(),
+    data: {
+      compactionId: 'k1',
+      sourceCommandId: 'c1',
+      summary: [{ type: 'text', text: 'Older work, condensed.' }],
+      shadowedSeqs: [3, 4, 5],
+      shadowedTokenCount: 4200,
+    },
+  })
+  fake.handlers?.onEvent({
+    type: 'command/done',
+    seq: 12,
+    time: Date.now(),
+    data: { commandId: 'c1', kind: 'success', text: 'Compacted 3 history items (~4200 tokens).' },
+  })
+  await waitFor(() => plain(tty.painted()).includes('Compacted 3 history items (~4200 tokens)'), 'settled row')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})

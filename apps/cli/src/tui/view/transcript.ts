@@ -34,7 +34,9 @@ import type { TranscriptItem } from '../data/viewModel.js'
 import { buildStyles, buildTheme } from './theme.js'
 import { t } from '../i18n/index.js'
 import { COLLAPSED, EXPANDED, GUTTER } from './rowGlyph.js'
+import { CommandRowView, commandExpandable } from './commandRow.js'
 import { RunningRow } from './runningRow.js'
+import { mermaidMarkdown } from './mermaid.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
 import { ToolRowView } from './toolRow.js'
 import { UserMessage } from './userMessage.js'
@@ -178,7 +180,11 @@ export class Transcript implements Component {
    */
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
     const row = this.ranges.find(range => range.end > range.start && event.y === range.start)
-    const target = row !== undefined && (row.item.kind === 'tool' || row.item.kind === 'reasoning') ? row.item : undefined
+    const target = row !== undefined && (
+      row.item.kind === 'tool'
+      || row.item.kind === 'reasoning'
+      || (row.item.kind === 'command' && commandExpandable(row.item))
+    ) ? row.item : undefined
 
     if (event.type === 'move') {
       if (target === this.hovered) return undefined
@@ -199,7 +205,8 @@ export class Transcript implements Component {
     else this.flipped.add(item)
   }
 
-  private toolExpanded(item: TranscriptItem): boolean {
+  /** Whether one detail row (a tool call, a command's summary) is open. */
+  private rowExpanded(item: TranscriptItem): boolean {
     return this.expandAll !== this.flipped.has(item)
   }
 
@@ -233,7 +240,12 @@ export class Transcript implements Component {
         // The same two-column edge every step row's gutter uses, so message
         // text and row icons share one left margin.
         const text = item.streaming ? `${item.text}▌` : item.text
-        const markdown = new Markdown(text, 2, 0, this.markdownTheme, undefined, { renderLatex: false })
+        const markdown = new Markdown(text, 2, 0, this.markdownTheme, undefined, {
+          renderLatex: false,
+          // Mermaid blocks become diagrams; whether the message is still
+          // arriving decides if an incomplete drawing reports warnings.
+          transform: (source, width) => mermaidMarkdown(source, width, { streaming: () => item.streaming }),
+        })
         this.markdowns.set(item, markdown)
         this.syncedText.set(item, text)
         return markdown
@@ -243,9 +255,20 @@ export class Transcript implements Component {
           item,
           this.roots,
           this.color,
-          () => this.toolExpanded(item),
-          () => this.gutter(() => this.toolExpanded(item), item),
+          () => this.rowExpanded(item),
+          () => this.gutter(() => this.rowExpanded(item), item),
         )
+      case 'command': {
+        // Only a manual compaction carries a body: the summary is a detail row
+        // like a tool's output, so the same expand gesture opens it.
+        const open = (): boolean => commandExpandable(item) && this.rowExpanded(item)
+        return new CommandRowView(
+          item,
+          this.color,
+          open,
+          () => commandExpandable(item) ? this.gutter(open, item) : GUTTER,
+        )
+      }
       case 'error':
         return new Text(this.styles.error(`! ${item.message}`), 2, 0)
       case 'summary': {

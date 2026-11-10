@@ -11,8 +11,9 @@
  *
  * @module hulala-cli/language
  */
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readClientPreferences, updateClientPreferences } from './clientPreferences.js'
+
+export { clientConfigPath } from './clientPreferences.js'
 
 /** The languages this client ships messages for. */
 export type LanguageCode = 'en' | 'zh-CN'
@@ -38,15 +39,7 @@ export interface ClientLanguageRecord {
   readonly problem?: string
 }
 
-const FILE = 'client.json'
-
-/** Path of the client preferences file for one state root. */
-export function clientConfigPath(dataRoot: string): string {
-  return join(dataRoot, 'config', FILE)
-}
-
-/**
- * Normalize one language spelling.
+/** Normalize one language spelling.
  *
  * The picker only ever writes `en` or `zh-CN`, but a person editing
  * `client.json` or exporting `HULALA_LANG` may type a POSIX or English name.
@@ -74,21 +67,11 @@ export function languageName(code: LanguageCode): string {
  * @returns the saved code, or the reason there is none.
  */
 export function readClientLanguage(dataRoot: string): ClientLanguageRecord {
-  let text: string
-  try {
-    text = readFileSync(clientConfigPath(dataRoot), 'utf8')
-  } catch (caught) {
-    if ((caught as NodeJS.ErrnoException).code === 'ENOENT') return {}
-    return { problem: caught instanceof Error ? caught.message : String(caught) }
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch (caught) {
-    return { problem: caught instanceof Error ? caught.message : String(caught) }
-  }
-  if (parsed === null || typeof parsed !== 'object') return { problem: 'client.json is not an object' }
-  const saved = (parsed as Record<string, unknown>).language
+  const read = readClientPreferences(dataRoot)
+  // No file is the ordinary fresh install, not a problem to report.
+  if (!read.present) return {}
+  if (read.problem !== undefined) return { problem: read.problem }
+  const saved = read.values.language
   if (typeof saved !== 'string') return { problem: 'client.json has no language' }
   const code = parseLanguage(saved)
   return code === undefined ? { problem: `unsupported language "${saved}"` } : { language: code }
@@ -104,15 +87,7 @@ export function readClientLanguage(dataRoot: string): ClientLanguageRecord {
  * @param code - the language the user chose.
  */
 export function writeClientLanguage(dataRoot: string, code: LanguageCode): void {
-  const target = clientConfigPath(dataRoot)
-  mkdirSync(dirname(target), { recursive: true, mode: 0o700 })
-  const temporary = `${target}.${process.pid}.tmp`
-  try {
-    writeFileSync(temporary, `${JSON.stringify({ language: code })}\n`, { mode: 0o600 })
-    renameSync(temporary, target)
-  } finally {
-    rmSync(temporary, { force: true })
-  }
+  updateClientPreferences(dataRoot, { language: code })
 }
 
 /**

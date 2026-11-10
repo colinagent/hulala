@@ -153,7 +153,7 @@ test('the menu window follows the selection and reports its position', async () 
   for (let index = 0; index < 6; index += 1) editor.handleInput('\u001b[B') // Down
   const lines = editor.render(80)
   // pi's `(selected/total)` line, under a window that slid with the selection.
-  expect(lines.some(line => line.includes('(7/24)'))).toBe(true)
+  expect(lines.some(line => line.includes('(7/25)'))).toBe(true)
   expect(lines.some(line => line.includes('❯ /permission'))).toBe(true)
   // The first matches scrolled out instead of clipping the selection away.
   expect(lines.some(line => line.includes('/help'))).toBe(false)
@@ -166,7 +166,7 @@ test('Up from the first match wraps to the last, as pi does', async () => {
   editor.handleInput('\u001b[A') // Up at the top
   const lines = editor.render(80)
   expect(lines.some(line => line.includes('❯ /quit'))).toBe(true)
-  expect(lines.some(line => line.includes('(24/24)'))).toBe(true)
+  expect(lines.some(line => line.includes('(25/25)'))).toBe(true)
 })
 
 test('PageDown moves one window at a time and PageUp clamps at the top', async () => {
@@ -176,11 +176,11 @@ test('PageDown moves one window at a time and PageUp clamps at the top', async (
   editor.handleInput('\u001b[6~') // PageDown
   const paged = editor.render(80)
   expect(paged.some(line => line.includes('❯ /thinking'))).toBe(true)
-  expect(paged.some(line => line.includes('(6/24)'))).toBe(true)
+  expect(paged.some(line => line.includes('(6/25)'))).toBe(true)
   editor.handleInput('\u001b[5~') // PageUp
   expect(editor.render(80).some(line => line.includes('❯ /help'))).toBe(true)
   editor.handleInput('\u001b[5~') // Already at the top: clamped, not wrapped
-  expect(editor.render(80).some(line => line.includes('(1/24)'))).toBe(true)
+  expect(editor.render(80).some(line => line.includes('(1/25)'))).toBe(true)
 })
 
 test('the wheel moves the menu one entry per notch', async () => {

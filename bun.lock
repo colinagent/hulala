@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.2.26",
+      "version": "0.2.30",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -39,6 +39,7 @@
         "@hulala/distribution": "workspace:*",
         "@hulala/host-client": "workspace:*",
         "@hulala/runtime": "workspace:*",
+        "grok-mermaid": "0.2.3",
         "tar-stream": "3.2.2",
         "ws": "8.21.1",
       },
@@ -118,7 +119,7 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.2.26",
+      "version": "0.2.30",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
@@ -148,7 +149,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.2.26",
+      "version": "0.2.30",
       "bin": {
         "hulala-runtime": "./lib/cli.js",
       },
@@ -1677,6 +1678,8 @@
     "got": ["got@14.6.6", "", { "dependencies": { "@sindresorhus/is": "^7.0.1", "byte-counter": "^0.1.0", "cacheable-lookup": "^7.0.0", "cacheable-request": "^13.0.12", "decompress-response": "^10.0.0", "form-data-encoder": "^4.0.2", "http2-wrapper": "^2.2.1", "keyv": "^5.5.3", "lowercase-keys": "^3.0.0", "p-cancelable": "^4.0.1", "responselike": "^4.0.2", "type-fest": "^4.26.1" } }, "sha512-QLV1qeYSo5l13mQzWgP/y0LbMr5Plr5fJilgAIwgnwseproEbtNym8xpLsDzeZ6MWXgNE6kdWGBjdh3zT/Qerg=="],
 
     "graceful-fs": ["graceful-fs@4.2.11", "", {}, "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="],
+
+    "grok-mermaid": ["grok-mermaid@0.2.3", "", {}, "sha512-/4KopAbsjvuRP9MdPtlDjOHUmUVEohOX73JNcsWpzAtFxh+bq5+Dhb6gzvRieLDwIPQIR3/vy8V1NNTuz4Zsmg=="],
 
     "has-flag": ["has-flag@4.0.0", "", {}, "sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ=="],
 

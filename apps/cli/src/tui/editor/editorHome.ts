@@ -19,6 +19,8 @@
  *   prepended to `runtimepath`;
  * - `<data>/runtime/editor/nvim-plugins/snacks.nvim/` — the bundled file tree
  *   and picker plugin (MIT, see its `VENDOR.md`);
+ * - `<data>/runtime/editor/nvim-plugins/render-markdown.nvim/` — the bundled
+ *   in-buffer Markdown renderer (MIT, see its `VENDOR.md`);
  * - `<data>/config/editor/plugins/` — every plugin directory here is prepended
  *   to `runtimepath`, so a user plugin (a reader, a motion pack) is a folder
  *   drop away. Hulala never writes into it;
@@ -301,6 +303,14 @@ export function editorEnvironment(home: EditorHome, theme: EditorTheme, ripgrepP
     HULALA_NVIM_SNACKS: home.plugin,
     HULALA_NVIM_PLUGIN_DIR: home.pluginDir,
     HULALA_NVIM_BUNDLED_PLUGINS: home.pluginRoot,
+  }
+  // The editor draws Mermaid diagrams with the engine the conversation already
+  // ships, by running this build as a child process: no second dependency tree
+  // and no per-platform binary. The entry is whatever started us, so a source
+  // checkout (`bun src/main.ts`) and a packaged `bin/hulala` both work.
+  const entry = process.argv[1]
+  if (entry !== undefined && entry !== '') {
+    environment.HULALA_NVIM_MERMAID = JSON.stringify({ argv: [process.execPath, entry, '--mermaid-render'] })
   }
   // The pickers run plain `rg`, so the shipped binary must be reachable through
   // `PATH`; appended, never prepended, so the user's own tools still win.

@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.2.30",
+  "version": "0.2.31",
   "description": "Launch the local-first Hulala Agent workbench with one npx command.",
   "type": "module",
   "bin": {
@@ -63,6 +63,7 @@
     "@hulala/distribution": "workspace:*",
     "@hulala/host-client": "workspace:*",
     "@hulala/runtime": "workspace:*",
+    "grok-mermaid": "0.2.3",
     "tar-stream": "3.2.2",
     "ws": "8.21.1"
   },

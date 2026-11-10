@@ -24,6 +24,15 @@ offers: `Enter` switches this Session, `Ctrl-S` also stores the choice as the
 default for new Sessions, and the list ticks the current preset and badges the
 default. The footer names the current preset next to the level.
 
+The list above is the client's own commands. The Host's command catalog sits
+alongside it: every command the Session's agent registers appears in the `/`
+menu and the palette, is dispatched to the Host with its arguments, and reports
+back as a step row in the conversation. `/compact` is one of them — it condenses
+older history on demand, and its row says how many history items and roughly how
+many tokens it shadowed, with the summary one fold away. The Chinese spellings
+the Harness accepts work too: `/压缩` reaches `/compact`. A word the client
+already owns (`/permission`) runs the client's version.
+
 The interface language is English or Chinese. A first launch with no saved
 choice asks once; `/language` (or `/language en` / `/language zh-CN`) changes it
 at any time and remembers the answer. `HULALA_LANG=en|zh-CN` overrides the saved
@@ -268,7 +277,8 @@ server/hulala-host.mjs     Host wrapper
 runtime/host.mjs           compiled Host
 runtime/node_modules/      DeepSeek Harness engine and native deps
 runtime/editor/nvim/       Neovim runtime tree and tree-sitter parsers
-runtime/editor/nvim-plugins/snacks.nvim/   vendored file tree and pickers
+runtime/editor/nvim-plugins/   vendored plugins (snacks.nvim, reader.nvim,
+                               render-markdown.nvim)
 manifest.json
 ```
 
@@ -390,11 +400,19 @@ no plugin manager, and the client never rewrites that directory. Bundled plugins
 (`snacks.nvim`, the file tree and pickers) are published beside the editor under
 `~/.hulala/runtime/editor/nvim-plugins/`; a plugin you add with the same name wins.
 
-Two plugins ship inside the archive: `snacks.nvim` (file tree, pickers) and
-`reader.nvim` (the EPUB reader, `:Reader book.epub`). Nothing is downloaded at
-runtime — the release carries them, and an upgrade republishes the whole plugin
-directory. Reading EPUB shells out to the `unzip` command; the installer tries to
-add it and prints the package command when it cannot.
+Three plugins ship inside the archive: `snacks.nvim` (file tree, pickers),
+`reader.nvim` (the EPUB reader, `:Reader book.epub`) and `render-markdown.nvim`
+(Markdown rendered in the buffer: headings, code panels, tables, checkboxes).
+Nothing is downloaded at runtime — the release carries them, and an upgrade
+republishes the whole plugin directory. Reading EPUB shells out to the `unzip`
+command; the installer tries to add it and prints the package command when it
+cannot.
+
+Markdown is drawn in place, and the line under the cursor keeps its raw source so
+editing is unaffected. Mermaid blocks get a diagram under their fence, drawn by
+the same engine the conversation uses; `Space u m` toggles both. Anything the
+renderer cannot draw — an unknown diagram type, a syntax error, art wider than the
+column — stays source.
 
 `Ctrl-[` is the same byte as `Esc`, so the keyboard does not simply take it: the
 column keeps the key while Neovim has something to cancel. Neovim reports its

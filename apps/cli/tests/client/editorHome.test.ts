@@ -163,6 +163,49 @@ test('Hulala\'s own editor settings are rewritten when they change', () => {
   expect(statSync(home.basePath).mtimeMs).toBe(before)
 })
 
+test('the shipped settings render Markdown from the bundled plugin', () => {
+  const root = stateRoot()
+  const home = resolveEditorHome(root)
+  ensureEditorConfig(home)
+  const written = readFileSync(home.basePath, 'utf8')
+  // Rendered in the buffer, from the plugin that ships with the editor.
+  expect(written).toContain('render-markdown')
+  expect(written).toContain('file_types = { "markdown" }')
+  // The editor never fetches a plugin: the release package carries this one.
+  const vendor = join(import.meta.dir, '..', '..', 'vendor', 'render-markdown.nvim')
+  expect(existsSync(join(vendor, 'lua', 'render-markdown', 'init.lua'))).toBe(true)
+  expect(existsSync(join(vendor, 'VENDOR.md'))).toBe(true)
+})
+
+test('the Markdown samples cover every construct the renderer draws', () => {
+  // The pages a human opens in the editor column to check rendering by eye,
+  // one per language: the website screenshots the page in its own language.
+  for (const name of ['markdown-sample.zh-CN.md', 'markdown-sample.en.md']) {
+    const sample = readFileSync(join(import.meta.dir, '..', 'fixtures', 'editor', name), 'utf8')
+    expect(sample).toMatch(/^##### /m) // heading levels 1 through 5
+    expect(sample).toMatch(/^ {2}- /m) // nested unordered lists
+    expect(sample).toMatch(/^ {2,}1\. /m) // nested ordered lists
+    expect(sample).toMatch(/^- \[ \] /m) // task list states
+    expect(sample).toMatch(/^- \[x\] /m)
+    expect(sample).toMatch(/^\|:-/m) // a table with an alignment row
+    expect(sample).toMatch(/^```mermaid$/m) // fenced code with and without a language
+    expect(sample).toMatch(/^```lua$/m)
+    expect(sample).toMatch(/^> /m) // a quote
+  }
+})
+
+test('each Markdown sample is written in one language and the same sections', () => {
+  const read = (name: string): string =>
+    readFileSync(join(import.meta.dir, '..', 'fixtures', 'editor', name), 'utf8')
+  const chinese = read('markdown-sample.zh-CN.md')
+  const english = read('markdown-sample.en.md')
+  expect(chinese).toMatch(/[\u4e00-\u9fff]/)
+  // No Chinese in the English page: its screenshots stand on their own.
+  expect(english).not.toMatch(/[\u4e00-\u9fff]/)
+  const sections = (page: string): string[] => [...page.matchAll(/^## (\d+)\./gm)].map(match => match[1] ?? '')
+  expect(sections(english)).toEqual(sections(chinese))
+})
+
 test('the shipped settings show dotfiles in the file tree', () => {
   const root = stateRoot()
   const home = resolveEditorHome(root)
@@ -187,6 +230,11 @@ test('the editor environment isolates XDG homes and points at the published data
   expect(env.HULALA_NVIM_CONFIG).toBe(published.basePath)
   expect(env.HULALA_NVIM_PLUGIN_DIR).toBe(published.pluginDir)
   expect(env.HULALA_NVIM_BUNDLED_PLUGINS).toBe(published.pluginRoot)
+  // The editor draws Mermaid by running this same build as a child process, so
+  // there is no second engine to ship and no per-platform binary.
+  const mermaid = JSON.parse(env.HULALA_NVIM_MERMAID ?? '{}') as { argv?: string[] }
+  expect(mermaid.argv?.at(-1)).toBe('--mermaid-render')
+  expect(mermaid.argv?.length).toBe(3)
   expect(published.pluginRoot).toBe(join(root, 'runtime', 'editor', 'nvim-plugins'))
   // Created on first use, so dropping a plugin in needs no other setup.
   expect(existsSync(published.pluginDir)).toBe(true)

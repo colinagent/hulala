@@ -5,11 +5,11 @@
  * carries them. Two files land in `<data>/config/editor/nvim/`:
  *
  * - `hulala.lua` is {@link NVIM_BASE_LUA}: the settings the client owns (theme,
- *   autosave, the file tree, the pickers). It is rewritten whenever its content
- *   changes, because a fix that never reaches an existing installation is not a
- *   fix. The client also loads it through `nvim --cmd` before Neovim reads any
- *   user config, so installations whose `init.lua` was written by an older
- *   client still get it.
+ *   autosave, the file tree, the pickers, the Markdown renderer). It is rewritten
+ *   whenever its content changes, because a fix that never reaches an existing
+ *   installation is not a fix. The client also loads it through `nvim --cmd`
+ *   before Neovim reads any user config, so installations whose `init.lua` was
+ *   written by an older client still get it.
  * - `init.lua` is {@link NVIM_INIT_LUA}: written once and never overwritten, so
  *   a user can edit it and keep those edits across upgrades. It only loads the
  *   base config, and the base guards against being loaded twice.
@@ -432,6 +432,273 @@ local function prepend_plugins(root)
 end
 prepend_plugins(vim.env.HULALA_NVIM_BUNDLED_PLUGINS)
 prepend_plugins(vim.env.HULALA_NVIM_PLUGIN_DIR)
+
+
+-- Mermaid blocks are drawn under their fence by the same engine the conversation
+-- uses. Neovim owns no renderer: the client hands over the command that runs it
+-- ('HULALA_NVIM_MERMAID'), and this only decides which blocks to send, how wide
+-- the drawing may be, and where the rows land. Without that command — an older
+-- client, or a build started without the editor — nothing here runs.
+local mermaid_argv = nil
+local mermaid_setting = vim.env.HULALA_NVIM_MERMAID
+if mermaid_setting ~= nil and mermaid_setting ~= "" then
+  local ok, decoded = pcall(vim.json.decode, mermaid_setting)
+  if ok and type(decoded) == "table" and type(decoded.argv) == "table" and #decoded.argv > 0 then
+    mermaid_argv = decoded.argv
+  end
+end
+
+local mermaid_enabled = true
+local mermaid_namespace = vim.api.nvim_create_namespace("hulala-mermaid")
+-- Drawings by window width, then by source: a redraw after a resize is cached,
+-- and scrolling never spawns the renderer again.
+local mermaid_cache = {}
+local mermaid_timers = {}
+local MERMAID_DELAY = 300
+
+-- The marks currently on screen, per buffer: a redraw sets the new rows first
+-- and removes the old ones after, in one pass, so a diagram being re-rendered
+-- does not blink out while the child process runs.
+local mermaid_marks = {}
+
+local function mermaid_forget(buf)
+  for _, id in ipairs(mermaid_marks[buf] or {}) do
+    pcall(vim.api.nvim_buf_del_extmark, buf, mermaid_namespace, id)
+  end
+  mermaid_marks[buf] = nil
+end
+
+local function mermaid_clear(buf)
+  if vim.api.nvim_buf_is_valid(buf) then
+    mermaid_forget(buf)
+    vim.api.nvim_buf_clear_namespace(buf, mermaid_namespace, 0, -1)
+  end
+end
+
+-- Width the drawing may use: the text area of a window showing the buffer. A
+-- buffer nobody displays has no width to draw for; its drawing is made when it
+-- is shown, so a hidden buffer never spawns the renderer with a foreign width.
+local function mermaid_width(buf)
+  local win = vim.fn.bufwinid(buf)
+  if win == -1 then return nil end
+  local info = vim.fn.getwininfo(win)[1]
+  local offset = info ~= nil and info.textoff or 0
+  return math.max(24, vim.api.nvim_win_get_width(win) - offset)
+end
+
+-- Fenced blocks whose info string names Mermaid, with the row their art hangs
+-- from: the closing fence, so the drawing sits below the block instead of
+-- covering the source that is still being edited.
+local function mermaid_blocks(buf)
+  local ok, parser = pcall(vim.treesitter.get_parser, buf, "markdown")
+  if not ok or parser == nil then return {} end
+  local trees = parser:parse()
+  if trees == nil or trees[1] == nil then return {} end
+  local okq, query = pcall(vim.treesitter.query.parse, "markdown", table.concat({
+    "(fenced_code_block",
+    "  (info_string (language) @lang)",
+    "  (code_fence_content) @body) @block",
+  }, "\\n"))
+  if not okq or query == nil then return {} end
+  local ids = {}
+  for index, name in ipairs(query.captures) do ids[name] = index end
+  local blocks = {}
+  for _, match in query:iter_matches(trees[1]:root(), buf, 0, -1, { all = true }) do
+    local lang = match[ids.lang] and match[ids.lang][1]
+    local body = match[ids.body] and match[ids.body][1]
+    local block = match[ids.block] and match[ids.block][1]
+    if lang ~= nil and body ~= nil and block ~= nil
+      and vim.treesitter.get_node_text(lang, buf):lower() == "mermaid" then
+      local _, _, end_row = block:range()
+      blocks[#blocks + 1] = { source = vim.treesitter.get_node_text(body, buf), row = end_row }
+    end
+  end
+  return blocks
+end
+
+local function mermaid_apply(buf, blocks)
+  local fresh = {}
+  for _, block in ipairs(blocks) do
+    if block.art ~= nil then
+      local lines = {}
+      for _, row in ipairs(block.art) do lines[#lines + 1] = { { row } } end
+      local ok, id = pcall(vim.api.nvim_buf_set_extmark, buf, mermaid_namespace, block.row, 0, {
+        virt_lines = lines,
+        virt_lines_above = false,
+      })
+      if ok then fresh[#fresh + 1] = id end
+    end
+  end
+  mermaid_forget(buf)
+  mermaid_marks[buf] = fresh
+end
+
+local function mermaid_render(buf)
+  if mermaid_argv == nil or not mermaid_enabled or vim.system == nil then return end
+  if not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].filetype ~= "markdown" then return end
+  local width = mermaid_width(buf)
+  if width == nil then return end
+  local blocks = mermaid_blocks(buf)
+  if #blocks == 0 then
+    mermaid_clear(buf)
+    return
+  end
+  -- The renderer answers a bounded batch; the rest keep their source rather than
+  -- being re-sent, unsent, on every change.
+  for index = #blocks, 33, -1 do blocks[index] = nil end
+  local cached = mermaid_cache[width] or {}
+  mermaid_cache[width] = cached
+  -- Every edit of a diagram is a new source; keep the map from growing all
+  -- session long. Dropping it only costs one re-render.
+  local entries = 0
+  for _ in pairs(cached) do entries = entries + 1 end
+  if entries > 400 then
+    for key in pairs(cached) do cached[key] = nil end
+  end
+  local sources = {}
+  for _, block in ipairs(blocks) do
+    if cached[block.source] ~= nil then
+      block.art = cached[block.source]
+    else
+      sources[#sources + 1] = block.source
+    end
+  end
+  if #sources == 0 then
+    mermaid_apply(buf, blocks)
+    return
+  end
+  vim.system(mermaid_argv, { stdin = vim.json.encode({ width = width, sources = sources }), text = true }, function(result)
+    vim.schedule(function()
+      if result.code ~= 0 then return end
+      local ok, decoded = pcall(vim.json.decode, result.stdout or "")
+      if not ok or type(decoded) ~= "table" or type(decoded.arts) ~= "table" then return end
+      local index = 0
+      for _, block in ipairs(blocks) do
+        if block.art == nil then
+          index = index + 1
+          local art = decoded.arts[index]
+          if art == vim.NIL then art = nil end
+          block.art = art
+          if art ~= nil then cached[block.source] = art end
+        end
+      end
+      if vim.api.nvim_buf_is_valid(buf) then mermaid_apply(buf, blocks) end
+    end)
+  end)
+end
+
+-- One render per quiet moment: typing inside a block would otherwise spawn a
+-- process per keystroke.
+local function mermaid_schedule(buf)
+  if mermaid_argv == nil or buf == nil or not vim.api.nvim_buf_is_valid(buf) then return end
+  local timer = mermaid_timers[buf]
+  if timer == nil then
+    timer = vim.uv.new_timer()
+    mermaid_timers[buf] = timer
+  end
+  timer:stop()
+  timer:start(MERMAID_DELAY, 0, vim.schedule_wrap(function()
+    if vim.api.nvim_buf_is_valid(buf) then mermaid_render(buf) end
+  end))
+end
+
+local function mermaid_toggle()
+  mermaid_enabled = not mermaid_enabled
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].filetype == "markdown" then
+      if mermaid_enabled then
+        mermaid_schedule(buf)
+      else
+        mermaid_clear(buf)
+      end
+    end
+  end
+end
+
+if mermaid_argv ~= nil then
+  vim.api.nvim_create_autocmd({ "FileType", "BufReadPost", "BufEnter", "BufWinEnter" }, {
+    callback = function(args)
+      if vim.bo[args.buf].filetype == "markdown" then mermaid_schedule(args.buf) end
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI", "BufWritePost" }, {
+    callback = function(args)
+      if vim.bo[args.buf].filetype == "markdown" then mermaid_schedule(args.buf) end
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "VimResized", "WinResized" }, {
+    callback = function() mermaid_schedule(vim.api.nvim_get_current_buf()) end,
+  })
+  vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+    callback = function(args)
+      local timer = mermaid_timers[args.buf]
+      if timer ~= nil then
+        timer:stop()
+        if not timer:is_closing() then timer:close() end
+        mermaid_timers[args.buf] = nil
+      end
+      mermaid_marks[args.buf] = nil
+    end,
+  })
+  mermaid_schedule(vim.api.nvim_get_current_buf())
+end
+
+-- Vendored render-markdown.nvim: Markdown rendered where it is written.
+--
+-- Headings, code blocks, tables, checkboxes and quotes take their final shape
+-- while the text stays editable; the line under the cursor keeps its raw source.
+-- The plugin ships with the editor and uses the parsers the package already
+-- carries, so nothing is fetched at runtime. A user copy in the plugin
+-- directory wins: then the configuration is theirs to own, and the setup below
+-- is skipped so it cannot overwrite their options.
+local function markdown_render()
+  local ok, render = pcall(require, "render-markdown")
+  if not ok then return end
+  local user_plugins = vim.env.HULALA_NVIM_PLUGIN_DIR
+  if user_plugins ~= nil and user_plugins ~= "" then
+    local first = vim.api.nvim_get_runtime_file("lua/render-markdown/init.lua", false)[1]
+    if first ~= nil and vim.startswith(first, user_plugins) then return end
+  end
+  render.setup({
+    -- No preset, and no Nerd Font assumption: the glyphs the upstream defaults
+    -- put in front of headings, links and callouts are not guaranteed to be in a
+    -- terminal's font, so the icons here are plain Unicode or absent.
+    preset = "none",
+    file_types = { "markdown" },
+    heading = { sign = false, icons = {} },
+    code = {
+      sign = false,
+      language_icon = false,
+      border = "thin",
+      language_border = "▄",
+      language_left = " ",
+      language_right = " ",
+      width = "block",
+      right_pad = 1,
+    },
+    checkbox = { unchecked = { icon = "☐ " }, checked = { icon = "☑ " } },
+    link = { enabled = false },
+    -- Callout labels keep their text; only the glyph in front of it is Nerd
+    -- Font, and a label without it reads the same.
+    callout = {
+      note = { rendered = "Note" },
+      tip = { rendered = "Tip" },
+      important = { rendered = "Important" },
+      warning = { rendered = "Warning" },
+      caution = { rendered = "Caution" },
+    },
+    -- Converting formulas needs utftex or latex2text, which the editor does not
+    -- ship: leave the source visible instead of failing on every block.
+    latex = { enabled = false },
+  })
+  -- One page per language with every construct this draws, for checking by eye
+  -- in the editor: apps/cli/tests/fixtures/editor/markdown-sample.{zh-CN,en}.md
+  vim.keymap.set("n", "<leader>um", function()
+    pcall(render.buf_toggle)
+    mermaid_toggle()
+  end, { desc = "Markdown render" })
+end
+markdown_render()
 
 -- Vendored snacks.nvim: the file tree and fuzzy pickers.
 local snacks_dir = vim.env.HULALA_NVIM_SNACKS

@@ -40,8 +40,9 @@
   discover it through `endpoint.json` and attach; closing a client
   detaches instead of stopping the Host. Only an explicit user action starts or
   stops a Host, and there is no login autostart. `bun run start` in a source
-  checkout is that explicit dev action: it stops the Host, rebuilds it from the
-  working tree, and starts the client; `bun run start:attach` only attaches.
+  checkout is that explicit dev action: it stops the Host, rebuilds the Host and
+  the client bundle from the working tree, and runs that bundle; `bun run
+  start:attach` only attaches.
 - The terminal client is bundled into the CLI; it must not spawn a private
   second Runtime or a DSH profile.
 
@@ -93,6 +94,23 @@
   Cloudflare Workers Static Assets deployment working. R2 keeps only the latest
   complete release; use `scripts/release/publishR2.ts` and
   `deploy/cloudflare/README.md`.
+
+## Changelog
+
+- One `CHANGELOG.md` at the root is the only release log. The GitHub Release
+  body, the client's startup block and `/changelog` all read it, so the release
+  page cannot be hand-written and cannot disagree with the repository.
+- New entries go under `## [Unreleased]` in `### Added`, `### Changed`,
+  `### Fixed` or `### Removed`, written in English. Read the whole section
+  before appending; never create a duplicate group.
+- A released section is immutable. Correct a mistake in a new release, not in
+  the section a shipped release already published.
+- Bump the version and run `bun run changelog:cut` in the same change: it turns
+  `[Unreleased]` into `## [<version>] - <date>` and leaves an empty
+  `[Unreleased]` behind. `bun run check:changelog` (part of `bun run check`)
+  fails when the version in `package.json` has no section.
+- The release bundle inlines the file at build time; never copy changelog text
+  into the client, the workflow or the website by hand.
 
 ## Out Of Current Scope
 

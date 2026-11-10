@@ -19,6 +19,11 @@ export interface MessageTable {
   'language.saveFailed': (params: { reason: string }) => string
   'language.changed': (params: { language: string }) => string
 
+  'mermaid.incomplete': (params: { warning: string }) => string
+
+  'changelog.updated': (params: { version: string }) => string
+  'changelog.none': (params: { version: string }) => string
+
   'slash.help': string
   'slash.sessions': string
   'slash.new': string
@@ -30,6 +35,7 @@ export interface MessageTable {
   'slash.rename': string
   'slash.cancel': string
   'slash.status': string
+  'slash.changelog': string
   'slash.editor': string
   'slash.terminal': string
   'slash.reasoning': string
@@ -44,6 +50,14 @@ export interface MessageTable {
   'slash.commands': string
   'slash.keys': string
   'list.moveHint': string
+
+  'palette.group.host': string
+  'host.goal': string
+  'host.plan': string
+  'host.feedback': string
+  'host.compact': string
+  'host.permission': string
+  'host.export': string
 
   'keymap.action.quit': string
   'keymap.action.interrupt': string
@@ -232,6 +246,14 @@ export interface MessageTable {
   'ime.noEnglishSource': string
 
   'transcript.summary': string
+  /** One slash command the Host executed, rendered as a step row. */
+  'command.title': string
+  'command.running': string
+  'command.done': string
+  'command.failed': string
+  /** The `/compact` row's own states, matching the web transcript. */
+  'command.compacting': string
+  'command.compacted': (params: { items: number; tokens: number }) => string
   'tool.in': string
   'tool.out': string
   'tool.moreLines': (params: { n: number }) => string

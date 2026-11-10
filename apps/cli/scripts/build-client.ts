@@ -1,9 +1,13 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import packageJson from '../package.json' with { type: 'json' }
 
 const root = join(import.meta.dirname, '..')
 const version = process.env.HULALA_TUI_VERSION?.trim() || packageJson.version
+// The changelog travels inside the bundle: an installed archive has no
+// checkout to read it from, and `/changelog` must answer there too.
+const changelog = readFileSync(join(root, '..', '..', 'CHANGELOG.md'), 'utf8')
 const output = join(root, 'dist')
 await rm(join(output, 'hulala.mjs'), { force: true })
 await mkdir(output, { recursive: true })
@@ -14,9 +18,14 @@ const result = await Bun.build({
   target: 'node',
   format: 'esm',
   minify: true,
-  sourcemap: 'none',
+  // A development start runs this bundle too; an inline map keeps its stack
+  // traces readable. The release build stays map-free.
+  sourcemap: process.env.HULALA_TUI_SOURCEMAP === '1' ? 'inline' : 'none',
   banner: '#!/usr/bin/env node',
-  define: { __HULALA_VERSION__: JSON.stringify(version) },
+  define: {
+    __HULALA_VERSION__: JSON.stringify(version),
+    __HULALA_CHANGELOG__: JSON.stringify(changelog),
+  },
 })
 if (!result.success) throw new AggregateError(result.logs, 'failed to build the TUI executable')
 await chmod(join(output, 'hulala.mjs'), 0o755)

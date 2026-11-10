@@ -17,6 +17,7 @@ import WorkspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
 import type { WorkspaceCreateRequest } from '@deepseek-ai/dsh-api-workspace-controller/types'
 import { installConnection, type ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import CommandsRemote from '@deepseek-ai/dsh-commands/remote'
+import type { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 import type { AssistantStreamRecord, LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import LlmRemote from '@deepseek-ai/dsh-llm/remote'
@@ -145,6 +146,29 @@ export interface TerminalPermissionCatalog {
   defaultPreset: string
 }
 
+/**
+ * One slash command the Host's agent catalog offers.
+ *
+ * The catalog belongs to the composition, not to this client: compaction, goals,
+ * plans and exports are plugin rows, and a client that hard-coded them would
+ * drift from whatever the Host runs.
+ */
+export interface TerminalHostCommand {
+  /** Lowercase command name without the leading slash. */
+  name: string
+  /** Host-authored summary, used unless the client localizes the row. */
+  description: string
+  /** Stable first-party identity; absent for other definitions. */
+  definitionId?: CommandDefinitionId
+  /** Free-form input the command accepts, when it declares any. */
+  input?: { hint: string; attachments?: boolean }
+}
+
+/** How one dispatched command settled, as the Host's executor normalized it. */
+export type TerminalCommandOutcome =
+  | { kind: 'success'; text?: string; sourceEventSeq?: number }
+  | { kind: 'error'; text: string }
+
 /** One pending approval. */
 export interface TerminalApproval {
   toolName: string
@@ -263,6 +287,21 @@ export interface TerminalBackend {
   setPermission(sessionId: string, preset: string): Promise<void>
   /** Write the new-session default; it applies to Sessions created afterwards. */
   setDefaultPermission(preset: string): Promise<void>
+  /**
+   * Every slash command this Session's agent offers.
+   *
+   * Read from the Host instead of a client table so a plugin row the composition
+   * mounts (compaction among them) is dispatchable without a client release.
+   */
+  commandCatalog(sessionId: string): Promise<TerminalHostCommand[]>
+  /**
+   * Dispatch one typed command line to the Host.
+   *
+   * The acknowledgment is admission, not outcome: the handler's result arrives
+   * as the durable `command/run`/`command/done` pair the transcript renders.
+   * `undefined` means no command registry claimed the line.
+   */
+  runCommand(sessionId: string, line: string): Promise<TerminalCommandOutcome | undefined>
   /** Provider routes this build can configure with an API key. */
   loginProviders(): Promise<TerminalProvider[]>
   /**
@@ -732,6 +771,36 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
 
     async setPermission(sessionId, preset) {
       unwrap(await ctx.remote.commands.execute(sessionId as never, `/permission ${preset}`, []))
+    },
+
+    async commandCatalog(sessionId) {
+      const descriptors = unwrap(await ctx.remote.commands.list(sessionId as never))
+      return descriptors.map(descriptor => ({
+        name: descriptor.name,
+        description: descriptor.description,
+        ...(descriptor.definitionId === undefined ? {} : { definitionId: descriptor.definitionId }),
+        ...(descriptor.input === undefined
+          ? {}
+          : {
+              input: {
+                hint: descriptor.input.hint,
+                ...(descriptor.input.attachments === undefined ? {} : { attachments: descriptor.input.attachments }),
+              },
+            }),
+      }))
+    },
+
+    async runCommand(sessionId, line) {
+      const execution = unwrap(await ctx.remote.commands.execute(sessionId as never, line, []))
+      if (execution === undefined) return undefined
+      const result = execution.result
+      return result.kind === 'success'
+        ? {
+            kind: 'success' as const,
+            ...(result.text === undefined ? {} : { text: result.text }),
+            ...(result.sourceEventSeq === undefined ? {} : { sourceEventSeq: result.sourceEventSeq as number }),
+          }
+        : { kind: 'error' as const, text: result.text }
     },
 
     async setDefaultPermission(preset) {

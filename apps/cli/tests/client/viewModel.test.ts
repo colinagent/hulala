@@ -231,3 +231,56 @@ test('keeps a pending occurrence that carries no text', () => {
   reducer.setInbox({ steering: [], followUp: [{ id: 'image-1' }] })
   expect(reducer.pending.followUp).toEqual([{ id: 'image-1' }])
 })
+
+test('folds a command lifecycle into one row, running then settled', () => {
+  const reducer = new ViewModelReducer()
+  reducer.applyEvent(event('command/run', { commandId: 'c1', name: 'compact', source: { kind: 'user' } }))
+  expect(reducer.items).toMatchObject([{ kind: 'command', commandId: 'c1', name: 'compact', status: 'running' }])
+  reducer.applyEvent(event('command/done', { commandId: 'c1', kind: 'success', text: 'Compacted 3 history items (~1200 tokens).' }, 2))
+  expect(reducer.items).toMatchObject([{
+    kind: 'command',
+    name: 'compact',
+    status: 'ok',
+    text: 'Compacted 3 history items (~1200 tokens).',
+  }])
+})
+
+test('a manual compaction folds its structured counts into the command row', () => {
+  const reducer = new ViewModelReducer()
+  reducer.applyEvent(event('command/run', { commandId: 'c1', name: 'compact', source: { kind: 'user' } }))
+  reducer.applyEvent(event('compaction/summary', {
+    compactionId: 'k1',
+    sourceCommandId: 'c1',
+    summary: [{ type: 'text', text: '## Summary\nthe old work' }],
+    shadowedSeqs: [1, 2, 3, 4],
+    shadowedTokenCount: 5000,
+  }, 2))
+  // The summary is evidence on the row, not a second marker: the web client
+  // renders one compaction card, and so does this transcript.
+  expect(reducer.items).toHaveLength(1)
+  expect(reducer.items[0]).toMatchObject({
+    kind: 'command',
+    status: 'running',
+    shadowedItems: 4,
+    shadowedTokens: 5000,
+    summary: '## Summary\nthe old work',
+  })
+})
+
+test('an automatic compaction keeps its own summary marker', () => {
+  const reducer = new ViewModelReducer()
+  reducer.applyEvent(event('compaction/summary', {
+    compactionId: 'k1',
+    summary: [{ type: 'text', text: 'auto summary' }],
+    shadowedSeqs: [1, 2],
+    shadowedTokenCount: 90,
+  }))
+  expect(reducer.items).toEqual([{ kind: 'summary', text: 'auto summary', time: 0 }])
+})
+
+test('a command row keeps the error the handler reported', () => {
+  const reducer = new ViewModelReducer()
+  reducer.applyEvent(event('command/run', { commandId: 'c1', name: 'compact', source: { kind: 'user' } }))
+  reducer.applyEvent(event('command/done', { commandId: 'c1', kind: 'error', text: 'Compaction cancelled.' }, 2))
+  expect(reducer.items).toMatchObject([{ kind: 'command', status: 'error', text: 'Compaction cancelled.' }])
+})

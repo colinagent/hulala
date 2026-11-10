@@ -343,11 +343,14 @@ bun run start
 ```
 
 `bun run start` is the development entry: it stops the Host for this
-`HULALA_HOME`, rebuilds `apps/server` from the working tree, and starts the
-terminal client, so the Host always runs the current checkout. There is no
-version comparison — the source and the installed release share the package
-version. Because it replaces the shared daemon, other clients attached to that
-Host disconnect; use `bun run start:attach` when you only want to attach.
+`HULALA_HOME`, rebuilds `apps/server` and the terminal client bundle from the
+working tree, and runs that bundle, so the Host and the client both run the
+current checkout — no step reuses a stale build. The bundle is the same artifact
+the release copies to `bin/hulala`; dev builds carry an inline sourcemap so their
+stack traces still name source files. There is no version comparison — the source
+and the installed release share the package version. Because it replaces the
+shared daemon, other clients attached to that Host disconnect; use
+`bun run start:attach` when you only want to attach.
 
 Useful commands:
 

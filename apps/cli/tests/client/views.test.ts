@@ -173,6 +173,23 @@ test('Transcript renders user, assistant markdown, and error items', () => {
   expect(lines.some(line => line.includes('! boom'))).toBe(true)
 })
 
+test('a Mermaid block in an assistant message is drawn, not shown as source', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work' }))
+  transcript.setItems([
+    {
+      kind: 'assistant',
+      text: '流程：\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Done]\n```\n',
+      streaming: false,
+      time: 0,
+    },
+  ])
+  const lines = transcript.render(60).join('\n')
+  expect(lines).not.toContain('```mermaid')
+  expect(lines).not.toContain('A[Start]')
+  expect(lines).toContain('Start')
+  expect(lines).toContain('┌')
+})
+
 test('a streaming assistant item rewrites its markdown as it grows and settles', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work' }))
   const item: TranscriptItem = { kind: 'assistant', text: '你', streaming: true, time: 0 }
