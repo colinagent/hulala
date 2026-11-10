@@ -33,6 +33,15 @@ const SGR_MOUSE_HEAD = /^\u001b\[<[\d;]*$/u
 /** What can still continue that head: more numbers, then one final byte. */
 const SGR_MOUSE_TAIL = /^(?:[\d;]{1,10}|[Mm])$/u
 
+/**
+ * Bytes that would end an OSC title early or start a sequence inside it.
+ *
+ * A window title can carry Host-written text (a Session title), which is not
+ * trusted to be inert: a BEL or ESC in it would end `OSC 0` and hand the rest
+ * to the terminal as escape sequences. A space keeps the words apart.
+ */
+const TITLE_CONTROL = /[\u0000-\u001f\u007f-\u009f]/gu
+
 export interface TerminalStreams {
   input: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void; setEncoding?: (encoding: string) => void }
   output: NodeJS.WritableStream & { isTTY?: boolean; columns?: number; rows?: number }
@@ -188,7 +197,7 @@ export class StreamTerminal implements Terminal {
   }
 
   setTitle(title: string): void {
-    this.write(`\u001b]0;${title}\u0007`)
+    this.write(`\u001b]0;${title.replace(TITLE_CONTROL, ' ')}\u0007`)
   }
 
   setProgress(active: boolean): void {

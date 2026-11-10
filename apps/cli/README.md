@@ -46,6 +46,12 @@ loses its last column; hiding it gives the sidebar the space the conversation
 had. `Ctrl-Q` exits, in the slot pi gives `Ctrl-D`, and still asks a dirty
 Neovim before leaving.
 
+The terminal window title names the product, the directory the open Session works
+in and, once the Host has named the Session, that title —
+`Hulala - hulala-dev - fix the rail fold` — so a tab stays identifiable among shells
+and other windows. A remote workspace shows the path the Host reports, so the
+tab names the directory the turn is actually running in.
+
 The Command chords need a terminal that speaks the Kitty keyboard protocol
 (Ghostty, kitty, WezTerm, iTerm2; Terminal.app does not), so each one has a
 slash-command equal: `/nvim`, `/rail`, `/chat` and `/commands`. Nothing takes

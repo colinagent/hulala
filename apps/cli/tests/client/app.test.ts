@@ -265,6 +265,24 @@ test('TTY mode draws the pi-tui editor borders and keeps them after submit', asy
   await expect(run).resolves.toBe(0)
 })
 
+test('TTY mode puts the Session directory on the window title', async () => {
+  const fake = fakeBackend()
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100 })
+  let text = ''
+  output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  // Started in `/launch`; the Session the Host lists works in `/workspace`.
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/launch', input, output, resume: 'session-1234' })
+  await waitFor(() => text.includes('\u001b]0;Hulala - workspace\u0007'), 'window title')
+  // The Host names the Session after its first turn; the name joins the title
+  // behind the directory and cannot end the OSC sequence early.
+  fake.handlers?.onEvent({ type: 'session/title', seq: 4, time: Date.now(), data: { title: 'Fix the composer\u0007' } })
+  await waitFor(() => text.includes('\u001b]0;Hulala - workspace - Fix the composer \u0007'), 'named window title')
+  input.write('/quit\r')
+  await expect(run).resolves.toBe(0)
+})
+
 test('TTY mode shows the running indicator while the turn is live', async () => {
   const fake = fakeBackend()
   const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })

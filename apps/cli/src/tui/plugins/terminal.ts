@@ -55,6 +55,14 @@ export interface TuiTerminal {
    */
   setCaretShape(shape: CaretShape): void
   /**
+   * Put `title` on the terminal's window title (the tab or window label).
+   *
+   * Control characters are replaced, so text that came from the Host cannot end
+   * the OSC sequence early.
+   * @param title - the complete window title.
+   */
+  setTitle(title: string): void
+  /**
    * Give the terminal back. Idempotent; the context also calls it on dispose.
    */
   stop(): void
@@ -236,6 +244,7 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     refreshIme,
     observeIme,
     setCaretShape,
+    setTitle: title => { terminal.setTitle(title) },
   })
 }
 

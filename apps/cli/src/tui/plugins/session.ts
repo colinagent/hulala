@@ -226,8 +226,12 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       // so the rail renames the row without waiting for the list projection.
       if (event.type === 'session/title' && id !== undefined) {
         const title = (event.data as { title?: unknown }).title
-        if (typeof title === 'string' && title.trim() !== '') {
+        const listed = sessions.find(candidate => candidate.sessionId === id)
+        if (typeof title === 'string' && title.trim() !== '' && listed?.title !== title) {
           sessions = sessions.map(session => session.sessionId === id ? { ...session, title } : session)
+          // The window title is derived from this row, so a first name is a
+          // Session change like any other.
+          announceChange()
         }
       }
       // Another client can move this Session's route or level. The journal is

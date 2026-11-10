@@ -46,6 +46,7 @@ import { panesPlugin } from './plugins/panes.js'
 import { overlaysPlugin } from './plugins/overlays.js'
 import { renderPlugin } from './plugins/render.js'
 import { sessionPlugin } from './plugins/session.js'
+import { titlePlugin } from './plugins/title.js'
 import { updatePlugin } from './plugins/update.js'
 import { railPlugin } from './plugins/rail.js'
 import { brandBannerImageId } from './view/brandBanner.js'
@@ -198,6 +199,10 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(composerPlugin, { color: colorEnabled() })
     await ctx.plugin(panesPlugin, { color: colorEnabled(), ...(options.pty === undefined ? {} : { pty: options.pty }), debug: debugLog })
     await ctx.plugin(sessionPlugin, { color: colorEnabled(), cwd: options.cwd })
+    // Immediately after the Session: the window label is derived from it, and a
+    // tab that names its directory from the first frame is what identifies the
+    // window among shells and other Sessions.
+    await ctx.plugin(titlePlugin)
     await ctx.plugin(railPlugin, { color: colorEnabled(), isClosing: () => ctx.hulalaLifecycle.closing })
     await ctx.plugin(viewPlugin, { color: colorEnabled() })
     await ctx.plugin(commandsPlugin, { color: colorEnabled() })
