@@ -552,6 +552,7 @@ function installPortableModuleResolver(
   ctx: Context,
   runtimeRequire: NodeJS.Require,
   installAnchor: string,
+  profileRequire?: NodeJS.Require,
 ): void {
   const loader = ctx.get('loader') as {
     internal?: {
@@ -575,7 +576,15 @@ function installPortableModuleResolver(
         if (baseUrl === undefined) throw new Error(`relative plugin ${specifier} has no base URL`)
         return import(new URL(specifier, baseUrl).href)
       }
-      const resolved = runtimeRequire.resolve(specifier)
+      // Host-owned packages come from the runtime; a plugin installed into the
+      // profile resolves from the profile's own node_modules.
+      let resolved: string
+      try {
+        resolved = runtimeRequire.resolve(specifier)
+      } catch (error) {
+        if (profileRequire === undefined) throw error
+        resolved = profileRequire.resolve(specifier)
+      }
       return import(pathToFileURL(resolved).href)
     },
   }
@@ -664,7 +673,12 @@ export async function bootRepositoryHarness(
       rootConfig,
       readProfilePatches(BIN_NAME, { ...profileContext, overlays }),
       (hostCtx) => {
-        installPortableModuleResolver(hostCtx, runtimeRequire, installAnchor)
+        installPortableModuleResolver(
+          hostCtx,
+          runtimeRequire,
+          installAnchor,
+          createRequire(pathToFileURL(join(profileDir, 'package.json'))),
+        )
         hostCtx.provide('profileContext', profileContext)
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, createLaunchEnvironmentSnapshot([
           { source: 'process', values: inheritedEnvironment() },
