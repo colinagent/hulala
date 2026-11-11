@@ -1,11 +1,12 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
+import { lstat } from 'node:fs/promises'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {} from '@deepseek-ai/dsh-authorization'
 import { createNativeHarnessPatch, harnessWebCommand, resolveRuntimePaths } from '../src/index'
-import { bootRepositoryHarness } from '../src/in-process'
+import { bootRepositoryHarness, seedHostProfile } from '../src/in-process'
 import { readCreatorMode, writeCreatorMode } from '../src/creator'
 
 test('resolves every runtime path below an injected HULALA root', () => {
@@ -215,3 +216,48 @@ test('replaces stale Host rows in an existing profile', async () => {
     await rm(root, { recursive: true, force: true })
   }
 }, 30_000)
+
+test('links the bundles the user installed into their own DSH profile', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'hulala-detect-'))
+  const userHome = join(root, 'dsh-home')
+  const repositoryRoot = join(import.meta.dir, '..', '..', '..')
+  const previous = process.env.HULALA_DSH_DETECT_HOME
+  process.env.HULALA_DSH_DETECT_HOME = userHome
+  try {
+    const theirProfile = join(userHome, 'profiles', 'tui')
+    const bundle = join(theirProfile, 'node_modules', 'demo-plugin')
+    await mkdir(bundle, { recursive: true })
+    await writeFile(join(bundle, 'package.json'), '{"name":"demo-plugin","version":"1.0.0"}')
+    await writeFile(join(theirProfile, 'package.json'), JSON.stringify({
+      name: 'dsh-profile-tui', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'demo-plugin'] } },
+    }))
+
+    const paths = resolveRuntimePaths({ root })
+    const profileDir = await seedHostProfile(paths, repositoryRoot)
+    const manifest = JSON.parse(await readFile(join(profileDir, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>
+      dsh?: { profile?: { bundles?: string[] } }
+      hulala?: { detected?: string[] }
+    }
+    expect(manifest.dsh?.profile?.bundles).toContain('demo-plugin')
+    expect(manifest.dependencies?.['demo-plugin']).toBe(`link:${bundle}`)
+    expect(manifest.hulala?.detected).toEqual(['demo-plugin'])
+    expect((await lstat(join(profileDir, 'node_modules', 'demo-plugin'))).isSymbolicLink()).toBeTrue()
+
+    // The user removes it from DSH: the next seed drops the link again.
+    await rm(bundle, { recursive: true, force: true })
+    await writeFile(join(theirProfile, 'package.json'), JSON.stringify({
+      name: 'dsh-profile-tui', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+    }))
+    const again = await seedHostProfile(paths, repositoryRoot)
+    const refreshed = JSON.parse(await readFile(join(again, 'package.json'), 'utf8')) as {
+      dsh?: { profile?: { bundles?: string[] } }
+    }
+    expect(refreshed.dsh?.profile?.bundles).not.toContain('demo-plugin')
+    await expect(lstat(join(again, 'node_modules', 'demo-plugin'))).rejects.toThrow()
+  } finally {
+    if (previous === undefined) delete process.env.HULALA_DSH_DETECT_HOME
+    else process.env.HULALA_DSH_DETECT_HOME = previous
+    await rm(root, { recursive: true, force: true })
+  }
+})

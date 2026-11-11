@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
@@ -235,7 +236,97 @@ export async function seedHostProfile(
     [...presetPatches(runtimeRequire), ...hostRows(options.webPort, creator), ...createNativeHarnessPatch()],
     creator,
   )
+  await detectDshBundles(profileDir, PROFILE_NAME)
   return profileDir
+}
+
+/** Manifest shape this file reads and writes; unknown fields are preserved. */
+interface ProfileManifest {
+  name?: string
+  private?: boolean
+  dependencies?: Record<string, string>
+  dsh?: { profile?: { bundles?: string[] } }
+  hulala?: { detected?: string[] }
+}
+
+/** Read a profile manifest, or an empty document. */
+async function readManifest(path: string): Promise<ProfileManifest> {
+  try {
+    return JSON.parse(await readFile(path, 'utf8')) as ProfileManifest
+  } catch {
+    return {}
+  }
+}
+
+/** Write a manifest atomically with user-only permissions. */
+async function writeManifest(path: string, manifest: ProfileManifest): Promise<void> {
+  const temporary = `${path}.${String(process.pid)}.tmp`
+  await writeFile(temporary, JSON.stringify(manifest, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 })
+  await rename(temporary, path)
+}
+
+/**
+ * Mirror the bundles a user installed into their own DSH profile.
+ *
+ * DSH plugins are per-profile, so a plugin the user installed in `~/.dsh` is
+ * invisible here. We link the package directory into this profile and record it
+ * in `bundles`, which is DSH's own out-of-tree mechanism: the bundle's
+ * `@deepseek-ai/dsh-*` imports resolve to the runtime that boots it, and a
+ * version the runtime refuses is skipped and reported.
+ *
+ * Only bundles the user added are taken — DSH's template composition already has
+ * an equivalent here — and the link is removed again when the source disappears.
+ * `~/.dsh` is read, never written.
+ * @param profileDir - our profile directory.
+ * @param profileName - profile name shared with the user's DSH install.
+ */
+async function detectDshBundles(profileDir: string, profileName: string): Promise<void> {
+  const userHome = process.env.HULALA_DSH_DETECT_HOME ?? join(homedir(), '.dsh')
+  const theirProfile = join(userHome, 'profiles', profileName)
+  const theirs = await readManifest(join(theirProfile, 'package.json'))
+  const manifestPath = join(profileDir, 'package.json')
+  const ours = await readManifest(manifestPath)
+  const bundles = new Set(ours.dsh?.profile?.bundles ?? [])
+  const previous = new Set(ours.hulala?.detected ?? [])
+  const dependencies = { ...ours.dependencies }
+  const detected = new Set<string>()
+  let changed = false
+
+  for (const name of theirs.dsh?.profile?.bundles ?? []) {
+    if (name === '@deepseek-ai/dsh-base' || bundles.has(name)) continue
+    const source = join(theirProfile, 'node_modules', name)
+    if (!(await exists(join(source, 'package.json')))) continue
+    const link = join(profileDir, 'node_modules', name)
+    try {
+      if (await exists(link)) await rm(link, { recursive: true, force: true })
+      await mkdir(dirname(link), { recursive: true })
+      await symlink(source, link, 'dir')
+    } catch {
+      // A link we cannot make is a plugin we do not load; the Host still boots.
+      continue
+    }
+    bundles.add(name)
+    dependencies[name] = `link:${source}`
+    detected.add(name)
+    changed = true
+  }
+
+  for (const name of previous) {
+    if (detected.has(name)) continue
+    await rm(join(profileDir, 'node_modules', name), { recursive: true, force: true }).catch(() => undefined)
+    bundles.delete(name)
+    delete dependencies[name]
+    changed = true
+  }
+
+  if (!changed && previous.size === detected.size) return
+  const next: ProfileManifest = {
+    ...ours,
+    dependencies,
+    dsh: { ...ours.dsh, profile: { ...ours.dsh?.profile, bundles: [...bundles] } },
+    hulala: { ...ours.hulala, detected: [...detected] },
+  }
+  await writeManifest(manifestPath, next)
 }
 
 async function ensureProfilePatch(path: string, rows: PatchOptions[], creator = false): Promise<void> {
@@ -528,25 +619,16 @@ export async function bootRepositoryHarness(
   try {
     const runtimeRequire = createRequire(pathToFileURL(join(resolve(options.repositoryRoot), 'package.json')))
     verifyOverriddenRows(runtimeRequire)
-    const presetLayers = presetPatches(runtimeRequire)
-    const hulalaPatch = createNativeHarnessPatch()
     const installAnchor = runtimeRequire.resolve('@deepseek-ai/dsh/package.json')
     // Harness 0.2.1 keeps live settings in the profile patch and reconciles the
     // whole profile on every edit, so the composition itself must live there.
     const dshHome = paths.harnessDir
-    const profileDir = join(dshHome, 'profiles', PROFILE_NAME)
-    await mkdir(profileDir, { recursive: true, mode: 0o700 })
+    // One bootstrap owns the profile, so a plugin installed before the first
+    // boot still lands in Hulala's composition instead of DSH's template.
+    const profileDir = await seedHostProfile(paths, resolve(options.repositoryRoot), { ...(options.webPort === undefined ? {} : { webPort: options.webPort }) })
     const profileManifestPath = join(profileDir, 'package.json')
-    if (!(await exists(profileManifestPath))) {
-      await writeFile(profileManifestPath, JSON.stringify({
-        name: 'hulala-profile',
-        private: true,
-        dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
-      }, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 })
-    }
     const profilePatchPath = join(profileDir, PROFILE_PATCH_FILE)
     const creator = readCreatorMode(paths.configDir)
-    await ensureProfilePatch(profilePatchPath, [...presetLayers, ...hostRows(options.webPort, creator), ...hulalaPatch], creator)
     const profileContext: ProfileContext = {
       name: PROFILE_NAME,
       dir: profileDir,
