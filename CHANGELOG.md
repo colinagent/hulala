@@ -13,12 +13,25 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Added
+
+- Code blocks in the conversation are highlighted for the languages their fences
+  name, fold into the column instead of being cut silently at its edge, and are
+  drawn as a frame with the language on its top edge. A block with no language
+  keeps the muted code ink, and a `read` or `write` row highlights the file it
+  names the same way.
+- Math in the conversation, and in a reasoning block the reader expands, renders
+  as Unicode; an expression the renderer cannot draw keeps its source.
+
 ### Changed
 
 - Every heading level in the editor column has its own colour and its own band:
   level 1 is the palette's red warmed towards its yellow, then yellow, green,
   cyan, blue and magenta, with the band behind the words only as wide as the
   text. The inks are the terminal's own palette colours, undimmed.
+- A heading in the transcript is inked yellow and inline code violet, the inks
+  pi's theme gives `mdHeading` and `mdCode`; pi-tui keeps a heading bold on its
+  own.
 
 ### Fixed
 

@@ -37,6 +37,7 @@ import { COLLAPSED, EXPANDED, GUTTER } from './rowGlyph.js'
 import { CommandRowView, commandExpandable } from './commandRow.js'
 import { RunningRow } from './runningRow.js'
 import { mermaidMarkdown } from './mermaid.js'
+import { codeHighlighter } from './codeHighlight.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
 import { ToolRowView } from './toolRow.js'
 import { UserMessage } from './userMessage.js'
@@ -79,13 +80,23 @@ export class Transcript implements Component {
   private readonly markdownTheme: MarkdownTheme
   private readonly styles: ReturnType<typeof buildStyles>
   private readonly runningRow: RunningRow
+  /** Width of the last frame; a code block folds into it, so it must be known. */
+  private width = 80
 
   constructor(
     private readonly color: boolean,
     private readonly roots: () => TranscriptRoots,
   ) {
-    this.markdownTheme = buildTheme(color).markdown
-    this.styles = buildStyles(color)
+    const styles = buildStyles(color)
+    // The shared markdown theme plus the one hook that needs this transcript's
+    // own state: a code block wraps to the width the frame was drawn at.
+    this.markdownTheme = {
+      ...buildTheme(color).markdown,
+      // A block with no language is still a block: pi inks it as code, so does
+      // this, one step below the prose that introduces it.
+      highlightCode: codeHighlighter((type, text) => styles.syntax(type, text), () => this.width, styles.dim),
+    }
+    this.styles = styles
     this.runningRow = new RunningRow(() => ({ startedAt: this.runningStartedAt }), color)
   }
 
@@ -145,6 +156,7 @@ export class Transcript implements Component {
    * viewport itself.
    */
   render(width: number): string[] {
+    this.width = width
     // Home screen: nothing said yet, so the banner stands in for the transcript.
     if (this.items.length === 0 && this.runningStartedAt === undefined) return brandBannerLines(width)
     const assembled = this.assembled
@@ -241,7 +253,8 @@ export class Transcript implements Component {
         // text and row icons share one left margin.
         const text = item.streaming ? `${item.text}▌` : item.text
         const markdown = new Markdown(text, 2, 0, this.markdownTheme, undefined, {
-          renderLatex: false,
+          // Math renders as Unicode; an expression it cannot draw stays source.
+          renderLatex: true,
           // Mermaid blocks become diagrams; whether the message is still
           // arriving decides if an incomplete drawing reports warnings.
           transform: (source, width) => mermaidMarkdown(source, width, { streaming: () => item.streaming }),

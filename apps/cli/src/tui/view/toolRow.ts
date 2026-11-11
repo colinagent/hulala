@@ -15,6 +15,7 @@ import { truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from 
 import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
 import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
 import { activeLanguage, t } from '../i18n/index.js'
+import { colourLines, languageForPath } from './codeHighlight.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -127,15 +128,22 @@ export class ToolRowView implements Component {
     const lines = [line]
     if (!expanded) return lines
 
+    // A file row's own text is code: the language comes from the path the call
+    // named, and a path with no language on the list keeps the muted body ink.
+    const fileLanguage = row.variant === 'read' || row.variant === 'write'
+      ? languageForPath(row.filePath)
+      : undefined
     if (row.command !== undefined) {
       const command = truncateToWidth(row.command, Math.max(1, inner - INDENT.length - 2), '…')
       lines.push(`${INDENT}${s.dim(`❯ ${command}`)}`)
     } else if (row.body !== undefined) {
-      lines.push(...this.block(t('tool.in'), row.body, width, text => s.dim(text)))
+      const language = row.variant === 'write' ? fileLanguage : undefined
+      lines.push(...this.block(t('tool.in'), row.body, width, text => s.dim(text), language))
     }
     if (row.output !== undefined) {
       const label = row.command === undefined && row.body !== undefined ? t('tool.out') : undefined
-      lines.push(...this.block(label, row.output, width, text => s.dim(text)))
+      const language = row.variant === 'read' ? fileLanguage : undefined
+      lines.push(...this.block(label, row.output, width, text => s.dim(text), language))
     }
     return lines
   }
@@ -174,19 +182,29 @@ export class ToolRowView implements Component {
     return row
   }
 
-  /** Wrap one labelled body and cap it at the visible line budget. */
+  /**
+   * Wrap one labelled body and cap it at the visible line budget.
+   * @param language - highlight the body as this language instead of inking it flat.
+   */
   private block(
     label: string | undefined,
     text: string,
     width: number,
     style: (text: string) => string,
+    language?: string | undefined,
   ): string[] {
     const lines: string[] = []
     if (label !== undefined) lines.push(`${INDENT}${style(label)}`)
     const inner = Math.max(1, width - INDENT.length * 2)
-    const wrapped = wrapTextWithAnsi(text, inner)
+    // A highlighted body carries its own colours, so the muted body ink steps
+    // aside: dimming over a keyword's colour would wash both out.
+    const source = language === undefined
+      ? text
+      : colourLines(text, language, (type, token) => buildStyles(this.color).syntax(type, token)).join('\n')
+    const body = language === undefined ? style : (text: string): string => text
+    const wrapped = wrapTextWithAnsi(source, inner)
     const shown = wrapped.slice(0, OUTPUT_LINES)
-    for (const line of shown) lines.push(`${INDENT}${INDENT}${style(line)}`)
+    for (const line of shown) lines.push(`${INDENT}${INDENT}${body(line)}`)
     if (wrapped.length > shown.length) {
       lines.push(`${INDENT}${INDENT}${style(t('tool.moreLines', { n: wrapped.length - shown.length }))}`)
     }

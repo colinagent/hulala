@@ -173,6 +173,49 @@ test('Transcript renders user, assistant markdown, and error items', () => {
   expect(lines.some(line => line.includes('! boom'))).toBe(true)
 })
 
+test('a code block is a frame with its language, and its lines are coloured', () => {
+  const transcript = new Transcript(true, () => ({ cwd: '/work' }))
+  transcript.setItems([
+    {
+      kind: 'assistant',
+      text: 'Setup:\n\n```ts\nconst answer = 42 // the answer\n```\n',
+      streaming: false,
+      time: 0,
+    },
+  ])
+  const lines = transcript.render(60)
+  const text = lines.join('\n')
+  // The fence lines become the block's two edges, with the language named; the
+  // corner and the name carry their own colours, so compare the plain text.
+  const plainText = text.replace(/\u001b\[[0-9;]*m/g, '')
+  expect(plainText).not.toContain('```')
+  expect(plainText).toContain('┌─ ts')
+  expect(plainText).toContain('└─')
+  // A keyword, a number and a comment each carry their own colour.
+  const code = lines.find((line) => line.replace(/\u001b\[[0-9;]*m/g, '').includes('const answer'))
+  expect(code).toBeDefined()
+  expect(new Set(code!.match(/\u001b\[[0-9;]*m/g) ?? []).size).toBeGreaterThanOrEqual(3)
+})
+
+test('a heading takes pi’s ink, and inline code keeps its own', () => {
+  const transcript = new Transcript(true, () => ({ cwd: '/work' }))
+  transcript.setItems([{
+    kind: 'assistant',
+    text: '## 用 `bun run start` 启动\n\n正文',
+    streaming: false,
+    time: 0,
+  }])
+  const line = transcript.render(60).find((entry) => entry.includes('结论') || entry.includes('启动'))
+  expect(line).toBeDefined()
+  // pi's theme gives `mdHeading` yellow and `mdCode` violet; the weight is the
+  // component's own doing, since pi-tui wraps every heading in `theme.bold`.
+  expect(line).toContain('\u001b[33m')
+  expect(line).toContain('\u001b[35m')
+  expect(line).toContain('\u001b[1m')
+  // Two inks on one line: the command cannot disappear into the heading.
+  expect(line!.indexOf('\u001b[35m')).toBeLessThan(line!.indexOf('bun run start'))
+})
+
 test('a Mermaid block in an assistant message is drawn, not shown as source', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work' }))
   transcript.setItems([
@@ -265,6 +308,46 @@ test('expanding a tool call shows the command, the output, and the hidden count'
   expect(lines[1]).toBe('  ❯ ls -la')
   expect(lines[2]).toBe('    line 1')
   expect(lines.at(-1)).toBe('    … +6 lines')
+})
+
+test('a read row highlights its output as the file it read', () => {
+  const transcript = new Transcript(true, () => ({ cwd: '/work' }))
+  transcript.setItems([
+    {
+      kind: 'tool',
+      name: 'read',
+      args: JSON.stringify({ path: 'src/app.ts' }),
+      result: 'const answer = 42 // the answer',
+      status: 'ok',
+      time: 0,
+    },
+  ])
+  transcript.toggleExpandAll()
+  const line = transcript.render(80).find((entry) => entry.includes('const'))
+  expect(line).toBeDefined()
+  const plain = line!.replace(/\u001b\[[0-9;]*m/g, '')
+  expect(plain).toContain('const answer = 42')
+  // Keyword, number and comment each carry their own colour, not one muted ink.
+  expect(new Set(line!.match(/\u001b\[[0-9;]*m/g) ?? []).size).toBeGreaterThanOrEqual(3)
+})
+
+test('a bash row keeps its output in the muted body ink', () => {
+  const transcript = new Transcript(true, () => ({ cwd: '/work' }))
+  transcript.setItems([
+    {
+      kind: 'tool',
+      name: 'bash',
+      args: JSON.stringify({ command: 'cat src/app.ts' }),
+      result: 'const answer = 42',
+      status: 'ok',
+      time: 0,
+    },
+  ])
+  transcript.toggleExpandAll()
+  const line = transcript.render(80).find((entry) => entry.includes('const answer'))
+  expect(line).toBeDefined()
+  // Dim only: a shell's output is text, not a language.
+  expect(new Set(line!.match(/\u001b\[[0-9;]*m/g) ?? [])).toEqual(new Set(['\u001b[2m', '\u001b[0m']))
 })
 
 test('a failed call keeps its summary and shows the exit capsule', () => {

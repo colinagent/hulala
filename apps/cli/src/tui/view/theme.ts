@@ -189,10 +189,14 @@ function createStyles(color: boolean): {
   strike: (text: string) => string
   underline: (text: string) => string
   code: (text: string) => string
+  /** pi's `mdCode` ink: inline code is violet there, a heading yellow. */
+  violet: (text: string) => string
+  /** Colour one syntax token of a code block, by the name its tokenizer gave it. */
+  syntax: (type: string, text: string) => string
 } {
   if (!color) {
     const identity = (text: string): string => text
-    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity }
+    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity, violet: identity, syntax: (_type: string, text: string) => text }
   }
   // A panel carries its own background and foreground. Inner styles reset both,
   // so re-open the panel after every nested reset to keep the row continuous to
@@ -216,6 +220,60 @@ function createStyles(color: boolean): {
     strike: wrap('\u001b[9m', RESET),
     underline: wrap('\u001b[4m', RESET),
     code: wrap('\u001b[33m', RESET),
+    violet: wrap('\u001b[35m', RESET),
+    syntax: (type: string, text: string): string => SYNTAX[type]?.(text) ?? text,
+  }
+}
+
+/**
+ * Code token inks, by the token type the highlighter reports.
+ *
+ * One hue per family, in the four bits a 16-colour terminal is guaranteed to
+ * have: a keyword is magenta, a string green, a number yellow, a comment faint,
+ * a type blue, a function cyan. Everything else keeps the terminal's own text
+ * colour, so a block of code stays readable in a monochrome terminal and the
+ * palette never becomes a second theme.
+ */
+const SYNTAX: Readonly<Record<string, (text: string) => string>> = {
+  kwd: wrap('\u001b[35m', RESET),
+  func: wrap('\u001b[36m', RESET),
+  str: wrap('\u001b[32m', RESET),
+  insert: wrap('\u001b[32m', RESET),
+  num: wrap('\u001b[33m', RESET),
+  bool: wrap('\u001b[33m', RESET),
+  type: wrap('\u001b[34m', RESET),
+  class: wrap('\u001b[34m', RESET),
+  cmnt: wrap('\u001b[2m', RESET),
+  esc: wrap('\u001b[36m', RESET),
+  err: wrap('\u001b[31m', RESET),
+  deleted: wrap('\u001b[31m', RESET),
+  section: wrap('\u001b[1m', RESET),
+}
+
+/**
+ * A code block's two fence lines, drawn as a frame.
+ *
+ * pi-tui prints the fence text through this function, which is why a theme can
+ * decide what a code block's edges look like: the top line becomes a corner with
+ * the language's name behind it, the bottom one the matching corner, so a block
+ * reads as a block without a literal ``` in the transcript.
+ *
+ * The opening line of a fence that names no language arrives as the same three
+ * characters as the closing one, so the pair is tracked rather than guessed:
+ * every code block emits exactly two border lines, the opening one first.
+ * @param s - the style set to draw with.
+ * @returns the fence line the renderer prints.
+ */
+function codeFrame(s: ReturnType<typeof createStyles>): (text: string) => string {
+  let opening = true
+  return (text: string): string => {
+    if (!opening) {
+      opening = true
+      return s.dim('└─')
+    }
+    opening = false
+    const language = text.slice(3).trim()
+    return language === '' ? s.dim('┌─') : `${s.dim('┌─')} ${s.code(language)}`
   }
 }
 
@@ -234,12 +292,14 @@ export function buildTheme(color: boolean): ThemeSet {
     selectList,
   }
   const markdown: MarkdownTheme = {
-    heading: s.bold,
+    // pi paints a heading and leaves its weight alone; the ink is the yellow it
+    // gives inline code, so a heading reads as one by being alone on its line.
+    heading: s.code,
     link: s.accent,
     linkUrl: s.dim,
-    code: s.code,
+    code: s.violet,
     codeBlock: (text: string) => text,
-    codeBlockBorder: s.dim,
+    codeBlockBorder: codeFrame(s),
     quote: s.dim,
     quoteBorder: s.dim,
     hr: s.dim,
