@@ -9,6 +9,8 @@ import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 export interface RuntimePaths {
   root: string
   configDir: string
+  /** DeepSeek Harness home: profiles, sessions, credentials, Host-level patches. */
+  harnessDir: string
   dataDir: string
   workspaceDir: string
   runtimeDir: string
@@ -47,6 +49,7 @@ export function resolveRuntimePaths(
   return {
     root,
     configDir: resolve(input.configDir ?? join(root, 'config')),
+    harnessDir: resolve(input.harnessDir ?? join(root, 'harness')),
     dataDir: resolve(input.dataDir ?? join(root, 'server')),
     workspaceDir: resolve(input.workspaceDir ?? join(root, 'workspace')),
     runtimeDir: resolve(input.runtimeDir ?? join(root, 'runtime')),
@@ -163,7 +166,7 @@ export async function startHarnessRuntime(options: StartRuntimeOptions): Promise
       ...process.env,
       ...options.environment,
       HULALA_HOME: paths.root,
-      DSH_HOME: join(paths.configDir, 'harness'),
+      DSH_HOME: paths.harnessDir,
       HULALA_CONFIG_DIR: paths.configDir,
       HULALA_DATA_DIR: paths.dataDir,
       HULALA_WORKSPACE_DIR: paths.workspaceDir,

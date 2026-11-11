@@ -8,8 +8,8 @@
 
 Hulala puts [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) in
 your terminal and leaves the whole client open: the engine is DSH's own Agent
-Loop, every panel is a plugin, and the agent can write plugins for the client it
-runs inside.
+Loop, every panel is a plugin assembled in this repository, and the Host takes
+DSH plugins unchanged.
 
 <p align="center">
   <img src="assets/screens/03-files.png" alt="The editor column on the Session directory: the real file tree with a file open beside it" width="900" />
@@ -41,11 +41,11 @@ a file opens it beside the tree in the same column.
   a client that attaches to it; `Ctrl-Q` detaches and the turn keeps running.
 - **The Harness surfaces, not a copy** — streaming output, approvals, questions,
   model selection, cancellation, `/connect`, `/api` and `/api/remote.mux`.
-- **A plugin is one `.mjs` file** — `hulala plugin new|check|list|disable`, no
-  build step and no `node_modules`.
-- **Creator mode** — the agent gains a read-only view of the client's own Cordis
-  surface and the tools to inspect it, so it can write a plugin for the client it
-  runs inside.
+- **Plugins are DSH plugins** — a bundle installed into the Host profile with
+  `hulala plugin --profile tui add <package>`, exactly like `dsh plugin`.
+- **Creator mode** — the agent gains a read-only view of the Host's own Cordis
+  surface and the tools to inspect it, so it can explain and extend the running
+  composition.
 
 One Host daemon owns one state root and runs the Harness engine; there is no
 second REST layer and no second Agent Runtime.
@@ -184,7 +184,6 @@ view              the transcript and the dock rows
 commands          slash commands and prompt delivery
 input             the single input pipeline
 update            the release notice and the swap
-user              the loader for plugins you install
 ```
 
 Seats are a closed set — `main`, `dock.pending`, `dock.cwd`, `dock.input`,
@@ -195,43 +194,28 @@ Because the client is assembled from plugins, a feature can be replaced without
 touching its neighbours, and a failure is contained: one plugin that cannot
 activate, or whose `render` throws, costs its own rows and nothing else.
 
-### Your own plugins
+### Plugins
 
-A plugin is one plain `.mjs` file in a directory. It imports nothing — the whole
-API arrives as the argument to `activate` — so it needs no build step and no
-`node_modules`.
+A Hulala plugin is a DeepSeek Harness plugin: a bundle that adds rows to the
+Host's root context. It is installed into a profile, never into the client:
 
 ```sh
-hulala plugin new hello      # writes ~/.hulala/config/plugins/hello/
-hulala plugin check hello    # validates it and renders every seat it registers
-hulala plugin list           # what is installed, and what is switched off
-hulala plugin disable hello  # stop loading it, without deleting it
+hulala plugin --profile tui add <package>    # same arguments DSH forwards to pnpm
+hulala plugin --profile tui list
 ```
 
-```js
-/** @param {import('@hulala/plugin-sdk').PluginApi} tui */
-export function activate(tui) {
-  tui.command('hello', 'Say hello', () => { tui.notice('hello') })
-  return tui.seat('dock.status', { id: 'hello' }, {
-    render: width => [`hello from ${width} columns`],
-  })
-}
-```
+Everything it may do is whatever DSH exposes — sessions, workspaces, approvals,
+tools, MCP servers. The client is assembled from plugins internally, but that
+kernel is not an extension point: its seats and its rendering are private to this
+repository.
 
-The contract lives in `packages/tui-plugin` and **only ever grows**: a field may
-be added, a field never changes meaning inside an API version. A plugin that
-targets an API this client does not implement is refused by name at load time,
-with both numbers in the message.
-
-There is no sandbox. A plugin is ordinary ESM with the client's own privileges.
-Install one only from a source you would run directly.
 
 ## Creator mode
 
 Off by default. When you turn it on, the Host gains a read-only view of its own
-Cordis surface and the agent gains the tools to inspect it — so the agent can
-write a plugin for your own terminal client. This is the claim above taken
-literally: the thing you are talking to can extend the thing you are typing in.
+Cordis surface and the agent gains the tools to inspect it — so it can answer
+"what is mounted right now" from the live tree instead of from documentation.
+Plugins it writes are Host plugins, installed like any other.
 
 ```sh
 hulala creator on     # then: hulala host stop, so the Host restarts with it
@@ -379,7 +363,7 @@ apps/website    public website and download metadata
 packages/runtime     DSH composition (one native Agent Loop)
 packages/host-client discovery, detached startup, shared client contract
 packages/desktop-contracts  the Host/client wire contract and state-root paths
-packages/tui-plugin  the contract a terminal-client plugin is written against
+packages/plugin-sdk  internal types for the client kernel's seats and views
 packages/distribution  install, update and rollback
 ```
 

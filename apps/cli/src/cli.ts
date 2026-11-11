@@ -7,7 +7,7 @@ import { createHostBackend } from './tui/data/remote.js'
 import { runTerminalClient } from './tui/app.js'
 import { createTerminalKernel } from './tui/kernel.js'
 import { readCreatorMode, writeCreatorMode, creatorModePath } from '@hulala/runtime/creator'
-import { runPluginCommand } from './plugins/cli.js'
+import { runHostPluginCommand } from './plugins/host.js'
 import { resolvePaths } from './paths.js'
 import { publishImeHelper } from './tui/editor/imeHelper.js'
 
@@ -15,7 +15,7 @@ function usage(): string {
   return [
     'Usage: hulala [--resume <id>]      attach to the Host and open the terminal client',
     '       hulala host start|stop|status',
-    '       hulala plugin list|enable|disable|new|check',
+    '       hulala plugin --profile <name> add|remove|list <package>',
     '       hulala creator on|off|status',
     '       hulala install|rollback|uninstall|doctor [options]',
     '       hulala update [--check] [--version <x>]',
@@ -147,7 +147,7 @@ export async function runCli(args = process.argv.slice(2)): Promise<number> {
   if (route.kind === 'help') { console.log(usage()); return 0 }
   if (route.kind === 'distribution') return runDistributionCommand(route.command, route.args)
   if (route.kind === 'host') return await runHostCommand(route.args)
-  if (route.kind === 'plugin') return await runPluginCommand(route.args, resolvePaths().data)
+  if (route.kind === 'plugin') return await runHostPluginCommand(route.args)
   if (route.kind === 'creator') return runCreatorCommand(route.args)
   return await runTerminal(route.args)
 }

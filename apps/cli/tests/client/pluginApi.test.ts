@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { createPluginApi } from '../../src/tui/pluginApi.js'
-import type { PluginManifest } from '../../src/plugins/manifest.js'
+import type { PluginManifest } from '@hulala/plugin-sdk'
 
 let dataRoot = ''
 

@@ -7,8 +7,8 @@
 </div>
 
 Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 放进终端，
-并把整个客户端交给你：引擎就是 DSH 自己的 Agent Loop，每个面板都是插件，agent 还能
-给它自己跑在里面的这个客户端写插件。
+并把整个客户端交给你：引擎就是 DSH 自己的 Agent Loop，每个面板都是本仓组装的插件，
+而 Host 原样接受 DSH 插件。
 
 <p align="center">
   <img src="assets/screens/03-files.png" alt="编辑器列开在会话目录上：真实文件树，旁边打开着一个文件" width="900" />
@@ -36,10 +36,10 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 - **会话目录里的真实 shell** —— 右列是一个完整 pty；列收起来，作业和缓冲区都还在。
 - **用的是 Harness 原生面，不是抄一套** —— 流式输出、审批、提问、选模型、取消，以及
   `/connect`、`/api`、`/api/remote.mux`。
-- **插件就是一个 `.mjs` 文件** —— `hulala plugin new|check|list|disable`，没有构建步骤，
+- **插件就是 DSH 插件** —— `hulala plugin --profile tui add <包名>` 装进 Host 的 profile，
   没有 `node_modules`。
-- **Creator mode** —— agent 拿到客户端自己 Cordis 面的只读视图和检查它的工具，于是它
-  能给自己跑在里面的这个客户端写插件。
+- **Creator mode** —— agent 拿到 Host 自己 Cordis 面的只读视图和检查它的工具，能对着
+  活着的组合回答问题、扩展它。
 
 ## 不需要 tmux
 
@@ -162,7 +162,6 @@ view              transcript 与 dock 各行
 commands          斜杠命令与 prompt 投递
 input             唯一的输入管线
 update            版本提示与换版
-user              用户插件的装载器
 ```
 
 座位是封闭集合——`main`、`dock.pending`、`dock.cwd`、`dock.input`、`dock.status`、
@@ -172,38 +171,12 @@ user              用户插件的装载器
 因为客户端就是这些插件拼出来的，一个功能可以换掉而不碰邻居，故障也是隔离的：某个
 插件无法激活、或者它的 `render` 抛错，代价只是它自己那几行。
 
-### 自己写插件
-
-一个插件就是一个目录里一个普通的 `.mjs`。它不 import 任何东西——整个 API 作为
-`activate` 的参数传进来——所以不需要构建步骤，也不需要 `node_modules`。
-
-```sh
-hulala plugin new hello      # 写入 ~/.hulala/config/plugins/hello/
-hulala plugin check hello    # 校验它，并渲染它注册的每一个座位
-hulala plugin list           # 装了什么，哪些被关掉了
-hulala plugin disable hello  # 停止加载，但不删除
-```
-
-```js
-/** @param {import('@hulala/plugin-sdk').PluginApi} tui */
-export function activate(tui) {
-  tui.command('hello', '打个招呼', () => { tui.notice('hello') })
-  return tui.seat('dock.status', { id: 'hello' }, {
-    render: width => [`hello from ${width} columns`],
-  })
-}
-```
-
-契约在 `packages/tui-plugin`，并且**只增不减**：同一 API 版本内可以加字段，不会改变
-已有字段的含义。目标 API 版本超出客户端实现的插件，会在加载时按名字被拒绝，消息里
-带着两个版本号。
-
-没有沙箱。插件是普通的 ESM，拿着客户端自己的权限。只从你会直接运行的来源安装。
 
 ## Creator mode
 
 默认关闭。打开之后，Host 会多一份自己 Cordis 面的只读视图，agent 拿到检查它的工具
-——于是 agent 可以给你的终端客户端写插件。上面那句话在这里是字面意思：你正在对话的
+——于是你问到"现在装了什么"时，它读的是活的组合，而不是文档。它写的插件也是 Host 插件，
+和其他插件一样安装。上面那句话在这里是字面意思：你正在对话的
 东西，能扩展你正在打字的东西。
 
 ```sh
@@ -322,7 +295,7 @@ apps/website   官网和下载元数据
 packages/runtime             DSH 组合（一个原生 Agent Loop）
 packages/host-client         发现、detached 启动、共享客户端契约
 packages/desktop-contracts   Host/client 线协议与状态根目录路径
-packages/tui-plugin          终端客户端插件契约
+packages/plugin-sdk          客户端内核（座位与视图）的内部类型
 packages/distribution        安装、更新与回滚
 ```
 

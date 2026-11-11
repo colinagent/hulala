@@ -11,19 +11,19 @@ import {
   createLaunchEnvironmentSnapshot,
   DSH_LAUNCH_ENVIRONMENT_KEY,
 } from '@deepseek-ai/dsh-launch-environment'
-import { readCreatorMode } from './creator'
+import { readCreatorMode } from './creator.js'
 import {
   createNativeHarnessPatch,
   ensureRuntimePaths,
   resolveRuntimePaths,
   type RuntimePaths,
   type RuntimeState,
-} from './index'
+} from './index.js'
 
 const BIN_NAME = 'hulala-runtime'
 const ROOT_CONFIG = '[]\n'
 /** Persistent profile whose patch file holds Settings edits across restarts. */
-const PROFILE_NAME = 'hulala-host'
+const PROFILE_NAME = 'tui'
 const PROFILE_PATCH_FILE = 'cordis.patch.yml'
 const PORTABLE_MODULES_KEY = '__HULALA_RUNTIME_MODULES__'
 
@@ -190,6 +190,54 @@ function isPresetRow(entry: unknown): boolean {
  * `tool-subagent-list-agents`) leaves a profile whose preset cannot start at
  * all. The declarations are therefore re-read from the bundle on every boot.
  */
+async function readBundles(manifestPath: string): Promise<string[] | undefined> {
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { dsh?: { profile?: { bundles?: unknown } } }
+    const bundles = manifest.dsh?.profile?.bundles
+    return Array.isArray(bundles) && bundles.length > 0 && bundles.every(name => typeof name === 'string')
+      ? bundles
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Create or upgrade the Host profile the way a boot would.
+ *
+ * `hulala plugin` must run this before handing the profile to DSH's installer:
+ * the installer initializes a missing profile from DSH's template, which would
+ * seed DSH's composition instead of Hulala's.
+ * @param paths - resolved runtime paths.
+ * @param runtimeRoot - directory whose package.json anchors the DSH runtime.
+ * @param options - Host options that shape the composition.
+ * @returns the profile directory.
+ */
+export async function seedHostProfile(
+  paths: RuntimePaths,
+  runtimeRoot: string,
+  options: { webPort?: number } = {},
+): Promise<string> {
+  const profileDir = join(paths.harnessDir, 'profiles', PROFILE_NAME)
+  await mkdir(profileDir, { recursive: true, mode: 0o700 })
+  const manifestPath = join(profileDir, 'package.json')
+  if (!(await exists(manifestPath))) {
+    await writeFile(manifestPath, JSON.stringify({
+      name: 'hulala-profile',
+      private: true,
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } },
+    }, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 })
+  }
+  const runtimeRequire = createRequire(pathToFileURL(join(resolve(runtimeRoot), 'package.json')))
+  const creator = readCreatorMode(paths.configDir)
+  await ensureProfilePatch(
+    join(profileDir, PROFILE_PATCH_FILE),
+    [...presetPatches(runtimeRequire), ...hostRows(options.webPort, creator), ...createNativeHarnessPatch()],
+    creator,
+  )
+  return profileDir
+}
+
 async function ensureProfilePatch(path: string, rows: PatchOptions[], creator = false): Promise<void> {
   const existing = loadOptionalPatches(BIN_NAME, path)
   if (existing === undefined || existing.length === 0) {
@@ -377,7 +425,7 @@ async function exists(path: string): Promise<boolean> {
 function assignedEnvironment(paths: RuntimePaths, version: string): Record<string, string> {
   return {
     HULALA_HOME: paths.root,
-    DSH_HOME: join(paths.configDir, 'harness'),
+    DSH_HOME: paths.harnessDir,
     HULALA_CONFIG_DIR: paths.configDir,
     HULALA_DATA_DIR: paths.dataDir,
     HULALA_WORKSPACE_DIR: paths.workspaceDir,
@@ -485,7 +533,7 @@ export async function bootRepositoryHarness(
     const installAnchor = runtimeRequire.resolve('@deepseek-ai/dsh/package.json')
     // Harness 0.2.1 keeps live settings in the profile patch and reconciles the
     // whole profile on every edit, so the composition itself must live there.
-    const dshHome = join(paths.configDir, 'harness')
+    const dshHome = paths.harnessDir
     const profileDir = join(dshHome, 'profiles', PROFILE_NAME)
     await mkdir(profileDir, { recursive: true, mode: 0o700 })
     const profileManifestPath = join(profileDir, 'package.json')
@@ -504,7 +552,7 @@ export async function bootRepositoryHarness(
       dir: profileDir,
       patchPath: profilePatchPath,
       installAnchor: pathToFileURL(installAnchor).href,
-      startedBundles: ['@deepseek-ai/dsh-base'],
+      startedBundles: (await readBundles(profileManifestPath)) ?? ['@deepseek-ai/dsh-base'],
       cwd: process.cwd(),
       home: dshHome,
       overlays: [],

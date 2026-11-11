@@ -104,7 +104,7 @@ test('Creator mode adds the inspect registry, and turning it off removes it', as
   try {
     writeCreatorMode(join(root, 'config'), true)
     await boot()
-    const profile = join(root, 'config', 'harness', 'profiles', 'hulala-host', 'cordis.patch.yml')
+    const profile = join(root, 'harness', 'profiles', 'tui', 'cordis.patch.yml')
     const on = await readFile(profile, 'utf8')
     expect(on).toContain('dsh-tool-cordis')
     expect(on).toContain('cordis-host-runner')
@@ -125,7 +125,7 @@ test('Creator mode adds the inspect registry, and turning it off removes it', as
 test('refreshes agent presets from the installed bundle, not a frozen profile copy', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-runtime-preset-'))
   const repositoryRoot = join(import.meta.dir, '..', '..', '..')
-  const profile = join(root, 'config', 'harness', 'profiles', 'hulala-host', 'cordis.patch.yml')
+  const profile = join(root, 'harness', 'profiles', 'tui', 'cordis.patch.yml')
   try {
     const first = await bootRepositoryHarness({
       repositoryRoot,
@@ -178,7 +178,7 @@ test('replaces stale Host rows in an existing profile', async () => {
       environment: { DSH_TELEMETRY_DISABLED: '1' },
     })
     await first.stop()
-    const profile = join(root, 'config', 'harness', 'profiles', 'hulala-host', 'cordis.patch.yml')
+    const profile = join(root, 'harness', 'profiles', 'tui', 'cordis.patch.yml')
     const patches = JSON.parse(await readFile(profile, 'utf8')) as Array<Record<string, unknown>>
     for (const patch of patches) {
       if (!Array.isArray(patch.insert)) continue

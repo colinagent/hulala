@@ -54,7 +54,6 @@ import { inputPlugin } from './plugins/input.js'
 import { lifecyclePlugin } from './plugins/lifecycle.js'
 import { commandsPlugin } from './plugins/commands.js'
 import { changelogPlugin } from './plugins/changelog.js'
-import { userPluginsPlugin } from './plugins/user.js'
 import { viewPlugin } from './plugins/view.js'
 import { terminalPlugin } from './plugins/terminal.js'
 import { viewModelPlugin } from './plugins/viewModel.js'
@@ -217,7 +216,6 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
       ...(applyUpdate === undefined ? {} : { applyUpdate }),
     })
     // Last: a user plugin may register into any service above.
-    await ctx.plugin(userPluginsPlugin, { dataRoot: resolvePaths().data, debug: debugLog })
     return await runInteractive({ ...options, kernel }, production)
   } finally {
     await kernel.dispose()

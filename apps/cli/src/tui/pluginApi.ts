@@ -18,15 +18,18 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Component } from '@earendil-works/pi-tui'
-import { PLUGIN_API_VERSION } from '../plugins/manifest.js'
 import { t } from './i18n/index.js'
 import type {
+  ApiVersion,
   Disposable,
   SeatId,
   PluginApi,
   PluginManifest,
   PluginView,
 } from '@hulala/plugin-sdk'
+
+/** Contract version this build implements; a plugin's manifest states the same number. */
+const PLUGIN_API_VERSION: ApiVersion = 1
 
 /**
  * One line standing in for a seat entry that failed.
