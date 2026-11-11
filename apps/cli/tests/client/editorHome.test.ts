@@ -171,6 +171,22 @@ test('the shipped settings render Markdown from the bundled plugin', () => {
   // Rendered in the buffer, from the plugin that ships with the editor.
   expect(written).toContain('render-markdown')
   expect(written).toContain('file_types = { "markdown" }')
+  // A heading band stops where the words stop, and every level is told apart by
+  // hue alone: the palette's brightest colours, sorted, with no dimming mixed
+  // into the text.
+  expect(written).toContain('width = "block"')
+  // Level 1 is the palette's red warmed towards its yellow; yellow itself is
+  // level 2, then green, cyan, blue and magenta. The ink is the palette colour.
+  expect(written).toContain('blend(theme_value("error", fg), yellow, 0.5)')
+  expect(written).toContain('local BAND_TINT = { 0.12, 0.10, 0.08, 0.06, 0.05, 0.04 }')
+  expect(written).toContain('local spec = { fg = hue, bold = level <= 4 }')
+  expect(written).not.toContain('chroma(')
+  expect(written).toContain('foregrounds = heading_inks')
+  expect(written).toContain('backgrounds = heading_bands')
+  // Markdown is highlighted by Vim's syntax files in the editor, so the level
+  // groups are the legacy markdown ones; treesitter captures are set as well.
+  expect(written).toContain('"markdownH" .. level')
+  expect(written).toContain('"@markup.heading." .. level')
   // The editor never fetches a plugin: the release package carries this one.
   const vendor = join(import.meta.dir, '..', '..', 'vendor', 'render-markdown.nvim')
   expect(existsSync(join(vendor, 'lua', 'render-markdown', 'init.lua'))).toBe(true)

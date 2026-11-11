@@ -201,6 +201,62 @@ for group, spec in pairs(highlights) do
   vim.api.nvim_set_hl(0, group, spec)
 end
 
+-- Heading levels: every level carries its own ink and its own band, and both
+-- step down from level 1. The ink is one hue mixed further towards the editor
+-- background, the band is the background tinted with that hue. Deriving both
+-- from the theme is what keeps "level 1 louder than 2, 2 louder than 3" true on
+-- any terminal palette, instead of trusting six unrelated colours to happen to
+-- sort that way.
+local function blend(from, into, amount)
+  local out = { "#" }
+  for at = 2, 6, 2 do
+    local a = tonumber(from:sub(at, at + 1), 16) or 0
+    local b = tonumber(into:sub(at, at + 1), 16) or 0
+    out[#out + 1] = string.format("%02x", math.floor(a + (b - a) * amount + 0.5))
+  end
+  return table.concat(out)
+end
+
+-- Heading levels are told apart by hue alone: the ink is the palette colour
+-- itself, nothing is mixed into it and nothing dims it.
+--
+-- The order is a taste, not a measurement. Yellow is the brightest hue a dark
+-- palette has -- luminance is mostly the green channel, so no red or orange can
+-- out-brighten it -- but level 1 reads louder in a warm ink than in a pale one,
+-- so it gets the palette's red warmed towards its yellow, and yellow itself
+-- introduces level 2.
+local yellow = theme_value("number", fg)
+local HUE_ORDER = {
+  blend(theme_value("error", fg), yellow, 0.5),
+  yellow,
+  theme_value("string", fg),
+  theme_value("special", fg),
+  theme_value("title", fg),
+  theme_value("keyword", fg),
+}
+local BAND_TINT = { 0.12, 0.10, 0.08, 0.06, 0.05, 0.04 }
+
+local function channel(hex, at)
+  return tonumber(hex:sub(at, at + 1), 16) or 0
+end
+
+local heading_inks, heading_bands = {}, {}
+for level, hue in ipairs(HUE_ORDER) do
+  local spec = { fg = hue, bold = level <= 4 }
+  vim.api.nvim_set_hl(0, "HulalaHeading" .. level, spec)
+  -- The groups the text is actually drawn with: the editor highlights markdown
+  -- with Vim's syntax files, where every level links to Title until we say
+  -- otherwise. Treesitter captures are set too, for a highlighting path we may
+  -- turn on later.
+  vim.api.nvim_set_hl(0, "markdownH" .. level, spec)
+  vim.api.nvim_set_hl(0, "markdownH" .. level .. "Delimiter", { fg = blend(hue, bg, 0.45) })
+  vim.api.nvim_set_hl(0, "@markup.heading." .. level, spec)
+  vim.api.nvim_set_hl(0, "@markup.heading." .. level .. ".markdown", spec)
+  vim.api.nvim_set_hl(0, "HulalaHeadingBand" .. level, { bg = blend(bg, hue, BAND_TINT[level] or 0.04) })
+  heading_inks[level] = "HulalaHeading" .. level
+  heading_bands[level] = "HulalaHeadingBand" .. level
+end
+
 -- The file tree is one surface, and it carries two signals: the file the editor
 -- is showing, and the row under the keyboard. Both are ink, never a filled row:
 -- the client reserves background blocks for panels, and a band inside the tree
@@ -665,7 +721,17 @@ local function markdown_render()
     -- terminal's font, so the icons here are plain Unicode or absent.
     preset = "none",
     file_types = { "markdown" },
-    heading = { sign = false, icons = {} },
+    -- Headings are ink plus a band behind the words: never a filled row across
+    -- the window. Every level has its own hue and its own band; width = "block"
+    -- ends the band where the text ends instead of painting hl_eol to the edge.
+    heading = {
+      sign = false,
+      icons = {},
+      width = "block",
+      right_pad = 1,
+      foregrounds = heading_inks,
+      backgrounds = heading_bands,
+    },
     code = {
       sign = false,
       language_icon = false,

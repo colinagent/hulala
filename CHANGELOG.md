@@ -13,6 +13,13 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- Every heading level in the editor column has its own colour and its own band:
+  level 1 is the palette's red warmed towards its yellow, then yellow, green,
+  cyan, blue and magenta, with the band behind the words only as wide as the
+  text. The inks are the terminal's own palette colours, undimmed.
+
 ## [0.2.31] - 2026-11-10
 
 ### Added
