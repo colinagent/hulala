@@ -187,6 +187,9 @@ test('the shipped settings render Markdown from the bundled plugin', () => {
   // groups are the legacy markdown ones; treesitter captures are set as well.
   expect(written).toContain('"markdownH" .. level')
   expect(written).toContain('"@markup.heading." .. level')
+  // The document stays rendered in normal mode: upstream reveals the raw source
+  // under the cursor, which flips a whole table row back to its pipes mid-read.
+  expect(written).toContain('anti_conceal = { disabled_modes = { "n" } }')
   // The editor never fetches a plugin: the release package carries this one.
   const vendor = join(import.meta.dir, '..', '..', 'vendor', 'render-markdown.nvim')
   expect(existsSync(join(vendor, 'lua', 'render-markdown', 'init.lua'))).toBe(true)

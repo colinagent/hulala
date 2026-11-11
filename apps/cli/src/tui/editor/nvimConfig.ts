@@ -721,6 +721,12 @@ local function markdown_render()
     -- terminal's font, so the icons here are plain Unicode or absent.
     preset = "none",
     file_types = { "markdown" },
+    -- The document stays a document. Upstream reveals the raw source on the line
+    -- under the cursor (anti conceal), which makes a table row flash back to its
+    -- pipes and reads as a glitch while navigating. Rendering already stops in
+    -- insert mode and the selection line is still revealed, so editing keeps its
+    -- source either way.
+    anti_conceal = { disabled_modes = { "n" } },
     -- Headings are ink plus a band behind the words: never a filled row across
     -- the window. Every level has its own hue and its own band; width = "block"
     -- ends the band where the text ends instead of painting hl_eol to the edge.

@@ -20,6 +20,11 @@ that version has no section. Releases before 0.2.30 are not recorded.
   cyan, blue and magenta, with the band behind the words only as wide as the
   text. The inks are the terminal's own palette colours, undimmed.
 
+### Fixed
+
+- A rendered table in the editor column keeps its shape while the cursor moves
+  through it, instead of flashing back to its pipes on the row under the cursor.
+
 ## [0.2.31] - 2026-11-10
 
 ### Added
