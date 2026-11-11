@@ -105,6 +105,9 @@ export async function runHostPluginCommand(args: string[]): Promise<number> {
   const dataRoot = resolve(process.env.HULALA_HOME ?? join(process.env.HOME ?? '.', '.hulala'))
   const runtimeRoot = resolveRuntimeRoot(dataRoot, import.meta.url)
   const paths = resolveRuntimePaths({ root: dataRoot })
+  // Run the package manager with the Host's DSH home, so a plugin's own binary
+  // (and its lifecycle scripts) read and write the same state the Host will.
+  process.env.DSH_HOME = paths.harnessDir
   const profileDir = await seedHostProfile(paths, runtimeRoot)
   const runtimeRequire = createRequire(pathToFileURL(join(runtimeRoot, 'package.json')))
   const anchor = runtimeRequire.resolve('@deepseek-ai/dsh/package.json')
