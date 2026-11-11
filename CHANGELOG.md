@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
 ### Added
 
 - Code blocks in the conversation are highlighted for the languages their fences
