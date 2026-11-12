@@ -114,8 +114,6 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
 
   /** Drafts typed before a Session existed, kept with the mode their gesture named. */
   const pendingLines: Array<{ line: string; mode: TerminalPromptMode }> = []
-  /** Commands contributed by user plugins, keyed by the word after the slash. */
-  const extra = new Map<string, { description: string; run: (argument: string) => void | Promise<void> }>()
   let cancelRequested = false
   /** The layout from before `Cmd-E`, while Neovim-only mode is on. */
   let beforeEditorOnly: FrameSnapshot | undefined
@@ -408,15 +406,6 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         showKeys()
         return
       default: {
-        const contributed = extra.get(command)
-        if (contributed !== undefined) {
-          try {
-            await contributed.run(argument)
-          } catch (caught) {
-            failure(caught)
-          }
-          return
-        }
         // Not a client command: the Host's catalog may still own the word
         // (`/compact` is a plugin row). Dispatch it and say nothing here — the
         // outcome arrives as the durable `command/run`/`command/done` pair the
@@ -533,17 +522,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     dequeue,
     openPalette,
     toggleEditorOnly,
-    modeFor: gesture => (gesture === 'accelerated' || !reducer.busy ? 'queue' : 'steer'),
+    modeFor: (gesture: 'enter' | 'accelerated') => (gesture === 'accelerated' || !reducer.busy ? 'queue' : 'steer'),
     cancel,
-    registerCommand: (name: string, description: string, run: (argument: string) => void | Promise<void>) => {
-      const key = name.toLowerCase()
-      extra.set(key, { description, run })
-      return () => {
-        // A later registration for the same word owns it now.
-        if (extra.get(key)?.run !== run) return
-        extra.delete(key)
-      }
-    },
   })
 }
 
