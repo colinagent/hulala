@@ -1,9 +1,9 @@
 {
-  "name": "@hulala/plugin-sdk",
+  "name": "@hulala/tui-panel-types",
   "version": "0.1.0",
   "private": true,
   "license": "GPL-3.0-only",
-  "description": "Types for a Hulala client plugin: the object activate() receives.",
+  "description": "Types the terminal client kernel and its panels share: seats, views, and the panel contract.",
   "type": "module",
   "exports": {
     ".": {

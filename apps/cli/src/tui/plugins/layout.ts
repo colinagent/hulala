@@ -22,7 +22,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { VStack, type Component, type ScrollView } from '@earendil-works/pi-tui'
-import type { SeatId } from '@hulala/plugin-sdk'
+import type { SeatId } from '@hulala/tui-panel-types'
 import {
   buildRailTerminalLayout,
   buildSideColumnsLayout,

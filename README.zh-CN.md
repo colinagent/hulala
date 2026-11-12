@@ -295,7 +295,7 @@ apps/website   官网和下载元数据
 packages/runtime             DSH 组合（一个原生 Agent Loop）
 packages/host-client         发现、detached 启动、共享客户端契约
 packages/desktop-contracts   Host/client 线协议与状态根目录路径
-packages/plugin-sdk          客户端内核（座位与视图）的内部类型
+packages/tui-panel-types     客户端内核与面板共享的类型
 packages/distribution        安装、更新与回滚
 ```
 

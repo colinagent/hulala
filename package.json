@@ -38,7 +38,7 @@
     "start": "bun scripts/dev.ts",
     "start:attach": "bun apps/cli/src/main.ts",
     "test": "bun test tests/changelog.test.ts tests/checkPatches.test.ts tests/devStart.test.ts tests/dshPin.test.ts tests/installMetadata.test.ts && bun run --cwd apps/server test && bun run --cwd packages/desktop-contracts test && bun run --cwd apps/website test && bun run --cwd packages/runtime test && bun run --cwd packages/host-client test && bun run --cwd apps/cli test",
-    "typecheck": "bun run --cwd apps/server typecheck && bun run --cwd packages/plugin-sdk typecheck && bun run --cwd packages/desktop-contracts typecheck && bun run --cwd apps/website typecheck && bun run --cwd packages/runtime typecheck && bun run --cwd packages/host-client typecheck && bun run --cwd apps/cli typecheck",
+    "typecheck": "bun run --cwd apps/server typecheck && bun run --cwd packages/tui-panel-types typecheck && bun run --cwd packages/desktop-contracts typecheck && bun run --cwd apps/website typecheck && bun run --cwd packages/runtime typecheck && bun run --cwd packages/host-client typecheck && bun run --cwd apps/cli typecheck",
     "website": "bun run --cwd apps/website dev",
     "website:build": "bun run --cwd apps/website build",
     "package:release": "bun scripts/release/packageRelease.ts",

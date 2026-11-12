@@ -1,30 +1,30 @@
 /**
- * The contract a Hulala terminal-client plugin is written against.
+ * The contract the terminal client kernel and its panels share.
  *
  * Types only: this file declares what `activate(tui)` receives and nothing else,
  * so importing it with `import type` leaves no trace in a built plugin. That is
- * what lets a plugin be one plain `.mjs` file the client loads from a directory
+ * what lets a panel be one plain `.mjs` file the client loads from a directory
  * — no dependency on this repository, no build step, no `node_modules`.
  *
  * The surface is a facade over the client's own services, not a second plugin
  * system: a built-in plugin and a user plugin are assembled by the same kernel.
  *
- * @module @hulala/plugin-sdk
+ * @module @hulala/tui-panel-types
  */
 
 /** One installed plugin, as its `package.json` describes it. */
-export interface PluginManifest {
-  /** Directory name under the plugins root; also the plugin's identity. */
+export interface PanelManifest {
+  /** Directory name under the panels root; also the panel's identity. */
   readonly id: string
   /** Package name from its `package.json`. */
   readonly name: string
   readonly version: string
   readonly description?: string
-  /** API version the plugin was written against. */
+  /** API version the panel was written against. */
   readonly apiVersion: number
   /** Absolute path of the entry module. */
   readonly entry: string
-  /** Directory holding the manifest, for the plugin's own assets. */
+  /** Directory holding the manifest, for the panel's own assets. */
   readonly directory: string
 }
 
@@ -32,17 +32,17 @@ export interface PluginManifest {
  * The contract version this build implements.
  *
  * A *type*, not a value: this package has no runtime, so importing a constant
- * from it would fail the moment a plugin actually ran.
+ * from it would fail the moment a panel actually ran.
  */
 export type ApiVersion = 1
 
-/** An undo for anything a plugin registers. */
+/** An undo for anything a panel registers. */
 export type Disposable = () => void
 
 /**
  * Where a component can be put.
  *
- * The set is closed, and each seat has its own size policy that a plugin cannot
+ * The set is closed, and each seat has its own size policy that a panel cannot
  * change: the terminal is a fixed cell grid, so geometry belongs to the frame.
  *
  * Two kinds. **Exclusive** seats (`main`, `dock.cwd`, `dock.input`, `rail`,
@@ -67,8 +67,8 @@ export type SeatId =
   /** Right column: a program in a pty. Exclusive. */
   | 'pane'
 
-/** Rows a plugin returns; plain strings, no styling API to learn. */
-export interface PluginView {
+/** Rows a panel returns; plain strings, no styling API to learn. */
+export interface PanelView {
   /**
    * Render to lines for the given width.
    * @param width - columns available to this seat.
@@ -110,7 +110,7 @@ export interface PluginSnapshot {
 }
 
 /** What `activate(tui)` receives. */
-export interface PluginApi {
+export interface PanelApi {
   /** The contract version, the same number the manifest declares. */
   readonly apiVersion: number
   /**
@@ -125,7 +125,7 @@ export interface PluginApi {
    * @param view - the rows to draw.
    * @returns idempotent removal.
    */
-  seat(seat: SeatId, options: { id: string }, view: PluginView): Disposable
+  seat(seat: SeatId, options: { id: string }, view: PanelView): Disposable
   /**
    * Add a `/command`.
    * @param name - the word after the slash, without it.
@@ -142,7 +142,7 @@ export interface PluginApi {
   refresh(): void
   /** The window's current facts. */
   state(): PluginSnapshot
-  /** Write to the client's console, tagged with the plugin id. */
+  /** Write to the client's console, tagged with the panel id. */
   log(level: 'info' | 'error', message: string): void
 }
 
@@ -150,7 +150,7 @@ export interface PluginApi {
  * The function an entry module must export.
  *
  * Returning a function is optional; it runs before anything the facade owns is
- * removed, which is the place for a timer or a child process the plugin started
+ * removed, which is the place for a timer or a child process the panel started
  * outside `seat`/`command`.
  */
-export type PluginActivate = (tui: PluginApi) => void | Disposable | Promise<void | Disposable>
+export type PanelActivate = (tui: PanelApi) => void | Disposable | Promise<void | Disposable>
