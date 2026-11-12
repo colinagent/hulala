@@ -13,6 +13,13 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Added
+
+- `hulala install bot` installs the first-party chat bot
+  (`@colinagent/hulala-bot`, Telegram and Lark) into the `tui` profile. It is a
+  shortcut for `hulala plugin --profile tui add @colinagent/hulala-bot`; the bot
+  is still a plugin and is not part of the release archive.
+
 ## [0.3.1] - 2026-11-12
 
 ### Added
