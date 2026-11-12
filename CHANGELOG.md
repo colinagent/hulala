@@ -13,6 +13,20 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- Dragging text in the conversation now selects and copies it from a step row's
+  header line too: the header no longer takes the press, so the transcript's own
+  selection keeps working and a press and release on the same cell still folds
+  the row.
+- Selected text now reaches the clipboard the user pastes from. Over SSH or mosh
+  the client writes OSC 52 to the terminal, so the selection lands on the
+  machine the user is sitting at; on the user's own machine it uses the native
+  clipboard or the platform's writer (`pbcopy`, `wl-copy`, `xclip`, `xsel`). A
+  copy that cannot land now says why instead of reporting a false "Copied!".
+- A mouse report split by a slow read is put back together instead of being
+  dropped, so a click or drag over a laggy SSH link no longer disappears.
+
 ## [0.3.2] - 2026-11-12
 
 ### Added

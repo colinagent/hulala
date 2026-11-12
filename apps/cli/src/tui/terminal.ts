@@ -14,6 +14,12 @@
  * state (`kittyProtocolActive` stays false), so a terminal that ignores the
  * request reads exactly like it always did.
  *
+ * The sequence buffer gives up on a sequence it cannot finish in time, which is
+ * right for a key and wrong for a mouse report: one report is one gesture, and
+ * the halves mean nothing apart. So a flushed half report is held here until the
+ * rest of it arrives, and only a tail that never comes is dropped (see
+ * `reassembleMouseReport`).
+ *
  * @module hulala-cli/tui/terminal
  */
 import { formatProgramStatus, StdinBuffer, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
@@ -30,8 +36,24 @@ const SGR_MOUSE_REPORT = /^\u001b\[<\d+;\d+;\d+[Mm]$/u
 /** The head of one, which the sequence buffer hands on when it stops waiting. */
 const SGR_MOUSE_HEAD = /^\u001b\[<[\d;]*$/u
 
-/** What can still continue that head: more numbers, then one final byte. */
-const SGR_MOUSE_TAIL = /^(?:[\d;]{1,10}|[Mm])$/u
+/**
+ * The longest a real report can be, and therefore the longest head worth holding.
+ *
+ * `ESC [ <` then three numbers: a button byte and two coordinates that fit in
+ * sixteen bits each stay well inside this. A longer "head" is not a report the
+ * terminal is finished sending; it is a broken stream, and holding it would grow
+ * a buffer on the strength of whatever arrives next.
+ */
+const SGR_MOUSE_MAX_LENGTH = 64
+
+/**
+ * How long half a report is held before it is given up on.
+ *
+ * A slow read can split one report, but the halves arrive milliseconds apart:
+ * a head still waiting after a whole second belongs to a report whose tail was
+ * lost, and holding it longer would let an unrelated key complete it.
+ */
+const MOUSE_REPORT_TIMEOUT_MS = 1_000
 
 /**
  * Bytes that would end an OSC title early or start a sequence inside it.
@@ -47,19 +69,28 @@ export interface TerminalStreams {
   output: NodeJS.WritableStream & { isTTY?: boolean; columns?: number; rows?: number }
 }
 
+/** Timing knobs a test can shorten; the client always takes the defaults. */
+export interface TerminalOptions {
+  /** How long half a mouse report waits for its tail. */
+  readonly mouseReportTimeoutMs?: number
+}
+
 export class StreamTerminal implements Terminal {
   private readonly streams: TerminalStreams
+  private readonly mouseReportTimeoutMs: number
   private inputHandler: ((data: string) => void) | undefined
   private resizeHandler: (() => void) | undefined
   private stdinBuffer: StdinBuffer | undefined
   private wasRaw = false
   private rawData: ((chunk: string | Buffer) => void) | undefined
   private detachResize: (() => void) | undefined
-  /** True while the tail of a report whose head was dropped is being swallowed. */
-  private droppingMouseTail = false
+  /** Half a mouse report, held until its tail arrives or is given up on. */
+  private pendingMouseReport: string | undefined
+  private pendingMouseTimer: ReturnType<typeof setTimeout> | undefined
 
-  constructor(streams: TerminalStreams) {
+  constructor(streams: TerminalStreams, options: TerminalOptions = {}) {
     this.streams = streams
+    this.mouseReportTimeoutMs = options.mouseReportTimeoutMs ?? MOUSE_REPORT_TIMEOUT_MS
   }
 
   get columns(): number {
@@ -93,7 +124,7 @@ export class StreamTerminal implements Terminal {
 
     this.stdinBuffer = new StdinBuffer()
     this.stdinBuffer.on('data', sequence => {
-      const kept = this.dropSplitMouseReport(sequence)
+      const kept = this.reassembleMouseReport(sequence)
       if (kept !== undefined && this.inputHandler) this.inputHandler(kept)
     })
     this.stdinBuffer.on('paste', content => {
@@ -121,7 +152,7 @@ export class StreamTerminal implements Terminal {
   stop(): void {
     if (this.rawData !== undefined) this.streams.input.off('data', this.rawData)
     this.rawData = undefined
-    this.droppingMouseTail = false
+    this.clearPendingMouseReport()
     this.stdinBuffer?.clear()
     this.stdinBuffer = undefined
     this.detachResize?.()
@@ -136,35 +167,71 @@ export class StreamTerminal implements Terminal {
   }
 
   /**
-   * Drop the two halves of a mouse report the sequence buffer gave up on.
+   * Join the halves of a mouse report the sequence buffer gave up on.
    *
    * `StdinBuffer` flushes a sequence it could not finish inside its 50 ms window,
    * so a report split by a slow read arrives as `ESC [ < 35;6` and then as plain
-   * characters. Everything above this layer reads those as keystrokes, and a
-   * column with the keyboard forwards them to its program: the shell's line
-   * editor swallows `ESC [ <`, beeps, and prints `35;67;18M` on its input line as
-   * text instead of treating it as a click. Whole reports still pass through —
-   * that is what pi-tui's own mouse handling reads.
+   * characters, one per event. The head alone is not a keystroke worth keeping
+   * and not a report any parser above accepts, so it is held here: the next
+   * piece is appended, and the moment the two form a whole report the report is
+   * delivered as one sequence — exactly as a terminal that was fast enough to
+   * send it whole would have. A piece that cannot be the tail of a report means
+   * the tail was lost, so the head is dropped and that piece is delivered on its
+   * own: it is what the user typed.
    * @param sequence - one sequence from the input buffer.
-   * @returns the sequence to deliver, or undefined when it belonged to a report.
+   * @returns the sequence to deliver, or undefined while a half report waits.
    */
-  private dropSplitMouseReport(sequence: string): string | undefined {
-    if (this.droppingMouseTail) {
-      // The tail is typed as ordinary characters, one per event. Anything that
-      // cannot continue a report means the reader is typing again, so the key is
-      // delivered rather than eaten.
-      if (!SGR_MOUSE_TAIL.test(sequence)) {
-        this.droppingMouseTail = false
-        return sequence
-      }
-      if (sequence === 'M' || sequence === 'm') this.droppingMouseTail = false
+  private reassembleMouseReport(sequence: string): string | undefined {
+    const pending = this.pendingMouseReport
+    if (pending === undefined) {
+      // A whole report passes through; a fragment waits for its tail.
+      if (!SGR_MOUSE_HEAD.test(sequence)) return sequence
+      this.holdMouseReport(sequence)
       return undefined
     }
-    if (SGR_MOUSE_HEAD.test(sequence) && !SGR_MOUSE_REPORT.test(sequence)) {
-      this.droppingMouseTail = true
+    const joined = pending + sequence
+    if (SGR_MOUSE_REPORT.test(joined)) {
+      this.clearPendingMouseReport()
+      return joined
+    }
+    if (SGR_MOUSE_HEAD.test(joined)) {
+      this.holdMouseReport(joined)
       return undefined
     }
-    return sequence
+    // This piece cannot be the tail of that report: the tail was lost on the
+    // way, so the fragment is given up on and the piece is delivered as it
+    // arrived — it is a key the user typed, or the head of the next report.
+    this.clearPendingMouseReport()
+    if (!SGR_MOUSE_HEAD.test(sequence)) return sequence
+    this.holdMouseReport(sequence)
+    return undefined
+  }
+
+  /**
+   * Keep a half report, and give up on it if no tail follows.
+   *
+   * A head longer than any report can be is dropped rather than buffered: it is
+   * not a report in progress, and nothing above this layer could use it.
+   */
+  private holdMouseReport(partial: string): void {
+    this.clearPendingMouseReport()
+    if (partial.length > SGR_MOUSE_MAX_LENGTH) return
+    this.pendingMouseReport = partial
+    const timer = setTimeout(() => {
+      this.pendingMouseReport = undefined
+      this.pendingMouseTimer = undefined
+    }, this.mouseReportTimeoutMs)
+    // A window that stops with half a report on the wire must still be able to
+    // exit: the timer is not a reason to keep the process alive.
+    timer.unref()
+    this.pendingMouseTimer = timer
+  }
+
+  /** Forget the half report and its timer. */
+  private clearPendingMouseReport(): void {
+    if (this.pendingMouseTimer !== undefined) clearTimeout(this.pendingMouseTimer)
+    this.pendingMouseTimer = undefined
+    this.pendingMouseReport = undefined
   }
 
   write(data: string): void {

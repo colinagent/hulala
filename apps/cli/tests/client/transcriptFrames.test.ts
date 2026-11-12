@@ -88,8 +88,9 @@ test('the pointer and a fold still move the frame', () => {
   expect(transcript.handleMouse(at('move'))).toEqual({ handled: true, render: true })
   expect(transcript.render(60)[0]).toContain('▸ >_ Bash')
 
-  // …and a click unfolds that one row, so the cached frame has to follow.
-  expect(transcript.handleMouse(at('press', 'left'))).toEqual({ handled: true })
+  // …and a click unfolds that one row, so the cached frame has to follow. The
+  // press itself stays free for the alternate screen's drag selection.
+  expect(transcript.handleMouse(at('press', 'left'))).toBeUndefined()
   expect(transcript.handleMouse(at('click', 'left'))).toEqual({ handled: true, render: true })
   expect(transcript.render(60)[0]).toContain('▾ >_ Bash')
 })

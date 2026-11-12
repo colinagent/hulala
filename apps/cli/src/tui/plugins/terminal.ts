@@ -27,6 +27,8 @@ import {
 import { composerBindings } from '../keys.js'
 import { imePolicyOf, type ImePolicy } from '../pane/focus.js'
 import type { CaretShape } from '../pane/screenSession.js'
+import { copyToClipboard, liveClipboardPorts, type CopyProblem } from '../clipboard.js'
+import { t } from '../i18n/index.js'
 import { StreamTerminal, type TerminalStreams } from '../terminal.js'
 
 /** DECSCUSR code for each caret shape the client hands the terminal. */
@@ -129,6 +131,38 @@ export interface TerminalPluginConfig {
   readonly output: NodeJS.WritableStream & { isTTY?: boolean }
   /** Whether the composer starts in viewport paging mode. */
   readonly composerPaging: boolean
+  /**
+   * Copy selected text to the clipboard; tests inject a recorder.
+   *
+   * Absent, the client writes the clipboard of the machine it can reach (see
+   * {@link copySelectedText}).
+   */
+  readonly copySelection?: (text: string) => Promise<boolean | string>
+}
+
+/** The client's own way of putting a selection on the clipboard. */
+function copySelectedText(write: (data: string) => void): (text: string) => Promise<boolean | string> {
+  const ports = liveClipboardPorts(write)
+  return async text => {
+    try {
+      const result = await copyToClipboard(text, ports)
+      return result === 'copied' ? true : copyProblemText(result)
+    } catch {
+      // The renderer awaits this promise without a guard, so a rejection here
+      // would take the whole client down: report it as a plain failure instead.
+      return copyProblemText('unsupported')
+    }
+  }
+}
+
+/** The one line a failed copy shows, in the client's language. */
+function copyProblemText(problem: CopyProblem): string {
+  switch (problem) {
+    case 'too-large': return t('clipboard.tooLarge')
+    case 'wayland': return t('clipboard.wayland')
+    case 'x11': return t('clipboard.x11')
+    case 'unsupported': return t('clipboard.unsupported')
+  }
 }
 
 /** Construct the terminal, install the keybinding table, and own both. */
@@ -140,7 +174,12 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   // character instead, which is exactly how a bar looks in the terminal Neovim
   // runs in. It only drives the caret while a column holds the keyboard (see
   // `setCaretShape`), so the rest of the client keeps its own fake cursors.
-  const screen = new TuiAltScreen(terminal, true)
+  const screen = new TuiAltScreen(terminal, true, undefined, {
+    // Copy-on-select is the alternate screen's own drag selection, and the copy
+    // has to land on the clipboard the user pastes from: the terminal's over a
+    // remote link, this machine's when the client runs where the user sits.
+    copySelection: config.copySelection ?? copySelectedText(data => { terminal.write(data) }),
+  })
   // One manager instance, mutated later: `TuiAltScreen` resolves its viewport
   // keys through the globally installed manager on every keystroke.
   const keybindings = new KeybindingsManager(TUI_KEYBINDINGS)

@@ -17,8 +17,10 @@
  * unfolds that one row, the way the web transcript's disclosure rows behave.
  * The hit test needs no per-row components because this container knows the
  * line range each item occupies — the alternate screen hands it coordinates
- * local to the scrolled document, and its own text selection keeps working on
- * every other line.
+ * local to the scrolled document. A click is the *only* gesture answered here:
+ * claiming the press as well would take the whole drag away from the screen's
+ * text selection, and a header line has plenty of text worth selecting (the
+ * command of a tool call, the first line of a thought).
  *
  * @module hulala-cli/tui/view/transcript
  */
@@ -204,9 +206,9 @@ export class Transcript implements Component {
       return { handled: true, render: true }
     }
     if (event.button !== 'left' || target === undefined) return undefined
-    // The alternate screen only synthesizes `click` for a component that took
-    // the press, so the press is claimed without acting on it.
-    if (event.type === 'press') return { handled: true }
+    // The press is left unclaimed so the alternate screen's own text selection
+    // keeps working from a row header too: a drag that starts here selects the
+    // text, and only a press and release on the same cell arrives as a click.
     if (event.type !== 'click') return undefined
     this.flip(target)
     return { handled: true, render: true }

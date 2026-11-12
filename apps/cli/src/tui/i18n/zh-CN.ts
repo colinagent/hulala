@@ -20,6 +20,11 @@ export const zhCN: MessageTable = {
   'language.changed': ({ language }) => `界面语言已切换为 ${language}。`,
   'mermaid.incomplete': ({ warning }) => `Mermaid 图未完整渲染：${warning}`,
 
+  'clipboard.tooLarge': '复制失败：选区太大，无法交给终端',
+  'clipboard.wayland': '复制失败：请安装 `wl-clipboard`（`wl-copy`）或检查 Wayland 权限',
+  'clipboard.x11': '复制失败：请安装 `xclip` 或 `xsel`，或检查 X11 权限',
+  'clipboard.unsupported': '复制失败：当前终端无法访问剪贴板',
+
   'changelog.updated': ({ version }) => `已更新到 v${version}`,
   'changelog.none': ({ version }) => `v${version} 没有变更记录。`,
 

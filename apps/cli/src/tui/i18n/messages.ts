@@ -21,6 +21,11 @@ export interface MessageTable {
 
   'mermaid.incomplete': (params: { warning: string }) => string
 
+  'clipboard.tooLarge': string
+  'clipboard.wayland': string
+  'clipboard.x11': string
+  'clipboard.unsupported': string
+
   'changelog.updated': (params: { version: string }) => string
   'changelog.none': (params: { version: string }) => string
 

@@ -103,6 +103,28 @@ terminals or input methods that swallow `Esc`, and `/rail` is the same toggle
 where a Command chord cannot arrive. It only ever shows or hides — moving the
 keyboard between the rail, the conversation and a column is `Ctrl-[` / `Ctrl-]`.
 
+## Selecting and copying text
+
+The client owns the mouse: clicking a step row's `▸` folds it, and a column
+running a program is that program's terminal. So a drag across the conversation
+is the client's own selection — the text is drawn in reverse video, and letting
+go copies it (copy-on-select) — while the terminal's native selection needs its
+bypass key, `Shift` on most terminals (`Option` in Terminal.app and iTerm2 by
+default). A drag that starts on a step row's first line is a selection too; the
+row only folds on a completed click.
+
+Where the copy lands depends on where you sit. On your own machine the client
+writes the system clipboard (`pbcopy` on macOS, `wl-copy` or `xclip`/`xsel` on
+Linux). Over SSH or mosh the client writes `OSC 52` instead, which reaches the
+clipboard of the machine your terminal runs on — never the remote box. A
+terminal that refuses `OSC 52` will leave the paste empty, so allow clipboard
+access there: iTerm2's *Applications in terminal may access clipboard*,
+Ghostty/kitty/WezTerm by default, or `set -g set-clipboard on` in tmux. Set
+`HULALA_CLIPBOARD=terminal` when a remote session hides the SSH markers (a
+multiplexer attach, an IDE daemon). The client writes the sequence and cannot
+verify it; when a local copy fails for real it says why instead of reporting a
+false `Copied!`.
+
 ## The command palette
 
 `Shift-Cmd-P` (or `/commands`) opens the palette: a searchable list of every

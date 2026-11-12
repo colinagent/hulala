@@ -19,6 +19,11 @@ export const en: MessageTable = {
   'language.changed': ({ language }) => `Interface language set to ${language}.`,
   'mermaid.incomplete': ({ warning }) => `Mermaid diagram not fully rendered: ${warning}`,
 
+  'clipboard.tooLarge': 'Copy failed: the selection is too large to hand to the terminal',
+  'clipboard.wayland': 'Copy failed: install `wl-clipboard` (`wl-copy`) or check Wayland access',
+  'clipboard.x11': 'Copy failed: install `xclip` or `xsel`, or check X11 access',
+  'clipboard.unsupported': 'Copy failed: no clipboard is reachable from this terminal',
+
   'changelog.updated': ({ version }) => `Updated to v${version}`,
   'changelog.none': ({ version }) => `No changelog entries for v${version}.`,
 

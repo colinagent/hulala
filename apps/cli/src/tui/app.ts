@@ -86,6 +86,14 @@ export interface RunTerminalOptions {
   language?: ResolvedLanguage
   /** Override the first-use prompt default (on only when this process owns the terminal). */
   promptLanguage?: boolean
+  /**
+   * Copy a drag selection to the clipboard; tests record it instead.
+   *
+   * The running client reaches whichever clipboard the user can paste from (see
+   * `tui/clipboard.ts`), and injecting this keeps a test from spawning a
+   * clipboard tool or writing to the developer's own clipboard.
+   */
+  copySelection?: (text: string) => Promise<boolean | string>
 }
 
 /**
@@ -174,7 +182,12 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     if (!interactive) {
       return await runPlain({ ...options, kernel }, input, output, language)
     }
-    await ctx.plugin(terminalPlugin, { input, output, composerPaging: true })
+    await ctx.plugin(terminalPlugin, {
+      input,
+      output,
+      composerPaging: true,
+      ...(options.copySelection === undefined ? {} : { copySelection: options.copySelection }),
+    })
     await ctx.plugin(renderPlugin)
     // Before anything that reads a chord or prints one: the composer's menu, the
     // input pipeline, `/keys` and the startup hints all read the active keymap.

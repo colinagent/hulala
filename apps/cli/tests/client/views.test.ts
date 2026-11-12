@@ -456,8 +456,9 @@ test('a click on a row header folds and unfolds that row alone', () => {
   ])
   expect(transcript.render(80)).toHaveLength(2)
 
-  // The alternate screen only emits `click` for a component that took `press`.
-  expect(transcript.handleMouse(clickEvent(0, 'press'))).toEqual({ handled: true })
+  // The press is left to the alternate screen's own text selection, so a drag
+  // that starts on a row header selects text instead of folding it.
+  expect(transcript.handleMouse(clickEvent(0, 'press'))).toBeUndefined()
   expect(transcript.handleMouse(clickEvent(0))).toEqual({ handled: true, render: true })
   const opened = transcript.render(80)
   expect(opened[0]).toBe('▾ >_ Bash · Show the directory')
@@ -480,11 +481,24 @@ test('the row body is not a click target, so its text stays selectable', () => {
   expect(transcript.handleMouse(clickEvent(2))).toBeUndefined()
 })
 
+test('a drag that starts on a row header stays available to text selection', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  transcript.setItems([
+    { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'pwd', description: 'Show the directory' }), result: '/work/hulala', status: 'ok', time: 0 },
+  ])
+  transcript.render(80)
+  // Nothing claims the gesture, so the alternate screen keeps drawing its own
+  // selection across the header line instead of folding the row.
+  expect(transcript.handleMouse(clickEvent(0, 'press'))).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'drag', x: 12 })).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'release', button: 'left' })).toBeUndefined()
+  expect(transcript.render(80)[0]).toBe('  >_ Bash · Show the directory')
+})
+
 test('a click unfolds reasoning past its summary line', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([{ kind: 'reasoning', text: 'First thought\nSecond line', streaming: false, time: 0 }])
   expect(transcript.render(80)).toEqual(['  ✳  Think · First thought'])
-  transcript.handleMouse(clickEvent(0, 'press'))
   transcript.handleMouse(clickEvent(0))
   const opened = transcript.render(80)
   expect(opened[0]).toBe('▾ ✳  Think · First thought')
@@ -530,7 +544,6 @@ test('Ctrl-O still flips every row and a click flips one back', () => {
   ])
   transcript.toggleExpandAll()
   expect(transcript.render(80)[0]).toBe('▾ >_ Bash · Show the directory')
-  transcript.handleMouse(clickEvent(0, 'press'))
   transcript.handleMouse(clickEvent(0))
   const lines = transcript.render(80)
   expect(lines[0]).toBe('  >_ Bash · Show the directory')
