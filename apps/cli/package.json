@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Launch the local-first Hulala Agent workbench with one npx command.",
   "type": "module",
   "bin": {

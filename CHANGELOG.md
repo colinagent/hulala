@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-12
+
 ### Changed
 
 - A command row prints the command it ran under the title, so a folded call says
