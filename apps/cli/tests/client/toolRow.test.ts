@@ -146,3 +146,94 @@ test('tools whose payload is a list still say something readable', () => {
     result: 'answered',
   }).summary).toBe('Which branch?')
 })
+
+test('a settled edit carries its applied change as diff rows', () => {
+  const path = '/work/hulala/src/app.ts'
+  const row = toolRow({
+    name: 'edit',
+    args: JSON.stringify({ file_path: path, old_string: 'b', new_string: 'B' }),
+    result: 'Edited src/app.ts',
+    meta: { path, diffs: [{ path, oldText: 'a\nb\nc', newText: 'a\nB\nc' }] },
+    cwd: CWD,
+  })
+  expect(row.diff?.stats).toEqual({ added: 1, removed: 1 })
+  expect(row.diff?.rows.filter(entry => entry.kind === 'context').map(entry => entry.text)).toEqual(['a', 'c'])
+  expect(row.diff?.rows).toContainEqual({ kind: 'del', text: 'b' })
+  expect(row.diff?.rows).toContainEqual({ kind: 'add', text: 'B' })
+})
+
+test('a running edit previews the change its arguments already describe', () => {
+  const row = toolRow({
+    name: 'edit',
+    args: JSON.stringify({ file_path: '/work/hulala/a.ts', old_string: 'one', new_string: 'two' }),
+    cwd: CWD,
+  })
+  expect(row.state).toBe('running')
+  expect(row.diff?.stats).toEqual({ added: 1, removed: 1 })
+})
+
+test('a write waits for its result: only then does the applied change exist', () => {
+  const path = '/work/hulala/new.ts'
+  const running = toolRow({ name: 'write', args: JSON.stringify({ file_path: path, content: 'a\nb' }), cwd: CWD })
+  expect(running.diff).toBeUndefined()
+
+  const settled = toolRow({
+    name: 'write',
+    args: JSON.stringify({ file_path: path, content: 'a\nb' }),
+    result: 'Wrote new.ts',
+    meta: { operation: 'create', diffs: [{ path, oldText: null, newText: 'a\nb' }] },
+    cwd: CWD,
+  })
+  expect(settled.diff?.stats).toEqual({ added: 2, removed: 0 })
+})
+
+test('apply_patch draws one header per changed file', () => {
+  const row = toolRow({
+    name: 'apply_patch',
+    args: JSON.stringify({ patch: '*** Begin Patch' }),
+    result: 'patched',
+    meta: {
+      stopped: false,
+      diffs: [
+        { path: '/work/hulala/a.ts', oldText: null, newText: 'a' },
+        { path: '/work/hulala/b.ts', oldText: 'b', newText: 'B' },
+      ],
+    },
+    cwd: CWD,
+  })
+  // Each header is shown the way the row's own path is: relative to the root.
+  expect(row.diff?.rows.filter(entry => entry.kind === 'path').map(entry => entry.text))
+    .toEqual(['a.ts', 'b.ts'])
+  expect(row.diff?.stats).toEqual({ added: 2, removed: 1 })
+})
+
+test('a read result loses its envelope and names the window it asked for', () => {
+  const row = toolRow({
+    name: 'read',
+    args: JSON.stringify({ file_path: '/work/hulala/a.ts', offset: 10, limit: 5 }),
+    result: '<path>a.ts</path>\n<type>file</type>\n<content>\nconst x = 1\n</content>',
+    cwd: CWD,
+  })
+  expect(row.output).toBe('const x = 1')
+  expect(row.summary).toBe('a.ts (10-14)')
+  expect(toolRow({
+    name: 'read',
+    args: JSON.stringify({ file_path: '/work/hulala/a.ts', offset: 10 }),
+    result: 'body',
+    cwd: CWD,
+  }).summary).toBe('a.ts (from 10)')
+})
+
+test('an error result never turns into a diff', () => {
+  const row = toolRow({
+    name: 'edit',
+    args: JSON.stringify({ file_path: '/work/hulala/a.ts', old_string: 'a', new_string: 'b' }),
+    result: 'ENOENT: no such file',
+    isError: true,
+    meta: { path: '/work/hulala/a.ts' },
+    cwd: CWD,
+  })
+  // A failed edit changed nothing, so it must not read as a patch.
+  expect(row.diff).toBeUndefined()
+  expect(row.summary).toBe('ENOENT: no such file')
+})

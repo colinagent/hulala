@@ -3,8 +3,13 @@
  *
  * Maps the view-model items onto pi-tui components. Assistant text uses pi's
  * `Markdown`, archived user prompts use the `UserMessage` panel, tool calls use
- * the one-line `ToolRowView`, reasoning uses `ThinkRow`, and the tail of a live
- * turn is the `RunningRow` clock.
+ * `ToolRowView`, reasoning uses `ThinkRow`, and the tail of a live turn is the
+ * `RunningRow` clock.
+ *
+ * A step row is not collapsed to a title line: it draws a preview of its body
+ * (the end of a command's output, the start of a result, a mutation's diff, the
+ * end of a thought) within a per-family line budget, and the reader opens the
+ * rest with a click or `Ctrl-O`. A body shorter than its budget is shown whole.
  *
  * Components are cached per item so streaming deltas update one `Markdown` in
  * place instead of rebuilding the transcript. Each of them answers a repaint with
@@ -13,14 +18,15 @@
  * long conversation costs the rows in the viewport, not the rows it has ever
  * drawn.
  *
- * A step row's first line is also a mouse target: a primary click folds or
- * unfolds that one row, the way the web transcript's disclosure rows behave.
- * The hit test needs no per-row components because this container knows the
- * line range each item occupies — the alternate screen hands it coordinates
- * local to the scrolled document. A click is the *only* gesture answered here:
- * claiming the press as well would take the whole drag away from the screen's
- * text selection, and a header line has plenty of text worth selecting (the
- * command of a tool call, the first line of a thought).
+ * A step row is also a mouse target: a primary click folds or unfolds that one
+ * row, the way the web transcript's disclosure rows behave. A tool row answers
+ * on its first line only, so the body's text (a diff, a file's contents) stays
+ * available for selection; a reasoning block answers anywhere on itself, since
+ * its folded body *is* the row. The hit test needs no per-row components
+ * because this container knows the line range each item occupies — the
+ * alternate screen hands it coordinates local to the scrolled document. A click
+ * is the *only* gesture answered here: claiming the press as well would take the
+ * whole drag away from the screen's text selection.
  *
  * @module hulala-cli/tui/view/transcript
  */
@@ -77,7 +83,7 @@ export class Transcript implements Component {
     lines: string[]
   } | undefined
   private expandAll = false
-  private reasoningMode: ReasoningMode = 'summary'
+  private reasoningMode: ReasoningMode = 'tail'
   private runningStartedAt: number | undefined
   private readonly markdownTheme: MarkdownTheme
   private readonly styles: ReturnType<typeof buildStyles>
@@ -115,11 +121,11 @@ export class Transcript implements Component {
     this.expandAll = !this.expandAll
   }
 
-  /** Cycle reasoning between its summary line, the full block, and hidden. */
+  /** Cycle reasoning between its folded tail, the full block, and hidden. */
   cycleReasoning(): ReasoningMode {
-    this.reasoningMode = this.reasoningMode === 'summary'
+    this.reasoningMode = this.reasoningMode === 'tail'
       ? 'full'
-      : this.reasoningMode === 'full' ? 'hidden' : 'summary'
+      : this.reasoningMode === 'full' ? 'hidden' : 'tail'
     return this.reasoningMode
   }
 
@@ -193,7 +199,12 @@ export class Transcript implements Component {
    * is a target, so the body text underneath stays available for selection.
    */
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    const row = this.ranges.find(range => range.end > range.start && event.y === range.start)
+    // A tool row answers on its header line; a thought answers on any of its
+    // rows, because the folded block has no separate header to aim at.
+    const row = this.ranges.find(range => range.end > range.start && (
+      event.y === range.start
+      || (range.item.kind === 'reasoning' && event.y > range.start && event.y < range.end)
+    ))
     const target = row !== undefined && (
       row.item.kind === 'tool'
       || row.item.kind === 'reasoning'
@@ -226,8 +237,12 @@ export class Transcript implements Component {
 
   private thinkMode(item: TranscriptItem): ReasoningMode {
     if (this.reasoningMode === 'hidden') return 'hidden'
-    const full = (this.reasoningMode === 'full') !== this.flipped.has(item)
-    return full ? 'full' : 'summary'
+    // `Ctrl-O` opens every body, the thought's included, while the thought is
+    // folded. An explicit `/reasoning full` already means "open" and `/reasoning
+    // hidden` wins outright, so neither needs the global toggle to agree with it.
+    // The per-row flip closes one again, exactly as it does for a tool row.
+    const open = this.reasoningMode === 'full' || (this.reasoningMode === 'tail' && this.expandAll)
+    return open !== this.flipped.has(item) ? 'full' : 'tail'
   }
 
   private componentFor(item: TranscriptItem): Component {

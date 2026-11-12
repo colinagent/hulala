@@ -346,7 +346,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
         return
       case 'reasoning': {
         const mode = view.cycleReasoning()
-        const label = mode === 'summary' ? 'reasoning.summary' : mode === 'full' ? 'reasoning.full' : 'reasoning.hidden'
+        const label = mode === 'tail' ? 'reasoning.tail' : mode === 'full' ? 'reasoning.full' : 'reasoning.hidden'
         reducer.addNotice(t('notice.reasoning', { mode: t(label) }))
         repaint()
         return

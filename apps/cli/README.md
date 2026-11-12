@@ -15,8 +15,8 @@ The terminal client performs the DSH `/connect?token=...` exchange for a signed
 Cookie, then uses the native `/api` Remote calls and `/api/remote.mux` event
 streams. It does not start a private Agent Runtime and there is no second REST
 surface. `/help` inside the client lists `/sessions`, `/new`, `/model`,
-`/permission`, `/thinking`, `/cancel`, `/status`, `/editor`, `/terminal`,
-`/language` and `/quit`.
+`/permission`, `/thinking`, `/reasoning`, `/cancel`, `/status`, `/editor`,
+`/terminal`, `/language` and `/quit`.
 `Shift-Tab` cycles the thinking level in place, and the footer names the level in
 effect next to the model; a choice made there (or in `/model`) is also the default
 DeepSeek Harness saves for new Sessions. `/permission` lists the presets the Host
@@ -102,6 +102,31 @@ hidden rail comes back with the keyboard on the list; it stays the fallback for
 terminals or input methods that swallow `Esc`, and `/rail` is the same toggle
 where a Command chord cannot arrive. It only ever shows or hides — moving the
 keyboard between the rail, the conversation and a column is `Ctrl-[` / `Ctrl-]`.
+
+## Reading the conversation
+
+A step row is not a title with everything hidden. Each row shows a preview of
+what it did, folded to a line budget that a short body never reaches:
+
+- a command row keeps the **end** of its output (five lines, with a count of the
+  earlier ones) — that is where a build or a test run says what happened;
+- a search or generic row keeps the **start** of its result (six lines, with a
+  count of the rest);
+- a `read` row keeps its header, now carrying the window it asked for
+  (`a.ts (10-14)`), and shows the file when opened;
+- a `write`, `edit` or `apply_patch` row draws the **change itself**: one path
+  header per file, `-`/`+` lines with three lines of context, `⋯` between hunks,
+  and a `+N -M` count in the title. Nine rows are shown; the file's own hunks
+  come from the tool result, so what you see is what landed on disk;
+- a thought shows `✳ Think` and the **last** four lines it has reached, with a
+  count of the rest. A short thought shows every line, and the block does not
+  grow or move when the thought settles.
+
+Clicking a row's `▸` opens one row; `Ctrl-O` opens every tool row and every
+thought at once, and clicking again closes one. `/reasoning` cycles thoughts
+between the folded tail, the full text, and hidden. A thought answers a click
+anywhere on it; a tool row answers on its header line only, so the body text —
+a diff, a file's contents — stays available for selection.
 
 ## Selecting and copying text
 

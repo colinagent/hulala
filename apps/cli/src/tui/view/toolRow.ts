@@ -2,9 +2,16 @@
  * Tool-call row.
  *
  * One line per call — icon, title, summary — exactly like the DeepSeek Harness
- * web transcript, with the argument body and the output folded away until the
- * reader asks for them. The derivation itself lives in `data/toolRow.ts`; this
- * component only draws it.
+ * web transcript, followed by a *preview* of the body instead of nothing: a
+ * shell row keeps the end of its output, a search row the start, a mutation row
+ * its applied `-`/`+` change. The derivation itself lives in `data/toolRow.ts`
+ * and `data/diffRow.ts`; this component only draws it and applies the line
+ * budgets.
+ *
+ * A body that fits its budget is shown whole; a longer one is folded to the
+ * budget with a counted hint line, and the reader opens the rest with a click
+ * or `Ctrl-O`. The budgets are visual lines, not source lines: one long line
+ * (minified JSON) must not wrap across the whole screen.
  *
  * State is carried by foreground colour and a trailing capsule, never by a
  * filled row (product UI rule: selection and status use colour, not blocks).
@@ -12,10 +19,12 @@
  * @module hulala-cli/tui/view/toolRow
  */
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from '@earendil-works/pi-tui'
+import type { DiffRow, DiffStats } from '../data/diffRow.js'
 import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
 import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
 import { activeLanguage, t } from '../i18n/index.js'
 import { colourLines, languageForPath } from './codeHighlight.js'
+import { headPreview, tailPreview } from './preview.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -33,11 +42,16 @@ const ICONS: Readonly<Record<ToolVariant, string>> = {
   others: '✦',
 }
 
-/** Output lines shown while expanded before the rest is hidden behind a count. */
+/** Output lines an expanded body shows before the rest is hidden behind a count. */
 const OUTPUT_LINES = 20
-/** Indent of every wrapped continuation and expanded body line. */
+/** Visual lines a folded shell row keeps from the end of its output. */
+const BASH_PREVIEW_LINES = 5
+/** Visual lines a folded text row keeps from the start of its output. */
+const TEXT_PREVIEW_LINES = 6
+/** Body lines a folded change shows, head and tail around a counted hint. */
+const DIFF_PREVIEW_LINES = 9
+/** Indent of every wrapped continuation and body line. */
 const INDENT = '  '
-
 type ToolItem = Extract<TranscriptItem, { kind: 'tool' }>
 
 export class ToolRowView implements Component {
@@ -117,28 +131,36 @@ export class ToolRowView implements Component {
     const exit = row.exit === undefined ? ''
       : row.exit.signal !== undefined ? `  ${s.error(t('tool.signal', { signal: row.exit.signal }))}`
         : `  ${s.error(t('tool.exit', { code: String(row.exit.code ?? '?') }))}`
+    const stat = row.diff === undefined ? '' : this.stat(row.diff.stats)
 
     let line = `${marker(iconBox(ICONS[row.variant]))} ${row.title}`
     if (row.summary !== '') {
-      const room = Math.max(1, inner - visibleWidth(line) - visibleWidth(exit) - visibleWidth(duration) - 3)
+      const tail = visibleWidth(exit) + visibleWidth(duration) + visibleWidth(stat)
+      const room = Math.max(1, inner - visibleWidth(line) - tail - 3)
       line += ` · ${tone(truncateToWidth(row.summary, room, '…'))}`
     }
-    line = `${gutter}${line}${exit}${duration}`
+    line = `${gutter}${line}${stat}${exit}${duration}`
 
     const lines = [line]
-    if (!expanded) return lines
+    // A mutation's change is what the reader came for, so it is drawn in both
+    // states; the arguments it replaced said nothing about the file.
+    if (row.diff !== undefined) {
+      lines.push(...this.diffBody(row.diff, width, expanded))
+      return lines
+    }
+    if (!expanded) {
+      lines.push(...this.preview(row, width))
+      return lines
+    }
 
     // A file row's own text is code: the language comes from the path the call
     // named, and a path with no language on the list keeps the muted body ink.
-    const fileLanguage = row.variant === 'read' || row.variant === 'write'
-      ? languageForPath(row.filePath)
-      : undefined
+    const fileLanguage = row.variant === 'read' ? languageForPath(row.filePath) : undefined
     if (row.command !== undefined) {
       const command = truncateToWidth(row.command, Math.max(1, inner - INDENT.length - 2), '…')
       lines.push(`${INDENT}${s.dim(`❯ ${command}`)}`)
     } else if (row.body !== undefined) {
-      const language = row.variant === 'write' ? fileLanguage : undefined
-      lines.push(...this.block(t('tool.in'), row.body, width, text => s.dim(text), language))
+      lines.push(...this.block(t('tool.in'), row.body, width, text => s.dim(text)))
     }
     if (row.output !== undefined) {
       const label = row.command === undefined && row.body !== undefined ? t('tool.out') : undefined
@@ -146,6 +168,68 @@ export class ToolRowView implements Component {
       lines.push(...this.block(label, row.output, width, text => s.dim(text), language))
     }
     return lines
+  }
+
+  /** `+3 -1`, in the change's own inks. */
+  private stat(stats: DiffStats): string {
+    const s = buildStyles(this.color)
+    return `  ${s.ok(`+${stats.added}`)} ${s.error(`-${stats.removed}`)}`
+  }
+
+  /** The folded body: whichever end of it the reader learns the most from. */
+  private preview(row: ToolRow, width: number): string[] {
+    const s = buildStyles(this.color)
+    const text = Math.max(1, width - INDENT.length * 2)
+    // A read shows its header only (the window is in the summary), unless it
+    // failed: then the error text is the one thing worth previewing.
+    if (row.output === undefined || row.output.trim() === '') return []
+    if (row.variant === 'read' && row.state !== 'error') return []
+    const tail = row.variant === 'bash'
+    const body = tail
+      ? tailPreview(row.output, text, BASH_PREVIEW_LINES)
+      : headPreview(row.output, text, TEXT_PREVIEW_LINES)
+    const hint = body.hidden === 0
+      ? []
+      : [s.dim(tail ? t('tool.earlierLines', { n: body.hidden }) : t('tool.moreLines', { n: body.hidden }))]
+    // A hint names the rows *above* a tail and the rows *below* a head, so it
+    // sits on the side the kept lines do not.
+    const ordered = tail ? [...hint, ...body.lines] : [...body.lines, ...hint]
+    return ordered.map(line => `${INDENT}${INDENT}${s.dim(line)}`)
+  }
+
+  /**
+   * The change, with each row keeping its marker.
+   * A folded change shows its head and its tail around a counted hint, the
+   * same split the web client's diff card draws; an open one shows all of it.
+   */
+  private diffBody(diff: { rows: DiffRow[]; stats: DiffStats }, width: number, expanded: boolean): string[] {
+    const s = buildStyles(this.color)
+    const indent = INDENT.length * 2
+    const inner = Math.max(1, width - indent)
+    const paint = (row: DiffRow): string => {
+      switch (row.kind) {
+        case 'path':
+        case 'gap': return s.dim(row.text)
+        case 'del': return `${s.error('-')} ${s.error(row.text)}`
+        case 'add': return `${s.ok('+')} ${s.ok(row.text)}`
+        case 'context': return `  ${s.dim(row.text)}`
+      }
+    }
+    const fit = (text: string): string[] => expanded
+      ? wrapTextWithAnsi(text, inner)
+      : [truncateToWidth(text, inner, '…')]
+
+    const rows = diff.rows
+    const folded = !expanded && rows.length > DIFF_PREVIEW_LINES
+    if (!folded) return rows.flatMap(row => fit(paint(row)).map(line => `${INDENT}${INDENT}${line}`))
+
+    const head = Math.ceil(DIFF_PREVIEW_LINES / 2)
+    const tail = DIFF_PREVIEW_LINES - head
+    const hidden = rows.length - DIFF_PREVIEW_LINES
+    const lines = rows.slice(0, head).flatMap(row => fit(paint(row)))
+    lines.push(s.dim(t('tool.moreLines', { n: hidden })))
+    lines.push(...rows.slice(rows.length - tail).flatMap(row => fit(paint(row))))
+    return lines.map(line => `${INDENT}${INDENT}${line}`)
   }
 
   private row(): ToolRow {

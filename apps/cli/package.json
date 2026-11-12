@@ -63,6 +63,7 @@
     "@hulala/host-client": "workspace:*",
     "@hulala/runtime": "workspace:*",
     "@speed-highlight/core": "2.1.0",
+    "diff": "9.0.0",
     "grok-mermaid": "0.2.3",
     "tar-stream": "3.2.2",
     "ws": "8.21.1"

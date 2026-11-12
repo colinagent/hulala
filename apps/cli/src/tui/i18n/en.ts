@@ -250,10 +250,12 @@ export const en: MessageTable = {
   'command.compacted': ({ items, tokens }) => `Compacted ${items} history items (~${tokens} tokens)`,
   'tool.in': 'IN',
   'tool.out': 'OUT',
-  'tool.moreLines': ({ n }) => `… +${n} lines`,
+  'tool.moreLines': ({ n }) => `… +${n} ${n === 1 ? 'line' : 'lines'}`,
+  'tool.earlierLines': ({ n }) => `… ${n} earlier ${n === 1 ? 'line' : 'lines'}`,
   'tool.exit': ({ code }) => `exit ${code}`,
   'tool.signal': ({ signal }) => `signal ${signal}`,
   'think.label': 'Think',
+  'think.moreLines': ({ n }) => `… ${n} more ${n === 1 ? 'line' : 'lines'}`,
 
   'banner.interrupt': 'interrupt',
   'banner.clearExit': 'clear/exit',
@@ -338,7 +340,7 @@ export const en: MessageTable = {
   'plain.unknownCommand': ({ command }) => `unknown command /${command}`,
   'plain.questionPrompt': '  Enter a number, or type your answer',
 
-  'reasoning.summary': 'summary',
+  'reasoning.tail': 'tail',
   'reasoning.full': 'full',
   'reasoning.hidden': 'hidden',
 }

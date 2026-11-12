@@ -262,9 +262,12 @@ export interface MessageTable {
   'tool.in': string
   'tool.out': string
   'tool.moreLines': (params: { n: number }) => string
+  /** Rows above a folded tail, for a command's output and a thought. */
+  'tool.earlierLines': (params: { n: number }) => string
   'tool.exit': (params: { code: string }) => string
   'tool.signal': (params: { signal: string }) => string
   'think.label': string
+  'think.moreLines': (params: { n: number }) => string
 
   'banner.interrupt': string
   'banner.clearExit': string
@@ -349,7 +352,7 @@ export interface MessageTable {
   'plain.unknownCommand': (params: { command: string }) => string
   'plain.questionPrompt': string
 
-  'reasoning.summary': string
+  'reasoning.tail': string
   'reasoning.full': string
   'reasoning.hidden': string
 }

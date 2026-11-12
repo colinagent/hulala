@@ -145,7 +145,7 @@ test('a reasoning row answers a settled thought with the same line', () => {
   const item: TranscriptItem = { kind: 'reasoning', text: 'thinking about it', streaming: false, time: 0 }
   if (item.kind !== 'reasoning') throw new Error('unreachable')
   const theme = buildTheme(false).markdown
-  const row = new ThinkRow(item, false, theme, () => 'summary', () => '  ')
+  const row = new ThinkRow(item, false, theme, () => 'tail', () => '  ')
   const first = row.render(60)
   expect(row.render(60)).toBe(first)
   item.text = 'thinking about it more'

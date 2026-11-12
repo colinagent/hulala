@@ -268,7 +268,7 @@ test('ResumeOverlay marks running sessions and hides blank sessions on empty que
   expect(lines.some(line => line.includes('dddddddd…4444'))).toBe(false)
 })
 
-test('a tool call folds to one line with its title and summary', () => {
+test('a folded tool call keeps the end of its output under the title', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([
     {
@@ -282,10 +282,24 @@ test('a tool call folds to one line with its title and summary', () => {
     },
   ])
   const lines = transcript.render(120)
-  expect(lines).toHaveLength(1)
-  expect(lines[0]).toBe('  >_ Bash · List working directory contents')
+  expect(lines).toEqual([
+    '  >_ Bash · List working directory contents',
+    '    total 1328',
+    '    drwxr-xr-x@ 23 colin staff',
+  ])
   expect(lines[0]).not.toContain('{')
-  expect(lines[0]).not.toContain('total 1328')
+})
+
+test('a folded shell row keeps only the last lines and counts the earlier ones', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  const output = Array.from({ length: 9 }, (_, index) => `line ${index + 1}`).join('\n')
+  transcript.setItems([
+    { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'build', description: 'Build' }), result: `${output}\n[exit code: 0]`, status: 'ok', time: 0 },
+  ])
+  const lines = transcript.render(80)
+  expect(lines[0]).toBe('  >_ Bash · Build')
+  expect(lines[1]).toBe('    … 4 earlier lines')
+  expect(lines.slice(2)).toEqual(['    line 5', '    line 6', '    line 7', '    line 8', '    line 9'])
 })
 
 test('expanding a tool call shows the command, the output, and the hidden count', () => {
@@ -308,6 +322,97 @@ test('expanding a tool call shows the command, the output, and the hidden count'
   expect(lines[1]).toBe('  ❯ ls -la')
   expect(lines[2]).toBe('    line 1')
   expect(lines.at(-1)).toBe('    … +6 lines')
+})
+
+test('an edit row draws its change without a click and counts it in the title', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  const path = '/work/hulala/src/app.ts'
+  transcript.setItems([
+    {
+      kind: 'tool',
+      name: 'edit',
+      args: JSON.stringify({ file_path: path, old_string: 'b', new_string: 'B' }),
+      result: 'Edited src/app.ts',
+      status: 'ok',
+      meta: { path, diffs: [{ path: '/work/hulala/src/app.ts', oldText: 'a\nb\nc', newText: 'a\nB\nc' }] },
+      time: 0,
+    },
+  ])
+  expect(transcript.render(80)).toEqual([
+    '  ✎  Edit · src/app.ts  +1 -1',
+    '    src/app.ts',
+    '      a',
+    '    - b',
+    '    + B',
+    '      c',
+  ])
+})
+
+test('a long change folds to nine rows with the rest counted', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  const path = '/work/hulala/big.ts'
+  const content = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join('\n')
+  transcript.setItems([
+    {
+      kind: 'tool',
+      name: 'write',
+      args: JSON.stringify({ file_path: path, content }),
+      result: 'Wrote big.ts',
+      status: 'ok',
+      meta: { operation: 'create', diffs: [{ path, oldText: null, newText: content }] },
+      time: 0,
+    },
+  ])
+  const folded = transcript.render(80)
+  expect(folded[0]).toBe('  ✎  Write · big.ts  +20 -0')
+  expect(folded).toHaveLength(11)
+  expect(folded[1]).toBe('    big.ts')
+  expect(folded[2]).toBe('    + line 1')
+  expect(folded[5]).toBe('    + line 4')
+  expect(folded[6]).toBe('    … +12 lines')
+  expect(folded.slice(7)).toEqual(['    + line 17', '    + line 18', '    + line 19', '    + line 20'])
+
+  transcript.toggleExpandAll()
+  const opened = transcript.render(80)
+  expect(opened).toHaveLength(22)
+  expect(opened[1]).toBe('    big.ts')
+  expect(opened.at(-1)).toBe('    + line 20')
+})
+
+test('a search row previews the head of its result and counts the rest', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  const result = Array.from({ length: 9 }, (_, index) => `match ${index + 1}`).join('\n')
+  transcript.setItems([
+    { kind: 'tool', name: 'grep', args: JSON.stringify({ pattern: 'match' }), result, status: 'ok', time: 0 },
+  ])
+  const lines = transcript.render(80)
+  expect(lines[0]).toBe('  ⌕  Grep · match')
+  expect(lines.slice(1, 7)).toEqual([
+    '    match 1',
+    '    match 2',
+    '    match 3',
+    '    match 4',
+    '    match 5',
+    '    match 6',
+  ])
+  expect(lines[7]).toBe('    … +3 lines')
+})
+
+test('a read row keeps its window in the title and its body closed', () => {
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  transcript.setItems([
+    {
+      kind: 'tool',
+      name: 'read',
+      args: JSON.stringify({ file_path: '/work/hulala/a.ts', offset: 10, limit: 5 }),
+      result: '<path>a.ts</path>\n<type>file</type>\n<content>\nconst x = 1\n</content>',
+      status: 'ok',
+      time: 0,
+    },
+  ])
+  expect(transcript.render(80)).toEqual(['  ▤  Read · a.ts (10-14)'])
+  transcript.toggleExpandAll()
+  expect(transcript.render(80)).toEqual(['▾ ▤  Read · a.ts (10-14)', '    const x = 1'])
 })
 
 test('a read row highlights its output as the file it read', () => {
@@ -373,29 +478,37 @@ test('a stopped call reads as stopped', () => {
   expect(transcript.render(80)[0]).toBe('  ✎  Edit · Stopped')
 })
 
-test('reasoning folds to its latest complete paragraph while streaming', () => {
+test('reasoning shows the end of the thought while streaming', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([
-    { kind: 'reasoning', text: 'First thought here\nwrapped\n\nSecond thought\nstill typing', streaming: true, time: 0 },
+    { kind: 'reasoning', text: 'first\nsecond\nthird\nfourth\nfifth', streaming: true, time: 0 },
   ])
-  expect(transcript.render(120)[0]).toBe('  ✳  Think · Second thought')
+  expect(transcript.render(120)).toEqual([
+    '  ✳  Think · … 1 more line',
+    '    second',
+    '    third',
+    '    fourth',
+    '    fifth',
+  ])
 })
 
-test('reasoning cycles summary, full text, and hidden', () => {
+test('reasoning cycles its folded tail, the full text, and hidden', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([{ kind: 'reasoning', text: 'Check the repo\nSecond line', streaming: false, time: 0 }])
-  expect(transcript.reasoning).toBe('summary')
-  expect(transcript.render(120)[0]).toBe('  ✳  Think · Check the repo')
+  expect(transcript.reasoning).toBe('tail')
+  expect(transcript.render(120)).toEqual(['  ✳  Think', '    Check the repo', '    Second line'])
   expect(transcript.cycleReasoning()).toBe('full')
-  expect(transcript.render(120).join('\n')).toContain('Second line')
+  expect(transcript.render(120)[0]).toBe('▾ ✳  Think')
+  expect(transcript.render(120).join('\n')).toContain('Check the repo')
   expect(transcript.cycleReasoning()).toBe('hidden')
   expect(transcript.render(120)).toEqual([])
+  expect(transcript.cycleReasoning()).toBe('tail')
 })
 
 test('reasoning hides itself when it only carries a provider signature', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([{ kind: 'reasoning', text: '<signature>b64payload</signature>\n\nreal thought', streaming: false, time: 0 }])
-  expect(transcript.render(120)[0]).toBe('  ✳  Think · real thought')
+  expect(transcript.render(120)).toEqual(['  ✳  Think', '    real thought'])
 })
 
 test('the running indicator counts the elapsed turn', () => {
@@ -454,7 +567,11 @@ test('a click on a row header folds and unfolds that row alone', () => {
     { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'pwd', description: 'Show the directory' }), result: '/work/hulala', status: 'ok', time: 0 },
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'code', status: 'ok', time: 0 },
   ])
-  expect(transcript.render(80)).toHaveLength(2)
+  expect(transcript.render(80)).toEqual([
+    '  >_ Bash · Show the directory',
+    '    /work/hulala',
+    '  ▤  Read · a.ts',
+  ])
 
   // The press is left to the alternate screen's own text selection, so a drag
   // that starts on a row header selects text instead of folding it.
@@ -495,14 +612,20 @@ test('a drag that starts on a row header stays available to text selection', () 
   expect(transcript.render(80)[0]).toBe('  >_ Bash · Show the directory')
 })
 
-test('a click unfolds reasoning past its summary line', () => {
+test('a click anywhere on a thought unfolds it', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([{ kind: 'reasoning', text: 'First thought\nSecond line', streaming: false, time: 0 }])
-  expect(transcript.render(80)).toEqual(['  ✳  Think · First thought'])
-  transcript.handleMouse(clickEvent(0))
+  expect(transcript.render(80)).toEqual(['  ✳  Think', '    First thought', '    Second line'])
+
+  // A tool row answers on its header only; a thought answers on any of its
+  // rows, because the folded block has no separate header to aim at.
+  expect(transcript.handleMouse(clickEvent(1))).toEqual({ handled: true, render: true })
   const opened = transcript.render(80)
-  expect(opened[0]).toBe('▾ ✳  Think · First thought')
+  expect(opened[0]).toBe('▾ ✳  Think')
   expect(opened.join('\n')).toContain('Second line')
+
+  expect(transcript.handleMouse(clickEvent(1))).toEqual({ handled: true, render: true })
+  expect(transcript.render(80)[0]).toBe('  ✳  Think')
 })
 
 test('rows that fold nothing ignore the pointer', () => {
@@ -536,18 +659,34 @@ test('hover marks the row the pointer is on without moving the text', () => {
   expect(transcript.render(80)[0]).toBe('  >_ Bash · Show the directory')
 })
 
-test('Ctrl-O still flips every row and a click flips one back', () => {
+test('Ctrl-O opens every body, the thought included, and a click closes one again', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([
     { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'pwd', description: 'Show the directory' }), result: '/work/hulala', status: 'ok', time: 0 },
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'x', status: 'ok', time: 0 },
+    { kind: 'reasoning', text: 'A thought', streaming: false, time: 0 },
   ])
+  expect(transcript.render(80)).toEqual([
+    '  >_ Bash · Show the directory',
+    '    /work/hulala',
+    '  ▤  Read · a.ts',
+    '  ✳  Think',
+    '    A thought',
+  ])
+
   transcript.toggleExpandAll()
-  expect(transcript.render(80)[0]).toBe('▾ >_ Bash · Show the directory')
+  const opened = transcript.render(80)
+  expect(opened[0]).toBe('▾ >_ Bash · Show the directory')
+  expect(opened[3]).toBe('▾ ▤  Read · a.ts')
+  expect(opened[5]).toBe('▾ ✳  Think')
+  // Markdown pads each rendered line to the width, as it always has.
+  expect(opened[6]?.trimEnd()).toBe('    A thought')
+
   transcript.handleMouse(clickEvent(0))
   const lines = transcript.render(80)
   expect(lines[0]).toBe('  >_ Bash · Show the directory')
-  expect(lines[1]).toBe('▾ ▤  Read · a.ts')
+  expect(lines[1]).toBe('    /work/hulala')
+  expect(lines[2]).toBe('▾ ▤  Read · a.ts')
 })
 
 test('every step row starts its title in the same column', () => {
@@ -562,10 +701,12 @@ test('every step row starts its title in the same column', () => {
   ])
   const lines = transcript.render(120)
   const titles = ['Think', 'Bash', 'Read', 'Grep', 'Code', 'Tool call']
-  const columns = new Set(lines.map((line, index) => line.indexOf(titles[index] ?? '')))
+  // Bodies sit under their rows, so find each title's own line rather than
+  // assuming one line per row.
+  const columns = new Set(titles.map(title => lines.find(line => line.includes(title))!.indexOf(title)))
   expect([...columns]).toEqual([5])
-  expect(lines[0]).toBe('  ✳  Think · A thought')
-  expect(lines[1]).toBe('  >_ Bash · List files')
+  expect(lines[0]).toBe('  ✳  Think')
+  expect(lines[1]).toBe('    A thought')
 
   // The live turn clock is a step row too, so its label lands in that column.
   transcript.setRunning(Date.now() - 4_000)

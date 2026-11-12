@@ -1,6 +1,6 @@
 /**
- * Tool-call row model: name + arguments + result → the one line a transcript
- * draws.
+ * Tool-call row model: name + arguments + result → the header a transcript
+ * draws, the body it previews, and the change a mutation call applied.
  *
  * This mirrors the DeepSeek Harness web client's row derivation
  * (`packages/client/ui-tool/src/client/tool/models/tool-call-model.ts` at
@@ -16,6 +16,11 @@
  * keyed Cordis verb cards are registered by name on the web side; here those calls
  * take the generic row like any other tool.
  *
+ * The change a mutation call applied is not part of that parity surface: the
+ * web client derives it in `diff-card-model.ts`, and this row derives it in
+ * `./diffRow.ts` because the terminal draws the hunks inline instead of waiting
+ * for a card to be opened.
+ *
  * Only the shell exit-status marker is parsed locally instead of reused from
  * `@deepseek-ai/dsh-shell`: that package's entry also carries the shell
  * executor and its subprocess dependencies, which the CLI bundle does not need
@@ -24,6 +29,7 @@
  * @module hulala-cli/tui/data/toolRow
  */
 import { abbreviateHomePath, relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
+import { type DiffRow, type DiffStats, diffRows, diffStats, fileDiffs, intendedDiff } from './diffRow.js'
 import { type ToolStatus, stoppedByMeta } from './viewModel.js'
 
 /** Row family selected by the tool name. */
@@ -62,6 +68,11 @@ export interface ToolRow {
   body: string | undefined
   /** Expanded output body; absent when the result carries no text. */
   output: string | undefined
+  /**
+   * The applied change of a mutation call, drawn inline instead of the arguments.
+   * Absent for every other family, and for a change that touched no line.
+   */
+  diff: { rows: DiffRow[]; stats: DiffStats } | undefined
   /** Shell exit status, shown as a capsule on a failed command. */
   exit: { code?: number; signal?: string } | undefined
 }
@@ -235,6 +246,30 @@ function bodyOf(variant: ToolVariant, args: Record<string, unknown> | undefined,
 }
 
 /**
+ * The `<path>…</path><content>…</content>` envelope the read tool renders its
+ * result in. The body is what a reader wants; the envelope is wire framing.
+ */
+const READ_ENVELOPE = /^<path>[^\n]*<\/path>\n<type>file<\/type>\n<content>\n([\s\S]*)\n<\/content>$/u
+
+/**
+ * The line window a read call asked for, as the row's summary suffix.
+ * @param args - the parsed call arguments.
+ * @returns ` (10-20)` for a bounded window, ` (from 10)` for an open one, or empty.
+ */
+function readWindow(args: Record<string, unknown> | undefined): string {
+  if (args === undefined) return ''
+  const offset = args.offset
+  const limit = args.limit
+  const first = typeof offset === 'number' && Number.isInteger(offset) && offset >= 1 ? offset : undefined
+  const count = typeof limit === 'number' && Number.isInteger(limit) && limit >= 1 ? limit : undefined
+  // The tool defaults the offset to 1, so a limit-only call still names a window.
+  const start = first ?? (count === undefined ? undefined : 1)
+  if (count !== undefined && start !== undefined) return ` (${start}-${start + count - 1})`
+  if (start !== undefined) return ` (from ${start})`
+  return ''
+}
+
+/**
  * Derive the collapsed row for one recorded call.
  * @param input - the recorded call plus the Session's display roots.
  * @returns title, summary, path, state, and the expanded bodies.
@@ -252,7 +287,10 @@ export function toolRow(input: ToolRowInput): ToolRow {
   const settledExit = variant === 'bash' && rawOutput !== undefined ? parseExitStatus(rawOutput) : undefined
   // The tools terminate their rendered result with a marker line, so the body
   // keeps the newline that preceded it; drop the blank tail it would draw.
-  const output = settledExit === undefined ? rawOutput : settledExit.body.replace(/\n+$/u, '')
+  const rawBody = settledExit === undefined ? rawOutput : settledExit.body.replace(/\n+$/u, '')
+  const output = variant === 'read' && rawBody !== undefined
+    ? READ_ENVELOPE.exec(rawBody)?.[1] ?? rawBody
+    : rawBody
   const failedExit = settledExit !== undefined
     && (settledExit.signal !== undefined || (settledExit.code ?? 0) !== 0)
 
@@ -268,9 +306,11 @@ export function toolRow(input: ToolRowInput): ToolRow {
 
   // The generic title cannot identify the tool, so the wire name leads the
   // summary instead — the same trade the web client makes.
-  const summary = filePath ?? (title === VARIANT_TITLES.others
+  const baseSummary = filePath ?? (title === VARIANT_TITLES.others
     ? [input.name, base].filter(part => part !== '').join(' · ')
     : base)
+  // A read's summary names the window it asked for; the rows below show the body.
+  const summary = variant === 'read' ? `${baseSummary}${readWindow(args)}` : baseSummary
 
   const exit = failedExit && settledExit !== undefined
     ? {
@@ -280,6 +320,24 @@ export function toolRow(input: ToolRowInput): ToolRow {
     : undefined
 
   const command = variant === 'bash' && args !== undefined ? pickString(args, ['command']) : undefined
+
+  // A mutation's applied change wins over the argument envelope: the hunks are
+  // what the reader opened the row for. `apply_patch` has no argument preview
+  // (its patch text is not a pair of texts), so it waits for its result.
+  const applied = variant === 'write' || variant === 'edit' ? fileDiffs(input.meta) : undefined
+  // A failed or stopped call changed nothing that a reader should see as a
+  // patch; only a live one is worth previewing from its own arguments.
+  const intended = applied === undefined && state !== 'error' && state !== 'stopped'
+    ? intendedDiff(input.name, args)
+    : undefined
+  const diffs = applied ?? (intended === undefined ? undefined : [intended])
+  // A hunk names the file the way the tool wrote it; the row shows it the way
+  // every other file row does, relative to the Session root and `~`.
+  const rows = diffs === undefined
+    ? undefined
+    : diffRows(diffs).map(row => row.kind === 'path'
+      ? { ...row, text: displayPath(row.text, input.cwd, input.home) }
+      : row)
 
   return {
     variant,
@@ -293,6 +351,7 @@ export function toolRow(input: ToolRowInput): ToolRow {
     // A terminal row shows its command line instead of the argument envelope.
     body: command === undefined ? bodyOf(variant, args, input.args) : undefined,
     output,
+    diff: rows === undefined || rows.length === 0 ? undefined : { rows, stats: diffStats(rows) },
     exit,
   }
 }

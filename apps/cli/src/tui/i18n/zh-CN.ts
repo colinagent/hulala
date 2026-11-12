@@ -252,9 +252,11 @@ export const zhCN: MessageTable = {
   'tool.in': '输入',
   'tool.out': '输出',
   'tool.moreLines': ({ n }) => `… +${n} 行`,
+  'tool.earlierLines': ({ n }) => `… 前面还有 ${n} 行`,
   'tool.exit': ({ code }) => `退出 ${code}`,
   'tool.signal': ({ signal }) => `信号 ${signal}`,
   'think.label': '思考',
+  'think.moreLines': ({ n }) => `… 还有 ${n} 行`,
 
   'banner.interrupt': '中断',
   'banner.clearExit': '清空/退出',
@@ -339,7 +341,7 @@ export const zhCN: MessageTable = {
   'plain.unknownCommand': ({ command }) => `未知命令 /${command}`,
   'plain.questionPrompt': '  输入序号，或直接输入回答',
 
-  'reasoning.summary': '摘要',
+  'reasoning.tail': '尾部',
   'reasoning.full': '完整',
   'reasoning.hidden': '隐藏',
 }

@@ -13,7 +13,23 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- Step rows now show a preview of what they did instead of a title alone, and a
+  body shorter than its budget is shown whole. A command row keeps the end of its
+  output, a search row the start, a `read` row its window. `Ctrl-O` opens every
+  tool row and every thought, and `/reasoning` cycles a thought between its
+  folded tail, the full text and hidden.
+- A `write`, `edit` or `apply_patch` row draws the change itself: one path header
+  per file, `-`/`+` lines with three lines of context, `⋯` between hunks, and a
+  `+N -M` count in the title. The hunks are the tool result's own `diffs`, so the
+  row shows what landed on disk.
+- A thought now shows its label and the last four lines it has reached, with a
+  count of the rest, instead of a single-line summary. The window is the same
+  while it streams and after it settles, so a turn's geometry stops growing.
+
 ### Fixed
+
 
 - Dragging text in the conversation now selects and copies it from a step row's
   header line too: the header no longer takes the press, so the transcript's own
