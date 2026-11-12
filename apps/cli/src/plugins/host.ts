@@ -81,10 +81,22 @@ function resolveRuntimeRoot(dataRoot: string, fromUrl: string): string {
     // Installed client: the runtime lives under the state root.
   }
   const versions = join(dataRoot, 'runtime', 'client', 'versions')
+  // The active version is recorded by the installer; guessing from directory
+  // names picks a stale runtime whenever two are installed.
+  try {
+    const active = JSON.parse(readFileSync(join(dataRoot, 'runtime', 'client', 'active.json'), 'utf8')) as { current?: { id?: string } }
+    const id = active.current?.id
+    if (typeof id === 'string') {
+      const dir = join(versions, id, 'runtime')
+      if (existsSync(join(dir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'))) return dir
+    }
+  } catch {
+    // Fall through to discovery: an unreadable pointer must not block the command.
+  }
   if (existsSync(versions)) {
     const candidates = readdirSync(versions)
       .filter(name => existsSync(join(versions, name, 'runtime', 'node_modules', '@deepseek-ai', 'dsh', 'package.json')))
-      .sort()
+      .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
     const newest = candidates.at(-1)
     if (newest !== undefined) return join(versions, newest, 'runtime')
   }
