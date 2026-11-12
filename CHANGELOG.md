@@ -13,6 +13,16 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-12
+
+### Fixed
+
+- A chat reply that references an image as `![Description](<path>)` can now be
+  turned into a real attachment, because the Host mounts
+  `@deepseek-ai/dsh-deliverable-file-references` — the same model guidance DSH's
+  own Web and SDK compositions mount. Without it the model was never told how to
+  reference a file it produced.
+
 ## [0.3.4] - 2026-11-12
 
 ### Changed
