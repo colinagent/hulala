@@ -23,6 +23,10 @@ test('lifecycle commands are unchanged', () => {
   })
 })
 
+test('install bot stays a lifecycle command with its own argument', () => {
+  assert.deepEqual(routeCommand(['install', 'bot']), { kind: 'distribution', command: 'install', args: ['bot'] })
+})
+
 test('version and help win over other words', () => {
   assert.deepEqual(routeCommand(['--version']), { kind: 'version' })
   assert.deepEqual(routeCommand(['-V']), { kind: 'version' })

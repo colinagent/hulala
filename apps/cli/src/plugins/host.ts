@@ -18,7 +18,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { resolveRuntimePaths } from '@hulala/runtime'
-import { seedHostProfile } from '@hulala/runtime/host'
+import { PROFILE_NAME, seedHostProfile } from '@hulala/runtime/host'
 
 const USAGE = [
   'Usage: hulala plugin --profile <name> add <package>',
@@ -164,4 +164,24 @@ export async function runHostPluginCommand(args: string[]): Promise<number> {
     console.log('Restart the Host for the change to take effect.')
   }
   return result.exitCode
+}
+
+/** The first-party chat bot, installed like any other Host plugin. */
+export const BOT_PACKAGE = '@colinagent/hulala-bot'
+
+/**
+ * `hulala install bot` — the one-command shortcut for
+ * `hulala plugin --profile <surface> add @colinagent/hulala-bot`.
+ *
+ * It exists because the bot is ours and every user wants the same profile; the
+ * install itself is still DSH's, so there is no second plugin mechanism.
+ * @returns process exit code.
+ */
+export async function installBotCommand(): Promise<number> {
+  console.log(`Installing ${BOT_PACKAGE} into profile ${PROFILE_NAME}.`)
+  const code = await runHostPluginCommand(['--profile', PROFILE_NAME, 'add', BOT_PACKAGE])
+  if (code === 0) {
+    console.log(`Now write its config: hulala plugin --profile ${PROFILE_NAME} exec hulala-bot --init`)
+  }
+  return code
 }

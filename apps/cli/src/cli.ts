@@ -18,6 +18,7 @@ function usage(): string {
     '       hulala plugin --profile <name> add|remove|list <package>',
     '       hulala creator on|off|status',
     '       hulala install|rollback|uninstall|doctor [options]',
+    '       hulala install bot                  install the Telegram/Lark bot plugin',
     '       hulala update [--check] [--version <x>]',
     '',
     'Terminal options:',

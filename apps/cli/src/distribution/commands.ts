@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
 import { VERSION } from '../constants.js'
 import { inspectHost, stopHost } from '../hostAttach.js'
 import { resolvePaths } from '../paths.js'
+import { installBotCommand } from '../plugins/host.js'
 import { spawnDetached } from '../spawn.js'
 import { downloadArchive, unpackRelease, fileSha256 } from '@hulala/distribution/archive'
 import { compareVersions, selectRelease } from '@hulala/distribution/channels'
@@ -238,6 +239,9 @@ async function updateManaged(source: ManagedSource, input: Options): Promise<num
 }
 
 export async function runDistributionCommand(command: string, args: string[]): Promise<number> {
+  // `hulala install bot` is the bot's shortcut: it installs a Host plugin, not
+  // a Hulala release, so it leaves the lifecycle machinery alone.
+  if (command === 'install' && args[0] === 'bot') return await installBotCommand()
   const input = options(args), paths = resolvePaths()
   if (command === 'doctor') {
     console.log(JSON.stringify({

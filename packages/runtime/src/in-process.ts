@@ -25,7 +25,8 @@ import {
 const BIN_NAME = 'hulala-runtime'
 const ROOT_CONFIG = '[]\n'
 /** Persistent profile whose patch file holds Settings edits across restarts. */
-const PROFILE_NAME = 'tui'
+/** Surface profile name; `hulala plugin` and `hulala install bot` both install here. */
+export const PROFILE_NAME = 'tui'
 const PROFILE_PATCH_FILE = 'cordis.patch.yml'
 const PORTABLE_MODULES_KEY = '__HULALA_RUNTIME_MODULES__'
 
