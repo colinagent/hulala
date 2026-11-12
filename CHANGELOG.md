@@ -15,10 +15,12 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Changed
 
-- A command row previews the **start** of its output, like every other text row,
-  instead of its end: `ls`, `cat` and a test header all read from their first
-  line, and a preview that starts in the middle makes the reader guess what they
-  are looking at. Only a thought keeps its end.
+- A command row prints the command it ran under the title, so a folded call says
+  what produced its output; a running call shows the command alone. The preview
+  keeps the **start** of the output, like every other text row, instead of its
+  end: `ls`, `cat` and a test header all read from their first line, and a
+  preview that starts in the middle makes the reader guess what they are looking
+  at. Only a thought keeps its end.
 
 ## [0.3.3] - 2026-11-12
 

@@ -174,22 +174,35 @@ export class ToolRowView implements Component {
   }
 
   /**
-   * The folded body: the start of the output, like every other text row.
+   * The folded body: what ran, then the start of what it printed.
    *
-   * Only a thought previews its end — a command's output is read from its first
+   * A shell row prints its command under the title, the way pi prints `bash
+   * <command>` as the title itself: hulala keeps the model's description as the
+   * summary, so the command has to appear somewhere, and a result without the
+   * command that produced it is half a story. The command is skipped when the
+   * summary already is the command.
+   *
+   * Only a thought previews its end — every other body is read from its first
    * line (`ls`, `cat`, a test header), and starting in the middle makes the
    * reader guess what they are looking at.
    */
   private preview(row: ToolRow, width: number): string[] {
     const s = buildStyles(this.color)
     const text = Math.max(1, width - INDENT.length * 2)
+    const lines: string[] = []
+    const showsCommand = row.command !== undefined && !row.summaryIsCommand
+    if (showsCommand) {
+      const command = truncateToWidth(row.command!, Math.max(1, text - 2), '…')
+      lines.push(`${INDENT}${s.dim(`❯ ${command}`)}`)
+    }
     // A read shows its header only (the window is in the summary), unless it
     // failed: then the error text is the one thing worth previewing.
-    if (row.output === undefined || row.output.trim() === '') return []
-    if (row.variant === 'read' && row.state !== 'error') return []
-    const body = headPreview(row.output, text, TEXT_PREVIEW_LINES)
-    const hint = body.hidden === 0 ? [] : [s.dim(t('tool.moreLines', { n: body.hidden }))]
-    return [...body.lines, ...hint].map(line => `${INDENT}${INDENT}${s.dim(line)}`)
+    if (row.output === undefined || row.output.trim() === '') return lines
+    if (row.variant === 'read' && row.state !== 'error') return lines
+    const budget = TEXT_PREVIEW_LINES - (showsCommand ? 1 : 0)
+    const body = headPreview(row.output, text, budget)
+    const hint = body.hidden === 0 ? [] : [t('tool.moreLines', { n: body.hidden })]
+    return [...lines, ...[...body.lines, ...hint].map(line => `${INDENT}${INDENT}${s.dim(line)}`)]
   }
 
   /**

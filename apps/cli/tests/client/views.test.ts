@@ -284,6 +284,7 @@ test('a folded tool call keeps the start of its output under the title', () => {
   const lines = transcript.render(120)
   expect(lines).toEqual([
     '  >_ Bash · List working directory contents',
+    '  ❯ ls -la && cat package.json',
     '    total 1328',
     '    drwxr-xr-x@ 23 colin staff',
   ])
@@ -298,15 +299,15 @@ test('a folded shell row keeps the first lines and counts the rest', () => {
   ])
   const lines = transcript.render(80)
   expect(lines[0]).toBe('  >_ Bash · Build')
-  expect(lines.slice(1, 7)).toEqual([
+  expect(lines[1]).toBe('  ❯ build')
+  expect(lines.slice(2)).toEqual([
     '    line 1',
     '    line 2',
     '    line 3',
     '    line 4',
     '    line 5',
-    '    line 6',
+    '    … +4 lines',
   ])
-  expect(lines[7]).toBe('    … +3 lines')
 })
 
 test('expanding a tool call shows the command, the output, and the hidden count', () => {
@@ -576,6 +577,7 @@ test('a click on a row header folds and unfolds that row alone', () => {
   ])
   expect(transcript.render(80)).toEqual([
     '  >_ Bash · Show the directory',
+    '  ❯ pwd',
     '    /work/hulala',
     '  ▤  Read · a.ts',
   ])
@@ -675,6 +677,7 @@ test('Ctrl-O opens every body, the thought included, and a click closes one agai
   ])
   expect(transcript.render(80)).toEqual([
     '  >_ Bash · Show the directory',
+    '  ❯ pwd',
     '    /work/hulala',
     '  ▤  Read · a.ts',
     '  ✳  Think',
@@ -692,8 +695,9 @@ test('Ctrl-O opens every body, the thought included, and a click closes one agai
   transcript.handleMouse(clickEvent(0))
   const lines = transcript.render(80)
   expect(lines[0]).toBe('  >_ Bash · Show the directory')
-  expect(lines[1]).toBe('    /work/hulala')
-  expect(lines[2]).toBe('▾ ▤  Read · a.ts')
+  expect(lines[1]).toBe('  ❯ pwd')
+  expect(lines[2]).toBe('    /work/hulala')
+  expect(lines[3]).toBe('▾ ▤  Read · a.ts')
 })
 
 test('every step row starts its title in the same column', () => {

@@ -237,3 +237,25 @@ test('an error result never turns into a diff', () => {
   expect(row.diff).toBeUndefined()
   expect(row.summary).toBe('ENOENT: no such file')
 })
+
+test('a command row knows whether its summary already is the command', () => {
+  const described = toolRow({
+    name: 'bash',
+    args: JSON.stringify({ command: 'bun test tests', description: 'Run the tests' }),
+    result: '[exit code: 0]',
+  })
+  expect(described).toMatchObject({ command: 'bun test tests', summary: 'Run the tests', summaryIsCommand: false })
+
+  const bare = toolRow({ name: 'bash', args: JSON.stringify({ command: 'pwd' }), result: '/work\n[exit code: 0]' })
+  expect(bare).toMatchObject({ command: 'pwd', summary: 'pwd', summaryIsCommand: true })
+
+  // A verdict replaces the summary, so the command has to be printed again.
+  const failed = toolRow({
+    name: 'bash',
+    args: JSON.stringify({ command: 'npm test' }),
+    result: 'ENOENT\n[exit code: 127]',
+  })
+  expect(failed).toMatchObject({ state: 'error', summary: 'npm test', summaryIsCommand: true })
+  const stopped = toolRow({ name: 'bash', args: JSON.stringify({ command: 'pwd' }), result: '', errorCode: 'interrupted' })
+  expect(stopped).toMatchObject({ state: 'stopped', summary: 'Stopped', summaryIsCommand: false })
+})

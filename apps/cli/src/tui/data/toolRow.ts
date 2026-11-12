@@ -64,6 +64,13 @@ export interface ToolRow {
   state: ToolStatus
   /** Shell command line of a terminal row, shown above its output. */
   command: string | undefined
+  /**
+   * Whether {@link summary} already prints the command line.
+   *
+   * A call without a description falls back to its command, so the row must not
+   * print it a second time underneath the title.
+   */
+  summaryIsCommand: boolean
   /** Expanded input body; absent for file rows and empty calls. */
   body: string | undefined
   /** Expanded output body; absent when the result carries no text. */
@@ -339,17 +346,22 @@ export function toolRow(input: ToolRowInput): ToolRow {
       ? { ...row, text: displayPath(row.text, input.cwd, input.home) }
       : row)
 
+  // A stopped row and a failed one replace the summary with their verdict; the
+  // command underneath stays, because what ran is the part worth reading.
+  const displaySummary = state === 'stopped' ? 'Stopped'
+    : state === 'error' && !failedExit && output !== undefined ? firstLine(output)
+      : summary
+
   return {
     variant,
     title,
-    summary: state === 'stopped' ? 'Stopped'
-      : state === 'error' && !failedExit && output !== undefined ? firstLine(output)
-        : summary,
+    summary: displaySummary,
     filePath,
     state,
     command,
     // A terminal row shows its command line instead of the argument envelope.
     body: command === undefined ? bodyOf(variant, args, input.args) : undefined,
+    summaryIsCommand: command !== undefined && (displaySummary === command || displaySummary === firstLine(command)),
     output,
     diff: rows === undefined || rows.length === 0 ? undefined : { rows, stats: diffStats(rows) },
     exit,
