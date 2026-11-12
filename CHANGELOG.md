@@ -13,6 +13,43 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-12
+
+### Added
+
+- `hulala plugin --profile <name> add <package>` installs a DeepSeek Harness
+  plugin into the Host's profile, with the same arguments `dsh plugin` forwards
+  to pnpm. Plugins the user installed into their own DSH install under the same
+  profile name are detected at boot and loaded too, so one plugin set serves both
+  programs; the DSH home is only read, never written.
+- A plugin installed into a profile now resolves its own dependencies from that
+  profile, while the Harness packages still come from the runtime.
+
+### Changed
+
+- The Harness home moved from `<state root>/config/harness` to
+  `<state root>/harness`. Sessions, the credential document, profiles and
+  storages live there, none of which belong under `config/`; `config/` is back to
+  settings only.
+- `hulala plugin` now speaks DSH's plugin vocabulary: profiles, bundles and
+  `engines.dsh`. The command is `dsh plugin` with this binary's name, including
+  the required `--profile`.
+
+### Removed
+
+- The terminal client's own plugin command and directory
+  (`hulala plugin new|check|list|disable`, `~/.hulala/config/plugins`). The
+  client's panels are still assembled from modules internally, but that kernel is
+  not a user extension point: there is one plugin system, and it is DSH's.
+
+### Fixed
+
+- `hulala plugin` chose the runtime by sorting version directory names, so an
+  install with two versions could manage the wrong one; it now reads the active
+  version the installer recorded.
+- A concurrent boot and install could overwrite each other's edit to the profile
+  manifest, losing a plugin from the bundle list.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added
