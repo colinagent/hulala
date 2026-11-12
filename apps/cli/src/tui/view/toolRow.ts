@@ -3,10 +3,9 @@
  *
  * One line per call — icon, title, summary — exactly like the DeepSeek Harness
  * web transcript, followed by a *preview* of the body instead of nothing: a
- * shell row keeps the end of its output, a search row the start, a mutation row
- * its applied `-`/`+` change. The derivation itself lives in `data/toolRow.ts`
- * and `data/diffRow.ts`; this component only draws it and applies the line
- * budgets.
+ * text body keeps its first lines, a mutation row its applied `-`/`+` change.
+ * The derivation itself lives in `data/toolRow.ts` and `data/diffRow.ts`; this
+ * component only draws it and applies the line budgets.
  *
  * A body that fits its budget is shown whole; a longer one is folded to the
  * budget with a counted hint line, and the reader opens the rest with a click
@@ -24,7 +23,7 @@ import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
 import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
 import { activeLanguage, t } from '../i18n/index.js'
 import { colourLines, languageForPath } from './codeHighlight.js'
-import { headPreview, tailPreview } from './preview.js'
+import { headPreview } from './preview.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -44,8 +43,6 @@ const ICONS: Readonly<Record<ToolVariant, string>> = {
 
 /** Output lines an expanded body shows before the rest is hidden behind a count. */
 const OUTPUT_LINES = 20
-/** Visual lines a folded shell row keeps from the end of its output. */
-const BASH_PREVIEW_LINES = 5
 /** Visual lines a folded text row keeps from the start of its output. */
 const TEXT_PREVIEW_LINES = 6
 /** Body lines a folded change shows, head and tail around a counted hint. */
@@ -176,7 +173,13 @@ export class ToolRowView implements Component {
     return `  ${s.ok(`+${stats.added}`)} ${s.error(`-${stats.removed}`)}`
   }
 
-  /** The folded body: whichever end of it the reader learns the most from. */
+  /**
+   * The folded body: the start of the output, like every other text row.
+   *
+   * Only a thought previews its end — a command's output is read from its first
+   * line (`ls`, `cat`, a test header), and starting in the middle makes the
+   * reader guess what they are looking at.
+   */
   private preview(row: ToolRow, width: number): string[] {
     const s = buildStyles(this.color)
     const text = Math.max(1, width - INDENT.length * 2)
@@ -184,17 +187,9 @@ export class ToolRowView implements Component {
     // failed: then the error text is the one thing worth previewing.
     if (row.output === undefined || row.output.trim() === '') return []
     if (row.variant === 'read' && row.state !== 'error') return []
-    const tail = row.variant === 'bash'
-    const body = tail
-      ? tailPreview(row.output, text, BASH_PREVIEW_LINES)
-      : headPreview(row.output, text, TEXT_PREVIEW_LINES)
-    const hint = body.hidden === 0
-      ? []
-      : [s.dim(tail ? t('tool.earlierLines', { n: body.hidden }) : t('tool.moreLines', { n: body.hidden }))]
-    // A hint names the rows *above* a tail and the rows *below* a head, so it
-    // sits on the side the kept lines do not.
-    const ordered = tail ? [...hint, ...body.lines] : [...body.lines, ...hint]
-    return ordered.map(line => `${INDENT}${INDENT}${s.dim(line)}`)
+    const body = headPreview(row.output, text, TEXT_PREVIEW_LINES)
+    const hint = body.hidden === 0 ? [] : [s.dim(t('tool.moreLines', { n: body.hidden }))]
+    return [...body.lines, ...hint].map(line => `${INDENT}${INDENT}${s.dim(line)}`)
   }
 
   /**

@@ -252,7 +252,6 @@ export const zhCN: MessageTable = {
   'tool.in': '输入',
   'tool.out': '输出',
   'tool.moreLines': ({ n }) => `… +${n} 行`,
-  'tool.earlierLines': ({ n }) => `… 前面还有 ${n} 行`,
   'tool.exit': ({ code }) => `退出 ${code}`,
   'tool.signal': ({ signal }) => `信号 ${signal}`,
   'think.label': '思考',

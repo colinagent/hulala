@@ -268,7 +268,7 @@ test('ResumeOverlay marks running sessions and hides blank sessions on empty que
   expect(lines.some(line => line.includes('dddddddd…4444'))).toBe(false)
 })
 
-test('a folded tool call keeps the end of its output under the title', () => {
+test('a folded tool call keeps the start of its output under the title', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([
     {
@@ -290,7 +290,7 @@ test('a folded tool call keeps the end of its output under the title', () => {
   expect(lines[0]).not.toContain('{')
 })
 
-test('a folded shell row keeps only the last lines and counts the earlier ones', () => {
+test('a folded shell row keeps the first lines and counts the rest', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   const output = Array.from({ length: 9 }, (_, index) => `line ${index + 1}`).join('\n')
   transcript.setItems([
@@ -298,8 +298,15 @@ test('a folded shell row keeps only the last lines and counts the earlier ones',
   ])
   const lines = transcript.render(80)
   expect(lines[0]).toBe('  >_ Bash · Build')
-  expect(lines[1]).toBe('    … 4 earlier lines')
-  expect(lines.slice(2)).toEqual(['    line 5', '    line 6', '    line 7', '    line 8', '    line 9'])
+  expect(lines.slice(1, 7)).toEqual([
+    '    line 1',
+    '    line 2',
+    '    line 3',
+    '    line 4',
+    '    line 5',
+    '    line 6',
+  ])
+  expect(lines[7]).toBe('    … +3 lines')
 })
 
 test('expanding a tool call shows the command, the output, and the hidden count', () => {

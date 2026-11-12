@@ -251,7 +251,6 @@ export const en: MessageTable = {
   'tool.in': 'IN',
   'tool.out': 'OUT',
   'tool.moreLines': ({ n }) => `… +${n} ${n === 1 ? 'line' : 'lines'}`,
-  'tool.earlierLines': ({ n }) => `… ${n} earlier ${n === 1 ? 'line' : 'lines'}`,
   'tool.exit': ({ code }) => `exit ${code}`,
   'tool.signal': ({ signal }) => `signal ${signal}`,
   'think.label': 'Think',
