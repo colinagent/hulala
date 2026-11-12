@@ -363,7 +363,6 @@ apps/website    public website and download metadata
 packages/runtime     DSH composition (one native Agent Loop)
 packages/host-client discovery, detached startup, shared client contract
 packages/desktop-contracts  the Host/client wire contract and state-root paths
-packages/tui-panel-types  types the client kernel and its panels share
 packages/distribution  install, update and rollback
 ```
 

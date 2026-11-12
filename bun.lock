@@ -45,7 +45,6 @@
         "ws": "8.21.1",
       },
       "devDependencies": {
-        "@hulala/tui-panel-types": "workspace:*",
         "@types/bun": "1.3.14",
         "@types/node": "^24.0.0",
         "@types/ws": "^8.18.1",
@@ -188,14 +187,6 @@
       "devDependencies": {
         "@types/bun": "^1.3.0",
         "typescript": "^7.0.0",
-      },
-    },
-    "packages/tui-panel-types": {
-      "name": "@hulala/tui-panel-types",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@types/bun": "^1.3.0",
-        "typescript": "7.0.2",
       },
     },
   },
@@ -1029,8 +1020,6 @@
     "@hulala/host-client": ["@hulala/host-client@workspace:packages/host-client"],
 
     "@hulala/runtime": ["@hulala/runtime@workspace:packages/runtime"],
-
-    "@hulala/tui-panel-types": ["@hulala/tui-panel-types@workspace:packages/tui-panel-types"],
 
     "@hulala/website": ["@hulala/website@workspace:apps/website"],
 

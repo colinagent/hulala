@@ -26,8 +26,7 @@
     "@types/ws": "^8.18.1",
     "esbuild": "0.28.2",
     "tsx": "^4.20.0",
-    "typescript": "^7.0.0",
-    "@hulala/tui-panel-types": "workspace:*"
+    "typescript": "^7.0.0"
   },
   "engines": {
     "node": ">=24.9.0"
