@@ -492,7 +492,8 @@ test('reasoning shows the end of the thought while streaming', () => {
     { kind: 'reasoning', text: 'first\nsecond\nthird\nfourth\nfifth', streaming: true, time: 0 },
   ])
   expect(transcript.render(120)).toEqual([
-    '  ✳  Think · … 1 more line',
+    '  ✳  Think',
+    '    first',
     '    second',
     '    third',
     '    fourth',

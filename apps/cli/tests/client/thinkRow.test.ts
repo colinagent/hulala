@@ -35,8 +35,9 @@ test('a long thought keeps its last lines and counts the rest', () => {
   mode = 'tail'
   const text = Array.from({ length: 10 }, (_, index) => `thought line ${index + 1}`).join('\n')
   const lines = row(text).render(80)
-  expect(lines[0]).toBe('  ✳  Think · … 6 more lines')
+  expect(lines[0]).toBe('  ✳  Think · … 5 more lines')
   expect(lines.slice(1)).toEqual([
+    '    thought line 6',
     '    thought line 7',
     '    thought line 8',
     '    thought line 9',
@@ -47,7 +48,7 @@ test('a long thought keeps its last lines and counts the rest', () => {
 test('the budget is visual lines, so one long line cannot flood the block', () => {
   mode = 'tail'
   const lines = row('word '.repeat(200).trim()).render(40)
-  expect(lines).toHaveLength(5)
+  expect(lines).toHaveLength(6)
   expect(lines[0]).toContain('Think · … ')
   expect(lines.slice(1).every(line => line.length <= 40)).toBe(true)
 })
@@ -56,7 +57,7 @@ test('a very long thought wraps a bounded window and still counts what is above'
   mode = 'tail'
   const text = Array.from({ length: 200 }, (_, index) => `line ${index + 1} of a long thought`).join('\n')
   const lines = row(text).render(60)
-  expect(lines).toHaveLength(5)
+  expect(lines).toHaveLength(6)
   const hidden = Number(/… (\d+) more lines/u.exec(lines[0]!)?.[1])
   expect(hidden).toBeGreaterThan(190)
 })
@@ -106,7 +107,7 @@ test('the language reaches the count through the active locale', () => {
   mode = 'tail'
   setActiveLanguage('zh-CN')
   try {
-    const text = Array.from({ length: 6 }, (_, index) => `thought ${index}`).join('\n')
+    const text = Array.from({ length: 7 }, (_, index) => `thought ${index}`).join('\n')
     expect(row(text).render(80)[0]).toBe('  ✳  思考 · … 还有 2 行')
   } finally {
     setActiveLanguage('en')

@@ -31,7 +31,7 @@ const ICON = '✳'
 /** Indent of the expanded body and of the previewed lines. */
 const PADDING = 4
 /** Visual lines a folded block keeps from the end of the thought. */
-const PREVIEW_LINES = 4
+const PREVIEW_LINES = 5
 
 /** A row that draws nothing, shared so an empty render keeps its identity. */
 const NO_LINES: string[] = []

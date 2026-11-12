@@ -120,7 +120,7 @@ what it did, folded to a line budget that a short body never reaches:
   header per file, `-`/`+` lines with three lines of context, `⋯` between hunks,
   and a `+N -M` count in the title. Nine rows are shown; the file's own hunks
   come from the tool result, so what you see is what landed on disk;
-- a thought shows `✳ Think` and the **last** four lines it has reached, with a
+- a thought shows `✳ Think` and the **last** five lines it has reached, with a
   count of the rest. A short thought shows every line, and the block does not
   grow or move when the thought settles.
 
