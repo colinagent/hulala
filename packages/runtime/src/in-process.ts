@@ -78,6 +78,9 @@ function hostRows(webPort = 0, creator = false): PatchOptions[] {
       { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
       { id: 'workspace-controller', name: '@deepseek-ai/dsh-api-workspace-controller' },
       { id: 'agent-preset-registry', name: '@deepseek-ai/dsh-agent-preset-registry', config: { default: 'standard' } },
+      // Tells the model how to reference a file it produced — the bot relies on
+      // the `![Description](<path>)` form to attach a real image to a reply.
+      { id: 'deliverable-file-references', name: '@deepseek-ai/dsh-deliverable-file-references' },
       // Creator mode's Host half, and only when the user asked for it: the
       // read-only registry of this process's own Cordis surface plus the
       // providers that describe it. Leaving both rows out is what makes the

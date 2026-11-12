@@ -167,6 +167,7 @@
         "@deepseek-ai/dsh-client-file-upload": "0.2.2-rc.1",
         "@deepseek-ai/dsh-cmdline": "0.2.2-rc.1",
         "@deepseek-ai/dsh-compaction": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-deliverable-file-references": "0.2.2-rc.1",
         "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
         "@deepseek-ai/dsh-home-paths": "0.2.2-rc.1",
         "@deepseek-ai/dsh-host-webserver": "0.2.2-rc.1",
