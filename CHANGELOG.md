@@ -13,7 +13,7 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-11-12
+## [0.3.1] - 2026-11-12
 
 ### Added
 
