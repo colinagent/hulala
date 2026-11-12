@@ -8,7 +8,7 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "default": "./lib/index.js"
+      "default": "./src/index.ts"
     },
     "./host": {
       "types": "./src/in-process.ts",
