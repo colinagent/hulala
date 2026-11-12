@@ -71,15 +71,25 @@ function takeProfile(args: string[]): { profile: string; rest: string[] } {
  * @param fromUrl - `import.meta.url` of this module.
  * @returns absolute runtime root.
  */
-function resolveRuntimeRoot(dataRoot: string, fromUrl: string): string {
+export function resolveRuntimeRoot(dataRoot: string, fromUrl: string): string {
   const override = process.env.HULALA_DSH_RUNTIME_ROOT
   if (override !== undefined) return resolve(override)
+  const installed = installedRuntimeRoot(dataRoot)
+  if (installed !== undefined) return installed
   try {
     const manifest = createRequire(fromUrl).resolve('@deepseek-ai/dsh/package.json')
-    return dirname(dirname(dirname(manifest)))
+    return dirname(dirname(dirname(dirname(manifest))))
   } catch {
-    // Installed client: the runtime lives under the state root.
+    throw new Error('Cannot find the DSH runtime; run `hulala install` or start the Host once.')
   }
+}
+
+/**
+ * The runtime an installed client boots, recorded by the installer.
+ * @param dataRoot - Hulala state root.
+ * @returns absolute runtime root, or undefined when this is a source checkout.
+ */
+function installedRuntimeRoot(dataRoot: string): string | undefined {
   const versions = join(dataRoot, 'runtime', 'client', 'versions')
   // The active version is recorded by the installer; guessing from directory
   // names picks a stale runtime whenever two are installed.
@@ -100,7 +110,7 @@ function resolveRuntimeRoot(dataRoot: string, fromUrl: string): string {
     const newest = candidates.at(-1)
     if (newest !== undefined) return join(versions, newest, 'runtime')
   }
-  throw new Error('Cannot find the DSH runtime; run `hulala install` or start the Host once.')
+  return undefined
 }
 
 /**
