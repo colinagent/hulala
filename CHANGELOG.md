@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-12
+
 ### Changed
 
 - Step rows now show a preview of what they did instead of a title alone, and a
@@ -29,7 +31,6 @@ that version has no section. Releases before 0.2.30 are not recorded.
   while it streams and after it settles, so a turn's geometry stops growing.
 
 ### Fixed
-
 
 - Dragging text in the conversation now selects and copies it from a step row's
   header line too: the header no longer takes the press, so the transcript's own
