@@ -161,6 +161,7 @@ const HOST_ROW_IDS = new Set([
   'settings-controller',
   'workspace-controller',
   'agent-preset-registry',
+  'deliverable-file-references',
   'cordis-host-runner',
   'cordis-inspect-providers',
   'api-remotes',

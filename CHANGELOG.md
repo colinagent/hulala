@@ -13,6 +13,15 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-11-13
+
+### Fixed
+
+- The Host composition row for `@deepseek-ai/dsh-deliverable-file-references` was
+  only written into freshly created profiles: `HOST_ROW_IDS` did not name it, so
+  a profile made by an earlier version never received the row. Existing profiles
+  pick it up on the next start.
+
 ## [0.3.5] - 2026-11-12
 
 ### Fixed
