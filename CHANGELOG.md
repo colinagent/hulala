@@ -13,6 +13,14 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-11-13
+
+### Fixed
+
+- A fresh install opened Neovim without its vendored plugins — a netrw directory
+  listing instead of the explorer, and no pickers — until the Host restarted.
+  The editor's home is now resolved again after the publish step creates it.
+
 ## [0.3.8] - 2026-11-13
 
 ### Fixed

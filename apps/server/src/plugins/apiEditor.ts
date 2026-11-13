@@ -92,6 +92,8 @@ function serveOne(options: {
 }): void {
   const { socket, home, live } = options
   let child: ChildProcessWithoutNullStreams | undefined
+  /** The executable reported to the client, known once the open frame is read. */
+  let command: string | undefined
   let opened = false
   let closed = false
 
@@ -137,16 +139,22 @@ function serveOne(options: {
     try {
       publishEditor(home)
       ensureEditorConfig(home)
+      // Re-resolve after publishing: `plugin`, `runtime` and `parsers` are paths
+      // that did not exist when this state root was first read, so a fresh
+      // install would otherwise start Neovim without its vendored plugins — a
+      // netrw tree instead of the explorer, and no pickers.
+      const resolved = resolveEditorHome(home.dataRoot)
+      command = resolved.command
       // The editor's pickers run the shipped `rg`, published beside it.
-      const ripgrep = ripgrepPathEntry(home.binHome)
-      const environment = editorEnvironment(home, open.theme, ripgrep)
+      const ripgrep = ripgrepPathEntry(resolved.binHome)
+      const environment = editorEnvironment(resolved, open.theme, ripgrep)
       // The tree boundary is a fact only Neovim has, so it reports it into this
       // file and the Host forwards it; the client never touches the Host's disk.
       treeFile = join(home.dataHome, `tree-${crypto.randomUUID()}.txt`)
       environment.HULALA_NVIM_TREE_FILE = treeFile
       // `.` is the directory, the same argument the pty editor passed: the
       // vendored explorer turns it into the file tree on the first paint.
-      child = spawn(home.command, ['--embed', '.'], {
+      child = spawn(resolved.command, ['--embed', '.'], {
         cwd: open.cwd,
         env: { ...process.env, ...environment },
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -176,7 +184,7 @@ function serveOne(options: {
       treeColumn = column
       sendJson(socket, { kind: 'tree', column })
     }, 500)
-    sendJson(socket, { kind: 'ready', command: home.command })
+    sendJson(socket, { kind: 'ready', command })
     started.stdout.on('data', (chunk: Buffer) => {
       if (socket.readyState === socket.OPEN) socket.send(chunk, { binary: true })
     })
