@@ -87,7 +87,6 @@ function sendJson(socket: WebSocket, value: unknown): void {
 function serveOne(options: {
   socket: WebSocket
   home: ReturnType<typeof resolveEditorHome>
-  release: () => Promise<void>
   /** Every live editor, so disposing the plugin ends them. */
   live: Set<ChildProcessWithoutNullStreams>
 }): void {
@@ -109,7 +108,6 @@ function serveOne(options: {
     child?.kill('SIGTERM')
     child = undefined
     if (treeFile !== undefined) rmSync(treeFile, { force: true })
-    void options.release()
   }
 
   socket.on('message', (data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
@@ -219,14 +217,18 @@ export const apiEditorPlugin = {
       () => webServer.registerUpgrade({
         path: '/api/editor',
         handler: (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-          const admission = connection.admitConnection({ headers: request.headers })
-          if ('rejection' in admission) {
-            socket.write(`HTTP/1.1 ${String(admission.rejection)} Unauthorized\r\nconnection: close\r\n\r\n`)
+          // The trust fence with the cookie check, but **not** `admitConnection`:
+          // that one claims the single API socket seat the mux owns, so a second
+          // upgrade is refused with "Expected 101". This route needs the same
+          // authentication and none of the socket ownership.
+          const rejection = connection.requestRejection({ headers: request.headers })
+          if (rejection !== undefined) {
+            socket.write(`HTTP/1.1 ${String(rejection)} Unauthorized\r\nconnection: close\r\n\r\n`)
             socket.destroy()
             return
           }
           sockets.handleUpgrade(request, socket, head, ws => {
-            serveOne({ socket: ws, home, release: admission.release, live })
+            serveOne({ socket: ws, home, live })
           })
         },
       }),

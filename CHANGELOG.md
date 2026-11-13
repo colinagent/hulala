@@ -13,6 +13,15 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-11-13
+
+### Fixed
+
+- The editor column's channel was refused whenever the event stream was
+  connected: the route asked the transport for ownership of the one API socket
+  the mux already holds, so it only worked in a window with nothing attached. It
+  now passes the same trust fence and cookie check without claiming that seat.
+
 ## [0.3.7] - 2026-11-13
 
 ### Added
