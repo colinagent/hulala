@@ -54,6 +54,13 @@ interface BundleManifest {
   dsh?: { bundle?: { patch?: unknown } }
 }
 
+/**
+ * Bundles this Host loads on top of `@deepseek-ai/dsh-base`, in `bundles` order.
+ * They are direct runtime dependencies, not profile-local installs: the profile
+ * gets a link to the copy the runtime shipped, so an upgrade never leaves an old
+ * plugin behind in the profile.
+ */
+const HOST_BUNDLES = ['@colinagent/dsh-mcp'] as const
 const PRESET_BUNDLE = '@deepseek-ai/dsh-web-app'
 /**
  * Agent presets Hulala offers. The upstream `ptc` preset needs the Node PTC runtime
@@ -73,6 +80,11 @@ function hostRows(webPort = 0, creator = false): PatchOptions[] {
       { id: 'connection', name: '@deepseek-ai/dsh-client-connection' },
       { id: 'file-uploads', name: '@deepseek-ai/dsh-client-file-upload' },
       { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
+      // The terminal's panes run on the Host, not in the client: terminal
+      // processes and workspace file reads are Session-owned Host services, so
+      // the client stays a renderer over one SSH or loopback attachment.
+      { id: 'terminal-controller', name: '@deepseek-ai/dsh-api-terminal-controller' },
+      { id: 'workspace-files', name: '@deepseek-ai/dsh-api-workspace-files' },
       // Provider credentials and LLM settings: the terminal client's `/login`
       // writes a stored API key and the profile that references it.
       { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
@@ -243,6 +255,7 @@ export async function seedHostProfile(
     creator,
   )
   await detectDshBundles(profileDir, PROFILE_NAME)
+  await syncHostBundles(profileDir, runtimeRoot)
   return profileDir
 }
 
@@ -338,6 +351,89 @@ async function detectDshBundles(profileDir: string, profileName: string): Promis
     }
     await writeManifest(manifestPath, next)
   }, { waitMs: 120_000 })
+}
+
+/**
+ * Link the Host's own bundles into one profile and record them in `bundles`.
+ *
+ * A row only reaches the Loader when its package resolves from the profile, so
+ * the profile needs the link even though the runtime owns the dependency. This
+ * mirrors {@link detectDshBundles}: `link:` entries are DSH's out-of-tree
+ * mechanism, and a package the runtime does not ship is skipped instead of
+ * failing the boot.
+ * @param profileDir - the profile directory to update.
+ * @param runtimeRoot - directory whose package.json anchors the installed runtime.
+ */
+async function syncHostBundles(profileDir: string, runtimeRoot: string): Promise<void> {
+  const manifestPath = join(profileDir, 'package.json')
+  const runtimeRequire = createRequire(pathToFileURL(join(resolve(runtimeRoot), 'package.json')))
+  // An install holds this lock while it edits the same manifest (see
+  // {@link detectDshBundles}); the two writers must not interleave.
+  await withFileLock(manifestPath, async () => {
+    const ours = await readManifest(manifestPath)
+    const bundles = [...(ours.dsh?.profile?.bundles ?? [])]
+    const dependencies = { ...ours.dependencies }
+    let changed = false
+    for (const name of HOST_BUNDLES) {
+      const source = packageRootOf(runtimeRequire, name)
+      if (source === undefined) continue
+      const link = join(profileDir, 'node_modules', name)
+      if (!(await exists(link))) {
+        try {
+          await mkdir(dirname(link), { recursive: true })
+          await symlink(source, link, 'dir')
+        } catch {
+          // A link we cannot make is a bundle we do not load; the Host still boots.
+          continue
+        }
+      }
+      if (!bundles.includes(name)) {
+        bundles.push(name)
+        changed = true
+      }
+      const expected = `link:${source}`
+      if (dependencies[name] !== expected) {
+        dependencies[name] = expected
+        changed = true
+      }
+    }
+    if (!changed) return
+    await writeManifest(manifestPath, {
+      ...ours,
+      dependencies,
+      dsh: { ...ours.dsh, profile: { ...ours.dsh?.profile, bundles } },
+    })
+  }, { waitMs: 120_000 })
+}
+
+/**
+ * Find the package directory a runtime dependency resolves to.
+ *
+ * `resolve(name)` lands on the entry point, which may sit below the package root,
+ * so the nearest enclosing manifest that declares this name wins.
+ * @param runtimeRequire - resolver anchored in the runtime root.
+ * @param name - package name.
+ * @returns the package directory, or `undefined` when it is not installed.
+ */
+function packageRootOf(runtimeRequire: NodeJS.Require, name: string): string | undefined {
+  let directory: string
+  try {
+    directory = dirname(runtimeRequire.resolve(name))
+  } catch {
+    return undefined
+  }
+  for (let depth = 0; depth < 8; depth += 1) {
+    try {
+      const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as { name?: unknown }
+      if (manifest.name === name) return directory
+    } catch {
+      // No manifest at this level: keep walking toward the package root.
+    }
+    const parent = dirname(directory)
+    if (parent === directory) return undefined
+    directory = parent
+  }
+  return undefined
 }
 
 async function ensureProfilePatch(path: string, rows: PatchOptions[], creator = false): Promise<void> {

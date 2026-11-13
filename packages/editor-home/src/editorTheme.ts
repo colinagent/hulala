@@ -13,7 +13,7 @@
  * at once. Terminals that do not answer the query fall back to
  * {@link FALLBACK_THEME}.
  *
- * @module hulala-cli/tui/editor/editorTheme
+ * @module @hulala/editor-home/editorTheme
  */
 import type { RgbColor, TerminalColors } from '@earendil-works/pi-tui'
 

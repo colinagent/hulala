@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.3.4",
+      "version": "0.3.6",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -37,6 +37,7 @@
         "@deepseek-ai/dsh-util-workspace-path": "0.2.2-rc.1",
         "@earendil-works/pi-tui": "1.4.0",
         "@hulala/distribution": "workspace:*",
+        "@hulala/editor-home": "workspace:*",
         "@hulala/host-client": "workspace:*",
         "@hulala/runtime": "workspace:*",
         "@speed-highlight/core": "2.1.0",
@@ -73,6 +74,7 @@
         "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.1",
         "@deepseek-ai/dsh-typert-registry": "0.2.2-rc.1",
         "@hulala/desktop-contracts": "workspace:*",
+        "@hulala/editor-home": "workspace:*",
         "@hulala/runtime": "workspace:*",
         "zod": "4.4.3",
       },
@@ -120,13 +122,24 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.3.4",
+      "version": "0.3.6",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
       "devDependencies": {
         "@types/bun": "1.3.14",
         "typescript": "5.9.3",
+      },
+    },
+    "packages/editor-home": {
+      "name": "@hulala/editor-home",
+      "version": "0.3.6",
+      "dependencies": {
+        "@earendil-works/pi-tui": "1.4.0",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.3.0",
+        "typescript": "^7.0.0",
       },
     },
     "packages/host-client": {
@@ -142,11 +155,12 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.3.4",
+      "version": "0.3.6",
       "bin": {
         "hulala-runtime": "./lib/cli.js",
       },
       "dependencies": {
+        "@colinagent/dsh-mcp": "0.1.0",
         "@deepseek-ai/cordis": "4.1.0",
         "@deepseek-ai/cordis-plugin-group": "1.1.0",
         "@deepseek-ai/cordis-plugin-hmr": "1.1.0",
@@ -262,6 +276,8 @@
     "@cloudflare/workerd-linux-arm64": ["@cloudflare/workerd-linux-arm64@1.20260515.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-WxbW/PToYES4fvHXzsr/5qOiETQs/Z9iZ0mjSZAiEwq5cMLZemzGN0COx+uFb9OvQwzh6Pg159qPFnw3+i9FuA=="],
 
     "@cloudflare/workerd-windows-64": ["@cloudflare/workerd-windows-64@1.20260515.1", "", { "os": "win32", "cpu": "x64" }, "sha512-WmV/iv+MHjYsvkcMVzpM2B5/mf06UUkdpVhZrtMfV9graWjBGPYFvE/eab8748RPVGKh1Xe1vXofLzDSwc08lA=="],
+
+    "@colinagent/dsh-mcp": ["@colinagent/dsh-mcp@0.1.0", "", { "peerDependencies": { "@deepseek-ai/cordis": "^4.1.0", "@deepseek-ai/dsh-agent": "0.2.2-rc.1", "@deepseek-ai/dsh-mcp-client": "0.2.2-rc.1", "@deepseek-ai/dsh-session": "0.2.2-rc.1", "@deepseek-ai/dsh-working-directory": "0.2.2-rc.1", "@deepseek-ai/schemastery": "~3.19.0" } }, "sha512-7ykBn2zzGs0Yffhi2HTl9Sm/joJXp26JNkkiXSf05F2yURhYeUpc8Qgmm7WG+ca4juH5skkaRh69mejnW9XI2Q=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 
@@ -1018,6 +1034,8 @@
     "@hulala/desktop-server": ["@hulala/desktop-server@workspace:apps/server"],
 
     "@hulala/distribution": ["@hulala/distribution@workspace:packages/distribution"],
+
+    "@hulala/editor-home": ["@hulala/editor-home@workspace:packages/editor-home"],
 
     "@hulala/host-client": ["@hulala/host-client@workspace:packages/host-client"],
 

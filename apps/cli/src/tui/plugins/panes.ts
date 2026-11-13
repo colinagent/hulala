@@ -22,10 +22,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Component } from '@earendil-works/pi-tui'
 import type { PtyModule } from '../editor/pty.js'
 import { loadNodePty } from '../editor/pty.js'
-import { startNvimSession } from '../editor/nvimSession.js'
+import { hostPty } from '../editor/hostPty.js'
+import { NvimUi } from '../editor/nvimUi.js'
 import { modeReadsText, paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
 import { startShellSession } from '../pane/shellSession.js'
-import type { ScreenSession } from '../pane/screenSession.js'
+import { ScreenSession } from '../pane/screenSession.js'
 import { faintCursorSgr } from '../view/theme.js'
 import { splitDivider } from '../view/splitDivider.js'
 import { ScreenPane } from '../view/screenPane.js'
@@ -49,7 +50,12 @@ const SIDEBAR_ID = 'sidebar'
 /** A running column: its process and the view that paints it. */
 interface PaneRuntime {
   readonly kind: PaneKind
-  readonly session: ScreenSession
+  /**
+   * The program's screen. A shell renders bytes through the VT engine, the
+   * editor receives cells from Neovim's UI protocol; both answer the same
+   * questions, which is what keeps one renderer for the two columns.
+   */
+  readonly session: ScreenSession | NvimUi
   readonly view: ScreenPane
 }
 
@@ -166,6 +172,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const overlays = ctx.hulalaOverlays
   const nvim = ctx.hulalaEditor
   const { reducer } = ctx.hulalaViewModel
+  // The terminal column's process belongs to the Host, so this plugin needs the
+  // attachment, not the client's cwd. The owning Session is read at open time:
+  // injecting it would make this plugin and the session plugin depend on each
+  // other, because the session plugin already injects this one.
+  const backend = ctx.backend
+  const sessionId = (): string | undefined => ctx.get('hulalaSession')?.id
 
   /** Live column processes, keyed by kind. A hidden column keeps its process. */
   const runtimes = new Map<PaneKind, PaneRuntime>()
@@ -180,7 +192,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   /** Stops hearing Neovim's mode; set only while the editor column has the keys. */
   let stopModeWatch: (() => void) | undefined
   let composer: Component | undefined
-  let conflictTimer: ReturnType<typeof setInterval> | undefined
   let dividerHovered = false
   /** The pointer rests on the editor's own tree boundary. */
   let treeHovered = false
@@ -203,6 +214,27 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 
   const ptyModule = (): PtyModule | undefined => config.pty ?? loadNodePty()
 
+  /**
+   * The pty a column starts its program in.
+   *
+   * The terminal column runs on the Host whenever the attachment can carry a
+   * terminal, which is what makes a local and a remote Host the same code path;
+   * the editor column keeps the local pty until its UI attachment lands.
+   * @param kind - the column asking.
+   * @param report - called with the reason when the Host refuses the terminal.
+   * @returns the pty module, or undefined when this attachment has none.
+   */
+  const moduleFor = (kind: PaneKind, report: (message: string) => void): PtyModule | undefined => {
+    if (config.pty !== undefined) return config.pty
+    if (kind === 'terminal') {
+      const terminals = backend.terminal
+      const owner = sessionId()
+      if (terminals === undefined || owner === undefined) return undefined
+      return hostPty({ terminal: terminals, sessionId: owner, onFailure: report })
+    }
+    return loadNodePty()
+  }
+
   const dragDividerTo = (screenX: number): void => {
     const kind = visibleKind
     if (kind === undefined) return
@@ -210,7 +242,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     if (width <= 0) return
     // The pointer is on the divider column, so the column starts one cell after.
     ratios[kind] = Math.min(0.75, Math.max(0.25, (width - screenX - 1) / width))
-    layout.resizePane(columns(kind))
+    const paneWidth = columns(kind)
+    layout.resizePane(paneWidth)
+    // The program is told directly: a repaint that happens to carry a new width
+    // must not be the only way a column learns its size, or a program that owns
+    // its own grid (Neovim) would keep drawing at the old one.
+    runtimes.get(kind)?.session.resize(paneWidth, rows())
     render.request()
   }
 
@@ -273,7 +310,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 
   /** The tree's own rule, which Neovim draws and resizes but cannot shape. */
   const treeDivider = {
-    column: () => nvim.treeEdge(),
+    // Only the editor column knows: the Host forwards the boundary Neovim
+    // reports, and a column that is not open has no tree to point at.
+    column: () => {
+      const runtime = runtimes.get('editor')
+      return runtime?.session instanceof NvimUi ? runtime.session.treeEdge() : undefined
+    },
     hovered: () => treeHovered,
     setHovered: (hovered: boolean) => {
       if (treeHovered === hovered) return
@@ -347,6 +389,19 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   }
 
   /**
+   * Ask the editor column to run one command line.
+   *
+   * A pty editor reads the bytes a terminal would send; a UI editor takes
+   * notation, where `\u001b` would otherwise read as an Alt chord.
+   * @param session - the editor column's screen.
+   * @param line - the Ex command line, without the colon or terminator.
+   */
+  const editorCommand = (session: ScreenSession | NvimUi, line: string): void => {
+    if (session instanceof NvimUi) session.inputNotation(`<Esc>:${line}<CR>`)
+    else session.input(`\u001b:${line}\r`)
+  }
+
+  /**
    * Forget a column whose process exited.
    * @param kind - the column that is gone.
    */
@@ -362,11 +417,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     // the client abandons it (everything to kill).
     runtime.session.dispose()
     if (kind === 'editor') {
-      if (conflictTimer !== undefined) {
-        clearInterval(conflictTimer)
-        conflictTimer = undefined
-      }
-      nvim.clearMarkers()
       // The process can exit while its dialog is still up (a slow quit beats the
       // grace period); settle it instead of leaving the keyboard disabled.
       overlays.cancelEditorModals()
@@ -375,31 +425,11 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     render.request()
   }
 
-  /**
-   * Turn a reported file conflict into a question.
-   *
-   * Autosave refuses to write a buffer whose file the agent rewrote and appends
-   * the path to a marker file. Asking here is the point: Neovim's own `y/N`
-   * prompt appears on the mode line while the user is typing, swallows the next
-   * keystroke, and blocks forever when the column has no focus.
-   */
-  const checkConflict = (): void => {
-    const path = nvim.takeConflict()
-    if (path === undefined) return
-    const answer = overlays.showConflict(path)
-    // Shown from a timer, so nothing else schedules the frame that paints it.
-    render.request()
-    void answer.then(choice => {
-      if (choice === 'later') return
-      runtimes.get('editor')?.session.input(choice === 'keep' ? '\u001b:write!\r' : '\u001b:edit!\r')
-    })
-  }
-
-  const mount = (kind: PaneKind, session: ScreenSession): PaneRuntime => {
+  const mount = (kind: PaneKind, session: ScreenSession | NvimUi): PaneRuntime => {
     const view = new ScreenPane({
       screen: session,
       // Only a shell needs the column's own history; Neovim owns its scrolling.
-      ...(kind === 'terminal' ? { scroll: session } : {}),
+      ...(kind === 'terminal' && session instanceof ScreenSession ? { scroll: session } : {}),
       rows,
       color: config.color,
       faintCursor: () => faintCursorSgr(config.color, nvim.theme.background, nvim.theme.foreground),
@@ -417,10 +447,19 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     return runtime
   }
 
-  /** Report why a column cannot start, naming the column the key chose. */
+  /**
+   * Report why a column cannot start, naming the column the key chose.
+   *
+   * A Host older than this client answers an unknown Remote namespace with an
+   * opaque gateway fault, which reads as a transport bug. It is not: the Host
+   * simply predates the pane, and the way out is an update.
+   */
   const unavailable = (kind: PaneKind, reason: string): false => {
     const pane = t(kind === 'editor' ? 'pane.editor' : 'pane.terminal')
-    reducer.addNotice(t('pane.unavailable', { pane, reason }))
+    const stale = /transport failure|gateway\/internal/u.test(reason)
+    reducer.addNotice(stale
+      ? t('pane.hostBehind', { pane })
+      : t('pane.unavailable', { pane, reason }))
     render.repaint()
     return false
   }
@@ -428,40 +467,70 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const open = (kind: PaneKind, cwd: string): boolean => {
     config.debug(`openPane kind=${kind} cwd=${cwd} running=${String(runtimes.has(kind))}`)
     if (runtimes.has(kind)) return true
-    const pty = ptyModule()
-    if (pty === undefined) {
-      // Only when this runtime has no pty at all (no Bun and no node-pty).
-      return unavailable(kind, t('pane.noPty'))
+    // A Host-owned column is created in the Session's own directory, which the
+    // Host validates: over SSH that directory is on the other machine, so a local
+    // `stat` here would refuse a path that exists exactly where it matters.
+    const hosted = config.pty === undefined
+      && (kind === 'terminal' ? backend.terminal !== undefined : backend.editor !== undefined)
+    if (!hosted) {
+      const pty = moduleFor(kind, message => unavailable(kind, message))
+      if (pty === undefined) {
+        // Only when this attachment has no terminal at all (no Host terminal, no
+        // Bun and no node-pty).
+        return unavailable(kind, t('pane.noPty'))
+      }
+      if (!isLocalDirectory(cwd)) return unavailable(kind, t('pane.notDirectory', { path: cwd }))
     }
-    if (!isLocalDirectory(cwd)) return unavailable(kind, t('pane.notDirectory', { path: cwd }))
     if (terminal.columns < MIN_SPLIT_COLUMNS) {
       return unavailable(kind, t('pane.tooNarrow', { columns: MIN_SPLIT_COLUMNS }))
     }
     if (kind === 'editor') {
-      try {
-        nvim.prepare()
-      } catch (caught) {
-        return unavailable(kind, caught instanceof Error ? caught.message : String(caught))
-      }
-      nvim.resetMode()
-      const session = startNvimSession({
-        pty,
-        command: nvim.command,
-        // Resolved after publishing, so the editor's `rg` is the copy in `<data>/bin`.
-        env: nvim.environment(),
-        cwd,
-        cols: columns('editor'),
-        rows: rows(),
+      const hostEditor = backend.editor
+      if (hostEditor === undefined) return unavailable(kind, t('pane.noEditor'))
+      // The Host owns Neovim, so the column is a UI: open the channel, then draw
+      // whatever cells Neovim sends. A failure arrives as a notice and drops the
+      // column instead of leaving an empty frame.
+      const channel = hostEditor.connect()
+      const cols = columns('editor')
+      const height = rows()
+      // The mode drives the input source, and it arrives with the grid, so the
+      // view is captured rather than looked up: a mode event can land before
+      // this function returns.
+      let runtime: PaneRuntime | undefined
+      let session: NvimUi | undefined
+      channel.onTree(column => { session?.setTreeEdge(column) })
+      session = new NvimUi({
+        channel,
+        cols,
+        rows: height,
+        color: config.color,
         onScreen: () => { if (visibleKind === 'editor') render.request() },
         onExit: (exitCode) => {
           config.debug(`paneExit kind=editor code=${exitCode}`)
           drop('editor')
         },
+        onMode: mode => {
+          if (runtime === undefined) return
+          runtime.view.imePolicy = modeReadsText(mode) ? 'text' : 'command'
+          refreshIme()
+        },
       })
-      if (conflictTimer === undefined) conflictTimer = setInterval(checkConflict, 1_000)
-      mount('editor', session)
+      runtime = mount('editor', session)
+      runtime.view.imePolicy = modeReadsText(session.currentMode()) ? 'text' : 'command'
+      void channel.open({ cwd, cols, rows: height, theme: nvim.theme })
+        .catch((caught: unknown) => {
+          drop('editor')
+          unavailable('editor', caught instanceof Error ? caught.message : String(caught))
+        })
+      return true
     } else {
+      // The terminal column still needs a pty module: a Host terminal reaches it
+      // through `hostPty`, a test through its own.
+      const pty = moduleFor('terminal', message => unavailable('terminal', message))
+      if (pty === undefined) return unavailable('terminal', t('pane.noPty'))
       try {
+        // A hosted pty ignores the command: the Host's execution world picks the
+        // shell, because a client `$SHELL` names a path on the wrong machine.
         const session = startShellSession({
           pty,
           cwd,
@@ -486,22 +555,16 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
    * Let Neovim decide whether this column reads text or commands.
    *
    * Insert mode is the user writing, so it takes their own input source; normal,
-   * visual, command-line and terminal modes are instructions. The mode arrives
-   * through `HULALA_NVIM_MODE_FILE`, so this is a watch, not a question — and it
-   * only runs while the column holds the keyboard.
+   * visual, command-line and terminal modes are instructions. The mode arrives as
+   * a `mode_change` event on the column's own channel, so this only reads what
+   * Neovim last said rather than watching a file.
    * @param runtime - the column that just took the keyboard.
    */
   const followEditorMode = (runtime: PaneRuntime): void => {
     stopModeWatch?.()
     stopModeWatch = undefined
-    if (runtime.kind !== 'editor') return
-    // The mode may already be insert: reading it before focus makes the first
-    // switch right instead of corrected a frame later.
-    runtime.view.imePolicy = modeReadsText(nvim.mode()) ? 'text' : 'command'
-    stopModeWatch = nvim.watchMode(mode => {
-      runtime.view.imePolicy = modeReadsText(mode) ? 'text' : 'command'
-      refreshIme()
-    })
+    if (!(runtime.session instanceof NvimUi)) return
+    runtime.view.imePolicy = modeReadsText(runtime.session.currentMode()) ? 'text' : 'command'
   }
 
   const focus = (kind: PaneKind, cwd: string): void => {
@@ -547,11 +610,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const gone = async (graceMs: number): Promise<boolean> => {
     const deadline = Date.now() + graceMs
     while (runtimes.has('editor')) {
-      if (Date.now() >= deadline) {
-        // Give a committed quit a long finish window; never show a dialog for it.
-        if (!nvim.leaveCommitted()) return false
-        if (Date.now() >= deadline + 8_000) return false
-      }
+      if (Date.now() >= deadline) return false
       await new Promise(resolve => setTimeout(resolve, 40))
     }
     return true
@@ -572,11 +631,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     for (;;) {
       const editor = runtimes.get('editor')
       if (editor === undefined) return true
-      nvim.resetLeave()
-      editor.session.input('\u001b:qa\r')
-      // Neovim writes on quit (`QuitPre`), so a clean editor can take a second
-      // to leave; only a refusal needs the dialog.
-      if (await gone(failedSave ? 1500 : 1200)) return true
+      editorCommand(editor.session, 'qa')
+      // A UI column reports its exit, so waiting costs nothing and a slow quit
+      // finishes without a dialog; a pty column keeps the old short grace, where
+      // "gone" is the only signal there is.
+      const grace = editor.session instanceof NvimUi ? (failedSave ? 1_500 : 1_500) : failedSave ? 1_500 : 1_200
+      if (await gone(grace)) return true
       const choice = await overlays.modal<ConfirmChoice>(
         done => new ConfirmOverlay({ color: config.color, failedSave, onChoose: done }),
         { anchor: 'center', width: 56 },
@@ -586,10 +646,10 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       const session = runtimes.get('editor')?.session
       if (session === undefined) return true
       if (choice === 'discard') {
-        session.input('\u001b:qa!\r')
+        editorCommand(session, 'qa!')
         return await gone(800)
       }
-      session.input('\u001b:silent! wall\r')
+      editorCommand(session, 'silent! wall')
       failedSave = true
     }
   }
@@ -604,16 +664,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     if (editor === undefined) return
     // `silent!` keeps a refusal (an unnamed buffer) from painting over the frame;
     // the wait is the pty round trip, not the size of the file.
-    editor.session.input('\u001b:silent! wall\r')
+    editorCommand(editor.session, 'silent! wall')
     await new Promise(resolve => setTimeout(resolve, 250))
   }
 
   /** Stop every process without repainting: the window is going away. */
   const dispose = (): void => {
-    if (conflictTimer !== undefined) {
-      clearInterval(conflictTimer)
-      conflictTimer = undefined
-    }
     focused = false
     visibleKind = undefined
     for (const kind of [...runtimes.keys()]) {
@@ -649,7 +705,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       const runtime = focused ? visibleRuntime() : undefined
       if (runtime === undefined) return false
       return paneOwnsEscape(runtime.kind, {
-        editorMode: runtime.kind === 'editor' ? nvim.mode() : undefined,
+        editorMode: runtime.kind === 'editor' && runtime.session instanceof NvimUi
+          ? runtime.session.currentMode()
+          : undefined,
         alternateScreen: runtime.kind === 'terminal' && runtime.session.alternateScreen(),
       })
     },
@@ -667,6 +725,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 /** Cordis object-form plugin. */
 export const panesPlugin = {
   name: 'hulala-panes',
-  inject: ['hulalaTerminal', 'hulalaRender', 'hulalaLayout', 'hulalaOverlays', 'hulalaEditor', 'hulalaViewModel'],
+  inject: ['hulalaTerminal', 'hulalaRender', 'hulalaLayout', 'hulalaOverlays', 'hulalaEditor', 'hulalaViewModel', 'backend'],
   apply,
 }

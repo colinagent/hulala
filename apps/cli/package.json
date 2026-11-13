@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Launch the local-first Hulala Agent workbench with one npx command.",
   "type": "module",
   "bin": {
@@ -60,6 +60,7 @@
     "@deepseek-ai/dsh-util-workspace-path": "0.2.2-rc.1",
     "@earendil-works/pi-tui": "1.4.0",
     "@hulala/distribution": "workspace:*",
+    "@hulala/editor-home": "workspace:*",
     "@hulala/host-client": "workspace:*",
     "@hulala/runtime": "workspace:*",
     "@speed-highlight/core": "2.1.0",

@@ -218,6 +218,38 @@ test('a machine without Node is told what it needs, and nothing is downloaded', 
   expect(result.stderr).not.toContain('Downloading from')
 })
 
+test('--yes is the one consent a client can give ahead of time', () => {
+  // The client asks before it runs the installer over SSH, so the script must be
+  // able to proceed without a tty — and only for the Node download: the flag is
+  // not a blanket "do whatever".
+  const state = join(mkdtempSync(join(tmpdir(), 'hulala assume yes ')), 'state')
+  const bin = join(mkdtempSync(join(tmpdir(), 'hulala assume yes path ')), 'bin')
+  mkdirSync(bin)
+  for (const tool of ['cat', 'mkdir', 'mktemp', 'rmdir', 'rm', 'uname']) {
+    const resolved = Bun.which(tool)
+    if (resolved !== null) Bun.spawnSync(['ln', '-s', resolved, join(bin, tool)])
+  }
+  const target = `${process.platform}-${process.arch}`
+  const file = temporary('install.sh', renderInstallScript({
+    version: '1.2.3',
+    cases: `  ${target}) archive='hulala-1.2.3-${target}.tar.gz' archive_sha='abc' ;;`,
+    downloadBase: 'http://127.0.0.1:1',
+    githubBase: '',
+    lock: 'http://127.0.0.1:1/runtime-package-lock.json',
+    lockSha256: 'b'.repeat(64),
+  }))
+  const child = Bun.spawnSync(['/bin/sh', file, '--yes'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { PATH: bin, HOME: state, HULALA_HOME: state, HULALA_BIN: join(state, 'commands'), HULALA_NODE_BASE: 'http://127.0.0.1:1/node' },
+  })
+  const stderr = child.stderr.toString()
+  // It tried the download instead of asking, and the unreachable mirror is what
+  // stopped it — not a missing answer.
+  expect(stderr).toContain('Installing the Hulala Node.js runtime (consent given with --yes)')
+  expect(stderr).not.toContain('[Y/n]')
+})
+
 test('a Node this installer installed earlier is reused without asking', () => {
   const state = join(mkdtempSync(join(tmpdir(), 'hulala reuse node ')), 'state')
   const nodeRoot = join(state, 'runtime/node')

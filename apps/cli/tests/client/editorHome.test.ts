@@ -3,14 +3,18 @@ import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, statSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  FALLBACK_THEME,
+  NVIM_BASE_LUA,
+  NVIM_BASE_MARKER,
   editorEnvironment,
   ensureEditorConfig,
   publishEditor,
   resolveEditorHome,
-} from '../../src/tui/editor/editorHome.js'
-import { ripgrepExecutable } from '../../src/ripgrep.js'
-import { FALLBACK_THEME } from '../../src/tui/editor/editorTheme.js'
-import { NVIM_BASE_LUA, NVIM_BASE_MARKER } from '../../src/tui/editor/nvimConfig.js'
+  ripgrepExecutable,
+} from '@hulala/editor-home'
+
+
+
 
 function stateRoot(): string {
   return mkdtempSync(join(tmpdir(), 'hulala-editor-home-'))

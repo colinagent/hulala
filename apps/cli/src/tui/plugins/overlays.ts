@@ -19,7 +19,6 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { ApprovalOverlay } from '../view/overlays/approval.js'
-import { ConflictOverlay, type ConflictChoice } from '../view/overlays/conflict.js'
 import { QuestionOverlay, type QuestionAnswer } from '../view/overlays/question.js'
 import type { TerminalApproval, TerminalApprovalOutcome, TerminalQuestion, TerminalQuestionAnswer } from '../data/remote.js'
 import type { Component, OverlayHandle, OverlayOptions } from '@earendil-works/pi-tui'
@@ -62,7 +61,6 @@ export interface TuiOverlays {
     signal?: AbortSignal,
   ): Promise<{ answers: TerminalQuestionAnswer[] } | undefined>
   /** The conflict dialog autosave raises when a buffer and the disk diverged. */
-  showConflict(path: string): Promise<ConflictChoice>
 }
 
 /** Colour flag plus the debug sink; both belong to the client, not the plugin. */
@@ -164,14 +162,6 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
       }
       return { answers }
     },
-    showConflict: (path: string) => modal<ConflictChoice>(
-      done => new ConflictOverlay({ color: config.color, path, onChoose: done }),
-      { anchor: 'center', width: 64 },
-      // The editor column can exit while this dialog is up; it is editor-owned,
-      // so it settles to "leave the buffer dirty" instead of holding the
-      // keyboard forever.
-      { value: 'later' },
-    ),
   })
 }
 

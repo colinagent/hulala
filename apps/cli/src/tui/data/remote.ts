@@ -10,7 +10,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { apply as gatewayClient } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/types'
-import type { ModelCatalog, SessionControlFrame, SessionFollowFrame, SessionPromptRequest, SessionSelectModelRequest, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { ModelCatalog, PromptContentPart, SessionControlFrame, SessionFollowFrame, SessionPromptRequest, SessionSelectModelRequest, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/types'
 import SessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
 import SettingsRemote from '@deepseek-ai/dsh-api-settings-controller/remote'
 import WorkspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
@@ -24,10 +24,15 @@ import LlmRemote from '@deepseek-ai/dsh-llm/remote'
 import PermissionPresetsRemote from '@deepseek-ai/dsh-permission-presets/remote'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
+import TerminalRemote from '@deepseek-ai/dsh-api-terminal-controller/remote'
+import type { TerminalFrame, TerminalInput } from '@deepseek-ai/dsh-api-terminal-controller/types'
+import WorkspaceFilesRemote from '@deepseek-ai/dsh-api-workspace-files/remote'
+import type { WorkspaceDirectoryListing, WorkspaceFileStat, WorkspaceFileText } from '@deepseek-ai/dsh-api-workspace-files/types'
 import type {} from '@deepseek-ai/dsh-user-approval/types'
 import type {} from '@deepseek-ai/dsh-user-questions/types'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
 import WebSocket from 'ws'
+import { createEditorChannel, type EditorChannel } from './editorChannel.js'
 import type { HostAttachment } from '../../hostAttach.js'
 import { t } from '../i18n/index.js'
 
@@ -261,15 +266,131 @@ export interface TerminalSessionEvent {
 }
 
 /** One attached Host backend. */
+/**
+ * One inline image a prompt carries.
+ *
+ * The bytes travel inside the prompt frame, so the Host needs no upload and no
+ * second channel: a client that holds the clipboard decides what is attached.
+ */
+export interface PromptImage {
+  /** Base64 payload of the whole image. */
+  readonly data: string
+  /** The format the bytes actually are; the Host rejects a mismatch. */
+  readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+}
+
+/**
+ * Build one prompt's content parts: the text, then any attached images.
+ * @param text - the typed message, which may be empty when images carry the turn.
+ * @param images - images pasted into this draft.
+ * @returns the parts the Host's prompt request carries.
+ */
+export function promptContent(text: string, images: readonly PromptImage[] = []): PromptContentPart[] {
+  return [
+    { type: 'text', text },
+    ...images.map(image => ({ type: 'image' as const, mediaType: image.mediaType, data: image.data })),
+  ]
+}
+
+/**
+ * The editor column's channel to the Host.
+ *
+ * One call per column: the Host starts Neovim for this Session's directory and
+ * answers with the channel that carries its UI protocol.
+ */
+export interface HostEditor {
+  /** Build the channel for one column; `open()` starts Neovim on it. */
+  connect(): EditorChannel
+}
+
+/** One Host terminal as the client sees it: an identity, never a local process. */
+export interface HostTerminal {
+  readonly id: string
+  readonly title: string
+  readonly cols: number
+  readonly rows: number
+  readonly state: 'running' | 'exited' | 'failed'
+  readonly exitCode: number | null
+  /** Present when the Host reports why the process failed to start or run. */
+  readonly error?: string
+}
+
+/** Limits the Host enforces on this Session's terminals, plus its working directory. */
+export interface HostTerminalEnvironment {
+  readonly cwd: string
+  readonly maxCols: number
+  readonly maxRows: number
+  readonly scrollback: number
+}
+
+/** One running shell profile the Host verified in its own execution environment. */
+export interface HostTerminalShell {
+  readonly path: string
+  readonly name: string
+  readonly args: readonly string[]
+}
+
+/**
+ * One terminal attachment: ordered frames down, numbered commands up.
+ *
+ * The process outlives the attachment, so disposing it detaches a viewer and
+ * never ends the shell.
+ */
+export interface HostTerminalAttachment {
+  onFrame(handler: (frame: TerminalFrame) => void): void
+  send(input: TerminalInput): void
+  dispose(): void
+}
+
+/**
+ * Session-owned terminals on the Host.
+ *
+ * The client owns no pty: it creates an identity, attaches to the byte stream
+ * and renders it, so the same code runs against a local or an SSH Host.
+ */
+export interface HostTerminals {
+  environment(sessionId: string): Promise<HostTerminalEnvironment>
+  shells(sessionId: string): Promise<readonly HostTerminalShell[]>
+  list(sessionId: string): Promise<readonly HostTerminal[]>
+  create(sessionId: string, request: { id: string; cols: number; rows: number; shellPath?: string }): Promise<HostTerminal>
+  attach(sessionId: string, id: string): HostTerminalAttachment
+  close(sessionId: string, id: string): Promise<void>
+}
+
+/**
+ * Read-only workspace reads scoped to one Session.
+ *
+ * Every `stat` carries the Host's freshness token, which is what a later
+ * mutation would have to present; the client never reads the file itself.
+ */
+export interface HostWorkspaceFiles {
+  stat(sessionId: string, path: string): Promise<WorkspaceFileStat>
+  list(sessionId: string, path: string): Promise<WorkspaceDirectoryListing>
+  read(sessionId: string, path: string, range?: { offset?: number; limit?: number }): Promise<WorkspaceFileText>
+}
+
 export interface TerminalBackend {
   readonly host: { url: string; home?: string; /** Daemon instance this transport belongs to. */ instanceId?: string }
+  /**
+   * Session-owned Host terminals. Absent on a backend that serves no panes, so
+   * a fake Host in a test never has to model pty semantics.
+   */
+  readonly terminal?: HostTerminals
+  /** Read-only Session workspace reads; absent on a fake backend. */
+  readonly workspaceFiles?: HostWorkspaceFiles
+  /** Session-owned Neovim, rendered as a grid instead of a pty. */
+  readonly editor?: HostEditor
   ready(): Promise<void>
   listSessions(): Promise<TerminalSession[]>
   searchSessions(query: string): Promise<{ items: TerminalSearchItem[]; hasMore: boolean }>
   ensureWorkspace(path: string): Promise<string>
   createSession(workspaceId: string): Promise<string>
   follow(sessionId: string, handlers: TerminalSessionHandlers): () => void
-  prompt(sessionId: string, text: string, mode: TerminalPromptMode): Promise<void>
+  /**
+   * Send one message. Images ride the same request, so a pasted screenshot is
+   * attached without an upload and without a second Host call.
+   */
+  prompt(sessionId: string, text: string, mode: TerminalPromptMode, images?: readonly PromptImage[]): Promise<void>
   /** Drop one still-pending inbox occurrence; a claimed item is no longer removable. */
   removeQueued(sessionId: string, itemId: string): Promise<void>
   cancel(sessionId: string): Promise<void>
@@ -526,6 +647,8 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   await ctx.plugin(TypertRegistry)
   await ctx.plugin({ apply: gatewayClient, inject: ['typert', 'connection'] })
   await ctx.remote.$mount(SessionRemote)
+  await ctx.remote.$mount(TerminalRemote)
+  await ctx.remote.$mount(WorkspaceFilesRemote)
   await ctx.remote.$mount(WorkspaceRemote)
   await ctx.remote.$mount(LlmRemote)
   await ctx.remote.$mount(SettingsRemote)
@@ -538,6 +661,85 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   const connection = ctx.get('connection') as ConnectionHandle
   const home = (): string | undefined => ctx.remote.$host.home
   let closed = false
+
+  /** Narrow one Host terminal identity to what a column renders. */
+  const terminalOf = (info: {
+    id: string; title: string; cols: number; rows: number
+    state: 'running' | 'exited' | 'failed'; exitCode: number | null; error?: string
+  }): HostTerminal => ({
+    id: info.id,
+    title: info.title,
+    cols: info.cols,
+    rows: info.rows,
+    state: info.state,
+    exitCode: info.exitCode,
+    ...(info.error === undefined ? {} : { error: info.error }),
+  })
+
+  // The columns' processes belong to the Host, so these two faces are the whole
+  // client-side surface of the terminal and file panes: no pty, no file reads.
+  const terminal: HostTerminals = {
+    async environment(sessionId) {
+      const value = unwrap(await ctx.remote.terminal.environment(sessionId as never))
+      return { cwd: value.cwd, maxCols: value.maxCols, maxRows: value.maxRows, scrollback: value.scrollback }
+    },
+    async shells(sessionId) {
+      return unwrap(await ctx.remote.terminal.shells(sessionId as never)).map(shell => ({
+        path: shell.path,
+        name: shell.name,
+        args: shell.args,
+      }))
+    },
+    async list(sessionId) {
+      return unwrap(await ctx.remote.terminal.list(sessionId as never)).map(info => terminalOf(info))
+    },
+    async create(sessionId, request) {
+      const created = unwrap(await ctx.remote.terminal.create(sessionId as never, {
+        id: request.id as never,
+        cols: request.cols,
+        rows: request.rows,
+        ...(request.shellPath === undefined ? {} : { shellPath: request.shellPath }),
+      }))
+      return terminalOf(created)
+    },
+    attach(sessionId, id) {
+      const stream = ctx.remote.terminal.attach(sessionId as never, id as never)
+      return {
+        onFrame(handler) {
+          void (async () => {
+            try {
+              for await (const frame of stream) handler(frame)
+            } catch {
+              // A cancelled attachment is the normal end of a viewer; the
+              // column learns about a dead Host through its session status.
+            }
+          })()
+        },
+        send: input => stream.send(input),
+        dispose: () => stream.dispose(),
+      }
+    },
+    async close(sessionId, id) {
+      unwrap(await ctx.remote.terminal.close(sessionId as never, id as never))
+    },
+  }
+
+  // The editor channel is per column, not per backend: one socket, one Neovim.
+  const editor: HostEditor = {
+    connect: () => createEditorChannel({ baseUrl: attachment.baseUrl, cookie: attachment.cookie }),
+  }
+
+  const workspaceFiles: HostWorkspaceFiles = {
+    async stat(sessionId, path) {
+      return unwrap(await ctx.remote.workspaceFiles.stat(sessionId as never, path))
+    },
+    async list(sessionId, path) {
+      return unwrap(await ctx.remote.workspaceFiles.list(sessionId as never, path))
+    },
+    async read(sessionId, path, range) {
+      return unwrap(await ctx.remote.workspaceFiles.read(sessionId as never, path, range ?? {}))
+    },
+  }
 
   /**
    * Join the provider directory with each route's credential reference.
@@ -718,12 +920,12 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
       }
     },
 
-    async prompt(sessionId, text, mode) {
+    async prompt(sessionId, text, mode, images) {
       const request: SessionPromptRequest = {
         requestId: crypto.randomUUID() as never,
         sessionId: sessionId as never,
         mode,
-        content: [{ type: 'text', text }],
+        content: promptContent(text, images),
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }
       unwrap(await ctx.remote.session.prompt(request))
@@ -917,6 +1119,18 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
         ctx.remote.$on('api-session/activity', (sessionId, updatedAt) => { handler({ kind: 'activity', sessionId, updatedAt }) }),
       ]
       return () => { for (const dispose of disposers) dispose() }
+    },
+
+    get terminal(): HostTerminals {
+      return terminal
+    },
+
+    get workspaceFiles(): HostWorkspaceFiles {
+      return workspaceFiles
+    },
+
+    get editor(): HostEditor {
+      return editor
     },
 
     async close() {

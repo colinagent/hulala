@@ -12,12 +12,16 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  PASTE_IMAGE_MAX_BYTES,
   copyToClipboard,
+  imageMediaTypeOf,
   isRemoteSession,
   osc52,
+  readClipboardImage,
   runClipboardWriter,
   type ClipboardPorts,
   type CopyResult,
+  type ImageReadPorts,
 } from '../../src/tui/clipboard.js'
 
 interface Harness {
@@ -187,4 +191,105 @@ test('the writer command receives UTF-8 on stdin', async () => {
 test('a writer that cannot start, or exits non-zero, is a failure', async () => {
   expect(await runClipboardWriter('hulala-no-such-clipboard-tool', [])).toBeUndefined()
   expect(await runClipboardWriter(process.execPath, ['-e', 'process.exit(3)'], 'text')).toBeUndefined()
+})
+
+/**
+ * Reading an image off the clipboard.
+ *
+ * The key is read in the client process, so the routing is the mirror of a
+ * copy: the native helper answers first, Linux falls back to its display tool,
+ * and every refusal is a reason the composer can say out loud.
+ */
+interface ImageHarness {
+  readonly ports: ImageReadPorts
+  readonly ran: string[]
+}
+
+function imageHarness(options: {
+  native?: Uint8Array | null
+  fails?: boolean
+  platform?: NodeJS.Platform
+  env?: NodeJS.ProcessEnv
+  reader?: Uint8Array | undefined
+} = {}): ImageHarness {
+  const ran: string[] = []
+  const ports: ImageReadPorts = {
+    platform: options.platform ?? 'darwin',
+    env: options.env ?? {},
+    async run(command) {
+      ran.push(command)
+      return options.reader === undefined ? undefined : Buffer.from(options.reader)
+    },
+    ...(options.native === undefined
+      ? {}
+      : {
+          native: {
+            async getImage() {
+              if (options.fails === true) throw new Error('helper failed')
+              return options.native
+            },
+          },
+        }),
+  }
+  return { ports, ran }
+}
+
+/** A one-pixel PNG: the header is what identifies the format. */
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
+
+test('the clipboard helper answers first and its bytes are the attachment', async () => {
+  const { ports, ran } = imageHarness({ native: PNG })
+  const result = await readClipboardImage(ports)
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.image.mediaType).toBe('image/png')
+  expect(result.image.bytes).toBe(PNG.length)
+  expect(Buffer.from(result.image.data, 'base64')).toEqual(Buffer.from(PNG))
+  expect(ran).toEqual([])
+})
+
+test('a helper failure falls back to the display tool on Linux', async () => {
+  const { ports, ran } = imageHarness({
+    native: null,
+    fails: true,
+    platform: 'linux',
+    env: { WAYLAND_DISPLAY: 'wayland-0', DISPLAY: ':0' },
+    reader: PNG,
+  })
+  const result = await readClipboardImage(ports)
+  expect(result.ok).toBe(true)
+  expect(ran).toEqual(['wl-paste'])
+})
+
+test('no image anywhere is empty, not a failure', async () => {
+  const { ports } = imageHarness({ native: null })
+  expect(await readClipboardImage(ports)).toEqual({ ok: false, reason: 'empty' })
+})
+
+test('a platform with no reader says so instead of pretending', async () => {
+  const ports: ImageReadPorts = { platform: 'win32', env: {}, run: async () => undefined }
+  expect(await readClipboardImage(ports)).toEqual({ ok: false, reason: 'no-reader' })
+})
+
+test('a helper that answers "no image" is empty, not a missing reader', async () => {
+  const { ports } = imageHarness({ native: null, platform: 'win32' })
+  expect(await readClipboardImage(ports)).toEqual({ ok: false, reason: 'empty' })
+})
+
+test('bytes no supported format begins with are refused', async () => {
+  const { ports } = imageHarness({ native: new Uint8Array([1, 2, 3, 4]) })
+  expect(await readClipboardImage(ports)).toEqual({ ok: false, reason: 'unsupported' })
+})
+
+test('an image past the prompt limit is refused before it is encoded', async () => {
+  const big = new Uint8Array(PASTE_IMAGE_MAX_BYTES + 1)
+  big.set(PNG)
+  const { ports } = imageHarness({ native: big })
+  expect(await readClipboardImage(ports)).toEqual({ ok: false, reason: 'too-large' })
+})
+
+test('webp is recognised by its RIFF wrapper, not by its first four bytes', () => {
+  const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])
+  expect(imageMediaTypeOf(webp)).toBe('image/webp')
+  expect(imageMediaTypeOf(new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x41, 0x56, 0x49, 0x20]))).toBeUndefined()
 })

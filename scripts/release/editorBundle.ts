@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /** Pinned Neovim release; bump deliberately, it ships to every user. */
-export const NEOVIM_VERSION = process.env.HULALA_NEOVIM_VERSION ?? 'v0.11.4'
+export const NEOVIM_VERSION = process.env.HULALA_NEOVIM_VERSION ?? 'v0.12.6'
 
 interface NeovimAsset {
   readonly asset: string

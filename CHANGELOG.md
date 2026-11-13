@@ -13,6 +13,71 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-11-13
+
+### Added
+
+- MCP servers can belong to a directory. The Host loads `@colinagent/dsh-mcp`,
+  which reads `~/.agents/mcp.json` and `<cwd>/.agents/mcp.json` and mounts one
+  `dsh-mcp-client` per Agent, so a repository's MCP server is reachable only in
+  Sessions working there and `/cwd` switches the set. It ships as a bundle the
+  runtime depends on, so an upgrade moves it with the Host instead of leaving a
+  copy in the profile.
+- The editor column renders Neovim's UI protocol: the client attaches as a UI,
+  draws the grid it is sent, and forwards keys as `nvim_input` notation (a paste
+  becomes `nvim_paste`). Pointer reports become `nvim_input_mouse`, and the file
+  tree's boundary arrives from the Host instead of a marker file the client
+  reads. The editor and the terminal column now share one renderer, one palette
+  and one focus model, and the mode arrives as a `mode_change` event.
+- The Host serves `/api/editor`: one authenticated WebSocket per editor opens
+  `nvim --embed` in the Session's directory and carries Neovim's own msgpack
+  channel, so the column can render a grid and send key notation instead of
+  owning a pty. The editor's home, generated settings, runtime and vendored
+  plugins moved into `@hulala/editor-home`, which both the client that publishes
+  a release and the Host that starts Neovim read.
+- `Ctrl-V` attaches the image on the client's own clipboard to the message being
+  written. The bytes travel inside the prompt frame as a base64 image part, so a
+  Host reached over SSH receives the screenshot without an upload and without a
+  second channel; the media type is sniffed from the bytes, the limit is 10 MB,
+  and every refusal (no image, too large, unknown format, no reader) is reported
+  instead of swallowed.
+
+### Changed
+
+- A source checkout can switch machines too: a restart re-runs the entry the
+  client is already running (`bun run start` runs the built bundle through it)
+  instead of refusing because nothing is installed.
+- A window remembers the Session it last showed per machine
+  (`lastSessionByHost` in `config/client.json`), so switching Host and coming back
+  resumes that machine's Session instead of whichever was open last. A remembered
+  Session that no longer exists says so after the transcript opens and starts
+  another.
+- `/remote` picks the machine this window attaches to, from the aliases already in
+  `~/.ssh/config`, and the sidebar's first row names the current one (`devbox ⌄`,
+  or `host · local`). Picking another machine checks it first and offers an install
+  or an update when it needs one; `/remote local` comes back to this machine.
+  Selection is the highlight ink on the label, never a filled row.
+- `hulala --remote <ssh>` attaches this window to a Host on another machine
+  through the user's own ssh: the probe asks a login shell, the endpoint record is
+  read the same way, one loopback forward carries the connection, and the origin
+  is rewritten so everything above it speaks to `127.0.0.1`. A window attached
+  this way reconnects to the same machine after `/restart` instead of coming back
+  local, and a dropped remote connection offers that reconnect rather than
+  probing (or starting) this machine's daemon.
+- The installer takes `--yes`, the one consent a client can give ahead of time: it
+  answers the Node download question for a run that has no tty, and nothing else
+  becomes automatic.
+- The editor column ships Neovim 0.12.6 instead of 0.11.4. The publish step
+  compares the packaged binary with the one in the state root, so an existing
+  installation picks it up the next time the editor opens.
+- The terminal column renders a Session-owned terminal on the Host instead of a
+  shell this process spawned. The shell, its working directory, its size and its
+  scrollback now belong to the Host, so the column is the same code path when the
+  Host is reached over SSH. `@deepseek-ai/dsh-api-terminal-controller` and
+  `@deepseek-ai/dsh-api-workspace-files` joined the Host composition, and the
+  client mounts both Remotes; a Host that refuses the terminal shows why instead
+  of an empty column.
+
 ## [0.3.6] - 2026-11-13
 
 ### Fixed

@@ -45,6 +45,19 @@
   start:attach` only attaches.
 - The terminal client is bundled into the CLI; it must not spawn a private
   second Runtime or a DSH profile.
+- A window may attach to a Host on another machine (`/remote`, `hulala --remote
+  <ssh>`). The transport is the user's own system `ssh`: the remote Host still
+  binds loopback only, the client reaches it through one loopback forward, and
+  the launch token is read over that ssh session into memory rather than stored
+  in `config/`. The remote path must never call `ensureHostDaemon`: one state
+  root, one Host, and which machine owns it is the user's explicit choice. Editor,
+  terminal and file panes all run on the Host, so a remote window is the same
+  code path with a different origin.
+- The editor column is a Neovim UI client: the Host starts `nvim --embed` and the
+  client draws the grid it is sent. Do not reintroduce a pty editor, marker files
+  for mode/tree/conflict, or a second editor configuration path — the generated
+  settings, runtime and vendored plugins live in `@hulala/editor-home` and are
+  read by the Host that runs Neovim.
 
 ## Data And Security Boundary
 

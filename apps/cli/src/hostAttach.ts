@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  HOST_DAEMON_PROTOCOL,
   discoverHostDaemon,
   ensureHostDaemon,
   resolveHostDaemonPaths,
@@ -20,8 +21,18 @@ import {
   type HostEndpointRecord,
 } from '@hulala/host-client/node'
 import { VERSION } from './constants.js'
+import {
+  liveSshRunner,
+  openTunnel,
+  probeHost,
+  startRemoteHost,
+  verdictOf,
+  type SshRunner,
+  type Tunnel,
+  type TunnelSpawner,
+} from './remote/ssh.js'
 import { resolvePaths } from './paths.js'
-import { appendPathEntry, ripgrepPathEntry } from './ripgrep.js'
+import { appendPathEntry, ripgrepPathEntry } from '@hulala/editor-home'
 
 /** One attached Host, ready for DSH Remote calls. */
 export interface HostAttachment {
@@ -135,4 +146,148 @@ export async function inspectHost(): Promise<HostInspection> {
 /** Stop this machine's Host; only an explicit user action calls this. */
 export async function stopHost(): Promise<'absent' | 'stopped'> {
   return stopHostDaemon(daemonRoots())
+}
+
+/** A remote Host this client reached over the user's own SSH. */
+export interface RemoteAttachment extends HostAttachment {
+  /** The ssh forward carrying this attachment; the caller owns its lifetime. */
+  readonly tunnel: Tunnel
+  /** The ssh destination the user picked. */
+  readonly alias: string
+}
+
+/** Ask the operating system for a free loopback port. */
+async function freePort(): Promise<number> {
+  const { createServer } = await import('node:net')
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      if (address === null || typeof address === 'string') {
+        server.close(() => reject(new Error('could not reserve a loopback port')))
+        return
+      }
+      const port = address.port
+      server.close(() => resolve(port))
+    })
+  })
+}
+
+/** What the remote endpoint record holds; the token never leaves this process. */
+interface RemoteEndpointRecord {
+  readonly descriptor: {
+    readonly httpUrl: string
+    readonly token: string
+    readonly instanceId: string
+    readonly eventsUrl: string
+    readonly authCookieName?: string
+  }
+  readonly protocol?: number
+  readonly version?: string
+  readonly pid?: number
+}
+
+/**
+ * Attach to a Host on another machine.
+ *
+ * The remote state root's endpoint record is read over the user's own ssh — the
+ * same access their login shell has — and only the launch token crosses to this
+ * process. Nothing else about the remote machine is trusted or copied: the
+ * tunnel forwards one loopback port, and the Host keeps binding loopback as it
+ * always did.
+ * @param alias - the ssh destination the user picked.
+ * @param options - injected runner and tunnel spawner, for tests.
+ * @returns the attachment plus the tunnel that carries it.
+ * @throws when the machine is unreachable, has no compatible Host, or the
+ *   forward cannot be opened.
+ */
+export async function attachRemote(alias: string, options: {
+  runner?: SshRunner
+  spawner?: TunnelSpawner
+} = {}): Promise<RemoteAttachment> {
+  const run = options.runner ?? liveSshRunner()
+  const probe = await probeHost(alias, run)
+  const verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
+  if (verdict === 'unreachable' || verdict === 'install') {
+    const reason = probe.state === 'unreachable' ? probe.reason : 'no Hulala Host is installed there'
+    throw new Error(`${alias}: ${reason}`)
+  }
+  if (verdict === 'client-update') {
+    throw new Error(`${alias} runs a newer Hulala than this client; update this installation first`)
+  }
+  if (verdict === 'update') {
+    throw new Error(`${alias} runs an older Hulala; accept its update before attaching`)
+  }
+  if (verdict === 'start' && !await startRemoteHost(alias, run)) {
+    throw new Error(`${alias}: the Host did not start`)
+  }
+
+  // The record names the port the Host actually bound; the token is a secret the
+  // user's own shell can read, so ssh is the channel rather than `host status`.
+  const recordResult = await run(alias, 'cat "$HOME/.hulala/server/host/endpoint.json"')
+  if (recordResult.code !== 0) throw new Error(`${alias}: cannot read the Host endpoint (${recordResult.stderr.trim()})`)
+  let endpoint: RemoteEndpointRecord
+  try {
+    endpoint = JSON.parse(recordResult.stdout) as RemoteEndpointRecord
+  } catch {
+    throw new Error(`${alias}: the Host endpoint record is not readable JSON`)
+  }
+  const remotePort = Number(new URL(endpoint.descriptor.httpUrl).port)
+  if (!Number.isInteger(remotePort) || remotePort <= 0) throw new Error(`${alias}: the Host endpoint has no port`)
+
+  const localPort = await freePort()
+  const tunnel = await openTunnel({ alias, localPort, remotePort }, options.spawner)
+  const baseUrl = `http://127.0.0.1:${String(localPort)}`
+  // A forward is a child process with no stdio to notice its parent leaving, so
+  // the process itself has to end it: a normal exit, and the two signals a
+  // window can receive from a terminal or a supervisor. Without this a killed
+  // client leaves an ssh holding a port on both ends.
+  const endTunnel = (): void => { tunnel.close() }
+  process.once('exit', endTunnel)
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, () => {
+      endTunnel()
+      // Re-raise with the default action: the client's own exit path already
+      // restored the terminal, and swallowing the signal would hide the cause.
+      process.removeListener('exit', endTunnel)
+      process.kill(process.pid, signal)
+    })
+  }
+  try {
+    const exchange = await fetch(
+      `${baseUrl}/connect?token=${encodeURIComponent(endpoint.descriptor.token)}&interactions=answer`,
+      { redirect: 'manual' },
+    )
+    if (exchange.status !== 302) throw new Error(`the remote Host refused the connection exchange (${String(exchange.status)})`)
+    const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
+    if (cookie === undefined) throw new Error('the remote Host did not return an API cookie')
+    // The redirect names the Host's own origin, which is on the other side of
+    // the tunnel: only its path is kept, or the mux would try to reach a port
+    // this machine does not serve. `/connect` answers with a **relative** location
+    // (`./api/remote.mux`), so it is resolved against the forwarded origin rather
+    // than parsed on its own — `new URL('./api/remote.mux')` throws "Invalid URL".
+    const location = exchange.headers.get('location')
+    const muxPath = (() => {
+      if (location === null || location === '') return '/api/remote.mux'
+      try {
+        return new URL(location, `${baseUrl}/`).pathname
+      } catch {
+        return '/api/remote.mux'
+      }
+    })()
+    return {
+      // The descriptor is rewritten to the forwarded origin: everything above
+      // this line speaks to `127.0.0.1:<localPort>`, exactly like a local Host.
+      record: { ...endpoint, descriptor: { ...endpoint.descriptor, httpUrl: baseUrl } } as HostEndpointRecord,
+      cookie,
+      baseUrl,
+      muxUrl: `${baseUrl.replace(/^http/u, 'ws')}${muxPath}`,
+      tunnel,
+      alias,
+    }
+  } catch (error) {
+    tunnel.close()
+    throw error
+  }
 }

@@ -56,6 +56,7 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   { id: 'app.cancel', defaults: ['ctrl+c'], label: 'keymap.action.cancel' },
   { id: 'app.thinking', defaults: ['shift+tab'], label: 'keymap.action.thinking' },
   { id: 'app.dequeue', defaults: ['alt+up'], label: 'keymap.action.dequeue' },
+  { id: 'app.pasteImage', defaults: ['ctrl+v'], label: 'keymap.action.pasteImage' },
   { id: 'app.expand', defaults: ['ctrl+o'], label: 'keymap.action.expand' },
   { id: 'app.redraw', defaults: ['ctrl+l'], label: 'keymap.action.redraw' },
   { id: 'panel.focusLeft', defaults: ['ctrl+['], label: 'keymap.action.focusLeft' },

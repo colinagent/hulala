@@ -66,6 +66,8 @@ function harness(overrides: Partial<RailState> = {}, rows = 12, color = false): 
     color,
     onOpen: id => { opened.push(id) },
     onNew: () => { result.created += 1 },
+    onHost: () => undefined,
+    hostLabel: () => ({ label: 'testhost', remote: false }),
     onQuery: query => { queries.push(query); current = { ...current, query } },
     onAllExpanded: (expanded) => { folds.push(expanded); current = { ...current, allExpanded: expanded } },
     onRevealed: (revealed) => { reveals.push(revealed); current = { ...current, revealed } },
@@ -151,10 +153,11 @@ test('the rail paints the path, the filter box, the rows and the folded `all`', 
   expect(lines).toHaveLength(12)
   expect(lines[0]).toBe('/workspace'.padEnd(20))
   expect(lines[1]).toBe('> search'.padEnd(20))
-  expect(lines[2]?.trimEnd()).toBe('+ new session')
-  expect(lines[3]).toStartWith('  修 TUI 会话面板')
-  expect(lines[3]?.trimEnd()).toEndWith('3m')
-  expect(lines[4]?.trimEnd()).toEndWith('2h')
+  expect(lines[2]?.trimEnd()).toBe('testhost · local ⌄')
+  expect(lines[3]?.trimEnd()).toBe('+ new session')
+  expect(lines[4]).toStartWith('  修 TUI 会话面板')
+  expect(lines[4]?.trimEnd()).toEndWith('3m')
+  expect(lines[5]?.trimEnd()).toEndWith('2h')
   expect(lines[11]).toBe('▸ all'.padEnd(20))
   for (const line of lines) expect(visibleWidth(line)).toBe(20)
 })
@@ -164,7 +167,7 @@ test('a running Session shows its spinner in the marker column', () => {
     sessions: [session({ sessionId: 'session-current', title: 'running now', running: true })],
   })
   const lines = test.rail.render(20).map(strip)
-  expect(lines[3]?.startsWith('⠋')).toBe(true)
+  expect(lines[4]?.startsWith('⠋')).toBe(true)
 })
 
 test('the open Session is marked by its title colour, never by a glyph', () => {
@@ -174,14 +177,16 @@ test('the open Session is marked by its title colour, never by a glyph', () => {
     color: true,
     onOpen: () => undefined,
     onNew: () => undefined,
+    onHost: () => undefined,
+    hostLabel: () => ({ label: 'testhost', remote: false }),
     onQuery: () => undefined,
     onAllExpanded: () => undefined,
     onRevealed: () => undefined,
     onRefresh: () => undefined,
   })
   const lines = rail.render(20)
-  const current = lines[3] ?? ''
-  const other = lines[4] ?? ''
+  const current = lines[4] ?? ''
+  const other = lines[5] ?? ''
   expect(strip(current).startsWith('  修 TUI 会话面板')).toBe(true)
   expect(current).not.toContain('▸')
   // The title carries a foreground colour; a plain row only dims its time.
@@ -264,13 +269,14 @@ test('a long list scrolls so the cursor stays inside the window', () => {
   test.rail.selectCurrent('session-0')
   // 8 rows: path, filter, four list rows, `all`.
   const first = test.rail.render(20).map(strip)
-  expect(first[2]?.trimEnd()).toBe('+ new session')
-  expect(first[3]?.startsWith('  title 0')).toBe(true)
+  expect(first[2]?.trimEnd()).toBe('testhost · local ⌄')
+  expect(first[3]?.trimEnd()).toBe('+ new session')
+  expect(first[4]?.startsWith('  title 0')).toBe(true)
   for (let press = 0; press < 5; press += 1) test.rail.handleInput('\u001b[B')
   const scrolled = test.rail.render(20).map(strip)
   expect(scrolled[7]).toBe('▸ all'.padEnd(20))
-  expect(scrolled.slice(2, 7).some(line => line.includes('title 5'))).toBe(true)
-  expect(scrolled.slice(2, 7).some(line => line.startsWith('+ new session'))).toBe(false)
+  expect(scrolled.slice(3, 7).some(line => line.includes('title 5'))).toBe(true)
+  expect(scrolled.slice(3, 7).some(line => line.startsWith('+ new session'))).toBe(false)
 })
 
 test('entering the rail puts the cursor on the open Session', () => {
@@ -395,15 +401,15 @@ test('a focused rail puts the keyboard cursor on its cursor row', () => {
   // Row 0 is the directory, row 1 the filter, row 2 the `+ new session` action,
   // so the first Session is row 3. The cursor cell is the marker pair pi-tui
   // turns into the terminal cursor, the same one the editor column shows.
-  expect(lines[3]).toContain(CURSOR_MARKER)
-  expect(lines[3]?.startsWith(`${CURSOR_MARKER}\u001b_pi:fc\u0007`)).toBe(true)
+  expect(lines[4]).toContain(CURSOR_MARKER)
+  expect(lines[4]?.startsWith(`${CURSOR_MARKER}\u001b_pi:fc\u0007`)).toBe(true)
   // Exactly one cursor: a second marker would move it back up the frame.
   expect(lines.filter(line => line.includes(CURSOR_MARKER))).toHaveLength(1)
 
   test.rail.handleInput('j')
   const moved = test.rail.render(24)
-  expect(moved[3]).not.toContain(CURSOR_MARKER)
-  expect(moved[4]).toContain(CURSOR_MARKER)
+  expect(moved[4]).not.toContain(CURSOR_MARKER)
+  expect(moved[5]).toContain(CURSOR_MARKER)
 })
 
 test('the filter box takes the cursor while a query is being typed', () => {
@@ -422,7 +428,7 @@ test('the cursor block is neutral, never painted in the selection ink', () => {
   const test = harness({}, 12, true)
   test.rail.focused = true
   test.rail.startEditing('session-current')
-  const row = test.rail.render(24)[3] ?? ''
+  const row = test.rail.render(24)[4] ?? ''
   // The cursor is an inverted cell, so the SGR open around it decides the
   // block's colour. It opens on the default pen, then the accent starts: that is
   // what makes it the same neutral block as the composer's.

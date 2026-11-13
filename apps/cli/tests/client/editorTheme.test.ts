@@ -3,7 +3,7 @@ import {
   editorThemeFromTerminal,
   FALLBACK_THEME,
   HIGHLIGHT_INK,
-} from '../../src/tui/editor/editorTheme.js'
+} from '@hulala/editor-home'
 
 test('the theme falls back when the terminal reports nothing', () => {
   expect(editorThemeFromTerminal(undefined)).toBe(FALLBACK_THEME)

@@ -15,7 +15,7 @@
  * Appending the directory (rather than prepending it) keeps the user's own tools
  * first, so Hulala only supplies what the machine is missing.
  *
- * @module hulala-cli/ripgrep
+ * @module @hulala/editor-home/ripgrep
  */
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'

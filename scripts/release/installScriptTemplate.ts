@@ -227,6 +227,16 @@ use_node_bin() {
 # user's own runtime. A machine that already has a usable Node never reaches
 # here.
 install_node_interactive() {
+  if [ "$assume_yes" = '1' ]; then
+    echo 'Installing the Hulala Node.js runtime (consent given with --yes)...' >&2
+    install_node_standalone || return 1
+    hash -r 2>/dev/null || true
+    if node_is_usable node; then return 0; fi
+    node_installed=$(node_bin_root)
+    [ -n "$node_installed" ] || return 1
+    use_node_bin "$node_installed"
+    return 0
+  fi
   if ! ( : <>/dev/tty ) 2>/dev/null; then
     # Piped or container installs: never guess, and never touch a machine
     # silently. The caller prints the requirement and how to satisfy it.
@@ -389,12 +399,19 @@ preflight() {
   node_root=\${HULALA_NODE_HOME:-"$state_root/runtime/node"}
   install_root=\${HULALA_INSTALL_ROOT:-"$state_root/runtime/client"}
   command_bin=\${HULALA_BIN:-}
+  # Explicit non-interactive consent, for a client that drives this installer
+  # over SSH: it answers the Node question once, in its own UI, before running
+  # this script. Nothing else becomes automatic — a closed terminal is still not
+  # consent, and more questions would still be asked.
+  assume_yes=\${HULALA_ASSUME_YES:-0}
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --root|--bin)
         key=$1; shift
         [ "$#" -gt 0 ] || { echo "Missing value for $key" >&2; exit 1; }
         if [ "$key" = --root ]; then install_root=$1; else command_bin=$1; fi ;;
+      --yes) assume_yes=1 ;;
+      --no) assume_yes=0 ;;
     esac
     shift
   done

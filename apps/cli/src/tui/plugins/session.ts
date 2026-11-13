@@ -17,6 +17,7 @@
  * @module hulala-cli/tui/plugins/session
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { rememberSession } from '../../clientPreferences.js'
 import { t } from '../i18n/index.js'
 import type {
   SessionListEvent,
@@ -111,6 +112,13 @@ export interface SessionPluginConfig {
   readonly color: boolean
   /** The directory the client was started in, used until a Session says otherwise. */
   readonly cwd: string
+  /**
+   * State root whose `config/client.json` remembers this attachment's last
+   * Session. Absent in tests that do not want the write.
+   */
+  readonly dataRoot?: string
+  /** The attachment key: `local`, or the ssh destination this window used. */
+  readonly hostKey?: string
 }
 
 /** Provide the open Session. */
@@ -297,6 +305,15 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
 
   const open = async (next: string, directory?: string): Promise<void> => {
     if (shut) return
+    // Remembered per attachment, so switching Host and back resumes the Session
+    // that belonged to that machine instead of whichever was used last.
+    if (config.dataRoot !== undefined) {
+      try {
+        rememberSession(config.dataRoot, config.hostKey ?? 'local', next)
+      } catch {
+        // A preference that cannot be written must not stop a Session opening.
+      }
+    }
     const previous = id
     const previousCwd = cwd
     followDispose?.()
@@ -368,13 +385,18 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     const listed = await backend.listSessions().then(value => value, () => undefined)
     sessions = listed ?? []
     let first: string | undefined
+    let missing = false
     if (resume !== undefined && resume !== '') {
       if (listed === undefined || listed.some(session => session.sessionId === resume)) first = resume
-      else reducer.addNotice(t('notice.resumeMissing', { id: resume }))
+      else missing = true
     }
     first ??= await create()
     if (first === undefined) return undefined
     await open(first, directory)
+    // After `open`, which resets the transcript: a notice before it would be
+    // cleared in the same tick and the user would never learn why their Session
+    // is a different one.
+    if (missing && resume !== undefined) reducer.addNotice(t('notice.resumeMissing', { id: resume }))
     return first
   }
 

@@ -80,3 +80,52 @@ export function updateClientPreferences(dataRoot: string, patch: Record<string, 
     rmSync(temporary, { force: true })
   }
 }
+
+/**
+ * The key one attachment is remembered under.
+ *
+ * `local` is this machine; anything else is the ssh destination the window
+ * attached through, so switching Host and coming back resumes the Session that
+ * belonged to that machine rather than to whichever was used last.
+ * @param remote - the ssh destination, or undefined for this machine.
+ * @returns the map key.
+ */
+export function hostKeyOf(remote: string | undefined): string {
+  return remote === undefined || remote === '' ? 'local' : remote
+}
+
+/** The remembered per-Host Session map, ignoring anything malformed. */
+function lastSessionMap(values: Record<string, unknown>): Record<string, string> {
+  const raw = values.lastSessionByHost
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const map: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string' && value !== '') map[key] = value
+  }
+  return map
+}
+
+/**
+ * The Session this attachment last had open.
+ * @param dataRoot - the Hulala state root.
+ * @param host - the attachment key from {@link hostKeyOf}.
+ * @returns the id, or undefined when this machine has no recorded Session yet.
+ */
+export function lastSessionFor(dataRoot: string, host: string): string | undefined {
+  return lastSessionMap(readClientPreferences(dataRoot).values)[host]
+}
+
+/**
+ * Record the Session an attachment is showing.
+ *
+ * Only an id is stored: a Session that has since been deleted is handled by the
+ * boot path, which opens the newest one and says what happened.
+ * @param dataRoot - the Hulala state root.
+ * @param host - the attachment key from {@link hostKeyOf}.
+ * @param sessionId - the Session that is now open.
+ */
+export function rememberSession(dataRoot: string, host: string, sessionId: string): void {
+  const current = readClientPreferences(dataRoot)
+  const map = { ...lastSessionMap(current.values), [host]: sessionId }
+  updateClientPreferences(dataRoot, { lastSessionByHost: map })
+}

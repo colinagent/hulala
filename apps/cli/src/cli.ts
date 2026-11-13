@@ -4,6 +4,7 @@ import { runDistributionCommand } from './distribution/commands.js'
 import { attachHost, inspectHost, stopHost } from './hostAttach.js'
 import { routeCommand } from './route.js'
 import { createHostBackend } from './tui/data/remote.js'
+import { attachRemote } from './hostAttach.js'
 import { runTerminalClient } from './tui/app.js'
 import { createTerminalKernel } from './tui/kernel.js'
 import { readCreatorMode, writeCreatorMode, creatorModePath } from '@hulala/runtime/creator'
@@ -103,6 +104,10 @@ function runCreatorCommand(args: string[]): number {
  */
 async function runTerminal(args: string[]): Promise<number> {
   let resume: string | undefined
+  // Internal, and set by the client itself when it restarts into another Host.
+  // `/remote` is the way a user gets here; a flag nobody documents is the one
+  // place a host switch can be re-established after the process is replaced.
+  let remote: string | undefined
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!
     if (argument === '--resume') {
@@ -112,9 +117,27 @@ async function runTerminal(args: string[]): Promise<number> {
       index += 1
       continue
     }
+    if (argument === '--remote') {
+      const value = args[index + 1]
+      if (value === undefined || value.startsWith('--')) throw new Error(`--remote requires an ssh destination\n\n${usage()}`)
+      remote = value
+      index += 1
+      continue
+    }
     throw new Error(`Unknown option: ${argument}\n\n${usage()}`)
   }
-  const attached = await attachHost()
+  // A remote attachment owns a tunnel, and the tunnel reads the remote endpoint
+  // instead of discovering a daemon here: a client that asked for another
+  // machine must never start a local Host beside it.
+  // The switch already closed the previous window, so the one thing this process
+  // must do on failure is say which machine it could not reach and why.
+  const remoteAttachment = remote === undefined
+    ? undefined
+    : await attachRemote(remote).catch((error: unknown) => {
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new Error(`could not attach to ${remote}: ${reason}`)
+    })
+  const attached = remoteAttachment ?? await attachHost()
   // A packaged install ships `bin/ime` and `publishEditor` copies it beside the
   // editor, so the input-source switch needs no help there. A source checkout
   // has no package to copy from, and a window whose helper was never built looks
@@ -132,6 +155,7 @@ async function runTerminal(args: string[]): Promise<number> {
         backend,
         kernel,
         cwd: process.cwd(),
+        ...(remote === undefined ? {} : { remote }),
         ...(resume === undefined ? {} : { resume }),
       })
     } finally {
@@ -139,6 +163,7 @@ async function runTerminal(args: string[]): Promise<number> {
     }
   } finally {
     await kernel.dispose()
+    remoteAttachment?.tunnel.close()
   }
 }
 

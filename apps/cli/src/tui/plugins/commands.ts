@@ -16,7 +16,8 @@
  * @module hulala-cli/tui/plugins/commands
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { TerminalPromptMode, TerminalSession } from '../data/remote.js'
+import type { PromptImage, TerminalPromptMode, TerminalSession } from '../data/remote.js'
+import { liveImageReadPorts, readClipboardImage } from '../clipboard.js'
 import { languageName, parseLanguage } from '../../language.js'
 import { KEY_ACTIONS, actionHint } from '../../keymap.js'
 import type { PaneKind } from '../pane/focus.js'
@@ -47,6 +48,8 @@ export interface TuiCommands {
    * @param mode - Host delivery mode for prompt text.
    */
   submit(line: string, mode: TerminalPromptMode): Promise<void>
+  /** Read the clipboard's image and attach it to the draft being typed. */
+  pasteImage(): Promise<void>
   /** Move every queued occurrence back into the composer. */
   dequeue(): Promise<void>
   /** `Enter` steers a running turn; the queue chord always queues. */
@@ -114,6 +117,14 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
 
   /** Drafts typed before a Session existed, kept with the mode their gesture named. */
   const pendingLines: Array<{ line: string; mode: TerminalPromptMode }> = []
+  /**
+   * Images pasted into the draft being typed.
+   *
+   * They belong to this draft, not to a Session: a paste is the user's own
+   * clipboard, which exists only in this process, so the bytes are read here and
+   * handed to the Host inside the prompt frame.
+   */
+  const pendingImages: PromptImage[] = []
   let cancelRequested = false
   /** The layout from before `Cmd-E`, while Neovim-only mode is on. */
   let beforeEditorOnly: FrameSnapshot | undefined
@@ -354,6 +365,21 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'update':
         await updater.install()
         return
+      case 'remote': {
+        // No argument opens the picker; `local` comes back to this machine, and
+        // an alias is the same choice the sidebar's host row offers.
+        // Read lazily: the switcher is registered after this plugin, so naming it
+        // in `inject` would make two plugins wait for each other.
+        const remote = ctx.get('hulalaRemote')
+        if (remote === undefined) {
+          reducer.addNotice(t('error.unknownCommand', { command: 'remote' }))
+          repaint()
+          return
+        }
+        if (argument === '') await remote.choose()
+        else await remote.switchTo(argument === 'local' ? undefined : argument)
+        return
+      }
       case 'restart':
         // The installed release may already be newer than this process (another
         // window updated); a swap needs no network and no confirmation.
@@ -430,10 +456,33 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     }
   }
 
+  /**
+   * Read the image on this machine's clipboard and attach it to the draft.
+   *
+   * A refusal is always spoken: a key that silently does nothing is
+   * indistinguishable from a broken keybinding.
+   */
+  const pasteImage = async (): Promise<void> => {
+    if (session.id === undefined) {
+      reducer.addNotice(t('notice.imageNoSession'))
+      repaint()
+      return
+    }
+    const result = await readClipboardImage(liveImageReadPorts())
+    if (!result.ok) {
+      reducer.addNotice(t('notice.imageProblem', { reason: result.reason }))
+      repaint()
+      return
+    }
+    pendingImages.push({ data: result.image.data, mediaType: result.image.mediaType })
+    reducer.addNotice(t('notice.imageAttached', { count: pendingImages.length, size: sizeOf(result.image.bytes) }))
+    repaint()
+  }
+
   const submit = async (line: string, mode: TerminalPromptMode): Promise<void> => {
     if (lifecycle.closing) return
     const text = line.trim()
-    if (text === '') return
+    if (text === '' && pendingImages.length === 0) return
     if (text.startsWith('/')) {
       await runCommand(text)
       return
@@ -445,7 +494,11 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     reducer.setRunning(true)
     repaint()
     try {
-      await backend.prompt(session.id, line, mode)
+      // The draft's images go with this message; a failed send keeps them so the
+      // user can retry instead of re-pasting a screenshot.
+      const images = [...pendingImages]
+      await backend.prompt(session.id, line, mode, images)
+      pendingImages.length = 0
     } catch (caught) {
       reducer.setRunning(false)
       failure(caught)
@@ -519,12 +572,27 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
 
   ctx.provide('hulalaCommands', {
     submit,
+    pasteImage,
     dequeue,
     openPalette,
     toggleEditorOnly,
     modeFor: (gesture: 'enter' | 'accelerated') => (gesture === 'accelerated' || !reducer.busy ? 'queue' : 'steer'),
     cancel,
   })
+}
+
+/**
+ * Render a byte count the way a person reads it.
+ *
+ * One decimal for megabytes keeps an attached screenshot legible ("1.4 MB")
+ * without pretending to byte precision the user cannot act on.
+ * @param bytes - decoded size of one attachment.
+ * @returns a short human string.
+ */
+function sizeOf(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 /** Cordis object-form plugin. */

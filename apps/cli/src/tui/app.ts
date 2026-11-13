@@ -24,7 +24,7 @@ import type {
   TerminalSessionHandlers,
 } from './data/remote.js'
 import { textOf } from './data/viewModel.js'
-import { editorThemeFromTerminal } from './editor/editorTheme.js'
+import { editorThemeFromTerminal } from '@hulala/editor-home'
 import type { PtyModule } from './editor/pty.js'
 import { resolvePaths } from '../paths.js'
 import {
@@ -48,6 +48,8 @@ import { renderPlugin } from './plugins/render.js'
 import { sessionPlugin } from './plugins/session.js'
 import { titlePlugin } from './plugins/title.js'
 import { updatePlugin } from './plugins/update.js'
+import { hostKeyOf, lastSessionFor } from '../clientPreferences.js'
+import { remotePlugin } from './plugins/remote.js'
 import { railPlugin } from './plugins/rail.js'
 import { brandBannerImageId } from './view/brandBanner.js'
 import { inputPlugin } from './plugins/input.js'
@@ -82,6 +84,13 @@ export interface RunTerminalOptions {
   applyUpdate?: () => Promise<{ ok: boolean; message: string }>
   /** Restart onto the installed release; tests inject a recorder. */
   restartClient?: (resume: string | undefined) => void
+  /**
+   * The ssh destination this window attached through, when the Host is remote.
+   *
+   * It rides the restart so the new process rebuilds the same tunnel and attaches
+   * to the same machine; losing it would silently drop the window back to local.
+   */
+  remote?: string
   /** Inject the resolved language; tests use this instead of touching `HULALA_LANG`. */
   language?: ResolvedLanguage
   /** Override the first-use prompt default (on only when this process owns the terminal). */
@@ -128,20 +137,29 @@ async function defaultApplyUpdate(): Promise<{ ok: boolean; message: string }> {
   return { ok: false, message: tail === '' ? t('update.exitCode', { code }) : tail }
 }
 
-/** Hand the terminal to the newly activated release, resuming this Session. */
-function restartClient(dataRoot: string, resume: string | undefined): void {
-  // Only a process the launcher started may hand the terminal back to it: in a
-  // source checkout `bin/hulala` belongs to the release installed beside it, and
-  // starting that instead of the code being edited would be a surprise, not a
-  // restart. `bun run start` is how a checkout comes back.
-  if ((process.env.HULALA_INSTALL_ROOT ?? '').trim() === '') return
-  const launcher = join(dataRoot, 'bin', 'hulala')
-  const args = [launcher, ...(resume === undefined ? [] : ['--resume', resume])]
+/**
+ * Hand the terminal to a new client process, resuming this Session on the same
+ * machine or another one.
+ *
+ * An installed client starts its launcher. A source checkout must not: `bin/hulala`
+ * belongs to the release installed beside it, and starting that instead of the
+ * code being edited would be a surprise. A checkout therefore re-runs the entry it
+ * is already running — the bundle `bun run start` built — which is the same
+ * process with different arguments, exactly what `/update` already does.
+ */
+function restartClient(dataRoot: string, resume: string | undefined, remote?: string): void {
+  const tail = [
+    ...(resume === undefined ? [] : ['--resume', resume]),
+    ...(remote === undefined ? [] : ['--remote', remote]),
+  ]
+  const installed = (process.env.HULALA_INSTALL_ROOT ?? '').trim() !== ''
+  const entry = installed ? join(dataRoot, 'bin', 'hulala') : process.argv[1]
+  if (entry === undefined || entry === '') return
   try {
-    spawnDetached(process.execPath, args, 'inherit')
+    spawnDetached(process.execPath, [entry, ...tail], 'inherit')
   } catch {
-    // Restarting is a convenience; failing to spawn leaves the new release
-    // installed and the user can run `hulala` themselves.
+    // Restarting is a convenience; failing to spawn leaves the client's own entry
+    // untouched and the user can run it themselves.
   }
 }
 
@@ -211,7 +229,12 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     })
     await ctx.plugin(composerPlugin, { color: colorEnabled() })
     await ctx.plugin(panesPlugin, { color: colorEnabled(), ...(options.pty === undefined ? {} : { pty: options.pty }), debug: debugLog })
-    await ctx.plugin(sessionPlugin, { color: colorEnabled(), cwd: options.cwd })
+    await ctx.plugin(sessionPlugin, {
+      color: colorEnabled(),
+      cwd: options.cwd,
+      dataRoot,
+      hostKey: hostKeyOf(options.remote),
+    })
     // Immediately after the Session: the window label is derived from it, and a
     // tab that names its directory from the first frame is what identifies the
     // window among shells and other Sessions.
@@ -223,10 +246,15 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(commandsPlugin, { color: colorEnabled() })
     await ctx.plugin(inputPlugin, { debug: debugLog })
     const applyUpdate = options.applyUpdate ?? (production ? defaultApplyUpdate : undefined)
+    await ctx.plugin(remotePlugin, {
+      color: colorEnabled(),
+      ...(options.remote === undefined ? {} : { current: options.remote }),
+    })
     await ctx.plugin(updatePlugin, {
       color: colorEnabled(),
       dataRoot,
       ...(applyUpdate === undefined ? {} : { applyUpdate }),
+      ...(options.remote === undefined ? {} : { remote: options.remote }),
     })
     // Last: a user plugin may register into any service above.
     return await runInteractive({ ...options, kernel }, production)
@@ -334,7 +362,13 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     // take it over: that is what makes `/update` feel like a restart rather than
     // "quit and run it again".
     if (updater.restartWanted) {
-      const restart = options.restartClient ?? (exitProcess ? (resume: string | undefined) => restartClient(dataRoot, resume) : undefined)
+      // A window that switched Host decided the destination; otherwise the one
+      // this process attached with is carried forward unchanged.
+      const destination = updater.nextRemote === undefined
+        ? options.remote
+        : updater.nextRemote === null ? undefined : updater.nextRemote
+      const restart = options.restartClient
+        ?? (exitProcess ? (resume: string | undefined) => restartClient(dataRoot, resume, destination) : undefined)
       if (restart !== undefined) restart(session.id)
     }
     // The context owns every plugin, so disposing it is what closes the
@@ -448,7 +482,14 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     }
   }
 
-  const initial = await session.bootstrap(options.resume, options.cwd)
+  // An explicit `--resume` wins (it comes from a restart that knows the Session);
+  // otherwise this attachment resumes what it last showed, and bootstrap falls
+  // back to the newest Session when that one is gone.
+  // Reading is safe for every run; only writing a preference is gated below, so
+  // a plain launch — including a test harness — resumes what this attachment
+  // last showed.
+  const remembered = options.resume ?? lastSessionFor(dataRoot, hostKeyOf(options.remote))
+  const initial = await session.bootstrap(remembered, options.cwd)
   if (initial === undefined || lifecycle.closing) {
     await shutdown(0)
     return await done.promise

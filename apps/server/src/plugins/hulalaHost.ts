@@ -17,6 +17,7 @@ import { WebServer, isLoopbackHost } from '@deepseek-ai/dsh-host-webserver'
 import { HOST_DAEMON_PROTOCOL, type ConnectionDescriptor } from '@hulala/desktop-contracts'
 import type { HulalaPaths } from '@hulala/desktop-contracts'
 import { ensureHulalaPaths, type ServerConfig } from '../config.ts'
+import { apiEditorPlugin } from './apiEditor.ts'
 import { apiFilesPlugin } from './apiFiles.ts'
 import { apiGitPlugin } from './apiGit.ts'
 
@@ -108,6 +109,9 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
 
   await ctx.plugin({ apply: apiRemotes, inject: ['typertGateway'] })
   await ctx.plugin(apiFilesPlugin)
+  // The editor column runs Neovim here, not in the client: one authenticated
+  // socket per editor carries Neovim's own msgpack channel.
+  await ctx.plugin(apiEditorPlugin)
   // Git needs the subprocess provider, which can settle after the HTTP carrier is
   // ready; the Gateway discovers the service once it registers.
   ctx.plugin(apiGitPlugin)

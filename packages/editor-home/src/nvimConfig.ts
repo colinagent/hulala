@@ -19,7 +19,7 @@
  * {@link editorThemeFromTerminal} and `HULALA_NVIM_SNACKS` is the vendored
  * plugin directory. Without the plugin the file tree falls back to netrw.
  *
- * @module hulala-cli/tui/editor/nvimConfig
+ * @module @hulala/editor-home/nvimConfig
  */
 
 /**

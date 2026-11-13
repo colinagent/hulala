@@ -2,7 +2,7 @@ import { afterEach, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendPathEntry, bundledRipgrep, ripgrepExecutable, ripgrepPathEntry } from '../src/ripgrep.js'
+import { appendPathEntry, bundledRipgrep, ripgrepExecutable, ripgrepPathEntry } from '@hulala/editor-home'
 
 const roots: string[] = []
 

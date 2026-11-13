@@ -11,7 +11,7 @@
  * @module hulala-cli/tui/view/theme
  */
 import type { EditorTheme, MarkdownTheme, SelectListTheme } from '@earendil-works/pi-tui'
-import { HIGHLIGHT_INK } from '../editor/editorTheme.js'
+import { HIGHLIGHT_INK } from '@hulala/editor-home'
 
 export interface ThemeSet {
   editor: EditorTheme

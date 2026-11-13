@@ -67,8 +67,16 @@ export interface TuiUpdate {
    * @returns the failure message, or undefined when the swap is ready.
    */
   install(): Promise<string | undefined>
-  /** Hand the terminal to the installed release and exit. */
-  requestRestart(): void
+  /**
+   * Hand the terminal to the installed release and exit.
+   *
+   * `remote` also decides *which* Host the new process attaches to: an alias
+   * rebuilds that tunnel, `null` comes back to this machine. Absent leaves the
+   * attachment as it was.
+   */
+  requestRestart(options?: { remote?: string | null }): void
+  /** The destination the next process should attach to, when this window set one. */
+  readonly nextRemote: string | null | undefined
 }
 
 /** Apply hook plus the notice sink. */
@@ -81,6 +89,12 @@ export interface UpdatePluginConfig {
   readonly color?: boolean
   /** Injected for tests: how often a dropped connection is re-examined. */
   readonly probeMs?: number
+  /**
+   * The ssh destination this window attached through, when it is not this
+   * machine. Recovery then never looks at the local daemon: the Host it lost is
+   * somewhere else, and starting this machine's would be the wrong machine.
+   */
+  readonly remote?: string
 }
 
 /** What a window does when its event connection drops. */
@@ -147,6 +161,10 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   let available: UpdateInfo | undefined
   let announced = false
   let restartWanted = false
+  /** Whether the "lost the remote Host" notice has been shown for this drop. */
+  let remoteLost = false
+  /** Destination the next process should use; undefined keeps this window's own. */
+  let nextRemote: string | null | undefined
   let installing = false
   /** Set once this window asked for a swap; a probe then stands down. */
   let swapping = false
@@ -162,8 +180,9 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   }
 
   /** Ask for a process swap; the exit that follows lands on the installed release. */
-  const requestRestart = (): void => {
+  const requestRestart = (options: { remote?: string | null } = {}): void => {
     if (swapping) return
+    if (options.remote !== undefined) nextRemote = options.remote
     swapping = true
     restartWanted = true
     stopProbe()
@@ -192,6 +211,16 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
     probeTimer = undefined
     if (swapping || installing || ctx.hulalaLifecycle.closing) return
     if (!session.disconnected) return
+    // A remote attachment owns a tunnel and a Host on the other machine. Probing
+    // this machine would find no daemon, and restarting would come back local —
+    // so the only offer is the one that reconnects to the same place.
+    if (config.remote !== undefined) {
+      if (remoteLost === false) {
+        remoteLost = true
+        say(t('notice.remoteLost', { alias: config.remote }))
+      }
+      return
+    }
     const live = await inspectHost().catch(() => ({ state: 'stopped' } as const))
     const current = await installed()
     const decision = decideRecovery({
@@ -255,6 +284,7 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   ctx.provide('hulalaUpdate', {
     get available() { return available },
     get restartWanted() { return restartWanted },
+    get nextRemote() { return nextRemote },
     get installing() { return installing },
     offer: (info: UpdateInfo | undefined) => {
       available = info

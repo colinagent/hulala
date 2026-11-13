@@ -388,6 +388,12 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       render.request(true)
       return { consume: true }
     }
+    // A screenshot is text the clipboard cannot describe, so it is read here, in
+    // the only process that owns the user's clipboard.
+    if (matchesAction('app.pasteImage', data)) {
+      void commands.pasteImage()
+      return { consume: true }
+    }
     if (matchesAction('app.expand', data)) {
       view.toggleExpandAll()
       render.repaint()

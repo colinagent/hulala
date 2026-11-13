@@ -14,6 +14,7 @@
  *
  * @module hulala-cli/tui/plugins/rail
  */
+import { hostname } from 'node:os'
 import type { Context } from '@deepseek-ai/cordis'
 import { t } from '../i18n/index.js'
 import { SessionRail, railLists } from '../view/sessionRail.js'
@@ -90,6 +91,15 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   // One row belongs to the frame: the status band under the columns.
   const pageRows = (): number => Math.max(1, (terminal.rows - 1) - 4)
 
+  // The machine's own name, so the host row is never blank on a local window.
+  const hostName = (): string => {
+    try {
+      return hostname().replace(/\.local$/u, '')
+    } catch {
+      return 'localhost'
+    }
+  }
+
   const rail = new SessionRail({
     state: () => ({
       sessions: session.sessions,
@@ -107,6 +117,16 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     focused: () => focused,
     onOpen: id => { void session.open(id).finally(() => blur()) },
     onNew: () => { void session.startNew().finally(() => blur()) },
+    // The switcher is registered after this plugin (it needs the updater, which
+    // needs the pane, rail and composer services), so it is read when the row is
+    // painted rather than injected.
+    onHost: () => { void ctx.get('hulalaRemote')?.choose().finally(() => blur()) },
+    hostLabel: () => {
+      const alias = ctx.get('hulalaRemote')?.current
+      return alias === undefined
+        ? { label: hostName(), remote: false }
+        : { label: alias, remote: true }
+    },
     onQuery: (next: string) => { query = next; render.request() },
     onAllExpanded: (expanded: boolean) => { allExpanded = expanded; syncTimer(); render.request() },
     onRevealed: (next: boolean) => { revealed = next; render.request() },

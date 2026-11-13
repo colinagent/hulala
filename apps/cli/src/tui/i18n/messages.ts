@@ -46,6 +46,7 @@ export interface MessageTable {
   'slash.reasoning': string
   'slash.clear': string
   'slash.update': string
+  'slash.remote': string
   'slash.restart': string
   'slash.quit': string
   'slash.language': string
@@ -70,6 +71,10 @@ export interface MessageTable {
   'keymap.action.thinking': string
   'keymap.action.dequeue': string
   'keymap.action.expand': string
+  'keymap.action.pasteImage': string
+  'notice.imageAttached': (values: { count: number; size: string }) => string
+  'notice.imageProblem': (values: { reason: 'empty' | 'too-large' | 'unsupported' | 'no-reader' }) => string
+  'notice.imageNoSession': string
   'keymap.action.redraw': string
   'keymap.action.focusLeft': string
   'keymap.action.focusRight': string
@@ -235,6 +240,7 @@ export interface MessageTable {
   'pending.editHint': string
 
   'rail.search': string
+  'rail.hostLocal': (values: { host: string }) => string
   'rail.newRow': string
   'rail.newLabel': string
   'rail.more': (params: { hidden: number }) => string
@@ -293,6 +299,26 @@ export interface MessageTable {
   'notice.savedKey': (params: { provider: string }) => string
   'notice.approval': (params: { outcome: string }) => string
   'notice.connectionUnavailable': (params: { reason: string }) => string
+  'choice.footer': string
+  'remote.restartUnavailable': string
+  'remote.title': string
+  'remote.hint': string
+  'remote.empty': string
+  'remote.local': string
+  'remote.checking': (values: { alias: string }) => string
+  'remote.already': (values: { host: string }) => string
+  'remote.cancelled': (values: { alias: string }) => string
+  'remote.installing': (values: { alias: string }) => string
+  'remote.installFailed': (values: { alias: string }) => string
+  'remote.clientUpdate': (values: { alias: string }) => string
+  'remote.unreachable': (values: { alias: string }) => string
+  'remote.install.title': (values: { alias: string }) => string
+  'remote.install.body': string
+  'remote.update.title': (values: { alias: string }) => string
+  'remote.update.body': string
+  'remote.installHint': string
+  'remote.updateHint': string
+  'notice.remoteLost': (values: { alias: string }) => string
   'notice.hostStopped': (params: { version: string }) => string
   'notice.hostReplaced': string
   'notice.hostMismatch': (params: { host: string; client: string }) => string
@@ -319,6 +345,8 @@ export interface MessageTable {
   'pane.terminal': string
   'pane.editor': string
   'pane.noPty': string
+  'pane.hostBehind': (values: { pane: string }) => string
+  'pane.noEditor': string
   'pane.notDirectory': (params: { path: string }) => string
   'pane.tooNarrow': (params: { columns: number }) => string
 

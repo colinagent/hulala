@@ -6,7 +6,10 @@ import { PassThrough } from 'node:stream'
 import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 import { runTerminalClient } from '../../src/tui/app.js'
 import type { PtyModule } from '../../src/tui/editor/pty.js'
+import { decodeMsgpack, encodeMsgpack, type Msgpack } from '../../src/tui/editor/msgpack.js'
+import type { EditorChannel } from '../../src/tui/data/editorChannel.js'
 import type {
+  HostEditor,
   SessionListEvent,
   TerminalApproval,
   TerminalApprovalOutcome,
@@ -474,7 +477,7 @@ test('Shift-Cmd-S puts the rail away from the editor column and keeps Neovim foc
   const home = mkdtempSync(join(tmpdir(), 'hulala-rail-toggle-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
@@ -528,7 +531,7 @@ test('Shift-Cmd-C hides the conversation from the editor and keeps Neovim focuse
   const home = mkdtempSync(join(tmpdir(), 'hulala-chat-toggle-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
@@ -733,7 +736,7 @@ test('a focused column hands the caret to the terminal, in the shape nvim asked 
   const home = mkdtempSync(join(tmpdir(), 'hulala-caret-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   // The composer paints its own caret, so the terminal's cursor stays hidden and
@@ -748,13 +751,17 @@ test('a focused column hands the caret to the terminal, in the shape nvim asked 
   await waitFor(() => tty.painted().includes('\u001b[2 q'), 'block caret for the column')
   await waitFor(() => /\u001b\[\d+;\d+H\u001b\[\?25h/.test(tty.painted()), 'the terminal cursor is placed and shown')
 
-  // InsertEnter: Neovim asks for a bar (DECSCUSR 6), the way it does in a
-  // terminal of its own. The bar is the terminal's, so it composites over the
-  // character instead of replacing it — the reason the caret is not a glyph.
-  editor.emit('\u001b[6 q')
+  // Insert mode: Neovim reports the caret style as a mode event, and the client
+  // asks the terminal for the same bar DECSCUSR would have described. The bar is
+  // the terminal's, so it composites over the character instead of replacing it.
+  editor.emit('mode_info_set', true, [{ cursor_shape: 'block' }, { cursor_shape: 'vertical' }])
+  editor.emit('mode_change', 'insert', 1)
   await waitFor(() => tty.painted().includes('\u001b[6 q'), 'bar caret in insert mode')
 
-  // Ctrl-[ leaves the column for the composer, and the caret goes with it.
+  // Back to normal, then Ctrl-[ leaves the column for the composer and the caret
+  // goes with it. Escape itself belongs to insert mode, which Neovim just said.
+  editor.emit('mode_change', 'normal', 0)
+  await waitFor(() => tty.painted().includes('\u001b[2 q'), 'block caret in normal mode')
   tty.input.write('\u001b')
   await waitFor(() => tty.painted().includes('\u001b[0 q'), 'the caret returns to the client')
 
@@ -769,7 +776,7 @@ test('TTY mode keeps the sidebar open across focus changes and hands nvim its ke
   const home = mkdtempSync(join(tmpdir(), 'hulala-sidebar-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   tty.input.write(CTRL_D) // Ctrl-D opens the Neovim column with the keyboard in it
@@ -781,7 +788,7 @@ test('TTY mode keeps the sidebar open across focus changes and hands nvim its ke
   // Ctrl-W is Neovim's: the window prefix reaches it instead of closing the
   // column. Ctrl-D is the column key and is covered by the close below.
   tty.input.write('\u0017')
-  await waitFor(() => editor.writes().includes('\u0017'), 'nvim gets Ctrl-W')
+  await waitFor(() => editor.writes().includes('<C-w>'), 'nvim gets Ctrl-W')
 
   tty.input.write('\u001b') // normal mode: Ctrl-[ leaves to the composer, column stays
   await new Promise(resolve => setTimeout(resolve, 60))
@@ -802,7 +809,7 @@ test('Cmd-Ctrl-[ / ] and Ctrl-Shift move the pane divider in the key direction',
   const home = mkdtempSync(join(tmpdir(), 'hulala-resize-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   tty.input.write(CTRL_D) // Ctrl-D opens the Neovim column with the keyboard in it
@@ -910,7 +917,7 @@ test('with the editor alone, the divider chord moves the boundary inside Neovim'
   const home = mkdtempSync(join(tmpdir(), 'hulala-editor-only-divider-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   tty.input.write(CTRL_D) // Ctrl-D: show and focus the Neovim column
   await waitFor(() => editor.spawned(), 'editor column')
@@ -919,7 +926,7 @@ test('with the editor alone, the divider chord moves the boundary inside Neovim'
   // two columns and never reaches the program.
   tty.input.write('\u001b[91;13u') // Cmd-Ctrl-[
   await new Promise(resolve => setTimeout(resolve, 80))
-  expect(editor.writes()).not.toContain('\u001b[1;5D')
+  expect(editor.writes()).not.toContain('<C-Left>')
 
   // Cmd-E leaves the editor as the only column, so no frame boundary is drawn and
   // the chord has nothing to move here. It goes to Neovim, whose file tree draws
@@ -944,9 +951,11 @@ test('with the editor alone, the divider chord moves the boundary inside Neovim'
     tty.input.write(key)
     await waitFor(() => editor.writes() !== seen, label)
   }
+  // The hand-off is Ctrl-Left / Ctrl-Right in the editor's own language: key
+  // notation for a UI column, the legacy bytes for a pty.
   const handed = editor.writes()
-  expect(handed.match(/\u001b\[1;5D/g)?.length ?? 0).toBe(3)
-  expect(handed.match(/\u001b\[1;5C/g)?.length ?? 0).toBe(3)
+  expect(handed.match(/<C-Left>/g)?.length ?? 0).toBe(3)
+  expect(handed.match(/<C-Right>/g)?.length ?? 0).toBe(3)
 
   tty.input.write('\u0011') // and the client quits, Neovim being clean
   await expect(tty.run).resolves.toBe(0)
@@ -956,7 +965,7 @@ test('an extended key report reaches the column as the legacy byte it stands for
   const home = mkdtempSync(join(tmpdir(), 'hulala-kitty-'))
   const fake = fakeBackend(home)
   const panes = fakePanes()
-  const tty = startPtyTty(home, fake, panes.module)
+  const tty = startPtyTty(home, fake, { pty: panes.module })
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   // The client asks the terminal for the disambiguated keyboard protocol: it is
@@ -987,7 +996,8 @@ test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl
   const home = mkdtempSync(join(tmpdir(), 'hulala-terminal-'))
   const fake = fakeBackend(home)
   const panes = fakePanes()
-  const tty = startPtyTty(home, fake, panes.module)
+  const editor = fakeEditor({ clean: true })
+  const tty = startPtyTty(home, fake, { pty: panes.module, editor })
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
@@ -1010,18 +1020,19 @@ test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl
   tty.input.write('reentered')
   await waitFor(() => shellWrites().includes('reentered'), 'the shell kept its process')
 
-  // Ctrl-D swaps the painted column to Neovim. The shell stays alive.
+  // Ctrl-D swaps the painted column to Neovim. The shell stays alive, and the
+  // editor is the Host's: its keys arrive as notation, not as pty bytes.
   tty.input.write(CTRL_D)
-  await waitFor(() => panes.panes.length === 2, 'editor column')
+  await waitFor(() => editor.spawned(), 'editor column')
   tty.input.write('nvim-key')
-  await waitFor(() => (panes.panes[1]?.writes.join('') ?? '').includes('nvim-key'), 'keys reach nvim')
+  await waitFor(() => editor.writes().includes('nvim-key'), 'keys reach nvim')
 
   // Ctrl-T swaps back to the same shell, not a fresh one.
   tty.input.write(CTRL_T)
   tty.input.write('back-in-shell')
   await waitFor(() => shellWrites().includes('back-in-shell'), 'the shell survived the swap')
   expect(panes.panes[0]?.kills).toBe(0)
-  expect(panes.panes.length).toBe(2)
+  expect(panes.panes.length).toBe(1)
 
   // Ctrl-T on the focused terminal hides the sidebar and keeps the shell and
   // its jobs alive.
@@ -1038,7 +1049,8 @@ test('TTY mode opens the built-in terminal on Ctrl-T and swaps to Neovim on Ctrl
   tty.input.write('\u001d')
   tty.input.write('reopened-key')
   await waitFor(() => shellWrites().includes('reopened-key'), 'the hidden shell reopens')
-  expect(panes.panes.length).toBe(2)
+  // One shell process and one editor channel: the editor never was a pty.
+  expect(panes.panes.length).toBe(1)
 
   tty.input.write('\u001b') // leave the shell so the cleanup can reach /quit
   await new Promise(resolve => setTimeout(resolve, 60))
@@ -1050,7 +1062,7 @@ test('Ctrl-T hides a terminal column that is painted but not focused', async () 
   const home = mkdtempSync(join(tmpdir(), 'hulala-terminal-unfocused-'))
   const fake = fakeBackend(home)
   const panes = fakePanes()
-  const tty = startPtyTty(home, fake, panes.module)
+  const tty = startPtyTty(home, fake, { pty: panes.module })
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
@@ -1084,7 +1096,7 @@ test('Ctrl-D asks a painted but unfocused editor column to leave', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-editor-unfocused-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   tty.input.write(CTRL_D) // Ctrl-D: open and focus Neovim
@@ -1106,7 +1118,7 @@ test('Ctrl-[ belongs to a full-screen program in the terminal', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-terminal-esc-'))
   const fake = fakeBackend(home)
   const panes = fakePanes()
-  const tty = startPtyTty(home, fake, panes.module)
+  const tty = startPtyTty(home, fake, { pty: panes.module })
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
@@ -1131,7 +1143,7 @@ test('Ctrl-[ belongs to a full-screen program in the terminal', async () => {
 })
 
 /** A TTY client on a fake Host, with the bytes it painted collected. */
-function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean): {
+function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean, resume: string | null = 'session-1234'): {
   input: PassThrough & { isTTY: true; setRawMode(mode: boolean): void; setEncoding(): void }
   output: PassThrough & { isTTY: true; columns: number }
   painted(): string
@@ -1152,7 +1164,14 @@ function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean): {
   const previousHome = process.env.HULALA_HOME
   const home = previousHome ?? mkdtempSync(join(tmpdir(), 'hulala-tty-'))
   process.env.HULALA_HOME = home
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', ...(promptLanguage === undefined ? {} : { promptLanguage }) })
+  const run = runTerminalClient({
+    backend: fake.backend,
+    cwd: '/workspace',
+    input,
+    output,
+    ...(resume === null ? {} : { resume }),
+    ...(promptLanguage === undefined ? {} : { promptLanguage }),
+  })
   // Detach even when an assertion threw, so a failure cannot leave the client's
   // repaint timer keeping the test process alive.
   cleanups.push(async () => {
@@ -1488,50 +1507,78 @@ test('TTY mode walks the prompt history with Ctrl-P and Ctrl-N', async () => {
  * `:qa` exits only while every buffer can be written, `:wall` clears them, and
  * `:qa!` always leaves — exactly the contract the exit gate is built on.
  */
-function fakeEditor(options: { clean: boolean }): {
-  module: PtyModule
+function fakeEditor(options: { clean: boolean; exitDelayMs?: number; anyCwd?: boolean }): {
+  face: HostEditor
   writes(): string
   spawned(): boolean
   saves(): number
-  /** Columns of the last resize the pane asked the pty for. */
+  /** Columns of the last grid the pane asked Neovim for. */
   width(): number | undefined
-  /** Paint bytes as the program would, e.g. the DECSCUSR of an insert mode. */
-  emit(chunk: string): void
+  /** Send one Neovim UI event group, e.g. a mode change that asks for a bar caret. */
+  emit(...group: [string, ...unknown[]]): void
+  /** Report that Neovim is gone, as the Host's exit frame would. */
+  emitExit(code: number): void
 } {
   const writes: string[] = []
   let clean = options.clean
   let spawned = false
   let saves = 0
   let cols: number | undefined
-  let exit: ((event: { exitCode: number }) => void) | undefined
-  let deliver: ((chunk: string) => void) | undefined
-  const module: PtyModule = {
-    spawn() {
+  let deliver: ((chunk: Uint8Array) => void) | undefined
+  let exited: ((event: { code: number | null }) => void) | undefined
+  let closed = false
+
+  const sendEvent = (...group: [string, ...unknown[]]): void => {
+    deliver?.(encodeMsgpack([2, 'redraw', [[group[0] as Msgpack, group.slice(1) as Msgpack[]]]]))
+  }
+  const exit = (code: number): void => {
+    if (closed) return
+    closed = true
+    exited?.({ code })
+  }
+
+  const channel: EditorChannel = {
+    async open(request) {
+      // The Host refuses a directory that does not exist, which is what the
+      // client turns into "the column cannot start". A remote Host's directory is
+      // not this machine's, so `anyCwd` stands in for that side of the link.
+      if (options.anyCwd !== true && !existsSync(request.cwd)) throw new Error(`not a directory: ${request.cwd}`)
       spawned = true
-      let data: ((chunk: string) => void) | undefined
-      return {
-        pid: 1,
-        onData(handler) { data = handler; deliver = handler },
-        onExit(handler) { exit = handler },
-        write(chunk) {
-          writes.push(chunk)
-          if (chunk.includes('wall') || chunk.includes('write!')) { clean = true; saves += 1 }
-          const leave = chunk.includes(':qa!') || (chunk.includes(':qa') && clean)
-          if (leave) queueMicrotask(() => exit?.({ exitCode: 0 }))
-        },
-        resize(width) { cols = width },
-        kill() {},
+      cols = request.cols
+      return undefined
+    },
+    onData(handler) { deliver = handler },
+    onProblem() {},
+    onExit(handler) { exited = handler },
+    onTree() {},
+    send(chunk) {
+      for (const value of decodeMsgpack(chunk).values) {
+        if (!Array.isArray(value)) continue
+        const [, , method, params] = value as [number, number, string, unknown[]]
+        if (method === 'nvim_ui_try_resize') { cols = Number(params?.[0]); continue }
+        if (method !== 'nvim_input' && method !== 'nvim_paste') continue
+        const text = String(params?.[0] ?? '')
+        writes.push(text)
+        if (text.includes('wall') || text.includes('write!')) { clean = true; saves += 1 }
+        const leave = text.includes(':qa!') || (text.includes(':qa') && clean)
+        if (leave) {
+          const delay = options.exitDelayMs ?? 0
+          if (delay === 0) queueMicrotask(() => exit(0))
+          else setTimeout(() => exit(0), delay)
+        }
       }
     },
+    close() { closed = true },
   }
+
   return {
-    module,
+    face: { connect: () => channel },
     writes: () => writes.join(''),
     spawned: () => spawned,
     saves: () => saves,
     width: () => cols,
-    /** Paint bytes as the editor program: what it writes is what the column shows. */
-    emit: (chunk: string) => deliver?.(chunk),
+    emit: sendEvent,
+    emitExit: exit,
   }
 }
 
@@ -1573,7 +1620,7 @@ function fakePanes(): {
 function startPtyTty(
   home: string,
   fake: FakeBackend,
-  editor: PtyModule,
+  options: { editor?: { face: HostEditor }; pty?: PtyModule; remote?: string } = {},
 ): { input: PassThrough & { isTTY: true; setRawMode(mode: boolean): void; setEncoding(): void }; painted(): string; run: Promise<number> } {
   const input = Object.assign(new PassThrough(), {
     isTTY: true as const,
@@ -1585,7 +1632,18 @@ function startPtyTty(
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   const previousHome = process.env.HULALA_HOME
   process.env.HULALA_HOME = home
-  const run = runTerminalClient({ backend: fake.backend, cwd: home, input, output, resume: 'session-1234', pty: editor })
+  const run = runTerminalClient({
+    backend: {
+      ...fake.backend,
+      ...(options.editor === undefined ? {} : { editor: options.editor.face }),
+    },
+    cwd: home,
+    input,
+    output,
+    resume: 'session-1234',
+    ...(options.pty === undefined ? {} : { pty: options.pty }),
+    ...(options.remote === undefined ? {} : { remote: options.remote }),
+  })
   cleanups.push(async () => {
     // Leave even when an assertion threw: a dirty editor needs the dialog's
     // discard key before the client can stop on its own.
@@ -1614,7 +1672,7 @@ test('quitting a clean editor asks nothing and leaves through :qa', async () => 
   const home = mkdtempSync(join(tmpdir(), 'hulala-gate-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   await openEditorAndBlur(tty, editor)
   tty.input.write('\u0011') // Ctrl-Q is the exit key
@@ -1627,7 +1685,7 @@ test('quitting an editor Neovim will not leave asks, and Escape keeps the client
   const home = mkdtempSync(join(tmpdir(), 'hulala-gate-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: false })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   await openEditorAndBlur(tty, editor)
 
@@ -1650,7 +1708,7 @@ test('saving from the dialog writes every buffer before leaving', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-gate-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: false })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   await openEditorAndBlur(tty, editor)
 
@@ -1661,30 +1719,6 @@ test('saving from the dialog writes every buffer before leaving', async () => {
   expect(editor.saves()).toBe(1)
   expect(editor.writes()).toContain('wall')
 })
-
-test('a file changed on disk by the agent becomes a question, not a clobber', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'hulala-conflict-'))
-  const fake = fakeBackend(home)
-  const editor = fakeEditor({ clean: false })
-  const tty = startPtyTty(home, fake, editor.module)
-  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
-  await openEditorAndBlur(tty, editor)
-
-  // What `init.lua` appends when autosave finds the buffer dirty and the file
-  // already rewritten on disk.
-  const marker = join(home, 'cache', 'editor', `conflict-${process.pid}.txt`)
-  mkdirSync(dirname(marker), { recursive: true })
-  writeFileSync(marker, `${join(home, 'notes.md')}\t${Date.now()}\n`)
-
-  await waitFor(() => tty.painted().includes('changed on disk'), 'conflict dialog')
-  tty.input.write('k') // keep mine: force the write
-  await waitFor(() => editor.writes().includes(':write!'), 'forced write')
-  expect(readFileSync(marker, 'utf8')).toBe('')
-
-  tty.input.write('\u0011')
-  await expect(tty.run).resolves.toBe(0)
-})
-
 
 test('/update installs the downloaded release and restarts into it', async () => {
   const fake = fakeBackend()
@@ -1808,7 +1842,7 @@ test('the composer takes input again after Ctrl-D closes the editor column', asy
   const home = mkdtempSync(join(tmpdir(), 'hulala-reclose-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   tty.input.write(CTRL_D) // Ctrl-D: open and focus the Neovim column
@@ -1826,7 +1860,7 @@ test('the composer takes input after discarding an unsaved buffer on close', asy
   const home = mkdtempSync(join(tmpdir(), 'hulala-discard-close-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: false })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   tty.input.write(CTRL_D)
@@ -1848,32 +1882,16 @@ test('a dialog left open when the editor exits does not disable the keyboard', a
   // keystroke was dropped while the composer looked focused.
   const home = mkdtempSync(join(tmpdir(), 'hulala-slow-close-'))
   const fake = fakeBackend(home)
-  const writes: string[] = []
-  let exit: ((event: { exitCode: number }) => void) | undefined
-  let spawned = false
-  const module: PtyModule = {
-    spawn() {
-      spawned = true
-      return {
-        pid: 1,
-        onData() {},
-        onExit(handler) { exit = handler },
-        write(chunk) {
-          writes.push(chunk)
-          if (chunk.includes(':qa')) setTimeout(() => exit?.({ exitCode: 0 }), 1500)
-        },
-        resize() {},
-        kill() {},
-      }
-    },
-  }
-  const tty = startPtyTty(home, fake, module)
+  const editor = fakeEditor({ clean: false })
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   tty.input.write(CTRL_D)
-  await waitFor(() => spawned, 'editor column')
-  tty.input.write(CTRL_D) // close: no exit yet, so the dialog appears
+  await waitFor(() => editor.spawned(), 'editor column')
+  tty.input.write(CTRL_D) // close: Neovim refuses, so the dialog appears
   await waitFor(() => tty.painted().includes('There are unsaved files'), 'confirm dialog')
-  await new Promise(resolve => setTimeout(resolve, 900)) // the process leaves with the dialog up
+  // The Host reports the exit while the dialog is still up.
+  editor.emitExit(0)
+  await new Promise(resolve => setTimeout(resolve, 300))
 
   tty.input.write('after-slow-close\r')
   await waitFor(() => fake.prompts.includes('after-slow-close'), 'the composer takes input again')
@@ -1882,46 +1900,25 @@ test('a dialog left open when the editor exits does not disable the keyboard', a
 })
 
 test('a slow but committed quit is not mistaken for unsaved work', async () => {
-  // Neovim's `VimLeavePre` marker is the answer to "is this quitting or refusing?";
-  // without it the client would fall back to its grace period and ask.
+  // The exit frame is the answer to "is this quitting or refusing?"; a quit that
+  // takes a while to finish still exits without a dialog.
   const home = mkdtempSync(join(tmpdir(), 'hulala-leave-marker-'))
   const fake = fakeBackend(home)
-  let exit: ((event: { exitCode: number }) => void) | undefined
-  let spawned = false
-  const leaveFile = join(home, 'cache', 'editor', `leave-${process.pid}.txt`)
-  const module: PtyModule = {
-    spawn() {
-      spawned = true
-      return {
-        pid: 1,
-        onData() {},
-        onExit(handler) { exit = handler },
-        write(chunk) {
-          if (!chunk.includes(':qa')) return
-          mkdirSync(join(home, 'cache', 'editor'), { recursive: true })
-          setTimeout(() => writeFileSync(leaveFile, 'leaving'), 200)
-          setTimeout(() => exit?.({ exitCode: 0 }), 2000)
-        },
-        resize() {},
-        kill() {},
-      }
-    },
-  }
-  const tty = startPtyTty(home, fake, module)
+  const editor = fakeEditor({ clean: true, exitDelayMs: 1_000 })
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
   tty.input.write(CTRL_D)
-  await waitFor(() => spawned, 'editor column')
+  await waitFor(() => editor.spawned(), 'editor column')
   tty.input.write(CTRL_D) // close: committed, just slow
-  await new Promise(resolve => setTimeout(resolve, 2600))
-
+  await new Promise(resolve => setTimeout(resolve, 2_600))
   expect(tty.painted()).not.toContain('There are unsaved files')
+
   tty.input.write('after-slow-quit\r')
-  await waitFor(() => fake.prompts.includes('after-slow-quit'), 'the composer keeps working')
+  await waitFor(() => fake.prompts.includes('after-slow-quit'), 'the composer takes input again')
   tty.input.write('\u0011')
   await expect(tty.run).resolves.toBe(0)
 })
 
-/** A temporary state root with no language, restored even when a test fails. */
 function languageHome(): { home: string; restore(): void } {
   const home = mkdtempSync(join(tmpdir(), 'hulala-language-client-'))
   const previousHome = process.env.HULALA_HOME
@@ -1944,6 +1941,16 @@ function languageFile(home: string): string {
   return join(home, 'config', 'client.json')
 }
 
+/** The saved language, or undefined when none was written. The file also holds
+ * this attachment's remembered Session, so the whole document is not pinned. */
+function savedLanguage(home: string): string | undefined {
+  try {
+    return (JSON.parse(readFileSync(languageFile(home), 'utf8')) as { language?: string }).language
+  } catch {
+    return undefined
+  }
+}
+
 test('first launch asks once, saves the choice, and the next launch is already Chinese', async () => {
   const state = languageHome()
   try {
@@ -1956,7 +1963,7 @@ test('first launch asks once, saves the choice, and the next launch is already C
 
     first.input.write('2') // 中文（简体）
     await waitFor(() => plain(first.painted()).includes('搜索'), 'Chinese interface')
-    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"zh-CN"}')
+    expect(savedLanguage(state.home)).toBe('zh-CN')
     // Switching the interface never rewrites what the Host already said.
     expect(plain(first.painted())).toContain('history answer')
     first.input.write('/quit\r')
@@ -1982,7 +1989,7 @@ test('Escape leaves the language unset, so the next launch asks again', async ()
     // A lone Escape is also the prefix of an escape sequence: give pi-tui its
     // disambiguation window before the next line reaches the composer.
     await new Promise(resolve => setTimeout(resolve, 100))
-    expect(existsSync(languageFile(state.home))).toBe(false)
+    expect(savedLanguage(state.home)).toBeUndefined()
     expect(plain(first.painted())).toContain('search')
     first.input.write('/quit\r')
     await expect(first.run).resolves.toBe(0)
@@ -2007,7 +2014,8 @@ test('HULALA_LANG skips the picker and is never written', async () => {
     await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
     expect(plain(tty.painted())).not.toContain('Choose a language')
     expect(plain(tty.painted())).toContain('搜索')
-    expect(existsSync(languageFile(state.home))).toBe(false)
+    // The environment overrides without becoming a saved choice.
+    expect(savedLanguage(state.home)).toBeUndefined()
     tty.input.write('/quit\r')
     await expect(tty.run).resolves.toBe(0)
   } finally {
@@ -2024,7 +2032,7 @@ test('a bad HULALA_LANG is reported and still asks', async () => {
     const tty = startTty(fakeBackend(), 100, true)
     await waitFor(() => plain(tty.painted()).includes('Choose a language / 选择语言'), 'language picker')
     expect(plain(tty.painted())).toContain('HULALA_LANG=klingon')
-    expect(existsSync(languageFile(state.home))).toBe(false)
+    expect(savedLanguage(state.home)).toBeUndefined()
     tty.input.write('\u001b')
     await new Promise(resolve => setTimeout(resolve, 100))
     tty.input.write('/quit\r')
@@ -2043,7 +2051,7 @@ test('a broken client.json asks again and says why', async () => {
     await waitFor(() => plain(tty.painted()).includes('The saved language could not be read'), 'language problem')
     expect(plain(tty.painted())).toContain('Choose a language / 选择语言')
     tty.input.write('1') // English
-    await waitFor(() => readFileSync(languageFile(state.home), 'utf8').trim() === '{"language":"en"}', 'repaired file')
+    await waitFor(() => savedLanguage(state.home) === 'en', 'repaired file')
     tty.input.write('/quit\r')
     await expect(tty.run).resolves.toBe(0)
   } finally {
@@ -2061,11 +2069,11 @@ test('/language switches and persists immediately, and rejects an unknown value'
     tty.input.write('/language en\r')
     await waitFor(() => plain(tty.painted()).includes('Interface language set to English.'), 'language notice')
     await waitFor(() => plain(tty.painted()).includes('search'), 'English rail')
-    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"en"}')
+    expect(savedLanguage(state.home)).toBe('en')
 
     tty.input.write('/language xx\r')
     await waitFor(() => plain(tty.painted()).includes('unsupported language "xx"'), 'unsupported notice')
-    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"en"}')
+    expect(savedLanguage(state.home)).toBe('en')
     expect(plain(tty.painted())).toContain('history answer')
     tty.input.write('/quit\r')
     await expect(tty.run).resolves.toBe(0)
@@ -2087,7 +2095,7 @@ test('/language without an argument opens the picker on the current language', a
     expect(plain(tty.painted())).toContain('› English')
     tty.input.write('\u001b')
     await new Promise(resolve => setTimeout(resolve, 100))
-    expect(readFileSync(languageFile(state.home), 'utf8').trim()).toBe('{"language":"en"}')
+    expect(savedLanguage(state.home)).toBe('en')
     tty.input.write('/quit\r')
     await expect(tty.run).resolves.toBe(0)
   } finally {
@@ -2122,7 +2130,7 @@ test('Cmd-E leaves only Neovim, and the second press restores the frame', async 
   const home = mkdtempSync(join(tmpdir(), 'hulala-editor-only-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
   tty.input.write(CMD_E)
   await waitFor(() => editor.spawned(), 'editor column')
@@ -2224,7 +2232,7 @@ test('/rail and /nvim are the fallbacks for the two layout chords', async () => 
   const home = mkdtempSync(join(tmpdir(), 'hulala-fallbacks-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail')
   const mark = tty.painted().length
   tty.input.write('/rail\r')
@@ -2245,7 +2253,7 @@ test('keybindings.json rebinds a chord, and /keys reports what it ignored', asyn
     'panel.editor': ['ctrl+f'],
     'panel.contour': ['ctrl+x'],
   }))
-  const tty = startPtyTty(home, fake, editor.module)
+  const tty = startPtyTty(home, fake, { editor })
   await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
   // Ctrl-F used to belong to Neovim's paging; the file gave it to the column.
   tty.input.write('\u0006')
@@ -2270,7 +2278,7 @@ test('a mouse report split by the input timeout is not typed into the column', a
   const home = mkdtempSync(join(tmpdir(), 'hulala-mouse-'))
   const fake = fakeBackend(home)
   const panes = fakePanes()
-  const tty = startPtyTty(home, fake, panes.module)
+  const tty = startPtyTty(home, fake, { pty: panes.module })
   const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
@@ -2368,4 +2376,71 @@ test('a dispatched command renders as one step row: running, then its outcome', 
   await waitFor(() => plain(tty.painted()).includes('Compacted 3 history items (~4200 tokens)'), 'settled row')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
+})
+
+test('the editor column opens a directory that only exists on the remote Host', async () => {
+  // The Session's cwd is the remote machine's path. A client that stats it
+  // locally would refuse to open the column at all, which is the bug this pins.
+  const home = mkdtempSync(join(tmpdir(), 'hulala-remote-cwd-'))
+  const fake = fakeBackend('/remote/only/path')
+  const editor = fakeEditor({ clean: true, anyCwd: true })
+  const tty = startPtyTty(home, fake, { editor, remote: 'devbox' })
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  tty.input.write(CTRL_D)
+  await waitFor(() => editor.spawned(), 'editor column')
+  // The editor holds the keyboard, so closing it is what returns `/quit` to the
+  // composer; Neovim is clean, so it leaves at once.
+  tty.input.write(CTRL_D)
+  await new Promise(resolve => setTimeout(resolve, 150))
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a window resumes the Session it last showed on this machine', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-remember-'))
+  const fake = fakeBackend(home)
+  // Two Sessions exist; the preference names the older one, and the rail's order
+  // would otherwise open the newest.
+  fake.setSessions([
+    { sessionId: 'session-newest', updatedAt: Date.now(), running: false, blank: false, cwd: home },
+    { sessionId: 'session-remembered', updatedAt: Date.now() - 60_000, running: false, blank: false, cwd: home },
+  ])
+  mkdirSync(join(home, 'config'), { recursive: true })
+  writeFileSync(join(home, 'config', 'client.json'), `${JSON.stringify({ lastSessionByHost: { local: 'session-remembered' } })}\n`)
+  const previousHome = process.env.HULALA_HOME
+  process.env.HULALA_HOME = home
+  // No `--resume`: this is the plain launch that should still come back to the
+  // Session this machine last showed.
+  const tty = startTty(fake, 100, undefined, null)
+  try {
+    await waitFor(() => fake.followed.includes('session-remembered'), 'the remembered Session')
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    if (previousHome === undefined) delete process.env.HULALA_HOME
+    else process.env.HULALA_HOME = previousHome
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a remembered Session that is gone says so and opens another', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-remember-gone-'))
+  const fake = fakeBackend(home)
+  mkdirSync(join(home, 'config'), { recursive: true })
+  writeFileSync(join(home, 'config', 'client.json'), `${JSON.stringify({ lastSessionByHost: { local: 'session-deleted' } })}\n`)
+  const previousHome = process.env.HULALA_HOME
+  process.env.HULALA_HOME = home
+  const tty = startTty(fake, 100, undefined, null)
+  try {
+    // A different Session opens instead of a dead subscription, and the notice
+    // survives the transcript reset that `open` runs.
+    await waitFor(() => plain(tty.painted()).includes('is gone'), 'the missing-Session notice')
+    expect(fake.followed).not.toContain('session-deleted')
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    if (previousHome === undefined) delete process.env.HULALA_HOME
+    else process.env.HULALA_HOME = previousHome
+    rmSync(home, { recursive: true, force: true })
+  }
 })

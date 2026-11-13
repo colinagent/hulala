@@ -241,6 +241,10 @@ test('links the bundles the user installed into their own DSH profile', async ()
     }
     expect(manifest.dsh?.profile?.bundles).toContain('demo-plugin')
     expect(manifest.dependencies?.['demo-plugin']).toBe(`link:${bundle}`)
+    // The Host's own bundle comes from the runtime, not from the user's DSH.
+    expect(manifest.dsh?.profile?.bundles).toContain('@colinagent/dsh-mcp')
+    expect(manifest.dependencies?.['@colinagent/dsh-mcp']).toMatch(/^link:/u)
+    expect((await lstat(join(profileDir, 'node_modules', '@colinagent', 'dsh-mcp'))).isSymbolicLink()).toBeTrue()
     expect(manifest.hulala?.detected).toEqual(['demo-plugin'])
     expect((await lstat(join(profileDir, 'node_modules', 'demo-plugin'))).isSymbolicLink()).toBeTrue()
 
@@ -255,6 +259,8 @@ test('links the bundles the user installed into their own DSH profile', async ()
     }
     expect(refreshed.dsh?.profile?.bundles).not.toContain('demo-plugin')
     await expect(lstat(join(again, 'node_modules', 'demo-plugin'))).rejects.toThrow()
+    // Removing a user-installed bundle must not take the Host's own bundle with it.
+    expect(refreshed.dsh?.profile?.bundles).toContain('@colinagent/dsh-mcp')
   } finally {
     if (previous === undefined) delete process.env.HULALA_DSH_DETECT_HOME
     else process.env.HULALA_DSH_DETECT_HOME = previous

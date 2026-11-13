@@ -233,3 +233,175 @@ export function liveClipboardPorts(write: (data: string) => void): ClipboardPort
   const native = platform === 'linux' || isRemoteSession(env) ? undefined : getNativeClipboard()
   return { env, platform, write, run: runClipboardWriter, native }
 }
+
+/**
+ * Largest image a prompt will carry.
+ *
+ * The image travels as base64 inside one prompt frame, so four thirds of this is
+ * what a slow link has to move. Past this the paste is refused with a reason
+ * rather than accepted and then failed by the Host's own attachment limit.
+ */
+export const PASTE_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+
+/** Media types the prompt protocol accepts for an inline image. */
+export type ClipboardImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+
+/** One image read from the clipboard, ready to attach to a prompt. */
+export interface ClipboardImage {
+  /** Base64 payload, which is what a prompt content part carries. */
+  readonly data: string
+  readonly mediaType: ClipboardImageMediaType
+  /** Decoded size, so the caller can say how big the attachment is. */
+  readonly bytes: number
+}
+
+/** Why a paste produced no image; the caller renders one line per reason. */
+export type PasteImageProblem =
+  /** The clipboard holds no image (text, or nothing at all). */
+  | 'empty'
+  /** The image is larger than {@link PASTE_IMAGE_MAX_BYTES}. */
+  | 'too-large'
+  /** The clipboard returned bytes no supported image format begins with. */
+  | 'unsupported'
+  /** This platform has no image reader the client knows. */
+  | 'no-reader'
+
+/** What a paste came to: an image, or the reason there is none. */
+export type PasteImageResult =
+  | { readonly ok: true; readonly image: ClipboardImage }
+  | { readonly ok: false; readonly reason: PasteImageProblem }
+
+/** Everything an image paste touches, injected so tests never spawn anything. */
+export interface ImageReadPorts {
+  /** The environment that decides which display exists. */
+  readonly env: NodeJS.ProcessEnv
+  readonly platform: NodeJS.Platform
+  /** Run one reader and return its stdout; undefined when it could not run or failed. */
+  readonly run: (command: string, args: readonly string[]) => Promise<Buffer | undefined>
+  /** The native helper this build ships with, which reads the OS clipboard directly. */
+  readonly native?: { readonly getImage?: () => Promise<Uint8Array | null | undefined> } | undefined
+}
+
+/** The reader commands to try for an image, in the order they own the clipboard. */
+function imageReaders(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+): ReadonlyArray<readonly [string, readonly string[]]> {
+  if (platform !== 'linux') return []
+  const readers: Array<readonly [string, readonly string[]]> = []
+  if (env.WAYLAND_DISPLAY !== undefined) readers.push(['wl-paste', ['--no-newline', '--type', 'image/png']])
+  if (env.DISPLAY !== undefined) readers.push(['xclip', ['-selection', 'clipboard', '-t', 'image/png', '-o']])
+  return readers
+}
+
+/**
+ * Identify an image by its leading bytes.
+ *
+ * The clipboard's declared type is not trustworthy across platforms and
+ * helpers, and a prompt part whose media type disagrees with its bytes is
+ * rejected by the Host, so the bytes decide.
+ * @param bytes - the clipboard payload.
+ * @returns the media type, or undefined when no supported format matches.
+ */
+export function imageMediaTypeOf(bytes: Uint8Array): ClipboardImageMediaType | undefined {
+  const starts = (...prefix: number[]): boolean => prefix.every((value, index) => bytes[index] === value)
+  if (starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png'
+  if (starts(0xff, 0xd8, 0xff)) return 'image/jpeg'
+  if (starts(0x47, 0x49, 0x46, 0x38)) return 'image/gif'
+  if (starts(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+    return 'image/webp'
+  }
+  return undefined
+}
+
+/** Turn raw clipboard bytes into a prompt-ready image, or explain why not. */
+function imageOf(bytes: Uint8Array | undefined): PasteImageResult {
+  if (bytes === undefined || bytes.length === 0) return { ok: false, reason: 'empty' }
+  if (bytes.length > PASTE_IMAGE_MAX_BYTES) return { ok: false, reason: 'too-large' }
+  const mediaType = imageMediaTypeOf(bytes)
+  if (mediaType === undefined) return { ok: false, reason: 'unsupported' }
+  return {
+    ok: true,
+    image: { data: Buffer.from(bytes).toString('base64'), mediaType, bytes: bytes.length },
+  }
+}
+
+/**
+ * Read the image on this machine's clipboard.
+ *
+ * The native helper is tried first because it reads the operating system's own
+ * clipboard and never needs a command; Linux falls back to the display's own
+ * tool, since its helper owns text selection rather than image reads. Nothing
+ * is read over OSC 52: the protocol has no read direction, which is exactly why
+ * the client must be the process holding the clipboard.
+ * @param ports - the injected environment, platform, helper and command runner.
+ * @returns the image, or the reason there is none.
+ */
+export async function readClipboardImage(ports: ImageReadPorts): Promise<PasteImageResult> {
+  // Whether anything was actually asked for an image. A clipboard that answered
+  // "no image" is empty; a platform with nothing to ask is a missing reader, and
+  // the two say different things to the user.
+  let asked = false
+  let lastReason: PasteImageProblem | undefined
+  if (ports.native?.getImage !== undefined) {
+    try {
+      asked = true
+      const bytes = await ports.native.getImage()
+      const result = imageOf(bytes ?? undefined)
+      if (result.ok) return result
+      // A large image is the helper's final answer: no fallback reader would
+      // find a smaller one.
+      if (result.reason === 'too-large') return result
+      lastReason = result.reason
+    } catch {
+      // The helper could not read the clipboard; the platform's own tool may.
+    }
+  }
+  for (const [command, args] of imageReaders(ports.platform, ports.env)) {
+    asked = true
+    const result = imageOf(await ports.run(command, args))
+    if (result.ok) return result
+    if (result.reason === 'too-large') return result
+    lastReason = result.reason
+  }
+  // A reader that answered with unrecognised bytes is more specific than
+  // "empty": the clipboard did hold something, just not an image we can send.
+  return { ok: false, reason: lastReason ?? (asked ? 'empty' : 'no-reader') }
+}
+
+/**
+ * Run one clipboard reader and collect its stdout.
+ * @param command - the reader executable.
+ * @param args - its arguments.
+ * @returns the bytes, or undefined when it could not start or exited non-zero.
+ */
+export function runClipboardReader(command: string, args: readonly string[]): Promise<Buffer | undefined> {
+  return new Promise(resolve => {
+    let settled = false
+    const finish = (value: Buffer | undefined): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const child = spawn(command, [...args], { cwd: '/', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      finish(undefined)
+    }, WRITER_TIMEOUT_MS)
+    const chunks: Buffer[] = []
+    child.stdout.on('data', (chunk: Buffer) => { chunks.push(chunk) })
+    child.on('error', () => finish(undefined))
+    child.on('close', code => finish(code === 0 ? Buffer.concat(chunks) : undefined))
+  })
+}
+
+/** The ports the running client uses, backed by this machine's clipboard. */
+export function liveImageReadPorts(): ImageReadPorts {
+  return {
+    env: process.env,
+    platform: hostPlatform(),
+    run: runClipboardReader,
+    native: getNativeClipboard(),
+  }
+}

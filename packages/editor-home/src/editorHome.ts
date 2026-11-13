@@ -39,14 +39,14 @@
  * `PATH` and the repo's vendored plugin, which is what makes `bun run dev`
  * work without a packaged release.
  *
- * @module hulala-cli/tui/editor/editorHome
+ * @module @hulala/editor-home/editorHome
  */
 import { createHash } from 'node:crypto'
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { NVIM_BASE_LUA, NVIM_INIT_LUA } from './nvimConfig.js'
-import { appendPathEntry, bundledRipgrep, ripgrepExecutable } from '../../ripgrep.js'
+import { appendPathEntry, bundledRipgrep, ripgrepExecutable } from './ripgrep.js'
 import type { EditorTheme } from './editorTheme.js'
 
 /** Marker recording which package's editor files were published. */
@@ -84,12 +84,23 @@ export interface EditorHome {
   readonly dataRoot: string
 }
 
-/** Walk up from a module location looking for the repo's vendored plugin. */
+/**
+ * Walk up from a module location looking for the checkout's vendored plugin.
+ *
+ * Two shapes reach here: the client bundle, sibling to `apps/cli/vendor`, and
+ * the Host bundle in `apps/server/dist`, one level further from the checkout
+ * root. A packaged release never takes this path — its plugins live in
+ * `runtime/editor/nvim-plugins`.
+ */
 function findVendoredPlugin(start: string): string | undefined {
   let directory = start
   for (let step = 0; step < 6; step += 1) {
-    const candidate = join(directory, 'vendor', 'snacks.nvim')
-    if (existsSync(candidate)) return candidate
+    for (const candidate of [
+      join(directory, 'vendor', 'snacks.nvim'),
+      join(directory, 'apps', 'cli', 'vendor', 'snacks.nvim'),
+    ]) {
+      if (existsSync(candidate)) return candidate
+    }
     const parent = dirname(directory)
     if (parent === directory) break
     directory = parent
