@@ -314,6 +314,7 @@ export const zhCN: MessageTable = {
   'remote.update.body': '那台机器的 Host 会重启，此窗口正在跑的回合会被中断。',
   'remote.installHint': 'Enter 安装 · Esc 取消',
   'remote.updateHint': 'Enter 更新并重启 Host · Esc 取消',
+  'notice.sessionUnavailable': ({ reason }) => `无法新建会话：${reason}`,
   'notice.remoteLost': ({ alias }) => `与 ${alias} 的连接断了；/restart 可重连此窗口`,
   'notice.hostStopped': ({ version }) => `Hulala Host 已停止；${version} 已安装。/restart 可重开此窗口。`,
   'notice.hostReplaced': 'Hulala Host 已重启。/restart 可重连此窗口。',

@@ -384,6 +384,15 @@ export interface TerminalBackend {
   listSessions(): Promise<TerminalSession[]>
   searchSessions(query: string): Promise<{ items: TerminalSearchItem[]; hasMore: boolean }>
   ensureWorkspace(path: string): Promise<string>
+  /**
+   * The Host's own default Workspace.
+   *
+   * A window attached to another machine has no meaningful local directory to
+   * offer: `process.cwd()` names a path on this machine, and creating a Workspace
+   * there would fail on the far side. The default is the Host's answer to "where
+   * should a new Session start".
+   */
+  defaultWorkspace(): Promise<{ id: string; path: string } | undefined>
   createSession(workspaceId: string): Promise<string>
   follow(sessionId: string, handlers: TerminalSessionHandlers): () => void
   /**
@@ -811,6 +820,11 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     async ensureWorkspace(path) {
       const request: WorkspaceCreateRequest = { path }
       return unwrap(await ctx.remote.workspace.create(request)).workspace.workspaceId
+    },
+
+    async defaultWorkspace() {
+      const value = unwrap(await ctx.remote.workspace.initializeDefault())
+      return value === undefined ? undefined : { id: value.workspace.workspaceId, path: value.workspace.path }
     },
 
     async createSession(workspaceId) {

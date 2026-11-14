@@ -13,6 +13,18 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-11-14
+
+### Fixed
+
+- A window on another machine created its first Session in this machine's
+  directory, which cannot exist there: it now asks the Host for its own default
+  Workspace. A Host that still cannot create one shows the reason and keeps the
+  window open instead of closing it.
+- The test suite wrote its fake Session id into the developer's own
+  `config/client.json`, so a later launch tried to resume `session-1234`. Only a
+  process that owns its terminal records a Session now.
+
 ## [0.3.10] - 2026-11-14
 
 ### Fixed

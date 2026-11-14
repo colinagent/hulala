@@ -232,8 +232,11 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(sessionPlugin, {
       color: colorEnabled(),
       cwd: options.cwd,
-      dataRoot,
-      hostKey: hostKeyOf(options.remote),
+      // Only a process that owns a state root may remember a Session in it: a
+      // test harness, a piped run and `/update`'s child all share this code, and
+      // a fake Session id must never reach the developer's own `client.json`.
+      ...(production ? { dataRoot, hostKey: hostKeyOf(options.remote) } : {}),
+      ...(options.remote === undefined ? {} : { remote: true }),
     })
     // Immediately after the Session: the window label is derived from it, and a
     // tab that names its directory from the first frame is what identifies the
@@ -489,11 +492,19 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // a plain launch — including a test harness — resumes what this attachment
   // last showed.
   const remembered = options.resume ?? lastSessionFor(dataRoot, hostKeyOf(options.remote))
-  const initial = await session.bootstrap(remembered, options.cwd)
-  if (initial === undefined || lifecycle.closing) {
-    await shutdown(0)
-    return await done.promise
+  // A Host that cannot create a Workspace (a path that only exists on this
+  // machine, a directory that vanished) is a message, not a reason to close the
+  // window: the frame stays usable and `/new` retries.
+  let initial: string | undefined
+  try {
+    initial = await session.bootstrap(remembered, options.cwd)
+  } catch (error) {
+    reducer.addNotice(t('notice.sessionUnavailable', {
+      reason: error instanceof Error ? error.message : String(error),
+    }))
+    rerender()
   }
+  if (lifecycle.closing) return await done.promise
   // The check may have finished before the first Session existed; the notice is
   // shown now that there is a transcript to show it in.
   updater.announce()
@@ -572,6 +583,13 @@ async function runPlain(
   }
 
   const createNewSession = async (): Promise<string> => {
+    // A remote Host has no reason to have this machine's directory: ask the Host
+    // for its own default Workspace instead. Locally the launch directory is the
+    // right answer and the Workspace is created around it.
+    if (options.remote !== undefined) {
+      const fallback = await backend.defaultWorkspace()
+      if (fallback !== undefined) return await backend.createSession(fallback.id)
+    }
     const workspaceId = await backend.ensureWorkspace(options.cwd)
     return await backend.createSession(workspaceId)
   }

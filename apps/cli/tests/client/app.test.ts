@@ -50,6 +50,8 @@ interface FakeBackend {
   hostCommands: string[]
   /** Directories a new Session was requested in. */
   workspaces: string[]
+  /** Make the next workspace creation fail, as a Host with no such directory does. */
+  failWorkspace(reason: string): void
   /** Session ids the fake Host created. */
   created: string[]
   /** Session ids the client attached its follow stream to, in call order. */
@@ -95,6 +97,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
   let liveHandlers: TerminalSessionHandlers | undefined
   let sessionList: ((event: SessionListEvent) => void) | undefined
   let hostSessions: TerminalSession[] = []
+  let workspaceFailure: string | undefined
   const backend: TerminalBackend = {
     host: { url: 'http://127.0.0.1:9', home: '/home/test' },
     async ready() {},
@@ -105,7 +108,12 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
         : [...hostSessions]
     },
     async searchSessions() { return { items: [], hasMore: false } },
-    async ensureWorkspace(path) { workspaces.push(path); return 'workspace-1' },
+    async ensureWorkspace(path) {
+      workspaces.push(path)
+      if (workspaceFailure !== undefined) throw new Error(workspaceFailure)
+      return 'workspace-1'
+    },
+    async defaultWorkspace() { return { id: 'workspace-default', path: '/host/workspace' } },
     async createSession() { created.push('session-new'); return 'session-new' },
     follow(sessionId, handlers) {
       followed.push(sessionId)
@@ -193,6 +201,8 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
   }
   return {
     backend,
+    /** Make the next `ensureWorkspace` fail, as a Host with no such directory does. */
+    failWorkspace(reason: string): void { workspaceFailure = reason },
     prompts,
     modes,
     removes,
@@ -2442,5 +2452,33 @@ test('a remembered Session that is gone says so and opens another', async () => 
     if (previousHome === undefined) delete process.env.HULALA_HOME
     else process.env.HULALA_HOME = previousHome
     rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a remote window starts its Session in the Host default workspace', async () => {
+  // `process.cwd()` is a path on this machine. Creating a Workspace from it on
+  // another machine fails — and used to close the window.
+  const home = mkdtempSync(join(tmpdir(), 'hulala-remote-workspace-'))
+  const fake = fakeBackend('/remote/only/path')
+  const editor = fakeEditor({ clean: true, anyCwd: true })
+  const tty = startPtyTty(home, fake, { editor, remote: 'devbox' })
+  await waitFor(() => plain(tty.painted()).includes('history answer') || fake.created.length > 0, 'a Session')
+  expect(fake.workspaces).toEqual([])
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a Host that cannot create the workspace says so and keeps the window', async () => {
+  const fake = fakeBackend('/gone')
+  fake.failWorkspace('cannot create a Workspace at "/gone": ENOENT: no such file or directory, realpath')
+  const tty = startTty(fake, 100, undefined, null)
+  try {
+    await waitFor(() => plain(tty.painted()).includes('cannot create a Workspace'), 'the workspace error row')
+    expect(plain(tty.painted())).toContain('realpath')
+    // The frame is still there and still answers: the notice is not an exit.
+    tty.input.write('/quit\r')
+    await expect(tty.run).resolves.toBe(0)
+  } finally {
+    // Nothing else to clean: `startTty` owns the temporary state root.
   }
 })

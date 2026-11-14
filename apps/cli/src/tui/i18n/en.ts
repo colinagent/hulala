@@ -313,6 +313,7 @@ export const en: MessageTable = {
   'remote.update.body': 'The Host there is restarted, so the turn running in this window is interrupted.',
   'remote.installHint': 'Enter installs · Esc cancels',
   'remote.updateHint': 'Enter updates and restarts the Host · Esc cancels',
+  'notice.sessionUnavailable': ({ reason }) => `could not start a Session: ${reason}`,
   'notice.remoteLost': ({ alias }) => `lost the connection to ${alias}; /restart reconnects this window`,
   'notice.hostStopped': ({ version }) => `The Hulala Host stopped; ${version} is installed. /restart reopens this window.`,
   'notice.hostReplaced': 'The Hulala Host restarted. /restart reconnects this window.',

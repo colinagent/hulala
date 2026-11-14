@@ -119,6 +119,8 @@ export interface SessionPluginConfig {
   readonly dataRoot?: string
   /** The attachment key: `local`, or the ssh destination this window used. */
   readonly hostKey?: string
+  /** Whether the Host is on another machine, where this client's paths mean nothing. */
+  readonly remote?: boolean
 }
 
 /** Provide the open Session. */
@@ -345,9 +347,18 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
   }
 
   const create = async (directory?: string): Promise<string | undefined> => {
-    const target = directory ?? cwd
+    let target = directory ?? cwd
     try {
-      const workspaceId = await backend.ensureWorkspace(target)
+      // A remote Host has no reason to have this machine's directory: ask the
+      // Host for its own default Workspace instead of creating one from a path
+      // that only exists here.
+      const workspaceId = config.remote === true && directory === undefined
+        ? (await backend.defaultWorkspace())?.id ?? await backend.ensureWorkspace(target)
+        : await backend.ensureWorkspace(target)
+      if (config.remote === true && directory === undefined) {
+        const fallback = await backend.defaultWorkspace()
+        if (fallback !== undefined) target = fallback.path
+      }
       const created = await backend.createSession(workspaceId)
       reducer.addNotice(t('notice.createdSession', { id: created }))
       if (!sessions.some(session => session.sessionId === created)) {

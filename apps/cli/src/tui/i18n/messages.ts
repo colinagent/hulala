@@ -319,6 +319,7 @@ export interface MessageTable {
   'remote.update.body': string
   'remote.installHint': string
   'remote.updateHint': string
+  'notice.sessionUnavailable': (values: { reason: string }) => string
   'notice.remoteLost': (values: { alias: string }) => string
   'notice.hostStopped': (params: { version: string }) => string
   'notice.hostReplaced': string
