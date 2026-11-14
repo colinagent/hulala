@@ -13,6 +13,19 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-11-14
+
+### Fixed
+
+- Attaching to a machine whose Host is stopped refused with "runs an older
+  Hulala": a stopped daemon reports no version, and that was read as an older
+  release. It now starts the Host, asks again, and only attaches when the running
+  release agrees with this client.
+- `/remote`'s update left the old Host running. Installing replaces files, not
+  the process, so the daemon still answered with the previous release — the
+  window then failed to attach. The update now stops the remote Host, and the
+  attach that follows starts the new one.
+
 ## [0.3.9] - 2026-11-13
 
 ### Fixed

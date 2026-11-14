@@ -294,6 +294,7 @@ export const en: MessageTable = {
   'notice.approval': ({ outcome }) => `approval ${outcome}`,
   'notice.connectionUnavailable': ({ reason }) => `event connection unavailable: ${reason}`,
   'choice.footer': 'Enter confirms · Esc cancels',
+  'remote.stopFailed': ({ alias }) => `${alias}: the old Host did not stop; try again`,
   'remote.restartUnavailable': 'this build cannot switch machines; run `hulala --remote <ssh>` from an installation',
   'remote.title': 'Select a machine',
   'remote.hint': 'Enter attaches · Esc cancels',

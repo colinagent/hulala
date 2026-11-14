@@ -295,6 +295,7 @@ export const zhCN: MessageTable = {
   'notice.approval': ({ outcome }) => `审批结果 ${outcome}`,
   'notice.connectionUnavailable': ({ reason }) => `事件连接不可用：${reason}`,
   'choice.footer': 'Enter 确认 · Esc 取消',
+  'remote.stopFailed': ({ alias }) => `${alias}：旧的 Host 没停下来；请重试`,
   'remote.restartUnavailable': '这个构建无法切换机器；请在安装版里运行 `hulala --remote <ssh>`',
   'remote.title': '选择机器',
   'remote.hint': 'Enter 连接 · Esc 取消',

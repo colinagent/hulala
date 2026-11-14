@@ -16,6 +16,7 @@ import {
   listRemoteHosts,
   liveSshRunner,
   probeHost,
+  stopRemoteHost,
   verdictOf,
   type RemoteVerdict,
 } from '../../remote/ssh.js'
@@ -149,6 +150,13 @@ export function apply(ctx: Context, config: RemotePluginConfig): void {
     const installed = await installRemote(alias, runner)
     if (!installed.ok) {
       notice(t('remote.installFailed', { alias }))
+      return
+    }
+    // The installer replaces files; the daemon serving them is still the old
+    // process. Stop it so the attach that follows starts the new release instead
+    // of finding a Host that no longer matches this client.
+    if (!await stopRemoteHost(alias, runner)) {
+      notice(t('remote.stopFailed', { alias }))
       return
     }
     restartInto(alias)

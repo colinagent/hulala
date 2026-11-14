@@ -150,15 +150,25 @@ test('a machine with no Host installed is refused, and nothing is started', asyn
 test('a stopped Host is started once, then attached', async () => {
   const host = fakeHost()
   const started: string[] = []
-  const runner = runnerFor(host, {
-    status: JSON.stringify({ state: 'stopped', version: VERSION, protocol: HOST_DAEMON_PROTOCOL }),
-  })
-  const run: SshRunner = async (alias, command) => {
+  // A stopped daemon reports no version at all; once started it reports the
+  // release this client expects.
+  let up = false
+  const run: SshRunner = async (_alias, command) => {
     if (command.includes('host start')) {
       started.push(command)
+      up = true
       return { code: 0, stdout: '', stderr: '' }
     }
-    return runner.run(alias, command)
+    if (command.includes('host status')) {
+      return {
+        code: 0,
+        stderr: '',
+        stdout: up
+          ? JSON.stringify({ state: 'running', version: VERSION, protocol: HOST_DAEMON_PROTOCOL, httpUrl: host.url })
+          : JSON.stringify({ state: 'stopped' }),
+      }
+    }
+    return { code: 0, stdout: endpoint(host.url), stderr: '' }
   }
   const tunnel = proxyTo(host.port)
   try {
@@ -221,4 +231,57 @@ test('an absolute ws location keeps only its path, and a missing one falls back'
       server.stop(true)
     }
   }
+})
+
+test('a stopped Host is started and asked again before anything is attached', async () => {
+  // `host status` for a stopped daemon names no version: the record belonged to
+  // the process that just left. Starting it is the only way to learn what the
+  // machine actually runs, and this client must agree with that answer before it
+  // attaches — treating "no version" as "older" refused a freshly upgraded Host.
+  const host = fakeHost()
+  const commands: string[] = []
+  let running = false
+  const run: SshRunner = async (_alias, command) => {
+    commands.push(command)
+    if (command.includes('host start')) { running = true; return { code: 0, stdout: '', stderr: '' } }
+    if (command.includes('host status')) {
+      return {
+        code: 0,
+        stderr: '',
+        stdout: running
+          ? JSON.stringify({ state: 'running', version: VERSION, protocol: HOST_DAEMON_PROTOCOL, httpUrl: host.url })
+          : JSON.stringify({ state: 'stopped' }),
+      }
+    }
+    return { code: 0, stdout: endpoint(host.url), stderr: '' }
+  }
+  const tunnel = proxyTo(host.port)
+  try {
+    const attached = await attachRemote('devbox', { runner: run, spawner: tunnel.spawner })
+    expect(attached.baseUrl).toContain('127.0.0.1')
+    expect(commands.some(command => command.includes('host start'))).toBe(true)
+    // Started once, then asked again: two probes, not one.
+    expect(commands.filter(command => command.includes('host status'))).toHaveLength(2)
+    attached.tunnel.close()
+  } finally {
+    host.stop()
+  }
+})
+
+test('a Host that comes up on the wrong release is still refused after starting', async () => {
+  const host = fakeHost()
+  let started = false
+  const run: SshRunner = async (_alias, command) => {
+    if (command.includes('host start')) { started = true; return { code: 0, stdout: '', stderr: '' } }
+    if (command.includes('host status')) {
+      // Comes up without a protocol, i.e. a release this client cannot talk to.
+      return { code: 0, stderr: '', stdout: JSON.stringify({ state: started ? 'running' : 'stopped' }) }
+    }
+    return { code: 0, stdout: endpoint(host.url), stderr: '' }
+  }
+  // The second probe reports a running daemon with no protocol, which cannot
+  // match this client; the attach must stop there instead of opening a tunnel.
+  await expect(attachRemote('devbox', { runner: run, spawner: proxyTo(host.port).spawner }))
+    .rejects.toThrow('older Hulala')
+  host.stop()
 })

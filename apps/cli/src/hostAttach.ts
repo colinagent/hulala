@@ -207,8 +207,17 @@ export async function attachRemote(alias: string, options: {
   spawner?: TunnelSpawner
 } = {}): Promise<RemoteAttachment> {
   const run = options.runner ?? liveSshRunner()
-  const probe = await probeHost(alias, run)
-  const verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
+  let probe = await probeHost(alias, run)
+  let verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
+  if (verdict === 'start') {
+    // Starting is not the answer yet: a daemon that comes up may still be the
+    // release installed there, and this client has to agree with it. Ask again.
+    if (!await startRemoteHost(alias, run)) throw new Error(`${alias}: the Host did not start`)
+    probe = await probeHost(alias, run)
+    verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
+    // Still not running: attaching anyway would forward to a port nobody serves.
+    if (verdict === 'start') throw new Error(`${alias}: the Host did not stay up`)
+  }
   if (verdict === 'unreachable' || verdict === 'install') {
     const reason = probe.state === 'unreachable' ? probe.reason : 'no Hulala Host is installed there'
     throw new Error(`${alias}: ${reason}`)
@@ -218,9 +227,6 @@ export async function attachRemote(alias: string, options: {
   }
   if (verdict === 'update') {
     throw new Error(`${alias} runs an older Hulala; accept its update before attaching`)
-  }
-  if (verdict === 'start' && !await startRemoteHost(alias, run)) {
-    throw new Error(`${alias}: the Host did not start`)
   }
 
   // The record names the port the Host actually bound; the token is a secret the

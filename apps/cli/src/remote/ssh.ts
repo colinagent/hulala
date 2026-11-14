@@ -165,6 +165,10 @@ export interface ClientVersion {
 export function verdictOf(host: RemoteHostState, client: ClientVersion): RemoteVerdict {
   if (host.state === 'unreachable') return 'unreachable'
   if (host.state === 'uninstalled') return 'install'
+  // A stopped Host reports no version or protocol — the record is written by the
+  // daemon that just left. Starting it is the only way to learn what is there,
+  // so this is never "needs an update": the caller re-probes after starting.
+  if (host.state === 'stopped') return 'start'
   if (host.protocol !== client.protocol) {
     return host.protocol > client.protocol ? 'client-update' : 'update'
   }
@@ -306,6 +310,21 @@ export async function openTunnel(options: TunnelOptions, spawner: TunnelSpawner 
 export async function installRemote(alias: string, run: SshRunner): Promise<{ ok: boolean; output: string }> {
   const result = await run(alias, `HULALA_NO_START=1 curl -fsSL ${INSTALLER_URL} | sh -s -- --yes`)
   return { ok: result.code === 0, output: `${result.stdout}${result.stderr}` }
+}
+
+/**
+ * Stop the Host daemon on a machine that has one installed.
+ *
+ * Installing replaces the files, not the process: a daemon started from the old
+ * release keeps serving until it is stopped, so an update is `/remote`'s install
+ * plus this, and the next attach starts the new one.
+ * @param alias - the ssh destination.
+ * @param run - the command runner.
+ * @returns whether the daemon is gone (or was not running).
+ */
+export async function stopRemoteHost(alias: string, run: SshRunner): Promise<boolean> {
+  const result = await run(alias, `${REMOTE_COMMAND} host stop`)
+  return result.code === 0
 }
 
 /**

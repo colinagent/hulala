@@ -15,6 +15,7 @@ import {
   probeHost,
   quote,
   startRemoteHost,
+  stopRemoteHost,
   tunnelArgs,
   verdictOf,
   type SshRunner,
@@ -185,4 +186,24 @@ test('starting the Host is one login-shell command', async () => {
 
 test('one-shot quotes survive an apostrophe in the command', () => {
   expect(quote(`echo 'hi'`)).toBe(`'echo '\\''hi'\\'''`)
+})
+
+test('an update stops the running daemon so the new release serves', async () => {
+  // Installing replaces files, not the process: a daemon from the old release
+  // keeps answering until it is stopped, and the next attach starts the new one.
+  const { run, commands } = runner({})
+  expect(await stopRemoteHost('devbox', run)).toBe(true)
+  expect(commands[0]).toContain('host stop')
+})
+
+test('upgrading a machine is install, stop, then attach', async () => {
+  const commands: string[] = []
+  const run: SshRunner = async (_alias, command) => {
+    commands.push(command)
+    return { code: 0, stdout: '', stderr: '' }
+  }
+  expect((await installRemote('devbox', run)).ok).toBe(true)
+  expect(await stopRemoteHost('devbox', run)).toBe(true)
+  expect(commands.map(command => command.includes('install.sh') ? 'install' : command.includes('host stop') ? 'stop' : 'other'))
+    .toEqual(['install', 'stop'])
 })

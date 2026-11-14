@@ -301,6 +301,7 @@ export interface MessageTable {
   'notice.connectionUnavailable': (params: { reason: string }) => string
   'choice.footer': string
   'remote.restartUnavailable': string
+  'remote.stopFailed': (values: { alias: string }) => string
   'remote.title': string
   'remote.hint': string
   'remote.empty': string
