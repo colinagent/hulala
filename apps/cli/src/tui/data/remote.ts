@@ -823,8 +823,21 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     },
 
     async defaultWorkspace() {
-      const value = unwrap(await ctx.remote.workspace.initializeDefault())
-      return value === undefined ? undefined : { id: value.workspace.workspaceId, path: value.workspace.path }
+      // A Host with nothing in it can mint its own default workspace.
+      const initialised = unwrap(await ctx.remote.workspace.initializeDefault())
+      if (initialised !== undefined) {
+        return { id: initialised.workspace.workspaceId, path: initialised.workspace.path }
+      }
+      // An established Host refuses that on purpose: it already has workspaces and
+      // Sessions. Continue where that machine works — the newest Session's
+      // directory is a path the Host proved it can open.
+      const newest = unwrap(await ctx.remote.session.list({}))
+        .items
+        .filter(item => item.origin !== 'subagent' && (item.cwd ?? '').startsWith('/'))
+        .sort((left, right) => right.updatedAt - left.updatedAt)[0]
+      if (newest?.cwd === undefined) return undefined
+      const id = unwrap(await ctx.remote.workspace.create({ path: newest.cwd } as WorkspaceCreateRequest)).workspace.workspaceId
+      return { id, path: newest.cwd }
     },
 
     async createSession(workspaceId) {

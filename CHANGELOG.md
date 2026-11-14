@@ -13,6 +13,15 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-11-14
+
+### Fixed
+
+- A remote window asked the Host to mint its default Workspace, which an
+  established Host refuses on purpose (it already has workspaces and Sessions).
+  It now continues in the newest Session's directory — a path that Host has
+  proved it can open.
+
 ## [0.3.11] - 2026-11-14
 
 ### Fixed
