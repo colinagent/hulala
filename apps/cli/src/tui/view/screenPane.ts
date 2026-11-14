@@ -22,7 +22,7 @@
 import type { Component, Focusable, TuiMouseEvent, TuiMouseEventResult } from '@earendil-works/pi-tui'
 import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { CursorKind, CaretShape } from '../pane/screenSession.js'
-import { sgrMouse, sgrWheel } from './sgrMouse.js'
+import { sgrMouse, sgrWheel, wheelNotches } from '../input/mouse.js'
 import { legacyKeys } from '../pane/legacyKeys.js'
 import { buildStyles } from './theme.js'
 import { padEnd } from './pathText.js'
@@ -272,7 +272,10 @@ export class ScreenPane implements Component, Focusable {
     const delta = event.wheelDelta ?? 0
     if (delta === 0) return false
     if (this.options.mouse === true) {
-      this.options.screen.input(sgrWheel(event) ?? '')
+      // One report per notch, the way a terminal sends a fast spin: the frame's
+      // delta is in lines, and Neovim applies its own distance per notch.
+      const report = sgrWheel(event) ?? ''
+      if (report !== '') this.options.screen.input(report.repeat(wheelNotches(event)))
       return true
     }
     const scroll = this.options.scroll

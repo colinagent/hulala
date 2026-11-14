@@ -211,11 +211,13 @@ test('grid_scroll moves cells inside the region and blanks what left it', () => 
     ['grid_scroll', 1, 0, 3, 0, 4, 1, 0],
   ))
   const plain = session.renderScreen(4, 3, 'none', '').map(line => line.replace(/\u001b\[[0-9;]*m/gu, ''))
-  // Destination rows are [1,3): the top row is vacated, the bottom row's line is
-  // gone, and nothing outside the region moved.
-  expect(plain[0]?.trimEnd()).toBe('')
-  expect(plain[1]?.trimEnd()).toBe('abcd')
-  expect(plain[2]?.trimEnd()).toBe('efgh')
+  // `rows > 0` moves the content up: destination rows are [0, 2), so the first
+  // line is gone, the second and third rise, and the row the content left behind
+  // is blank. Reading it the other way round duplicates the top line, which is
+  // what this test used to assert.
+  expect(plain[0]?.trimEnd()).toBe('efgh')
+  expect(plain[1]?.trimEnd()).toBe('ijkl')
+  expect(plain[2]?.trimEnd()).toBe('')
 })
 
 test('a horizontal scroll stays inside its columns', () => {
@@ -227,9 +229,10 @@ test('a horizontal scroll stays inside its columns', () => {
     ['grid_scroll', 1, 0, 1, 1, 4, 0, 1],
   ))
   const line = session.renderScreen(4, 1, 'none', '').map(row => row.replace(/\u001b\[[0-9;]*m/gu, ''))[0]
-  // Column 0 is outside the region and keeps its cell; the vacated column is
-  // blank and the rest shift left.
-  expect(line?.trimEnd()).toBe('a bc')
+  // Column 0 is outside the region and keeps its cell; `cols > 0` moves the
+  // region left, so each destination takes the cell `cols` further on and the
+  // vacated column at the right end is blank.
+  expect(line?.trimEnd()).toBe('acd')
 })
 
 test('the chords the disambiguate flag reports run as keys, not text', () => {

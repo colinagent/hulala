@@ -10,7 +10,7 @@
  * reports; the wheel is the fourth — `sgrWheel`, below. `click` is the
  * renderer's own synthesis on top of a release and produces nothing here.
  *
- * @module hulala-cli/tui/view/sgrMouse
+ * @module hulala-cli/tui/input/mouse
  */
 import type { TuiMouseEvent } from '@earendil-works/pi-tui'
 
@@ -77,4 +77,19 @@ export function sgrWheel(event: TuiMouseEvent): string | undefined {
   if (delta === 0) return undefined
   const code = delta < 0 ? 64 : 65
   return `\u001b[<${code};${event.x + 1};${event.y + 1}M`
+}
+
+/**
+ * How many notches one frame wheel event stands for.
+ *
+ * The frame accelerates a burst into a line delta, while a terminal reports one
+ * notch per report. A program scrolls by its own distance per notch, so the
+ * delta is spent as separate notches — capped, because a stuck accelerator
+ * should not spin a program hundreds of times.
+ * @param event - the wheel event the frame delivered.
+ * @returns the number of reports to send.
+ */
+export function wheelNotches(event: TuiMouseEvent): number {
+  const delta = Math.abs(Math.round(event.wheelDelta ?? 0))
+  return Math.min(10, delta)
 }

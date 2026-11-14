@@ -23,26 +23,16 @@
  * @module hulala-cli/tui/terminal
  */
 import { formatProgramStatus, StdinBuffer, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
+// The predicates are the input decoder's, so this layer holds exactly the
+// fragments the decoder could still complete. A bare `ESC` is the exception: it
+// is also the Escape key, so it waits its own short window below.
+import { isMouseReport, isMouseReportHead } from './input/keys.js'
 
 /** Push the Kitty keyboard protocol's disambiguate mode, keeping older flags. */
 const PUSH_DISAMBIGUATE = '\u001b[>1u'
 
 /** Pop it again, restoring whatever the terminal had before the client started. */
 const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
-
-/** A whole SGR mouse report: `ESC [ < button ; x ; y` and its final `M`/`m`. */
-const SGR_MOUSE_REPORT = /^\u001b\[<\d+;\d+;\d+[Mm]$/u
-
-/**
- * The head of one, which the sequence buffer hands on when it stops waiting.
- *
- * Every prefix counts, down to a bare `ESC`: a fast pointer splits the report
- * wherever the read boundary falls — a busy frame reading stdin in one-byte
- * chunks splits it right after the escape — and a fragment that is not
- * recognised here is handed to the frame as text, which is how a moving mouse
- * ends up typing `<35;58;41M` into the composer.
- */
-const SGR_MOUSE_HEAD = /^\u001b(?:\[<?[\d;]*)?$/u
 
 /**
  * How long a bare `ESC` waits for the `[` that would make it a report.
@@ -203,16 +193,16 @@ export class StreamTerminal implements Terminal {
     const pending = this.pendingMouseReport
     if (pending === undefined) {
       // A whole report passes through; a fragment waits for its tail.
-      if (!SGR_MOUSE_HEAD.test(sequence)) return sequence
+      if (!isMouseReportHead(sequence)) return sequence
       this.holdMouseReport(sequence)
       return undefined
     }
     const joined = pending + sequence
-    if (SGR_MOUSE_REPORT.test(joined)) {
+    if (isMouseReport(joined)) {
       this.clearPendingMouseReport()
       return joined
     }
-    if (SGR_MOUSE_HEAD.test(joined)) {
+    if (isMouseReportHead(joined)) {
       this.holdMouseReport(joined)
       return undefined
     }
@@ -223,7 +213,7 @@ export class StreamTerminal implements Terminal {
     // A held `ESC` is a key too, and it comes first: dropping it would swallow
     // one Escape whenever two of them, or an Escape and a key, arrive together.
     if (pending === '\u001b') this.inputHandler?.('\u001b')
-    if (!SGR_MOUSE_HEAD.test(sequence)) return sequence
+    if (!isMouseReportHead(sequence)) return sequence
     this.holdMouseReport(sequence)
     return undefined
   }

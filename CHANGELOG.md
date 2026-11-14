@@ -15,6 +15,20 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- The editor drew a run of one character — a rule, a scrollbar, a status-line fill —
+  as that character followed by blanks: `grid_line`'s `repeat` was applied to the
+  cell's text, and our implementation wrote one glyph and then spaces. Nvim's own
+  reference UI copies the text into every repetition.
+- `grid_scroll` moved content the wrong way: `rows > 0` means "content moves up",
+  and the copy read from `dest - rows` instead of `dest + rows`, so a scrolled row
+  was refilled with the line that had just left. The test had been written to the
+  same wrong direction, so both were green.
+- A wide character's right half (an empty cell) was painted as a space, shifting
+  the rest of that line one column right.
+- Input now has one decoder (`tui/input/keys.ts`): text, named keys, Kitty CSI-u,
+  mouse reports and pastes are decoded in one place, and a sequence it does not
+  know is dropped instead of typed — including OSC/DCS replies from the terminal.
+  A wheel notch over a column is one report per notch, as a terminal sends it.
 - A paste into the terminal column was one Host command, and the Host refuses any
   command above 64 KiB: pasting a long script failed the attachment and lost the
   text. Input is now split into pieces the Host accepts, measured in UTF-8 bytes

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { TuiMouseEvent } from '@earendil-works/pi-tui'
-import { sgrMouse, sgrWheel } from '../../src/tui/view/sgrMouse.js'
+import { sgrMouse, sgrWheel, wheelNotches } from '../../src/tui/input/mouse.js'
 
 /** One pointer event, with the defaults a click in a pane carries. */
 function event(overrides: Partial<TuiMouseEvent>): TuiMouseEvent {
@@ -62,4 +62,12 @@ test('a wheel notch is a button of its own: 64 up, 65 down', () => {
 test('a click is not a report a program sees', () => {
   expect(sgrWheel(event({ type: 'click' }))).toBeUndefined()
   expect(sgrMouse(event({ type: 'click' }))).toBeUndefined()
+})
+
+test('a fast wheel spin becomes one report per notch', () => {
+  // The frame collapses a burst into a line delta; a terminal would have sent
+  // one report per notch, and a program applies its own distance per notch.
+  expect(wheelNotches(event({ type: 'wheel', wheelDelta: -1 }))).toBe(1)
+  expect(wheelNotches(event({ type: 'wheel', wheelDelta: 4 }))).toBe(4)
+  expect(wheelNotches(event({ type: 'wheel', wheelDelta: 0 }))).toBe(0)
 })

@@ -10,17 +10,13 @@
  * @module hulala-cli/tui/editor/nvimUi
  */
 import { CURSOR_MARKER, visibleWidth, truncateToWidth } from '@earendil-works/pi-tui'
+import { Grid } from './grid.js'
+import { decodeKeys, keyNotation, notationOf, type KeyInput } from '../input/keys.js'
 import { decodeMsgpack, encodeMsgpack, type Msgpack } from './msgpack.js'
 import { sgrSequence } from '../pane/ghosttyVt.js'
 import type { CaretShape, CursorKind } from '../pane/screenSession.js'
 
 const RESET = '\u001b[0m'
-
-/** One cell of the grid: what to draw and which attribute paints it. */
-interface Cell {
-  text: string
-  hl: number
-}
 
 /** Highlight attributes Neovim defined, in RGB terms. */
 interface Attributes {
@@ -114,7 +110,7 @@ export class NvimUi {
   private readonly options: NvimUiOptions
   private readonly attributes = new Map<number, Attributes>()
   private readonly defaultColors = { foreground: 0xffffff, background: 0x000000 }
-  private grid: Cell[][] = []
+  private grid: Grid
   private cols: number
   private rows: number
   /** Bytes of an incomplete message held for the next chunk. */
@@ -133,7 +129,7 @@ export class NvimUi {
     this.options = options
     this.cols = options.cols
     this.rows = options.rows
-    this.resetGrid(options.cols, options.rows)
+    this.grid = new Grid(options.cols, options.rows)
     // The session owns its channel's plumbing: a column that forgot to subscribe
     // would render a blank grid forever, which is a failure with no symptom.
     options.channel.onData(chunk => this.feed(chunk))
@@ -145,17 +141,6 @@ export class NvimUi {
     // Host's `ready`, so constructing the grid and opening the column stay one
     // synchronous step.
     this.request('nvim_ui_attach', [options.cols, options.rows, { ext_linegrid: true, rgb: options.color }])
-  }
-
-  /** Replace the grid with an empty one of the given size. */
-  private resetGrid(cols: number, rows: number): void {
-    this.cols = cols
-    this.rows = rows
-    this.grid = Array.from({ length: rows }, () => this.emptyRow(cols))
-  }
-
-  private emptyRow(cols: number): Cell[] {
-    return Array.from({ length: cols }, () => ({ text: ' ', hl: 0 }))
   }
 
   /**
@@ -208,21 +193,37 @@ export class NvimUi {
       case 'grid_resize': {
         const cols = numberOf(args[1]) ?? this.cols
         const rows = numberOf(args[2]) ?? this.rows
-        this.resetGrid(cols, rows)
+        this.cols = cols
+        this.rows = rows
+        this.grid.reset(cols, rows)
         return
       }
       case 'grid_clear':
-        this.resetGrid(this.cols, this.rows)
+        this.grid.clear()
         return
       case 'grid_cursor_goto':
         this.cursor = { row: numberOf(args[1]) ?? 0, col: numberOf(args[2]) ?? 0 }
         return
-      case 'grid_scroll':
-        this.scroll(args)
+      case 'grid_scroll': {
+        const top = numberOf(args[1])
+        const bottom = numberOf(args[2])
+        const left = numberOf(args[3])
+        const right = numberOf(args[4])
+        if (top === undefined || bottom === undefined || left === undefined || right === undefined) return
+        this.grid.scroll(top, bottom, left, right, numberOf(args[5]) ?? 0, numberOf(args[6]) ?? 0)
         return
-      case 'grid_line':
-        this.line(args)
+      }
+      case 'grid_line': {
+        const row = numberOf(args[1])
+        const start = numberOf(args[2])
+        const cells = args[3]
+        if (row === undefined || start === undefined || !Array.isArray(cells)) return
+        const text = cells.filter((cell): cell is Msgpack[] => Array.isArray(cell))
+          .map(cell => cell.map(value => (typeof value === 'string' || typeof value === 'number' ? value : undefined)))
+          .map(cell => cell.filter((value): value is string | number => value !== undefined))
+        this.grid.line(row, start, text, args[4] === true)
         return
+      }
       case 'hl_attr_define': {
         const id = numberOf(args[0])
         const rgb = args[1]
@@ -274,80 +275,6 @@ export class NvimUi {
     }
   }
 
-  /** Apply one `grid_line`: cells carry their own attribute, or inherit the previous one. */
-  private line(args: Msgpack[]): void {
-    const row = numberOf(args[1])
-    const start = numberOf(args[2])
-    const cells = args[3]
-    if (row === undefined || start === undefined || !Array.isArray(cells)) return
-    const target = this.grid[row]
-    if (target === undefined) return
-    let hl = 0
-    let at = start
-    for (const cell of cells) {
-      if (!Array.isArray(cell)) continue
-      const text = typeof cell[0] === 'string' ? cell[0] : ' '
-      const own = numberOf(cell[1])
-      if (own !== undefined) hl = own
-      const repeat = Math.max(1, numberOf(cell[2]) ?? 1)
-      for (let index = 0; index < repeat; index += 1) {
-        const slot = target[at]
-        if (slot !== undefined) {
-          slot.text = index === 0 ? text : ' '
-          slot.hl = hl
-        }
-        at += 1
-      }
-    }
-  }
-
-  /**
-   * Apply one `grid_scroll`.
-   *
-   * The region is `[top, bottom) × [left, right)` and content moves up by `rows`
-   * and left by `cols`; only the destination rectangle is copied, and the cells
-   * the content vacated are blanked. Copying whole rows — or ignoring the
-   * horizontal part — smears a horizontally scrolled line across the grid, which
-   * is what a `nowrap` buffer does whenever the cursor leaves the viewport.
-   */
-  private scroll(args: Msgpack[]): void {
-    const top = numberOf(args[1])
-    const bottom = numberOf(args[2])
-    const left = numberOf(args[3])
-    const right = numberOf(args[4])
-    const rows = numberOf(args[5])
-    const cols = numberOf(args[6]) ?? 0
-    if (top === undefined || bottom === undefined || left === undefined || right === undefined) return
-    if (rows === undefined || rows === 0) {
-      if (cols === 0) return
-    }
-    const vertical = rows ?? 0
-    const horizontal = cols
-    const height = bottom - top
-    const width = right - left
-    if (height <= 0 || width <= 0) return
-    // Destination rows/columns are the source shifted by the deltas; cells
-    // outside the destination rectangle are the ones that scrolled away.
-    const fromRow = (row: number): number => row - vertical
-    const fromCol = (column: number): number => column - horizontal
-    // Cell objects are shared with the live grid, so the snapshot has to clone
-    // them: mutating a destination cell would otherwise rewrite its source.
-    const source = this.grid.map(row => row.map(cell => ({ ...cell })))
-    const blank = { text: ' ', hl: 0 }
-    for (let row = top; row < bottom; row += 1) {
-      const sourceRow = fromRow(row)
-      for (let column = left; column < right; column += 1) {
-        const sourceColumn = fromCol(column)
-        const inside = sourceRow >= top && sourceRow < bottom && sourceColumn >= left && sourceColumn < right
-        const cell = inside ? source[sourceRow]?.[sourceColumn] : undefined
-        const target = this.grid[row]?.[column]
-        if (target === undefined) continue
-        target.text = cell?.text ?? blank.text
-        target.hl = cell?.hl ?? blank.hl
-      }
-    }
-  }
-
   /**
    * Resize the grid the pane gives us.
    *
@@ -356,16 +283,7 @@ export class NvimUi {
    */
   resize(cols: number, rows: number): void {
     if (this.disposed || (cols === this.cols && rows === this.rows)) return
-    const next = Array.from({ length: rows }, (_, row) => {
-      const existing = this.grid[row]
-      const line = this.emptyRow(cols)
-      for (let col = 0; col < cols; col += 1) {
-        const cell = existing?.[col]
-        if (cell !== undefined) line[col] = { ...cell }
-      }
-      return line
-    })
-    this.grid = next
+    this.grid.resize(cols, rows)
     this.cols = cols
     this.rows = rows
     this.request('nvim_ui_try_resize', [cols, rows])
@@ -385,12 +303,15 @@ export class NvimUi {
     const where = cursor === 'none' ? undefined : this.cursor
     const lines: string[] = []
     for (let row = 0; row < height; row += 1) {
-      const cells = this.grid[row] ?? []
+      const cells = this.grid.row(row)?.cells ?? []
       let line = ''
       let open = ''
       for (let col = 0; col < width; col += 1) {
         const cell = cells[col]
-        const text = cell?.text === undefined || cell.text === '' ? ' ' : cell.text
+        // A cell's text is drawn verbatim: `''` is the right half of the wide
+        // character before it, and turning it into a space would push the rest
+        // of the line two cells to the right of where Neovim put it.
+        const text = cell?.text ?? ' '
         const sgr = sgrOf(this.attributes.get(cell?.hl ?? 0), this.options.color)
         if (where !== undefined && where.row === row && where.col === col) {
           // The caret is the terminal's own cursor painted over the cell, so the
@@ -463,19 +384,21 @@ export class NvimUi {
    */
   input(data: string): void {
     if (this.disposed || data === '') return
-    const pasted = /^\u001b\[200~([\s\S]*)\u001b\[201~$/.exec(data)
-    if (pasted !== null) {
-      this.request('nvim_paste', [pasted[1] ?? '', false, -1])
-      return
+    // One decoder owns what the bytes mean: a mouse report is a call, a key is
+    // notation, and an unknown sequence is dropped rather than typed.
+    let keys = ''
+    for (const event of decodeKeys(data)) {
+      if (event.kind === 'mouse') {
+        const mouse = mouseRequest(event.code, event.x, event.y, event.pressed)
+        if (mouse !== undefined) this.request('nvim_input_mouse', mouse)
+        continue
+      }
+      if (event.kind === 'paste') {
+        this.request('nvim_paste', [event.text, false, -1])
+        continue
+      }
+      keys += notationOf(event)
     }
-    // The pane hands the pointer over as the SGR reports a program in a pty
-    // would expect; a UI does not read those bytes, it calls `nvim_input_mouse`.
-    for (const report of data.matchAll(/\u001b\[<(\d+);(\d+);(\d+)([Mm])/gu)) {
-      const mouse = mouseRequest(Number(report[1]), Number(report[2]), Number(report[3]), report[4] === 'M')
-      if (mouse !== undefined) this.request('nvim_input_mouse', mouse)
-    }
-    const rest = data.replace(/\u001b\[<\d+;\d+;\d+[Mm]/gu, '')
-    const keys = keyNotation(rest)
     if (keys !== '') this.request('nvim_input', [keys])
   }
 
@@ -571,191 +494,11 @@ export function modeLetter(mode: string): string {
   }
 }
 
-/** Named keys a terminal sends as escape sequences, in nvim notation. */
-const SEQUENCES: ReadonlyArray<readonly [string, string]> = [
-  ['\u001b[A', '<Up>'],
-  ['\u001b[B', '<Down>'],
-  ['\u001b[C', '<Right>'],
-  ['\u001b[D', '<Left>'],
-  ['\u001b[H', '<Home>'],
-  ['\u001b[F', '<End>'],
-  ['\u001bOH', '<Home>'],
-  ['\u001bOF', '<End>'],
-  ['\u001bOA', '<Up>'],
-  ['\u001bOB', '<Down>'],
-  ['\u001bOC', '<Right>'],
-  ['\u001bOD', '<Left>'],
-  ['\u001b[2~', '<Insert>'],
-  ['\u001b[3~', '<Del>'],
-  ['\u001b[5~', '<PageUp>'],
-  ['\u001b[6~', '<PageDown>'],
-  ['\u001b[Z', '<S-Tab>'],
-  ['\u001bOP', '<F1>'],
-  ['\u001bOQ', '<F2>'],
-  ['\u001bOR', '<F3>'],
-  ['\u001bOS', '<F4>'],
-]
-
 /**
- * Neovim's name for the keys a terminal reports by number.
+ * Terminal bytes as Neovim key notation.
  *
- * Both spellings are here: xterm's `CSI <n> ~` and Kitty's functional-key
- * codepoints, which is what a terminal with the disambiguate flag sends.
+ * Re-exported from the input decoder so the column and the pty branch read the
+ * same vocabulary: there is one answer to "what did the user press".
  */
-const FUNCTIONAL_KEYS: Readonly<Record<string, string>> = {
-  '2': 'Insert',
-  '3': 'Del',
-  '5': 'PageUp',
-  '6': 'PageDown',
-  '7': 'Home',
-  '8': 'End',
-  '11': 'F1',
-  '12': 'F2',
-  '13': 'F3',
-  '14': 'F4',
-  '15': 'F5',
-  '17': 'F6',
-  '18': 'F7',
-  '19': 'F8',
-  '20': 'F9',
-  '21': 'F10',
-  '23': 'F11',
-  '24': 'F12',
-}
+export { keyNotation }
 
-/** Kitty reports these codepoints for the keys that have no character. */
-const KITTY_CODEPOINTS: Readonly<Record<number, string>> = {
-  9: 'Tab',
-  13: 'CR',
-  27: 'Esc',
-  32: 'Space',
-  127: 'BS',
-  57344: 'Esc',
-  57345: 'CR',
-  57346: 'Tab',
-  57347: 'BS',
-  57348: 'Insert',
-  57349: 'Del',
-  57350: 'Left',
-  57351: 'Right',
-  57352: 'Up',
-  57353: 'Down',
-  57354: 'PageUp',
-  57355: 'PageDown',
-  57356: 'Home',
-  57357: 'End',
-}
-
-/** The final byte of a cursor-key CSI sequence, as a key name. */
-const CURSOR_FINALS: Readonly<Record<string, string>> = {
-  A: 'Up',
-  B: 'Down',
-  C: 'Right',
-  D: 'Left',
-  H: 'Home',
-  F: 'End',
-}
-
-/**
- * Neovim's modifier prefix for a Kitty modifier value.
- *
- * The value is a bitmask plus one: 1 shift, 2 alt, 4 ctrl, 8 super, 16 hyper,
- * 32 meta. Neovim spells super `D-` (the Command key on a Mac keyboard).
- * @param value - the `;n` field, or undefined when the sequence has none.
- * @param named - whether the key is one without a character of its own.
- * @returns the prefix, e.g. `C-S-`, or an empty string.
- */
-function modifierPrefix(value: number | undefined, named: boolean): string {
-  if (value === undefined || value <= 1) return ''
-  const bits = value - 1
-  let prefix = ''
-  if ((bits & 4) !== 0) prefix += 'C-'
-  // A printable codepoint already carries the shift the terminal decided, so
-  // only a named key needs the modifier spelled out.
-  if (named && (bits & 1) !== 0) prefix += 'S-'
-  if ((bits & 2) !== 0) prefix += 'M-'
-  if ((bits & 8) !== 0) prefix += 'D-'
-  if ((bits & 16) !== 0) prefix += 'T-'   // hyper: Neovim has no name, T- is its terminal form
-  return prefix
-}
-
-/**
- * Recognise the modifier forms a terminal may send, and name the key.
- *
- * With the disambiguate flag pushed, a terminal reports every chord that legacy
- * encoding cannot express as `CSI <codepoint> ; <modifiers> u` — Command-C,
- * Command-Left, Shift-Enter — so a UI that only knows legacy bytes would type
- * the sequence into the buffer instead of running the key.
- * @param sequence - the whole input sequence.
- * @returns the notation, or undefined when this is not one of those forms.
- */
-function modifiedSequence(sequence: string): string | undefined {
-  const kitty = /^\u001b\[(\d+)(?::\d*)*(?:;(\d+))?(?::\d+)?u$/u.exec(sequence)
-  if (kitty !== null) {
-    const code = Number(kitty[1])
-    const named = KITTY_CODEPOINTS[code]
-    const prefix = modifierPrefix(kitty[2] === undefined ? undefined : Number(kitty[2]), named !== undefined)
-    if (named !== undefined) return `<${prefix}${named}>`
-    const character = String.fromCodePoint(code)
-    return prefix === '' ? character : `<${prefix}${character === '<' ? 'lt' : character}>`
-  }
-  const csi = /^\u001b\[(\d+)(?:;(\d+))?([A-Za-z~])$/u.exec(sequence)
-  if (csi === null) return undefined
-  const [, first = '', second, final = ''] = csi
-  const value = second === undefined ? undefined : Number(second)
-  if (final === '~') {
-    const name = FUNCTIONAL_KEYS[first]
-    if (name === undefined) return undefined
-    return `<${modifierPrefix(value, true)}${name}>`
-  }
-  // A cursor key's first parameter is `1`; anything else is a form this map
-  // does not name, and guessing would invent a key the user did not press.
-  if (first !== '1') return undefined
-  const name = CURSOR_FINALS[final]
-  if (name === undefined) return undefined
-  const prefix = modifierPrefix(value, true)
-  return prefix === '' && second === undefined ? `<${name}>` : `<${prefix}${name}>`
-}
-
-/**
- * Translate terminal bytes into Neovim key notation.
- *
- * Text is text and control bytes are `<C-x>`, so a UI never has to know which
- * mode is current to forward a keystroke correctly. A lone `<` is `<lt>`,
- * because bare `<` in notation would start a key name.
- * @param data - one keystroke, one sequence or one run of printable text.
- * @returns notation for `nvim_input`.
- */
-export function keyNotation(data: string): string {
-  const exact = SEQUENCES.find(([sequence]) => sequence === data)
-  if (exact !== undefined) return exact[1]
-  const modified = modifiedSequence(data)
-  if (modified !== undefined) return modified
-  let keys = ''
-  for (let index = 0; index < data.length; index += 1) {
-    const character = data[index] as string
-    const code = character.codePointAt(0) ?? 0
-    if (character === '\u001b') {
-      // A lone escape is the key; anything else after it is alt-modified input.
-      const next = data[index + 1]
-      if (next === undefined) { keys += '<Esc>'; break }
-      // Look ahead from the escape itself: `x<Up>` arrives as text followed by
-      // the sequence, and only the sequence decides what the escape meant.
-      const sequence = SEQUENCES.find(([candidate]) => data.startsWith(candidate, index))
-      if (sequence !== undefined) { index += sequence[0].length - 1; keys += sequence[1]; continue }
-      // Only this escape is consumed: the next one starts the key that follows.
-      if (next === '\u001b') { keys += '<Esc>'; continue }
-      keys += `<M-${next === '<' ? '<lt>' : next}>`
-      index += 1
-      continue
-    }
-    if (character === '\r') { keys += '<CR>'; continue }
-    if (character === '\n') { keys += '<NL>'; continue }
-    if (character === '\t') { keys += '<Tab>'; continue }
-    if (character === '\u007f') { keys += '<BS>'; continue }
-    if (character === '\u0000') { keys += '<C-@>'; continue }
-    if (code < 0x20) { keys += `<C-${String.fromCharCode(code + 0x60)}>`; continue }
-    keys += character === '<' ? '<lt>' : character
-  }
-  return keys
-}
