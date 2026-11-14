@@ -13,6 +13,21 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-11-14
+
+### Fixed
+
+- A pointer report the terminal reads in two pieces — the escape on its own, then
+  `[<35;43;38M` — put the tail into the composer as text, so a moving trackpad
+  typed `[<35;43;38M` and the caret appeared to jump. The escape is now held for a
+  moment as a possible report head, a late tail is rejoined to the escape that was
+  already delivered, and a report that lost its escape byte is still decoded as a
+  report instead of being typed.
+- `/remote` treated a stopped Host as attachable, because a stopped Host reports no
+  version. It now starts it and reads the version before deciding, so an
+  out-of-date machine offers its update instead of failing to attach with "runs an
+  older Hulala".
+
 ## [0.3.13] - 2026-11-14
 
 ### Fixed

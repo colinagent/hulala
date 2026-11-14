@@ -300,6 +300,19 @@ function controlKey(code: number): KeyInput {
  */
 export function decodeKeys(data: string): KeyInput[] {
   if (data === '') return []
+  // A report whose escape byte never arrived. Nothing types this: a chunk of a
+  // dozen characters that begins `[<` and ends `M`/`m` is a pointer report, and
+  // typing it is how a moving mouse fills a composer with `<35;43;38M`.
+  const orphan = /^\[<(\d+);(\d+);(\d+)([Mm])$/u.exec(data)
+  if (orphan !== null) {
+    return [{
+      kind: 'mouse',
+      code: Number(orphan[1]),
+      x: Number(orphan[2]),
+      y: Number(orphan[3]),
+      pressed: orphan[4] === 'M',
+    }]
+  }
   const events: KeyInput[] = []
   let text = ''
   const flush = (): void => {

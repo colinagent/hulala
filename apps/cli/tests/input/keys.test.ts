@@ -134,3 +134,13 @@ test('notation is the inverse for every key the decoder names', () => {
   }
   for (const event of decodeKeys('abc\u001b[A')) expect(notationOf(event)).not.toContain('\u001b')
 })
+
+test('a report that lost its escape is still a report', () => {
+  // The escape byte is the only thing missing, and no one types twelve
+  // characters in one chunk that happen to spell a pointer report.
+  expect(decoded('[<35;43;38M')).toEqual(['mouse:35;43;38M'])
+  expect(decoded('[<0;5;3m')).toEqual(['mouse:0;5;3m'])
+  expect(keyNotation('[<35;43;38M')).toBe('')
+  // Ordinary text that merely starts with a bracket is still text.
+  expect(decoded('[<3')).toEqual(['text:[<3'])
+})

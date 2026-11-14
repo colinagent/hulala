@@ -207,3 +207,37 @@ test('a paste whose content looks like a report stays a paste', async () => {
   expect(h.received).toEqual(['\u001b[200~ESC [ < 0 ; 1 ; 1 M\u001b[201~'])
   h.stop()
 })
+
+test('a report whose escape was read alone is rejoined, not typed', async () => {
+  // The sequence buffer flushes a lone ESC after ten milliseconds. When the rest
+  // of a pointer report is read separately, the escape reaches the frame as the
+  // Escape key and the tail as twelve characters — `[<35;43;38M` in the composer.
+  const h = harness()
+  h.send('\u001b')
+  await new Promise(resolve => setTimeout(resolve, 40))
+  h.send('[<35;43;38M')
+  await flush()
+  expect(h.received).toEqual(['\u001b[<35;43;38M'])
+  h.stop()
+})
+
+test('a tail that arrives after the escape was given back is still a report', async () => {
+  const h = harness()
+  h.send('\u001b')
+  // Past the escape hold, so the frame already saw the Escape key.
+  await new Promise(resolve => setTimeout(resolve, 120))
+  h.send('[<35;43;38M')
+  await flush()
+  expect(h.received).toEqual(['\u001b', '\u001b[<35;43;38M'])
+  h.stop()
+})
+
+test('a "[" typed right after an Escape still arrives as text', async () => {
+  const h = harness()
+  h.send('\u001b')
+  await new Promise(resolve => setTimeout(resolve, 40))
+  h.send('[')
+  await new Promise(resolve => setTimeout(resolve, 250))
+  expect(h.received).toEqual(['\u001b', '['])
+  h.stop()
+})

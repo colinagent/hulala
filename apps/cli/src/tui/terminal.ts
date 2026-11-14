@@ -35,6 +35,40 @@ const PUSH_DISAMBIGUATE = '\u001b[>1u'
 const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 
 /**
+ * How long after an Escape the tail of a split report is still recognised.
+ *
+ * The sequence buffer flushes a lone `ESC` after ten milliseconds, so a report
+ * whose escape was read separately arrives as the Escape key and then its tail.
+ * The tail cannot be typed by anyone (it is `[<35;43;38M`), so inside this window
+ * it is joined back to the escape that was already delivered and handed over as
+ * the report it is.
+ */
+const ORPHAN_REPORT_WINDOW_MS = 500
+
+/** A report without its escape: what the tail of a split one looks like. */
+const ORPHAN_REPORT = /^\[<\d+;\d+;\d+[Mm]$/u
+
+/**
+ * The prefix of one, which arrives one character at a time.
+ *
+ * The sequence buffer emits anything that does not start with an escape as
+ * single characters, so a tail whose escape was already delivered reaches this
+ * adapter as `[`, `<`, `3`, … — each on its own — and is collected here.
+ */
+const ORPHAN_TAIL_HEAD = /^\[<?[\d;]*$/u
+
+/** How long a possible report tail waits for its remaining characters. */
+const ORPHAN_TAIL_TIMEOUT_MS = 120
+
+/**
+ * A bare `ESC`, held because it may be the head of a report.
+ *
+ * The exported {@link isMouseReportHead} deliberately excludes it: a bare escape
+ * is also the Escape key, and only this adapter has the timing to decide.
+ */
+const REPORT_OR_ESCAPE_HEAD = /^\u001b(?:\[<?[\d;]*)?$/u
+
+/**
  * How long a bare `ESC` waits for the `[` that would make it a report.
  *
  * It is also the Escape key, so this is a compromise, not a buffer: long enough
@@ -111,6 +145,11 @@ export class StreamTerminal implements Terminal {
    * rest as keys; the whole paste waits here instead.
    */
   private pendingPaste: string | undefined
+  /** When an Escape was handed on, so a late report tail can be rejoined. */
+  private escapeDeliveredAt = 0
+  /** Characters of a report tail whose escape was already delivered. */
+  private pendingOrphanTail: string | undefined
+  private orphanTimer: ReturnType<typeof setTimeout> | undefined
   private pendingMouseTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(streams: TerminalStreams, options: TerminalOptions = {}) {
@@ -178,6 +217,7 @@ export class StreamTerminal implements Terminal {
     if (this.rawData !== undefined) this.streams.input.off('data', this.rawData)
     this.rawData = undefined
     this.clearPendingMouseReport()
+    this.clearOrphanTail()
     this.stdinBuffer?.clear()
     this.stdinBuffer = undefined
     this.detachResize?.()
@@ -216,6 +256,26 @@ export class StreamTerminal implements Terminal {
    * @returns the bytes to pass on, or undefined while waiting for the rest.
    */
   private reassembleInput(sequence: string): string | undefined {
+    // The tail of a report whose escape was already delivered: joining the two
+    // back together is what keeps `<35;43;38M` out of a buffer.
+    if (this.escapeDeliveredAt !== 0 && Date.now() - this.escapeDeliveredAt <= ORPHAN_REPORT_WINDOW_MS) {
+      const joined = (this.pendingOrphanTail ?? '') + sequence
+      if (ORPHAN_REPORT.test(joined)) {
+        this.clearOrphanTail()
+        return `\u001b${joined}`
+      }
+      if (ORPHAN_TAIL_HEAD.test(joined)) {
+        this.pendingOrphanTail = joined
+        this.armOrphanTail()
+        return undefined
+      }
+      // Not the tail after all: give its characters back, in the order they were
+      // typed, and treat this sequence normally.
+      if (this.pendingOrphanTail !== undefined) {
+        this.clearOrphanTail()
+        this.inputHandler?.(joined.slice(0, joined.length - sequence.length))
+      }
+    }
     if (this.pendingPaste !== undefined) {
       const joined = this.pendingPaste + sequence
       if (pasteIsIncomplete(joined)) {
@@ -239,17 +299,38 @@ export class StreamTerminal implements Terminal {
     return this.reassembleMouseReport(sequence)
   }
 
+  /** Hold a possible report tail until it completes or the window closes. */
+  private armOrphanTail(): void {
+    if (this.orphanTimer !== undefined) clearTimeout(this.orphanTimer)
+    this.orphanTimer = setTimeout(() => {
+      this.orphanTimer = undefined
+      const held = this.pendingOrphanTail
+      this.pendingOrphanTail = undefined
+      // A person typed it: it is text like any other.
+      if (held !== undefined) this.inputHandler?.(held)
+    }, ORPHAN_TAIL_TIMEOUT_MS)
+  }
+
+  private clearOrphanTail(): void {
+    if (this.orphanTimer !== undefined) clearTimeout(this.orphanTimer)
+    this.orphanTimer = undefined
+    this.pendingOrphanTail = undefined
+  }
+
   private reassembleMouseReport(sequence: string): string | undefined {
     const pending = this.pendingMouseReport
     if (pending === undefined) {
-      // A whole report passes through; a fragment waits for its tail.
-      if (!isMouseReportHead(sequence)) return sequence
+      // A whole report passes through; a fragment waits for its tail, and so
+      // does a bare escape, which may be one.
+      if (!isMouseReportHead(sequence) && !REPORT_OR_ESCAPE_HEAD.test(sequence)) return sequence
+      if (sequence === '\u001b') this.escapeDeliveredAt = 0
       this.holdMouseReport(sequence)
       return undefined
     }
     const joined = pending + sequence
     if (isMouseReport(joined)) {
       this.clearPendingMouseReport()
+      this.escapeDeliveredAt = 0
       return joined
     }
     if (isMouseReportHead(joined)) {
@@ -262,7 +343,10 @@ export class StreamTerminal implements Terminal {
     this.clearPendingMouseReport()
     // A held `ESC` is a key too, and it comes first: dropping it would swallow
     // one Escape whenever two of them, or an Escape and a key, arrive together.
-    if (pending === '\u001b') this.inputHandler?.('\u001b')
+    if (pending === '\u001b') {
+      this.escapeDeliveredAt = Date.now()
+      this.inputHandler?.('\u001b')
+    }
     if (!isMouseReportHead(sequence)) return sequence
     this.holdMouseReport(sequence)
     return undefined
@@ -283,8 +367,16 @@ export class StreamTerminal implements Terminal {
     const timer = setTimeout(() => {
       this.pendingMouseReport = undefined
       this.pendingMouseTimer = undefined
-      if (escape) this.inputHandler?.('\u001b')
-    }, escape ? Math.min(this.mouseReportTimeoutMs, ESCAPE_HEAD_TIMEOUT_MS) : this.mouseReportTimeoutMs)
+      // A fragment that has already named a report button (`ESC [ < …`) is a
+      // report whose tail was lost: it is dropped, and no key is invented.
+      if (partial.includes('<')) return
+      // Otherwise the escape was a key. `ESC [` alone is far more often Escape
+      // then a bracket than a report, so the bracket is given back too; keeping
+      // the moment it was handed on lets a tail still in flight be rejoined.
+      this.escapeDeliveredAt = Date.now()
+      this.inputHandler?.('\u001b')
+      if (partial === '\u001b[') this.inputHandler?.('[')
+    }, escape ? Math.min(this.mouseReportTimeoutMs, ESCAPE_HEAD_TIMEOUT_MS) : Math.min(this.mouseReportTimeoutMs, ORPHAN_TAIL_TIMEOUT_MS))
     // A window that stops with half a report on the wire must still be able to
     // exit: the timer is not a reason to keep the process alive.
     timer.unref()

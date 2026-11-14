@@ -15,9 +15,8 @@ import {
   installRemote,
   listRemoteHosts,
   liveSshRunner,
-  probeHost,
+  resolveRemoteHost,
   stopRemoteHost,
-  verdictOf,
   type RemoteVerdict,
 } from '../../remote/ssh.js'
 import { VERSION } from '../../constants.js'
@@ -177,8 +176,10 @@ export function apply(ctx: Context, config: RemotePluginConfig): void {
       return
     }
     notice(t('remote.checking', { alias }))
-    const probe = await probeHost(alias, runner)
-    const verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
+    const { verdict } = await resolveRemoteHost(alias, runner, {
+      version: VERSION,
+      protocol: HOST_DAEMON_PROTOCOL,
+    })
     await act(alias, verdict)
   }
 

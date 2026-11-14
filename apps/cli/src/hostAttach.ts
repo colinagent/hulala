@@ -24,9 +24,7 @@ import { VERSION } from './constants.js'
 import {
   liveSshRunner,
   openTunnel,
-  probeHost,
-  startRemoteHost,
-  verdictOf,
+  resolveRemoteHost,
   type SshRunner,
   type Tunnel,
   type TunnelSpawner,
@@ -207,17 +205,14 @@ export async function attachRemote(alias: string, options: {
   spawner?: TunnelSpawner
 } = {}): Promise<RemoteAttachment> {
   const run = options.runner ?? liveSshRunner()
-  let probe = await probeHost(alias, run)
-  let verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
-  if (verdict === 'start') {
-    // Starting is not the answer yet: a daemon that comes up may still be the
-    // release installed there, and this client has to agree with it. Ask again.
-    if (!await startRemoteHost(alias, run)) throw new Error(`${alias}: the Host did not start`)
-    probe = await probeHost(alias, run)
-    verdict = verdictOf(probe, { version: VERSION, protocol: HOST_DAEMON_PROTOCOL })
-    // Still not running: attaching anyway would forward to a port nobody serves.
-    if (verdict === 'start') throw new Error(`${alias}: the Host did not stay up`)
-  }
+  // A stopped Host is started so its version can be read: starting is not the
+  // answer yet, because the release installed there has to agree with this one.
+  const { probe, verdict } = await resolveRemoteHost(alias, run, {
+    version: VERSION,
+    protocol: HOST_DAEMON_PROTOCOL,
+  })
+  // Still not running: attaching anyway would forward to a port nobody serves.
+  if (verdict === 'start') throw new Error(`${alias}: the Host did not stay up`)
   if (verdict === 'unreachable' || verdict === 'install') {
     const reason = probe.state === 'unreachable' ? probe.reason : 'no Hulala Host is installed there'
     throw new Error(`${alias}: ${reason}`)

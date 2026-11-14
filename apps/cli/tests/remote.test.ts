@@ -18,6 +18,7 @@ import {
   openTunnel,
   probeHost,
   quote,
+  resolveRemoteHost,
   startRemoteHost,
   stopRemoteHost,
   tunnelArgs,
@@ -222,4 +223,46 @@ test('a command that never answers is killed instead of waited on', async () => 
   expect(result.stderr).toContain('no answer')
   expect(Date.now() - started).toBeLessThan(3_000)
   await rm(dir, { recursive: true, force: true })
+})
+
+test('a stopped Host is started so its release can be read', async () => {
+  // A stopped Host reports no version, and treating that as "attachable" is how
+  // an out-of-date machine used to fail later with "runs an older Hulala"
+  // instead of offering its update.
+  const commands: string[] = []
+  let status: 'stopped' | 'running' = 'stopped'
+  const run: SshRunner = async (_alias, command) => {
+    commands.push(command)
+    if (command.includes('host start')) {
+      status = 'running'
+      return { code: 0, stdout: '', stderr: '' }
+    }
+    const state = status === 'stopped'
+      ? { state: 'stopped' }
+      : { state: 'running', version: '0.0.1', protocol: 1, httpUrl: 'http://127.0.0.1:1' }
+    return { code: 0, stdout: JSON.stringify(state), stderr: '' }
+  }
+  const { verdict } = await resolveRemoteHost('devbox', run, { version: '9.9.9', protocol: 2 })
+  expect(verdict).toBe('update')
+  expect(commands.some(command => command.includes('host start'))).toBe(true)
+})
+
+test('a Host that will not start is reported, not treated as attachable', async () => {
+  const run: SshRunner = async (_alias, command) => {
+    if (command.includes('host start')) return { code: 1, stdout: '', stderr: 'no' }
+    return { code: 0, stdout: JSON.stringify({ state: 'stopped' }), stderr: '' }
+  }
+  const { verdict } = await resolveRemoteHost('devbox', run, { version: '9.9.9', protocol: 2 })
+  expect(verdict).toBe('start')
+})
+
+test('a machine with nothing installed is never started', async () => {
+  const commands: string[] = []
+  const run: SshRunner = async (_alias, command) => {
+    commands.push(command)
+    return { code: 0, stdout: JSON.stringify({ state: 'uninstalled' }), stderr: '' }
+  }
+  const { verdict } = await resolveRemoteHost('devbox', run, { version: '9.9.9', protocol: 2 })
+  expect(verdict).toBe('install')
+  expect(commands.some(command => command.includes('host start'))).toBe(false)
 })

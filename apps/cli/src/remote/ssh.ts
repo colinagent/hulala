@@ -197,6 +197,32 @@ export function verdictOf(host: RemoteHostState, client: ClientVersion): RemoteV
   return host.state === 'running' ? 'attach' : 'start'
 }
 
+/**
+ * Probe a machine and, when its Host is stopped, start it and ask again.
+ *
+ * A stopped Host carries no version — the record is written by the daemon that
+ * just left — so a probe can only say "start it". Starting it here is what makes
+ * the version check happen at all; without this, an out-of-date machine looked
+ * attachable and the client failed later with "runs an older Hulala" instead of
+ * offering its update.
+ * @param alias - the ssh destination.
+ * @param run - the command runner.
+ * @param client - this client's version and protocol.
+ * @returns what the probe found, and what the caller should offer.
+ */
+export async function resolveRemoteHost(
+  alias: string,
+  run: SshRunner,
+  client: ClientVersion,
+): Promise<{ probe: RemoteHostState; verdict: RemoteVerdict }> {
+  let probe = await probeHost(alias, run)
+  let verdict = verdictOf(probe, client)
+  if (verdict !== 'start') return { probe, verdict }
+  if (!await startRemoteHost(alias, run)) return { probe, verdict }
+  probe = await probeHost(alias, run)
+  return { probe, verdict: verdictOf(probe, client) }
+}
+
 /** One loopback forward to a remote Host, owned by this process. */
 export interface Tunnel {
   /** Local port the Host is reachable on. */
