@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-11-14
+
 ### Fixed
 
 - A dropped editor socket ended the column, and the Neovim behind it — with the
