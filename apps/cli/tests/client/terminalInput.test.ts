@@ -121,3 +121,30 @@ test('a "head" longer than any report is dropped instead of buffered', async () 
   expect(h.received).toEqual(['\u001b[<0;5;3M'])
   h.stop()
 })
+
+test('a split before the `<` is held too, not typed', async () => {
+  // A fast pointer splits the report wherever the read boundary falls. Holding
+  // only `ESC [ <` fragments meant a split after `ESC [` reached the frame as
+  // text, which is how moving the mouse typed `<35;58;41M` into the composer.
+  // Split 1 is the Escape key itself: a lone ESC is a key, and the sequence
+  // buffer has already waited for a sequence that never came.
+  for (const split of [2, 3]) {
+    const h = harness()
+    const report = '\u001b[<35;58;41M'
+    h.send(report.slice(0, split))
+    await flush()
+    expect(h.received).toEqual([])
+    h.send(report.slice(split))
+    await flush()
+    expect(h.received).toEqual([report])
+    h.stop()
+  }
+})
+
+test('a lone Escape is still a key, not a held fragment', async () => {
+  const h = harness()
+  h.send('\u001b')
+  await flush()
+  expect(h.received).toEqual(['\u001b'])
+  h.stop()
+})

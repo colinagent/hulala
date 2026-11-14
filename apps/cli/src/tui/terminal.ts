@@ -33,8 +33,19 @@ const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 /** A whole SGR mouse report: `ESC [ < button ; x ; y` and its final `M`/`m`. */
 const SGR_MOUSE_REPORT = /^\u001b\[<\d+;\d+;\d+[Mm]$/u
 
-/** The head of one, which the sequence buffer hands on when it stops waiting. */
-const SGR_MOUSE_HEAD = /^\u001b\[<[\d;]*$/u
+/**
+ * The head of one, which the sequence buffer hands on when it stops waiting.
+ *
+ * Both `ESC [` and `ESC [ <` count: a fast pointer splits the report wherever
+ * the read boundary falls, and a fragment that is not recognised here is handed
+ * to the frame as text — which is how a moving mouse ends up typing
+ * `<35;58;41M` into the composer.
+ *
+ * A **bare** `ESC` is not a head. It is the Escape key, and the sequence buffer
+ * has already waited its window for a sequence that never came; holding it again
+ * here would make Escape feel dead.
+ */
+const SGR_MOUSE_HEAD = /^\u001b\[<?[\d;]*$/u
 
 /**
  * The longest a real report can be, and therefore the longest head worth holding.

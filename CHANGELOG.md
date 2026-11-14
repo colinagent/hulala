@@ -13,6 +13,13 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- A pointer report split by the terminal read — `ESC [ <` and its tail arriving
+  separately, which is what a fast-moving mouse produces — was handed to the
+  frame as text and typed into the composer. Both fragments are held until the
+  report is whole; a lone Escape is still a key, not a held fragment.
+
 ## [0.3.12] - 2026-11-14
 
 ### Fixed
