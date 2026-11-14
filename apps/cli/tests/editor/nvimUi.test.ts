@@ -70,7 +70,7 @@ test('alt-modified input is one key, not an escape followed by text', () => {
 })
 
 /** A UI with no transport: `send` only records what would go on the wire. */
-function ui(options: { cols?: number; rows?: number } = {}): {
+function ui(options: { cols?: number; rows?: number; onBell?: () => void; onTitle?: (title: string) => void } = {}): {
   session: NvimUi
   sent: Msgpack[]
   screens: () => number
@@ -90,6 +90,8 @@ function ui(options: { cols?: number; rows?: number } = {}): {
     color: true,
     onScreen: () => { screens += 1 },
     onExit: () => undefined,
+    ...(options.onBell === undefined ? {} : { onBell: options.onBell }),
+    ...(options.onTitle === undefined ? {} : { onTitle: options.onTitle }),
   })
   return { session, sent, screens: () => screens }
 }
@@ -258,4 +260,36 @@ test('the numbered keys a terminal sends by number are named', () => {
   expect(keyNotation('\u001b[17;3~')).toBe('<M-F6>')
   expect(keyNotation('\u001b[7~')).toBe('<Home>')
   expect(keyNotation('\u001b[24;5~')).toBe('<C-F12>')
+})
+
+test('a bell rings, and a title is reported for the window', () => {
+  const bells: number[] = []
+  const titles: string[] = []
+  const { session } = ui({ cols: 4, rows: 2, onBell: () => bells.push(1), onTitle: title => titles.push(title) })
+  session.feed(redraw(['bell'], ['set_title', 'writing — hulala'], ['flush']))
+  expect(bells).toHaveLength(1)
+  expect(titles).toEqual(['writing — hulala'])
+  // An empty title is not a title: it is how a program clears one, and the
+  // client's own title has to come back instead of a blank window.
+  session.feed(redraw(['set_title', '']))
+  expect(titles).toEqual(['writing — hulala'])
+})
+
+test('the UI asks for one grid and true colour, and nothing else', () => {
+  // `ext_multigrid` would make every split, float and popup its own grid with
+  // its own position — a second layout model to keep right. Neovim composes all
+  // of it into grid 1 without it, which is the whole reason this column can be
+  // one flat cell table.
+  const { sent } = ui()
+  expect(sent[0]).toEqual([0, 1, 'nvim_ui_attach', [4, 2, { ext_linegrid: true, rgb: true }]])
+})
+
+test('an emoji cluster is one cell pair, like any wide character', () => {
+  // Neovim sends a grapheme cluster in the first cell and an empty string for
+  // the second column. A family emoji is five codepoints; the grid must not
+  // treat it as five cells.
+  const { session } = ui({ cols: 4, rows: 1 })
+  session.feed(redraw(['grid_line', 1, 0, 0, [['👨‍👩‍👧', 0], [''], ['x'], [' ']], false]))
+  const line = session.renderScreen(4, 1, 'none', '')[0] ?? ''
+  expect(line.replace(/\u001b\[[0-9;]*m/gu, '')).toBe('👨‍👩‍👧x ')
 })

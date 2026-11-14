@@ -1560,6 +1560,7 @@ function fakeEditor(options: { clean: boolean; exitDelayMs?: number; anyCwd?: bo
     onData(handler) { deliver = handler },
     onProblem() {},
     onExit(handler) { exited = handler },
+    onReconnect() {},
     onTree() {},
     send(chunk) {
       for (const value of decodeMsgpack(chunk).values) {

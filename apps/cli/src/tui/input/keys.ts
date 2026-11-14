@@ -185,6 +185,30 @@ export function isMouseReport(sequence: string): boolean {
   return SGR_MOUSE.test(sequence)
 }
 
+/** The markers a bracketed paste is wrapped in. */
+const PASTE_START = '\u001b[200~'
+const PASTE_END = '\u001b[201~'
+
+/**
+ * Whether a chunk opens a bracketed paste that has not ended yet.
+ *
+ * A paste's content is opaque — it can be megabytes and any bytes — so a read
+ * boundary can fall anywhere inside it. The transport holds it until the end
+ * marker arrives; decoding an unfinished paste would type its opening marker and
+ * then its content as ordinary keys.
+ * @param data - the bytes received so far.
+ * @returns true when a start marker has no end marker after it.
+ */
+export function pasteIsIncomplete(data: string): boolean {
+  const start = data.indexOf(PASTE_START)
+  return start >= 0 && data.indexOf(PASTE_END, start + PASTE_START.length) < 0
+}
+
+/** Whether a chunk carries a whole bracketed paste and nothing else. */
+export function isPaste(data: string): boolean {
+  return data.startsWith(PASTE_START) && data.endsWith(PASTE_END) && !pasteIsIncomplete(data)
+}
+
 /** The named key a `CSI … u` sequence carries, and its modifiers. */
 function decodeKitty(body: string): KeyInput | undefined {
   const match = /^(\d+)(?::(\d*))?(?::(\d+))?(?:;(\d+))?(?::(\d+))?$/u.exec(body)
@@ -218,6 +242,16 @@ function decodeLegacy(sequence: string): KeyInput | undefined {
   }
   // The `:n` suffix is Kitty's press/repeat/release event, appended to any
   // sequence when the terminal reports event types.
+  // xterm's modifyOtherKeys: `ESC [ 27 ; modifier ; codepoint ~`. It is how a
+  // terminal reports a chord for a character that legacy encoding would send
+  // bare — Ctrl-I, Shift-Space, a layout's own symbols.
+  const other = /^\u001b\[27;(\d+);(\d+)~$/u.exec(sequence)
+  if (other !== null) {
+    const modifiers = modifierPrefix(Number(other[1]), false)
+    const text = String.fromCodePoint(Number(other[2]))
+    if (modifiers === '') return { kind: 'text', text }
+    return { kind: 'key', name: text === '<' ? 'lt' : text, modifiers }
+  }
   const csi = /^\u001b\[(\d*)(?:;(\d+))?(?::(\d+))?([A-Za-z~])$/u.exec(sequence)
   if (csi === null) return undefined
   const [, first = '', second, eventField, final = ''] = csi

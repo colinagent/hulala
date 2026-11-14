@@ -65,6 +65,15 @@ export interface TuiTerminal {
    */
   setTitle(title: string): void
   /**
+   * Show a program's title while its column has the keyboard.
+   *
+   * `undefined` restores the client's own title (the one {@link setTitle} last
+   * set). A column is not allowed to rename the window for good: the title
+   * belongs to the Session.
+   * @param title - the program's title, or undefined to restore.
+   */
+  setOverlayTitle(title: string | undefined): void
+  /**
    * Give the terminal back. Idempotent; the context also calls it on dispose.
    */
   stop(): void
@@ -284,6 +293,7 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     observeIme,
     setCaretShape,
     setTitle: title => { terminal.setTitle(title) },
+    setOverlayTitle: title => { terminal.setOverlayTitle(title) },
   })
 }
 

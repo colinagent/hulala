@@ -26,7 +26,7 @@ import { formatProgramStatus, StdinBuffer, type ProgramStatus, type Terminal } f
 // The predicates are the input decoder's, so this layer holds exactly the
 // fragments the decoder could still complete. A bare `ESC` is the exception: it
 // is also the Escape key, so it waits its own short window below.
-import { isMouseReport, isMouseReportHead } from './input/keys.js'
+import { isMouseReport, isMouseReportHead, isPaste, pasteIsIncomplete } from './input/keys.js'
 
 /** Push the Kitty keyboard protocol's disambiguate mode, keeping older flags. */
 const PUSH_DISAMBIGUATE = '\u001b[>1u'
@@ -43,6 +43,15 @@ const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
  * because no keyboard sequence begins that way.
  */
 const ESCAPE_HEAD_TIMEOUT_MS = 30
+
+/**
+ * The largest paste the adapter buffers.
+ *
+ * A paste is delivered whole so the program can use its own paste semantics, but
+ * a marker whose end never arrives must not become an unbounded buffer: past this
+ * the bytes are delivered as they are and the frame decides what they were.
+ */
+const MAX_PASTE_BYTES = 8 * 1024 * 1024
 
 /**
  * The longest a real report can be, and therefore the longest head worth holding.
@@ -94,6 +103,14 @@ export class StreamTerminal implements Terminal {
   private detachResize: (() => void) | undefined
   /** Half a mouse report, held until its tail arrives or is given up on. */
   private pendingMouseReport: string | undefined
+  /**
+   * A bracketed paste whose end marker has not arrived.
+   *
+   * A paste is opaque content of any length, so a read can end anywhere inside
+   * it. Delivering half of it would paste the marker itself and then type the
+   * rest as keys; the whole paste waits here instead.
+   */
+  private pendingPaste: string | undefined
   private pendingMouseTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(streams: TerminalStreams, options: TerminalOptions = {}) {
@@ -132,7 +149,7 @@ export class StreamTerminal implements Terminal {
 
     this.stdinBuffer = new StdinBuffer()
     this.stdinBuffer.on('data', sequence => {
-      const kept = this.reassembleMouseReport(sequence)
+      const kept = this.reassembleInput(sequence)
       if (kept !== undefined && this.inputHandler) this.inputHandler(kept)
     })
     this.stdinBuffer.on('paste', content => {
@@ -189,6 +206,39 @@ export class StreamTerminal implements Terminal {
    * @param sequence - one sequence from the input buffer.
    * @returns the sequence to deliver, or undefined while a half report waits.
    */
+  /**
+   * Hold what cannot yet be decoded, in the order the terminal sends it.
+   *
+   * Two things can be incomplete: a paste that has not ended, and a mouse report
+   * whose tail is in the next read. A paste is checked first: its content is
+   * arbitrary bytes, so anything inside it that looks like a report is content.
+   * @param sequence - what the sequence buffer delivered.
+   * @returns the bytes to pass on, or undefined while waiting for the rest.
+   */
+  private reassembleInput(sequence: string): string | undefined {
+    if (this.pendingPaste !== undefined) {
+      const joined = this.pendingPaste + sequence
+      if (pasteIsIncomplete(joined)) {
+        if (joined.length > MAX_PASTE_BYTES) {
+          // Not a paste we can hold: give up on the marker and deliver the text,
+          // which is what a terminal would have done with the bytes anyway.
+          this.pendingPaste = undefined
+          return joined
+        }
+        this.pendingPaste = joined
+        return undefined
+      }
+      this.pendingPaste = undefined
+      return isPaste(joined) ? joined : undefined
+    }
+    if (pasteIsIncomplete(sequence)) {
+      if (sequence.length > MAX_PASTE_BYTES) return sequence
+      this.pendingPaste = sequence
+      return undefined
+    }
+    return this.reassembleMouseReport(sequence)
+  }
+
   private reassembleMouseReport(sequence: string): string | undefined {
     const pending = this.pendingMouseReport
     if (pending === undefined) {
@@ -278,7 +328,28 @@ export class StreamTerminal implements Terminal {
   }
 
   setTitle(title: string): void {
-    this.write(`\u001b]0;${title.replace(TITLE_CONTROL, ' ')}\u0007`)
+    this.ownTitle = title
+    this.write(this.titleSequence(title))
+  }
+
+  /**
+   * Show a program's title without taking the window's own title away.
+   *
+   * A program in a column may name the window (Neovim's `titlestring`), but the
+   * client's title names the Session; while the column has the keyboard its title
+   * is the more useful one, and clearing it puts the client's back.
+   * @param title - the program's title, or undefined to restore the client's.
+   */
+  setOverlayTitle(title: string | undefined): void {
+    const next = title ?? this.ownTitle
+    if (next === undefined) return
+    this.write(this.titleSequence(next))
+  }
+
+  private ownTitle: string | undefined
+
+  private titleSequence(title: string): string {
+    return `\u001b]0;${title.replace(TITLE_CONTROL, ' ')}\u0007`
   }
 
   setProgress(active: boolean): void {

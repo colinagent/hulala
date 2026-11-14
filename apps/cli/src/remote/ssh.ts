@@ -303,12 +303,20 @@ export async function openTunnel(options: TunnelOptions, spawner: TunnelSpawner 
     closed = true
     child.kill()
   }
-  child.onExit(() => {
-    exited = true
-    closed = true
+  // A forward that refused to bind exits at once; waiting out the full readiness
+  // budget would make a port clash look like a twelve-second hang.
+  const exitedEarly = new Promise<'exited'>(resolve => {
+    child.onExit(() => {
+      exited = true
+      closed = true
+      resolve('exited')
+    })
   })
-  const ready = await waitForPort(options.localPort, options.readyTimeoutMs ?? 12_000)
-  if (!ready || exited) {
+  const outcome = await Promise.race([
+    waitForPort(options.localPort, options.readyTimeoutMs ?? 12_000).then(ready => ready ? 'ready' as const : 'timeout' as const),
+    exitedEarly,
+  ])
+  if (outcome !== 'ready' || exited) {
     close()
     throw new Error(`ssh could not forward 127.0.0.1:${String(options.localPort)} from ${options.alias}`)
   }

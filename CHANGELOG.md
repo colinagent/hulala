@@ -15,6 +15,23 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- A dropped editor socket ended the column, and the Neovim behind it — with the
+  buffers the user was writing. The Host now keeps the editor for a 20 second
+  grace window keyed by the column's identity, the client reconnects to it with
+  that identity and rebuilds the grid from a fresh attach, and only a client that
+  never comes back loses the process. The tree-boundary report is watched instead
+  of polled five hundred times a minute.
+- A bracketed paste split across reads pasted its own opening marker and typed
+  the content as keys; the transport now holds an unfinished paste until its end
+  marker arrives. `modifyOtherKeys` chords are decoded too, so a terminal that
+  reports Shift-Space or Ctrl-I that way no longer types the sequence.
+- Neovim's bell rings, and its `titlestring` shows on the window title while the
+  editor column holds the keyboard — the client's own title comes back when it
+  does not.
+- `hulalaFiles` removed and renamed files with `node:fs`; those go through
+  `ctx.fs` now, which is the only path that carries the workspace policy and the
+  staleness guard. Directory operations keep `node:fs`, which the abstraction
+  does not model.
 - Pointer reports were decided by the column's kind (the editor always, a shell
   never) while a real terminal decides from the program's own modes. Both columns
   now ask their session: a shell that never enabled tracking receives nothing,

@@ -94,3 +94,14 @@ test('wrap is recorded per row', () => {
   expect(grid.row(0)?.wrap).toBe(true)
   expect(grid.row(1)?.wrap).toBe(false)
 })
+
+test('a ZWJ cluster occupies its cell pair and keeps its codepoints', () => {
+  const grid = new Grid(4, 1)
+  const family = '👨‍👩‍👧'
+  grid.line(0, 0, [[family, 1], [''], ['x'], [' ']])
+  // The whole cluster stays in one cell: splitting it would draw three people
+  // and two zero-width joiners as separate glyphs.
+  expect(grid.cell(0, 0)?.text).toBe(family)
+  expect(grid.cell(0, 1)?.text).toBe('')
+  expect(grid.text(0)).toBe(`${family}x `)
+})

@@ -181,3 +181,29 @@ test('a held escape is given back before the key that follows it', async () => {
   expect(h.received).toEqual(['\u001b', 'j'])
   h.stop()
 })
+
+test('a paste that arrives in pieces is delivered once, whole', async () => {
+  // A paste's content is opaque and can be megabytes, so a read ends anywhere
+  // inside it. Half a paste used to paste its own marker and type the rest.
+  const h = harness()
+  h.send('\u001b[200~line one\n')
+  await flush()
+  expect(h.received).toEqual([])
+  h.send('line two')
+  await flush()
+  expect(h.received).toEqual([])
+  h.send('\u001b[201~')
+  await flush()
+  expect(h.received).toEqual(['\u001b[200~line one\nline two\u001b[201~'])
+  h.stop()
+})
+
+test('a paste whose content looks like a report stays a paste', async () => {
+  const h = harness()
+  h.send('\u001b[200~ESC [ < 0 ; 1 ; 1 M')
+  await flush()
+  h.send('\u001b[201~')
+  await flush()
+  expect(h.received).toEqual(['\u001b[200~ESC [ < 0 ; 1 ; 1 M\u001b[201~'])
+  h.stop()
+})

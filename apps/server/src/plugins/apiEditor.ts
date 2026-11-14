@@ -16,8 +16,8 @@
  * @module hulala-server/api-editor
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { readFileSync, rmSync, statSync } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { readFileSync, rmSync, statSync, watch } from 'node:fs'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { WebSocketServer, type WebSocket } from 'ws'
@@ -40,6 +40,14 @@ const MAX_ROWS = 200
 /** One `open` request: where to edit, how big, and which colours to paint. */
 interface EditorOpen {
   readonly kind: 'open'
+  /**
+   * The client's identity for this editor.
+   *
+   * A window that loses its socket reconnects with the same id, and the Host
+   * hands back the Neovim it never killed — the buffers are the user's work, so
+   * a dropped connection must not be a lost edit.
+   */
+  readonly id?: string
   readonly cwd: string
   readonly cols: number
   readonly rows: number
@@ -59,6 +67,8 @@ export function parseEditorOpen(value: unknown): EditorOpen | undefined {
   const record = value as Record<string, unknown>
   if (record.kind !== 'open') return undefined
   const { cwd, cols, rows, theme } = record
+  const id = record.id
+  if (id !== undefined && (typeof id !== 'string' || id === '' || id.length > 128)) return undefined
   if (typeof cwd !== 'string' || !isAbsolute(cwd)) return undefined
   if (typeof cols !== 'number' || !Number.isInteger(cols) || cols < 1 || cols > MAX_COLS) return undefined
   if (typeof rows !== 'number' || !Number.isInteger(rows) || rows < 1 || rows > MAX_ROWS) return undefined
@@ -68,7 +78,7 @@ export function parseEditorOpen(value: unknown): EditorOpen | undefined {
   } catch {
     return undefined
   }
-  return { kind: 'open', cwd, cols, rows, theme: theme as EditorTheme }
+  return { kind: 'open', ...(id === undefined ? {} : { id }), cwd, cols, rows, theme: theme as EditorTheme }
 }
 
 /** Write one JSON control frame. */
@@ -84,43 +94,168 @@ function sendJson(socket: WebSocket, value: unknown): void {
  * lifetime, and a Host that kept editors alive for windows that no longer exist
  * would accumulate them the way detached shells do.
  */
-function serveOne(options: {
+/** One Neovim the Host owns, and the socket currently watching it. */
+export interface EditorCamp {
+  /** The client's identity, or one the Host minted for a client that sent none. */
+  readonly id: string
+  /** The tree-boundary file the vendored explorer writes. */
+  readonly treeFile: string
+  /** The executable reported to the client, known once it spawned. */
+  readonly command: string
+  child: ChildProcessWithoutNullStreams
+  /** The socket attached right now, if any. */
+  socket?: WebSocket
+  /** Set while no socket is attached; when it fires the editor is killed. */
+  detachTimer?: ReturnType<typeof setTimeout>
+  /** Stop watching the tree file. */
+  stopWatching?: () => void
+}
+
+/** How one editor process is started; injected so tests need no Neovim. */
+export type EditorSpawner = (options: {
+  command: string
+  cwd: string
+  environment: NodeJS.ProcessEnv
+}) => ChildProcessWithoutNullStreams
+
+/**
+ * How long a Neovim outlives the socket that opened it.
+ *
+ * Long enough for a client to notice a dropped connection and reconnect, short
+ * enough that a window closed for good does not leave an editor running.
+ */
+export const DETACH_GRACE_MS = 20_000
+
+/** End one editor: stop watching, stop the process, remove its tree file. */
+export function killCamp(camp: EditorCamp): void {
+  if (camp.detachTimer !== undefined) clearTimeout(camp.detachTimer)
+  camp.detachTimer = undefined
+  camp.stopWatching?.()
+  camp.stopWatching = undefined
+  camp.socket = undefined
+  camp.child.kill('SIGTERM')
+  rmSync(camp.treeFile, { force: true })
+}
+
+/**
+ * Report the tree boundary when it changes.
+ *
+ * The vendored explorer writes the boundary into a file and only when it moves,
+ * so watching the directory is the event: polling it would spend a read per
+ * editor per interval to learn that nothing happened. The directory is watched
+ * rather than the file because the file is created by the first report.
+ */
+function watchTree(camp: EditorCamp, onColumn: (column: number) => void): () => void {
+  let column: number | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const read = (): void => {
+    timer = undefined
+    let text: string
+    try {
+      text = readFileSync(camp.treeFile, 'utf8')
+    } catch {
+      return
+    }
+    const [left, width] = text.trim().split(' ').map(Number)
+    if (left === undefined || width === undefined || !Number.isFinite(left) || !Number.isFinite(width)) return
+    const next = left + width
+    if (next === column) return
+    column = next
+    onColumn(next)
+  }
+  let watcher: ReturnType<typeof watch> | undefined
+  try {
+    watcher = watch(dirname(camp.treeFile), { persistent: false }, (_event, filename) => {
+      if (filename !== null && filename !== basename(camp.treeFile)) return
+      // A write is several events; one read after they settle is enough.
+      if (timer !== undefined) return
+      timer = setTimeout(read, 25)
+    })
+    watcher.unref?.()
+  } catch {
+    // A host without inotify-style watching still works: the first pointer move
+    // over the divider asks again, and the reader below is cheap.
+  }
+  return () => {
+    if (timer !== undefined) clearTimeout(timer)
+    watcher?.close()
+  }
+}
+
+/**
+ * Own one editor process for as long as the client keeps coming back.
+ *
+ * The first `open` spawns Neovim; a later `open` with the same id attaches to it
+ * instead — a dropped socket is usually a reconnect, and the buffers are the
+ * user's work. The process outlives the socket by {@link DETACH_GRACE_MS} and is
+ * killed when no one came back, or when the plugin is disposed.
+ */
+export function serveOne(options: {
   socket: WebSocket
   home: ReturnType<typeof resolveEditorHome>
-  /** Every live editor, so disposing the plugin ends them. */
-  live: Set<ChildProcessWithoutNullStreams>
+  /** Every live editor, so disposing the plugin ends them, keyed by identity. */
+  live: Map<string, EditorCamp>
+  /** How long an editor outlives its socket; tests pass a short window. */
+  graceMs?: number
+  /** Starts Neovim; injected for tests. */
+  spawnEditor?: EditorSpawner
+  /** Publishes the editor and builds its environment; injected for tests. */
+  prepareEditor?: (open: EditorOpen, treeFile: string) => { command: string; environment: NodeJS.ProcessEnv }
 }): void {
   const { socket, home, live } = options
-  let child: ChildProcessWithoutNullStreams | undefined
-  /** The executable reported to the client, known once the open frame is read. */
-  let command: string | undefined
+  const graceMs = options.graceMs ?? DETACH_GRACE_MS
+  // `.` is the directory, the same argument the pty editor passed: the vendored
+  // explorer turns it into the file tree on the first paint.
+  const spawnEditor: EditorSpawner = options.spawnEditor ?? (spawnOptions => spawn(
+    spawnOptions.command,
+    ['--embed', '.'],
+    { cwd: spawnOptions.cwd, env: spawnOptions.environment, stdio: ['pipe', 'pipe', 'pipe'] },
+  ))
   let opened = false
   let closed = false
+  let camp: EditorCamp | undefined
 
-  /** Neovim's own report of where its file tree ends, polled while it runs. */
-  let treeFile: string | undefined
-  let treeTimer: ReturnType<typeof setInterval> | undefined
-  let treeColumn: number | undefined
-
-  const terminate = (): void => {
+  /** Stop watching this socket: the editor stays, on a timer. */
+  const detach = (): void => {
     if (closed) return
     closed = true
-    if (treeTimer !== undefined) clearInterval(treeTimer)
-    treeTimer = undefined
-    child?.kill('SIGTERM')
-    child = undefined
-    if (treeFile !== undefined) rmSync(treeFile, { force: true })
+    if (camp === undefined) return
+    const leaving = camp
+    camp = undefined
+    if (leaving.socket !== socket) return
+    leaving.socket = undefined
+    leaving.stopWatching?.()
+    leaving.stopWatching = undefined
+    leaving.detachTimer = setTimeout(() => {
+      if (leaving.socket !== undefined) return
+      live.delete(leaving.id)
+      killCamp(leaving)
+    }, graceMs)
+    leaving.detachTimer.unref?.()
+  }
+
+  /** Attach this socket to one camp: its output, its tree reports, its exit. */
+  const attach = (target: EditorCamp, resumed: boolean): void => {
+    camp = target
+    target.socket = socket
+    if (target.detachTimer !== undefined) clearTimeout(target.detachTimer)
+    target.detachTimer = undefined
+    target.stopWatching?.()
+    target.stopWatching = watchTree(target, column => {
+      if (target.socket === socket && socket.readyState === socket.OPEN) sendJson(socket, { kind: 'tree', column })
+    })
+    sendJson(socket, { kind: 'ready', command: target.command, ...(resumed ? { resumed: true } : {}) })
   }
 
   socket.on('message', (data: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
     // Binary frames are channel chunks and only make sense once Neovim is up.
     if (isBinary) {
       const chunk = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer)
-      child?.stdin.write(chunk)
+      camp?.child.stdin.write(chunk)
       return
     }
-    const text = (Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer)).toString('utf8')
     if (opened) return
+    const text = (Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as ArrayBuffer)).toString('utf8')
     let request: unknown
     try {
       request = JSON.parse(text)
@@ -136,74 +271,66 @@ function serveOne(options: {
       return
     }
     opened = true
+    const id = open.id ?? crypto.randomUUID()
+    const existing = live.get(id)
+    if (existing !== undefined && existing.child.exitCode === null && !existing.child.killed) {
+      attach(existing, true)
+      return
+    }
+    const treeFile = join(home.dataHome, `tree-${crypto.randomUUID()}.txt`)
     try {
-      publishEditor(home)
-      ensureEditorConfig(home)
-      // Re-resolve after publishing: `plugin`, `runtime` and `parsers` are paths
-      // that did not exist when this state root was first read, so a fresh
-      // install would otherwise start Neovim without its vendored plugins — a
-      // netrw tree instead of the explorer, and no pickers.
-      const resolved = resolveEditorHome(home.dataRoot)
-      command = resolved.command
-      // The editor's pickers run the shipped `rg`, published beside it.
-      const ripgrep = ripgrepPathEntry(resolved.binHome)
-      const environment = editorEnvironment(resolved, open.theme, ripgrep)
+      const prepare = options.prepareEditor ?? (request => {
+        publishEditor(home)
+        ensureEditorConfig(home)
+        // Re-resolve after publishing: `plugin`, `runtime` and `parsers` are paths
+        // that did not exist when this state root was first read, so a fresh
+        // install would otherwise start Neovim without its vendored plugins — a
+        // netrw tree instead of the explorer, and no pickers.
+        const resolved = resolveEditorHome(home.dataRoot)
+        return {
+          command: resolved.command,
+          environment: editorEnvironment(resolved, request.theme, ripgrepPathEntry(resolved.binHome)),
+        }
+      })
+      const prepared = prepare(open, treeFile)
       // The tree boundary is a fact only Neovim has, so it reports it into this
       // file and the Host forwards it; the client never touches the Host's disk.
-      treeFile = join(home.dataHome, `tree-${crypto.randomUUID()}.txt`)
-      environment.HULALA_NVIM_TREE_FILE = treeFile
-      // `.` is the directory, the same argument the pty editor passed: the
-      // vendored explorer turns it into the file tree on the first paint.
-      child = spawn(resolved.command, ['--embed', '.'], {
-        cwd: open.cwd,
-        env: { ...process.env, ...environment },
-        stdio: ['pipe', 'pipe', 'pipe'],
+      const environment = { ...process.env, ...prepared.environment, HULALA_NVIM_TREE_FILE: treeFile }
+      const started = spawnEditor({ command: prepared.command, cwd: open.cwd, environment })
+      const minted: EditorCamp = { id, treeFile, command: prepared.command, child: started }
+      live.set(id, minted)
+      started.on('exit', (code, signal) => {
+        live.delete(id)
+        if (minted.socket !== undefined && minted.socket.readyState === minted.socket.OPEN) {
+          sendJson(minted.socket, { kind: 'exit', code, signal })
+        }
+        killCamp(minted)
       })
+      started.on('error', error => {
+        if (minted.socket !== undefined) sendJson(minted.socket, { kind: 'error', message: error.message })
+      })
+      // Neovim's diagnostics must not enter the channel: a stray line would be
+      // parsed as msgpack and corrupt the grid. They travel as a control frame —
+      // a diagnostic, not an ending: the exit frame says the editor is gone.
+      started.stderr.on('data', (chunk: Buffer) => {
+        if (minted.socket !== undefined) sendJson(minted.socket, { kind: 'stderr', text: chunk.toString('utf8') })
+      })
+      // One reader for the camp, not one per socket: a reconnect must not add a
+      // second copy of every frame.
+      started.stdout.on('data', (chunk: Buffer) => {
+        if (minted.socket !== undefined && minted.socket.readyState === minted.socket.OPEN) {
+          minted.socket.send(chunk, { binary: true })
+        }
+      })
+      attach(minted, false)
     } catch (error) {
       sendJson(socket, { kind: 'error', message: error instanceof Error ? error.message : String(error) })
       socket.close()
-      return
     }
-    const started = child
-    live.add(started)
-    started.on('exit', () => { live.delete(started) })
-    // Half a second is the pace the client used to poll at, and it costs one
-    // integer read per editor; a resize is not a keystroke.
-    treeTimer = setInterval(() => {
-      if (treeFile === undefined) return
-      let text: string
-      try {
-        text = readFileSync(treeFile, 'utf8')
-      } catch {
-        return
-      }
-      const [left, width] = text.trim().split(' ').map(Number)
-      if (left === undefined || width === undefined || !Number.isFinite(left) || !Number.isFinite(width)) return
-      const column = left + width
-      if (column === treeColumn) return
-      treeColumn = column
-      sendJson(socket, { kind: 'tree', column })
-    }, 500)
-    sendJson(socket, { kind: 'ready', command })
-    started.stdout.on('data', (chunk: Buffer) => {
-      if (socket.readyState === socket.OPEN) socket.send(chunk, { binary: true })
-    })
-    // Neovim writes diagnostics here, and they must not enter the channel: a
-    // stray line would be parsed as msgpack and corrupt the grid. They travel as
-    // a control frame instead — a diagnostic, not an ending: the exit frame is
-    // what says the editor is gone.
-    started.stderr.on('data', (chunk: Buffer) => {
-      sendJson(socket, { kind: 'stderr', text: chunk.toString('utf8') })
-    })
-    started.on('error', error => sendJson(socket, { kind: 'error', message: error.message }))
-    started.on('exit', (code, signal) => {
-      sendJson(socket, { kind: 'exit', code, signal })
-      socket.close()
-    })
   })
 
-  socket.on('close', terminate)
-  socket.on('error', terminate)
+  socket.on('close', detach)
+  socket.on('error', detach)
 }
 
 /** Stable Cordis plugin name. */
@@ -220,7 +347,7 @@ export const apiEditorPlugin = {
     const home = resolveEditorHome(dataRoot)
     const sockets = new WebSocketServer({ noServer: true })
     /** Live editors, so disposing the plugin ends every one of them. */
-    const live = new Set<ChildProcessWithoutNullStreams>()
+    const live = new Map<string, EditorCamp>()
 
     ctx.effect(
       () => webServer.registerUpgrade({
@@ -246,7 +373,7 @@ export const apiEditorPlugin = {
 
     ctx.effect(
       () => () => {
-        for (const child of live) child.kill('SIGTERM')
+        for (const camp of live.values()) killCamp(camp)
         live.clear()
         sockets.close()
       },

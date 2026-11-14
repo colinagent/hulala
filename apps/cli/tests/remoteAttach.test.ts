@@ -285,3 +285,22 @@ test('a Host that comes up on the wrong release is still refused after starting'
     .rejects.toThrow('older Hulala')
   host.stop()
 })
+
+test('a loopback port taken between choice and bind is retried, not fatal', async () => {
+  // `freePort` releases the port before ssh binds it, so another process can
+  // claim it in between. The forward then fails at once, and a new port is the
+  // answer — not an "could not attach" after the window has already closed.
+  const host = fakeHost()
+  const { run } = runnerFor(host)
+  const real = proxyTo(host.port)
+  let attempts = 0
+  const spawner: TunnelSpawner = args => {
+    attempts += 1
+    if (attempts === 1) return { kill: () => undefined, onExit: handler => { handler(1) } }
+    return real.spawner(args)
+  }
+  const attached = await attachRemote('devbox', { runner: run, spawner })
+  expect(attempts).toBe(2)
+  await attached.tunnel.close()
+  host.stop()
+})

@@ -98,17 +98,38 @@ export class HulalaFiles extends TypertRemoteService {
     return { path: target.path }
   }
 
-  /** Remove one file or directory tree; the workspace root itself is protected. */
+  /**
+   * Remove one file or directory tree; the workspace root itself is protected.
+   *
+   * A regular file goes through `ctx.fs`, which is the only path that carries the
+   * sandbox policy and the staleness guard. A directory has no `ctx.fs`
+   * operation — the abstraction models file content, not trees — so a tree is
+   * removed with `node:fs` after the same confinement check.
+   */
   @Remote
   async remove(workspaceRoot: string, path: string, signal?: AbortSignal): Promise<{ path: string }> {
     const target = await this.locate(workspaceRoot, path, signal)
     if (target.path === target.rootPath) throw badRequest('workspace root cannot be removed')
     signal?.throwIfAborted()
+    const info = await this.fs.stat(target.target, signal)
+    if (info?.type === 'file') {
+      await this.fs.deleteFile(target.target, undefined, signal, {
+        mode: 'workspace-write',
+        workspaceRoot: target.rootPath,
+      }).catch((error: unknown) => { throw internal('remove failed', error) })
+      return { path: target.path }
+    }
     await rm(target.path, { recursive: true, force: false })
     return { path: target.path }
   }
 
-  /** Move or rename one entry inside the workspace. */
+  /**
+   * Move or rename one entry inside the workspace.
+   *
+   * A file moves through `ctx.fs.moveFile`, which publishes the destination and
+   * then removes the source under both guards. A directory has no such operation,
+   * so it is renamed in place after the same confinement checks.
+   */
   @Remote
   async rename(workspaceRoot: string, from: string, to: string, signal?: AbortSignal): Promise<{ from: string; to: string }> {
     const source = await this.locate(workspaceRoot, from, signal)
@@ -117,11 +138,26 @@ export class HulalaFiles extends TypertRemoteService {
     if (destination.path === source.rootPath) throw badRequest('workspace root cannot be replaced')
     signal?.throwIfAborted()
     await mkdir(dirname(destination.path), { recursive: true, mode: 0o700 })
+    const info = await this.fs.stat(source.target, signal)
+    if (info?.type === 'file') {
+      await this.fs.moveFile(source.target, destination.target, {}, signal, {
+        mode: 'workspace-write',
+        workspaceRoot: source.rootPath,
+      }).catch((error: unknown) => { throw internal('rename failed', error) })
+      return { from: source.path, to: destination.path }
+    }
     await rename(source.path, destination.path)
     return { from: source.path, to: destination.path }
   }
 
-  /** Copy one file or directory tree to a new path inside the workspace. */
+  /**
+   * Copy one file or directory tree to a new path inside the workspace.
+   *
+   * `ctx.fs` has no copy: its write operations take content the caller already
+   * holds, and streaming a whole tree through the gateway would be worse than
+   * letting the Host copy it. The confinement checks above are what keep it in
+   * the workspace.
+   */
   @Remote
   async copy(workspaceRoot: string, from: string, to: string, signal?: AbortSignal): Promise<{ from: string; to: string }> {
     const source = await this.locate(workspaceRoot, from, signal)

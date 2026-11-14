@@ -48,6 +48,16 @@ function fakeFileSystem(): FileSystem {
       await writeFile(value.targetKey as string, content, 'utf8')
       return { operation: 'create' as const, version: 'fake' as never }
     },
+    async deleteFile(value: FsTarget) {
+      const { rm } = await import('node:fs/promises')
+      await rm(value.targetKey as string)
+      return { text: null, version: 'fake' as never }
+    },
+    async moveFile(source: FsTarget, destination: FsTarget) {
+      const { rename } = await import('node:fs/promises')
+      await rename(source.targetKey as string, destination.targetKey as string)
+      return { destination: { operation: 'create' as const, version: 'fake' as never }, sourceDeleted: true }
+    },
   } as unknown as FileSystem
 }
 

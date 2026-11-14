@@ -198,6 +198,13 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   /** The shape the terminal is currently showing. */
   let pointerResize = false
   /**
+   * The title the program in the editor column asked for.
+   *
+   * Neovim reports its `titlestring`; the client's title names the Session, so
+   * the program's is shown only while its column holds the keyboard.
+   */
+  let editorTitle: string | undefined
+  /**
    * Width share per column, kept across closing and resizes. Both columns start
    * at a third of the terminal: the conversation keeps two thirds of the reading
    * width, and the divider still drags both ways.
@@ -294,6 +301,12 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
    * OSC 22 is how a terminal program asks for a pointer shape (Ghostty, kitty,
    * xterm); terminals without it simply ignore the sequence.
    */
+  /** Show the editor's title while it holds the keyboard, the Session's otherwise. */
+  const applyTitle = (): void => {
+    const held = focused && visibleKind === 'editor'
+    terminal.setOverlayTitle(held ? editorTitle : undefined)
+  }
+
   const applyPointerShape = (): void => {
     const resize = dividerHovered || treeHovered
     if (resize === pointerResize) return
@@ -347,6 +360,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     stopModeWatch = undefined
     setPaging(true)
     setDividerHover(false)
+    applyTitle()
     // Leaving the column returns to the conversation, bringing it back if it was
     // put away with `Shift-Cmd-C`: the composer has to be on screen to take the
     // keyboard. The sidebar itself stays open.
@@ -362,6 +376,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     if (visibleKind !== undefined) lastKind = visibleKind
     blur()
     visibleKind = undefined
+    applyTitle()
     layout.setPane(undefined)
     // `blur()` brings a hidden conversation back when the sidebar had the
     // keyboard. Without focus, the rail keeps the keyboard it had; a frame with
@@ -519,10 +534,19 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
         // Diagnostics are worth seeing and not worth ending a column over: a
         // plugin's warning on stderr used to close the editor without a word.
         onProblem: text => config.debug(`editorProblem ${text.trim()}`),
+        // Neovim's bell is the terminal's bell: the client is the terminal here,
+        // and a complete screen does not tell a reader that a key was refused.
+        onBell: () => { if (visibleKind === 'editor') terminal.write('\u0007') },
+        onTitle: title => {
+          editorTitle = title
+          applyTitle()
+        },
       })
       runtime = mount('editor', session)
       runtime.view.imePolicy = modeReadsText(session.currentMode()) ? 'text' : 'command'
-      void channel.open({ cwd, cols, rows: height, theme: nvim.theme })
+      // The id is what lets a reconnect reach the editor the Host kept instead of
+      // starting one that has none of the user's buffers.
+      void channel.open({ id: crypto.randomUUID(), cwd, cols, rows: height, theme: nvim.theme })
         .catch((caught: unknown) => {
           drop('editor')
           unavailable('editor', caught instanceof Error ? caught.message : String(caught))
@@ -586,6 +610,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     registerSeat(kind, runtime)
     layout.setPane(SIDEBAR_ID)
     followEditorMode(runtime)
+    applyTitle()
     focusOn(runtime.view)
     render.repaint()
   }

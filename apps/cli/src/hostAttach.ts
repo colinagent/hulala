@@ -242,8 +242,20 @@ export async function attachRemote(alias: string, options: {
   const remotePort = Number(new URL(endpoint.descriptor.httpUrl).port)
   if (!Number.isInteger(remotePort) || remotePort <= 0) throw new Error(`${alias}: the Host endpoint has no port`)
 
-  const localPort = await freePort()
-  const tunnel = await openTunnel({ alias, localPort, remotePort }, options.spawner)
+  // `freePort` asks the OS for a port and then lets it go, so another process can
+  // take it before ssh binds it. `ExitOnForwardFailure=yes` turns that race into
+  // an immediate failure instead of a wrong forward, and a new port is the fix.
+  let opened: { tunnel: Tunnel; localPort: number } | undefined
+  for (let attempt = 0; attempt < 3 && opened === undefined; attempt += 1) {
+    const localPort = await freePort()
+    const tunnel = await openTunnel({ alias, localPort, remotePort }, options.spawner).catch((error: unknown) => {
+      if (attempt === 2) throw error
+      return undefined
+    })
+    if (tunnel !== undefined) opened = { tunnel, localPort }
+  }
+  if (opened === undefined) throw new Error(`${alias}: ssh could not forward a loopback port`)
+  const { tunnel, localPort } = opened
   const baseUrl = `http://127.0.0.1:${String(localPort)}`
   // A forward is a child process with no stdio to notice its parent leaving, so
   // the process itself has to end it: a normal exit, and the two signals a

@@ -44,6 +44,8 @@ export interface NvimUiOptions {
     onData(handler: (chunk: Uint8Array) => void): void
     onExit(handler: (event: { code: number | null }) => void): void
     onProblem(handler: (text: string) => void): void
+    /** A dropped socket came back to the editor the Host kept. */
+    onReconnect?(handler: () => void): void
   }
   readonly cols: number
   readonly rows: number
@@ -55,6 +57,10 @@ export interface NvimUiOptions {
   readonly onExit: (exitCode: number) => void
   /** Called when the mode changes, so the column can follow it with the input source. */
   readonly onMode?: (mode: string) => void
+  /** Neovim rang its bell. */
+  readonly onBell?: () => void
+  /** Neovim's window title, e.g. when its `titlestring` changes. */
+  readonly onTitle?: (title: string) => void
   /**
    * Neovim's diagnostics.
    *
@@ -139,6 +145,16 @@ export class NvimUi {
     // what ends a session, and it follows a real failure on its own.
     options.channel.onProblem(text => this.options.onProblem?.(text))
     options.channel.onExit(event => this.fail(event.code ?? -1))
+    // The Host keeps the editor across a dropped socket. Coming back means this
+    // grid is missing everything that happened while it was away, so it is reset
+    // and Neovim is asked for the screen again — a UI attach always replays it.
+    options.channel.onReconnect?.(() => {
+      if (this.disposed) return
+      this.grid.reset(this.cols, this.rows)
+      this.cursor = { row: 0, col: 0 }
+      this.request('nvim_ui_attach', [this.cols, this.rows, { ext_linegrid: true, rgb: this.options.color }])
+      this.options.onScreen()
+    })
     // The first thing a UI does: become a UI. The channel buffers this until the
     // Host's `ready`, so constructing the grid and opening the column stay one
     // synchronous step.
@@ -258,6 +274,14 @@ export class NvimUi {
         const background = numberOf(args[1])
         if (foreground !== undefined) this.defaultColors.foreground = foreground
         if (background !== undefined) this.defaultColors.background = background
+        return
+      }
+      case 'bell':
+        this.options.onBell?.()
+        return
+      case 'set_title': {
+        const title = args[0]
+        if (typeof title === 'string' && title !== '') this.options.onTitle?.(title)
         return
       }
       case 'mode_info_set': {
