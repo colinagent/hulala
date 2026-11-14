@@ -13,6 +13,22 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-11-14
+
+### Fixed
+
+- Input is framed by one buffer-first parser instead of the renderer's sequence
+  splitter. That splitter emits anything without an escape byte one character at a
+  time, which is right for a TUI and wrong for a program's bytes: a pointer report
+  whose escape was read separately arrived as the Escape key and then
+  `[<35;43;38M` — typed into the composer, and the stray Escape moved the keyboard
+  into the rail. The parser holds whatever is incomplete, so a report is delivered
+  whole however the kernel cut the read, and a report that lost its escape is
+  still a report rather than text.
+- The suite now checks that property directly: a report parses identically under
+  every chunk size and at every split point, which is the case a 4 KiB read never
+  showed and a busy remote frame did.
+
 ## [0.3.14] - 2026-11-14
 
 ### Fixed

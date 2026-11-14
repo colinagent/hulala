@@ -204,6 +204,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
       input,
       output,
       composerPaging: true,
+      debug: debugLog,
       ...(options.copySelection === undefined ? {} : { copySelection: options.copySelection }),
     })
     await ctx.plugin(renderPlugin)

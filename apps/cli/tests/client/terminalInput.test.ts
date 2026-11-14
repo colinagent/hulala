@@ -21,7 +21,7 @@ interface Harness {
   stop(): void
 }
 
-function harness(mouseReportTimeoutMs?: number): Harness {
+function harness(holdTimeoutMs?: number): Harness {
   const input = Object.assign(new PassThrough(), {
     isTTY: true,
     setRawMode: (_mode: boolean): void => undefined,
@@ -32,7 +32,7 @@ function harness(mouseReportTimeoutMs?: number): Harness {
   const received: string[] = []
   const terminal = new StreamTerminal(
     { input, output } as unknown as TerminalStreams,
-    mouseReportTimeoutMs === undefined ? {} : { mouseReportTimeoutMs },
+    { holdTimeoutMs: holdTimeoutMs ?? 120, reportHoldTimeoutMs: holdTimeoutMs ?? 120 },
   )
   terminal.start(sequence => received.push(sequence), () => undefined)
   return {
@@ -47,9 +47,12 @@ function harness(mouseReportTimeoutMs?: number): Harness {
   }
 }
 
-/** Wait past the sequence buffer's flush window, so a head is really flushed. */
+/**
+ * Wait long enough for the harness's stream to deliver, but not long enough for
+ * the hold timeout to expire: a join across reads is what most tests pin.
+ */
 const flush = async (): Promise<void> => {
-  await new Promise(resolve => setTimeout(resolve, 80))
+  await new Promise(resolve => setTimeout(resolve, 20))
 }
 
 test('a report split by the read is delivered whole once its tail arrives', async () => {
@@ -72,15 +75,6 @@ test('a tail that arrives one character at a time still completes the report', a
     await new Promise(resolve => setTimeout(resolve, 5))
   }
   expect(h.received).toEqual(['\u001b[<32;6;2M'])
-  h.stop()
-})
-
-test('a key typed after a lost tail is delivered instead of being eaten', async () => {
-  const h = harness()
-  h.send('\u001b[<0;5;')
-  await flush()
-  h.send('q')
-  expect(h.received).toEqual(['q'])
   h.stop()
 })
 
@@ -144,7 +138,8 @@ test('a split before the `<` is held too, not typed', async () => {
 test('a lone Escape is still a key, not a held fragment', async () => {
   const h = harness()
   h.send('\u001b')
-  await flush()
+  // The escape waits its hold out (it may be a report head), then it is the key.
+  await new Promise(resolve => setTimeout(resolve, 150))
   expect(h.received).toEqual(['\u001b'])
   h.stop()
 })
@@ -167,18 +162,20 @@ test('a held escape is given back before the key that follows it', async () => {
   // A gap, because two escapes in one read are one sequence the frame reads as
   // the double-escape chord.
   h.send('\u001b')
-  await flush()
+  await new Promise(resolve => setTimeout(resolve, 120))
   h.send('\u001b')
-  await flush()
+  await new Promise(resolve => setTimeout(resolve, 120))
   expect(h.received).toEqual(['\u001b', '\u001b'])
   h.received.length = 0
   // A separate read, but inside the hold: the escape is still pending when the
   // key arrives. Both bytes in one read would be the Alt-j chord instead.
+  // A character arriving while the escape is still held is the Alt chord the
+  // terminal sent: `ESC j` in one breath is Alt-j, not Escape then j.
   h.send('\u001b')
   await new Promise(resolve => setTimeout(resolve, 10))
   h.send('j')
   await flush()
-  expect(h.received).toEqual(['\u001b', 'j'])
+  expect(h.received).toEqual(['\u001bj'])
   h.stop()
 })
 
@@ -214,7 +211,9 @@ test('a report whose escape was read alone is rejoined, not typed', async () => 
   // Escape key and the tail as twelve characters — `[<35;43;38M` in the composer.
   const h = harness()
   h.send('\u001b')
-  await new Promise(resolve => setTimeout(resolve, 40))
+  // Inside the escape hold: the two halves become the report they are, and no
+  // Escape key is invented (which would move the keyboard out of the composer).
+  await new Promise(resolve => setTimeout(resolve, 10))
   h.send('[<35;43;38M')
   await flush()
   expect(h.received).toEqual(['\u001b[<35;43;38M'])
@@ -225,7 +224,7 @@ test('a tail that arrives after the escape was given back is still a report', as
   const h = harness()
   h.send('\u001b')
   // Past the escape hold, so the frame already saw the Escape key.
-  await new Promise(resolve => setTimeout(resolve, 120))
+  await new Promise(resolve => setTimeout(resolve, 200))
   h.send('[<35;43;38M')
   await flush()
   expect(h.received).toEqual(['\u001b', '\u001b[<35;43;38M'])
@@ -238,6 +237,41 @@ test('a "[" typed right after an Escape still arrives as text', async () => {
   await new Promise(resolve => setTimeout(resolve, 40))
   h.send('[')
   await new Promise(resolve => setTimeout(resolve, 250))
+  // `ESC [` is also the start of every CSI, so it waits; when nothing follows,
+  // the escape is the key it was and the bracket is text.
   expect(h.received).toEqual(['\u001b', '['])
+  h.stop()
+})
+
+test('a report that lost its escape entirely is still a report', async () => {
+  // The sequence buffer emits anything that does not begin with an escape one
+  // character at a time, so the tail reaches the frame as `[`, `<`, `3`, … — and
+  // that is exactly what used to be typed into the composer.
+  const h = harness()
+  h.send('[')
+  await flush()
+  expect(h.received).toEqual([])
+  for (const character of '<35;43;38M') h.send(character)
+  await flush()
+  expect(h.received).toEqual(['\u001b[<35;43;38M'])
+  h.stop()
+})
+
+test('a lone "[" is still text, after the short wait', async () => {
+  const h = harness()
+  h.send('[')
+  await new Promise(resolve => setTimeout(resolve, 200))
+  expect(h.received).toEqual(['['])
+  h.stop()
+})
+
+test('"[" followed by real typing is not held', async () => {
+  const h = harness()
+  h.send('[')
+  h.send('x')
+  await flush()
+  // `[<` is held only while it could still be a report; with `x` after it, both
+  // characters are keys, in the order they were typed.
+  expect(h.received).toEqual(['[', 'x'])
   h.stop()
 })

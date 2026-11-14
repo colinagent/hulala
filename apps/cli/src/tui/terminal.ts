@@ -3,8 +3,8 @@
  *
  * `ProcessTerminal` hard-codes `process.stdin/stdout`, which makes the client
  * untestable with injected streams. This minimal `Terminal` implementation owns
- * raw mode, stdin framing (via pi-tui's `StdinBuffer`), resize notifications,
- * and the escape-sequence surface pi-tui's renderer calls.
+ * raw mode, stdin framing (via {@link InputParser}), resize notifications, and
+ * the escape-sequence surface pi-tui's renderer calls.
  *
  * It does ask for the Kitty keyboard protocol's *disambiguate* mode, because a
  * macOS terminal will not report a Command chord any other way — and Command is
@@ -14,19 +14,17 @@
  * state (`kittyProtocolActive` stays false), so a terminal that ignores the
  * request reads exactly like it always did.
  *
- * The sequence buffer gives up on a sequence it cannot finish in time, which is
- * right for a key and wrong for a mouse report: one report is one gesture, and
- * the halves mean nothing apart. So a flushed half report is held here until the
- * rest of it arrives, and only a tail that never comes is dropped (see
- * `reassembleMouseReport`).
+ * Framing is ours, not the renderer's. pi-tui's own buffer splits a chunk into
+ * "sequences" for a TUI, which is right for a key and wrong for a program's
+ * bytes: a report whose escape was read on its own comes back as one character
+ * per event and ends up typed into whatever has the keyboard. `InputParser`
+ * keeps the buffer instead, so a report is delivered whole however the kernel
+ * cut it, and only a prefix that never completes is dropped.
  *
  * @module hulala-cli/tui/terminal
  */
-import { formatProgramStatus, StdinBuffer, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
-// The predicates are the input decoder's, so this layer holds exactly the
-// fragments the decoder could still complete. A bare `ESC` is the exception: it
-// is also the Escape key, so it waits its own short window below.
-import { isMouseReport, isMouseReportHead, isPaste, pasteIsIncomplete } from './input/keys.js'
+import { formatProgramStatus, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
+import { InputParser } from './input/parse.js'
 
 /** Push the Kitty keyboard protocol's disambiguate mode, keeping older flags. */
 const PUSH_DISAMBIGUATE = '\u001b[>1u'
@@ -35,76 +33,28 @@ const PUSH_DISAMBIGUATE = '\u001b[>1u'
 const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 
 /**
- * How long after an Escape the tail of a split report is still recognised.
+ * How long an incomplete sequence is held before it is handed back as keys.
  *
- * The sequence buffer flushes a lone `ESC` after ten milliseconds, so a report
- * whose escape was read separately arrives as the Escape key and then its tail.
- * The tail cannot be typed by anyone (it is `[<35;43;38M`), so inside this window
- * it is joined back to the escape that was already delivered and handed over as
- * the report it is.
+ * Only the *escape* needs this: a report whose escape was read on its own is
+ * still recognised from its tail alone (see `InputParser`), so waiting longer
+ * would buy nothing and cost the two things an escape must keep — it is the
+ * Escape key, and `ESC x` within this window is the Alt chord the terminal sent.
+ * A human pressing Escape and then a key slower than this gets two keys.
  */
-const ORPHAN_REPORT_WINDOW_MS = 500
-
-/** A report without its escape: what the tail of a split one looks like. */
-const ORPHAN_REPORT = /^\[<\d+;\d+;\d+[Mm]$/u
+const HOLD_TIMEOUT_MS = 25
 
 /**
- * The prefix of one, which arrives one character at a time.
+ * How long a report's head waits for its tail.
  *
- * The sequence buffer emits anything that does not start with an escape as
- * single characters, so a tail whose escape was already delivered reaches this
- * adapter as `[`, `<`, `3`, … — each on its own — and is collected here.
+ * A report is one gesture, so its halves may come a read apart and nothing about
+ * the first half can be given back as keys. A second is far longer than any read
+ * gap and short enough that a stream which lost the tail does not hold the next
+ * keystroke's bytes forever.
  */
-const ORPHAN_TAIL_HEAD = /^\[<?[\d;]*$/u
+const REPORT_HOLD_MS = 1_000
 
-/** How long a possible report tail waits for its remaining characters. */
-const ORPHAN_TAIL_TIMEOUT_MS = 120
-
-/**
- * A bare `ESC`, held because it may be the head of a report.
- *
- * The exported {@link isMouseReportHead} deliberately excludes it: a bare escape
- * is also the Escape key, and only this adapter has the timing to decide.
- */
-const REPORT_OR_ESCAPE_HEAD = /^\u001b(?:\[<?[\d;]*)?$/u
-
-/**
- * How long a bare `ESC` waits for the `[` that would make it a report.
- *
- * It is also the Escape key, so this is a compromise, not a buffer: long enough
- * to catch a report split at the read boundary, short enough that the key does
- * not feel late. Everything longer than `ESC [` waits the full report timeout,
- * because no keyboard sequence begins that way.
- */
-const ESCAPE_HEAD_TIMEOUT_MS = 30
-
-/**
- * The largest paste the adapter buffers.
- *
- * A paste is delivered whole so the program can use its own paste semantics, but
- * a marker whose end never arrives must not become an unbounded buffer: past this
- * the bytes are delivered as they are and the frame decides what they were.
- */
-const MAX_PASTE_BYTES = 8 * 1024 * 1024
-
-/**
- * The longest a real report can be, and therefore the longest head worth holding.
- *
- * `ESC [ <` then three numbers: a button byte and two coordinates that fit in
- * sixteen bits each stay well inside this. A longer "head" is not a report the
- * terminal is finished sending; it is a broken stream, and holding it would grow
- * a buffer on the strength of whatever arrives next.
- */
-const SGR_MOUSE_MAX_LENGTH = 64
-
-/**
- * How long half a report is held before it is given up on.
- *
- * A slow read can split one report, but the halves arrive milliseconds apart:
- * a head still waiting after a whole second belongs to a report whose tail was
- * lost, and holding it longer would let an unrelated key complete it.
- */
-const MOUSE_REPORT_TIMEOUT_MS = 1_000
+/** The head of a report, whose tail has not arrived. */
+const REPORT_HEAD = /^\u001b?\[<[\d;]*$/u
 
 /**
  * Bytes that would end an OSC title early or start a sequence inside it.
@@ -122,39 +72,44 @@ export interface TerminalStreams {
 
 /** Timing knobs a test can shorten; the client always takes the defaults. */
 export interface TerminalOptions {
-  /** How long half a mouse report waits for its tail. */
-  readonly mouseReportTimeoutMs?: number
+  /**
+   * How long an incomplete sequence waits for its remainder.
+   *
+   * A lone escape may be the Escape key or the head of a report; `ESC [` may be
+   * Alt-`[` or the start of a CSI. Nothing can tell them apart but time.
+   */
+  readonly holdTimeoutMs?: number
+  /** How long a report's head waits for its tail; tests shorten it. */
+  readonly reportHoldTimeoutMs?: number
+  /**
+   * Every chunk as the terminal read it, and every sequence handed on.
+   *
+   * Diagnostics only: a report that arrives in pieces is invisible in the
+   * rendered screen, so `HULALA_DEBUG_CLIENT` records both sides of this
+   * adapter and a missing escape shows up as `raw` without `delivered`.
+   */
+  readonly trace?: (line: string) => void
 }
 
 export class StreamTerminal implements Terminal {
   private readonly streams: TerminalStreams
-  private readonly mouseReportTimeoutMs: number
+  private readonly holdTimeoutMs: number
+  private readonly reportHoldTimeoutMs: number
+  private readonly trace: ((line: string) => void) | undefined
   private inputHandler: ((data: string) => void) | undefined
   private resizeHandler: (() => void) | undefined
-  private stdinBuffer: StdinBuffer | undefined
+  /** The one place input is framed; see {@link InputParser}. */
+  private parser: InputParser | undefined
   private wasRaw = false
   private rawData: ((chunk: string | Buffer) => void) | undefined
   private detachResize: (() => void) | undefined
-  /** Half a mouse report, held until its tail arrives or is given up on. */
-  private pendingMouseReport: string | undefined
-  /**
-   * A bracketed paste whose end marker has not arrived.
-   *
-   * A paste is opaque content of any length, so a read can end anywhere inside
-   * it. Delivering half of it would paste the marker itself and then type the
-   * rest as keys; the whole paste waits here instead.
-   */
-  private pendingPaste: string | undefined
-  /** When an Escape was handed on, so a late report tail can be rejoined. */
-  private escapeDeliveredAt = 0
-  /** Characters of a report tail whose escape was already delivered. */
-  private pendingOrphanTail: string | undefined
-  private orphanTimer: ReturnType<typeof setTimeout> | undefined
-  private pendingMouseTimer: ReturnType<typeof setTimeout> | undefined
+  private holdTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(streams: TerminalStreams, options: TerminalOptions = {}) {
     this.streams = streams
-    this.mouseReportTimeoutMs = options.mouseReportTimeoutMs ?? MOUSE_REPORT_TIMEOUT_MS
+    this.holdTimeoutMs = options.holdTimeoutMs ?? HOLD_TIMEOUT_MS
+    this.reportHoldTimeoutMs = options.reportHoldTimeoutMs ?? REPORT_HOLD_MS
+    this.trace = options.trace
   }
 
   get columns(): number {
@@ -186,16 +141,13 @@ export class StreamTerminal implements Terminal {
     // now report `Cmd-Ctrl-[` as `CSI 91;13u`, which legacy encoding cannot.
     this.write(PUSH_DISAMBIGUATE)
 
-    this.stdinBuffer = new StdinBuffer()
-    this.stdinBuffer.on('data', sequence => {
-      const kept = this.reassembleInput(sequence)
-      if (kept !== undefined && this.inputHandler) this.inputHandler(kept)
-    })
-    this.stdinBuffer.on('paste', content => {
-      if (this.inputHandler) this.inputHandler(`\u001b[200~${content}\u001b[201~`)
-    })
+    if (process.env.HULALA_TRACE_START !== undefined) console.error('[start] terminal starting')
+    this.parser = new InputParser()
     this.rawData = (chunk: string | Buffer): void => {
-      this.stdinBuffer?.process(chunk)
+      const text = String(chunk)
+      this.trace?.(`raw ${JSON.stringify(text)}`)
+      for (const piece of this.parser?.push(text) ?? []) this.deliver(piece)
+      this.armHold()
     }
     input.on('data', this.rawData)
 
@@ -216,10 +168,8 @@ export class StreamTerminal implements Terminal {
   stop(): void {
     if (this.rawData !== undefined) this.streams.input.off('data', this.rawData)
     this.rawData = undefined
-    this.clearPendingMouseReport()
-    this.clearOrphanTail()
-    this.stdinBuffer?.clear()
-    this.stdinBuffer = undefined
+    this.clearHold()
+    this.parser = undefined
     this.detachResize?.()
     this.detachResize = undefined
     // Pop the keyboard mode before the paste mode: the terminal must go back to
@@ -231,163 +181,35 @@ export class StreamTerminal implements Terminal {
     this.resizeHandler = undefined
   }
 
-  /**
-   * Join the halves of a mouse report the sequence buffer gave up on.
-   *
-   * `StdinBuffer` flushes a sequence it could not finish inside its 50 ms window,
-   * so a report split by a slow read arrives as `ESC [ < 35;6` and then as plain
-   * characters, one per event. The head alone is not a keystroke worth keeping
-   * and not a report any parser above accepts, so it is held here: the next
-   * piece is appended, and the moment the two form a whole report the report is
-   * delivered as one sequence — exactly as a terminal that was fast enough to
-   * send it whole would have. A piece that cannot be the tail of a report means
-   * the tail was lost, so the head is dropped and that piece is delivered on its
-   * own: it is what the user typed.
-   * @param sequence - one sequence from the input buffer.
-   * @returns the sequence to deliver, or undefined while a half report waits.
-   */
-  /**
-   * Hold what cannot yet be decoded, in the order the terminal sends it.
-   *
-   * Two things can be incomplete: a paste that has not ended, and a mouse report
-   * whose tail is in the next read. A paste is checked first: its content is
-   * arbitrary bytes, so anything inside it that looks like a report is content.
-   * @param sequence - what the sequence buffer delivered.
-   * @returns the bytes to pass on, or undefined while waiting for the rest.
-   */
-  private reassembleInput(sequence: string): string | undefined {
-    // The tail of a report whose escape was already delivered: joining the two
-    // back together is what keeps `<35;43;38M` out of a buffer.
-    if (this.escapeDeliveredAt !== 0 && Date.now() - this.escapeDeliveredAt <= ORPHAN_REPORT_WINDOW_MS) {
-      const joined = (this.pendingOrphanTail ?? '') + sequence
-      if (ORPHAN_REPORT.test(joined)) {
-        this.clearOrphanTail()
-        return `\u001b${joined}`
-      }
-      if (ORPHAN_TAIL_HEAD.test(joined)) {
-        this.pendingOrphanTail = joined
-        this.armOrphanTail()
-        return undefined
-      }
-      // Not the tail after all: give its characters back, in the order they were
-      // typed, and treat this sequence normally.
-      if (this.pendingOrphanTail !== undefined) {
-        this.clearOrphanTail()
-        this.inputHandler?.(joined.slice(0, joined.length - sequence.length))
-      }
-    }
-    if (this.pendingPaste !== undefined) {
-      const joined = this.pendingPaste + sequence
-      if (pasteIsIncomplete(joined)) {
-        if (joined.length > MAX_PASTE_BYTES) {
-          // Not a paste we can hold: give up on the marker and deliver the text,
-          // which is what a terminal would have done with the bytes anyway.
-          this.pendingPaste = undefined
-          return joined
-        }
-        this.pendingPaste = joined
-        return undefined
-      }
-      this.pendingPaste = undefined
-      return isPaste(joined) ? joined : undefined
-    }
-    if (pasteIsIncomplete(sequence)) {
-      if (sequence.length > MAX_PASTE_BYTES) return sequence
-      this.pendingPaste = sequence
-      return undefined
-    }
-    return this.reassembleMouseReport(sequence)
-  }
-
-  /** Hold a possible report tail until it completes or the window closes. */
-  private armOrphanTail(): void {
-    if (this.orphanTimer !== undefined) clearTimeout(this.orphanTimer)
-    this.orphanTimer = setTimeout(() => {
-      this.orphanTimer = undefined
-      const held = this.pendingOrphanTail
-      this.pendingOrphanTail = undefined
-      // A person typed it: it is text like any other.
-      if (held !== undefined) this.inputHandler?.(held)
-    }, ORPHAN_TAIL_TIMEOUT_MS)
-  }
-
-  private clearOrphanTail(): void {
-    if (this.orphanTimer !== undefined) clearTimeout(this.orphanTimer)
-    this.orphanTimer = undefined
-    this.pendingOrphanTail = undefined
-  }
-
-  private reassembleMouseReport(sequence: string): string | undefined {
-    const pending = this.pendingMouseReport
-    if (pending === undefined) {
-      // A whole report passes through; a fragment waits for its tail, and so
-      // does a bare escape, which may be one.
-      if (!isMouseReportHead(sequence) && !REPORT_OR_ESCAPE_HEAD.test(sequence)) return sequence
-      if (sequence === '\u001b') this.escapeDeliveredAt = 0
-      this.holdMouseReport(sequence)
-      return undefined
-    }
-    const joined = pending + sequence
-    if (isMouseReport(joined)) {
-      this.clearPendingMouseReport()
-      this.escapeDeliveredAt = 0
-      return joined
-    }
-    if (isMouseReportHead(joined)) {
-      this.holdMouseReport(joined)
-      return undefined
-    }
-    // This piece cannot be the tail of that report: the tail was lost on the
-    // way, so the fragment is given up on and the piece is delivered as it
-    // arrived — it is a key the user typed, or the head of the next report.
-    this.clearPendingMouseReport()
-    // A held `ESC` is a key too, and it comes first: dropping it would swallow
-    // one Escape whenever two of them, or an Escape and a key, arrive together.
-    if (pending === '\u001b') {
-      this.escapeDeliveredAt = Date.now()
-      this.inputHandler?.('\u001b')
-    }
-    if (!isMouseReportHead(sequence)) return sequence
-    this.holdMouseReport(sequence)
-    return undefined
+  /** Hand one complete piece to the frame, and record which one it was. */
+  private deliver(piece: string): void {
+    this.trace?.(`piece ${JSON.stringify(piece)}`)
+    this.inputHandler?.(piece)
   }
 
   /**
-   * Keep a half report, and give up on it if no tail follows.
+   * Give held bytes back once nothing more arrives for them.
    *
-   * A head longer than any report can be is dropped rather than buffered: it is
-   * not a report in progress, and nothing above this layer could use it.
+   * The parser holds a prefix that could still grow — a lone escape, half a CSI,
+   * `[<35;` — and only time can say whether the rest is coming. When it does not,
+   * the escape becomes the Escape key, an Alt chord is delivered as it stands,
+   * and a report fragment is dropped: half a report is never typing.
    */
-  private holdMouseReport(partial: string): void {
-    this.clearPendingMouseReport()
-    if (partial.length > SGR_MOUSE_MAX_LENGTH) return
-    this.pendingMouseReport = partial
-    // A held `ESC` is given back as the key it also is when no report follows.
-    const escape = partial === '\u001b'
-    const timer = setTimeout(() => {
-      this.pendingMouseReport = undefined
-      this.pendingMouseTimer = undefined
-      // A fragment that has already named a report button (`ESC [ < …`) is a
-      // report whose tail was lost: it is dropped, and no key is invented.
-      if (partial.includes('<')) return
-      // Otherwise the escape was a key. `ESC [` alone is far more often Escape
-      // then a bracket than a report, so the bracket is given back too; keeping
-      // the moment it was handed on lets a tail still in flight be rejoined.
-      this.escapeDeliveredAt = Date.now()
-      this.inputHandler?.('\u001b')
-      if (partial === '\u001b[') this.inputHandler?.('[')
-    }, escape ? Math.min(this.mouseReportTimeoutMs, ESCAPE_HEAD_TIMEOUT_MS) : Math.min(this.mouseReportTimeoutMs, ORPHAN_TAIL_TIMEOUT_MS))
-    // A window that stops with half a report on the wire must still be able to
-    // exit: the timer is not a reason to keep the process alive.
-    timer.unref()
-    this.pendingMouseTimer = timer
+  private armHold(): void {
+    this.clearHold()
+    const pending = this.parser?.pending() ?? ''
+    if (pending === '') return
+    const wait = REPORT_HEAD.test(pending) ? this.reportHoldTimeoutMs : this.holdTimeoutMs
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = undefined
+      if (this.parser === undefined) return
+      for (const piece of this.parser.drain()) this.deliver(piece)
+    }, wait)
   }
 
-  /** Forget the half report and its timer. */
-  private clearPendingMouseReport(): void {
-    if (this.pendingMouseTimer !== undefined) clearTimeout(this.pendingMouseTimer)
-    this.pendingMouseTimer = undefined
-    this.pendingMouseReport = undefined
+  private clearHold(): void {
+    if (this.holdTimer !== undefined) clearTimeout(this.holdTimer)
+    this.holdTimer = undefined
   }
 
   write(data: string): void {

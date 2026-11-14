@@ -147,6 +147,8 @@ export interface TerminalPluginConfig {
    * {@link copySelectedText}).
    */
   readonly copySelection?: (text: string) => Promise<boolean | string>
+  /** Append one diagnostic line; only set while `HULALA_DEBUG_CLIENT` is. */
+  readonly debug?: (message: string) => void
 }
 
 /** The client's own way of putting a selection on the clipboard. */
@@ -176,7 +178,10 @@ function copyProblemText(problem: CopyProblem): string {
 
 /** Construct the terminal, install the keybinding table, and own both. */
 export function apply(ctx: Context, config: TerminalPluginConfig): void {
-  const terminal = new StreamTerminal({ input: config.input, output: config.output } as TerminalStreams)
+  const terminal = new StreamTerminal(
+    { input: config.input, output: config.output } as TerminalStreams,
+    config.debug === undefined ? {} : { trace: config.debug },
+  )
   // The hardware cursor is the caret a program column shows. A grid cell holds
   // one glyph, so drawing Neovim's insert-mode bar in the grid would have to
   // delete the character under it; the terminal's own cursor composites over the
