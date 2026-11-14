@@ -122,6 +122,8 @@ export class NvimUi {
   private modeIndex = 0
   /** Column Neovim's file tree ends at, when it reports one. */
   private tree: number | undefined
+  /** Whether Neovim wants pointer reports; it says so with `mouse_on`/`mouse_off`. */
+  private mouseEnabled = false
   private nextRequest = 0
   private disposed = false
 
@@ -203,6 +205,12 @@ export class NvimUi {
         return
       case 'grid_cursor_goto':
         this.cursor = { row: numberOf(args[1]) ?? 0, col: numberOf(args[2]) ?? 0 }
+        return
+      case 'mouse_on':
+        this.mouseEnabled = true
+        return
+      case 'mouse_off':
+        this.mouseEnabled = false
         return
       case 'grid_scroll': {
         const top = numberOf(args[1])
@@ -372,6 +380,17 @@ export class NvimUi {
   /** The mode Neovim last reported, for the input-source policy. */
   currentMode(): string | undefined {
     return this.mode
+  }
+
+  /**
+   * Whether Neovim asked for pointer reports.
+   *
+   * It says so with `mouse_on`/`mouse_off`, which follow its `mouse` option and
+   * the buffer it is in. A UI that forwards clicks while the option is off moves
+   * the cursor in places a real terminal would leave alone.
+   */
+  mouseTracking(): boolean {
+    return this.mouseEnabled && !this.disposed
   }
 
   /**

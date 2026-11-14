@@ -47,6 +47,13 @@ export interface PaneScreen {
   /** The caret shape the program inside this pane asks the terminal for. */
   caretShape(): CaretShape
   input(data: string): void
+  /**
+   * Whether the program asked for mouse reports.
+   *
+   * This is the program's own answer, read from its modes — a shell that never
+   * enabled tracking gets nothing, a `nvim` in the same column gets everything.
+   */
+  mouseTracking?(): boolean
 }
 
 export interface ScreenPaneOptions {
@@ -88,10 +95,10 @@ export interface ScreenPaneOptions {
   /**
    * Hand the pointer to the program as terminal mouse reports.
    *
-   * Only the editor column sets this: Neovim tracks the mouse (`mouse=a`) and
-   * uses it for clicks, selection and the file tree's own divider, while a shell
-   * usually does not — and the client cannot see whether a program asked for
-   * reports, because the screen model does not expose the modes it parsed.
+   * The decision belongs to the program, not to the column's kind: the screen
+   * model parses the modes the program set, so the client asks it rather than
+   * guessing from whether the column runs Neovim or a shell. A column with no
+   * program (a failed spawn) reports nothing and receives nothing.
    */
   readonly mouse?: boolean
 }
@@ -221,8 +228,9 @@ export class ScreenPane implements Component, Focusable {
     // column. A gesture on the program's own divider must not be ended by that:
     // the pointer is supposed to stay on that rule for as long as it is held.
     if (!this.grabbing) this.options.onPointer?.()
-    if (event.type === 'wheel' && this.claimWheel(event)) return { handled: true }
-    if (this.options.mouse !== true) return undefined
+    const tracks = this.tracksMouse()
+    if (event.type === 'wheel' && this.claimWheel(event, tracks)) return { handled: true }
+    if (!tracks) return undefined
     const divider = this.options.divider
     if (divider !== undefined) {
       switch (event.type) {
@@ -257,6 +265,18 @@ export class ScreenPane implements Component, Focusable {
   }
 
   /**
+   * Whether the program in this column wants pointer reports.
+   *
+   * Asked per event rather than cached: a program turns tracking on and off as
+   * it changes modes, and the screen model is the only thing that knows.
+   * @returns true when the program enabled mouse tracking.
+   */
+  private tracksMouse(): boolean {
+    if (this.options.mouse !== true) return false
+    return this.options.screen.mouseTracking?.() ?? false
+  }
+
+  /**
    * Answer one wheel notch where the pointer is.
    *
    * A program that tracks the mouse gets the report, one notch per notch: it
@@ -268,10 +288,10 @@ export class ScreenPane implements Component, Focusable {
    * @param event - the wheel event the frame dispatched to this column.
    * @returns whether this column answered the notch.
    */
-  private claimWheel(event: TuiMouseEvent): boolean {
+  private claimWheel(event: TuiMouseEvent, tracks: boolean): boolean {
     const delta = event.wheelDelta ?? 0
     if (delta === 0) return false
-    if (this.options.mouse === true) {
+    if (tracks) {
       // One report per notch, the way a terminal sends a fast spin: the frame's
       // delta is in lines, and Neovim applies its own distance per notch.
       const report = sgrWheel(event) ?? ''

@@ -232,6 +232,19 @@ export class ScreenSession {
    * history passes every key straight through.
    * @returns true when `scrollPages` would do something.
    */
+  /**
+   * Whether the program in this column asked for mouse reports.
+   *
+   * The terminal decides this from the program's own modes, so a shell that
+   * never enabled tracking receives nothing and a `nvim` inside the column
+   * receives everything it expects.
+   * @returns true while the program tracks the mouse.
+   */
+  mouseTracking(): boolean {
+    if (this.disposed) return false
+    return this.vt.mouseTracking()
+  }
+
   scrollable(): boolean {
     if (this.disposed || !this.history) return false
     const bar = this.vt.scrollbar()

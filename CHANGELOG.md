@@ -15,6 +15,12 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- Pointer reports were decided by the column's kind (the editor always, a shell
+  never) while a real terminal decides from the program's own modes. Both columns
+  now ask their session: a shell that never enabled tracking receives nothing,
+  and a `nvim` running in the terminal column receives clicks, drags and its wheel.
+  The editor follows Neovim's `mouse_on`/`mouse_off`, so `:set mouse=` stops the
+  forwarding it used to ignore.
 - The editor drew a run of one character — a rule, a scrollbar, a status-line fill —
   as that character followed by blanks: `grid_line`'s `repeat` was applied to the
   cell's text, and our implementation wrote one glyph and then spaces. Nvim's own

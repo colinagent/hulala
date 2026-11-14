@@ -490,6 +490,21 @@ export class GhosttyVt {
     this.lineCount = rows
   }
 
+  /**
+   * Whether the program asked for mouse reports.
+   *
+   * A terminal only sends pointer reports to a program that enabled tracking
+   * (DEC 1000/1002/1003), and the screen model parses exactly those modes. The
+   * client is that terminal for the column, so this — not the column's kind —
+   * is what decides whether a click reaches the program.
+   * @returns true for any tracking mode (`x10`, `normal`, `button`, `any`).
+   */
+  mouseTracking(): boolean {
+    if (this.disposed) return false
+    this.exports.ghostty_terminal_get(this.terminal, this.tags.terminal.MOUSE_TRACKING ?? 11, this.slot)
+    return new DataView(this.exports.memory.buffer).getUint32(this.slot, true) > 0
+  }
+
   /** Whether the program painted the alternate screen, i.e. owns `Esc`. */
   alternateScreen(): boolean {
     if (this.disposed) return false

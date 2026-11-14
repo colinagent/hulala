@@ -436,9 +436,11 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       // The column's caret is the terminal's own cursor, so the shape Neovim asks
       // for with DECSCUSR is passed on with the frame that carries the caret.
       onCaret: shape => ctx.hulalaTerminal.setCaretShape(shape),
-      // Neovim is the one column that always tracks the mouse: clicks, visual
-      // selection and the file tree's own boundary all run on these reports.
-      ...(kind === 'editor' ? { mouse: true, divider: treeDivider } : {}),
+      // The program decides whether it gets pointer reports; both columns ask
+      // their own session, so a shell that never enabled tracking receives
+      // nothing and a `nvim` inside the terminal column receives everything.
+      mouse: true,
+      ...(kind === 'editor' ? { divider: treeDivider } : {}),
       onScroll: () => { if (visibleKind === kind) render.request() },
       onPointer: () => layout.clearDividerHover(),
     })

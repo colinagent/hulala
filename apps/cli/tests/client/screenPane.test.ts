@@ -33,6 +33,13 @@ class FakeScreen implements PaneScreen {
     this.inputs.push(data)
   }
 
+  /** Whether the fake program enabled mouse tracking, as a real one would. */
+  tracks = true
+
+  mouseTracking(): boolean {
+    return this.tracks
+  }
+
   /** Shape the pane reports for the terminal's cursor. */
   shape: CaretShape = 'block'
 
@@ -304,4 +311,30 @@ test('a wheel notch over a full-screen program stays in its column', () => {
   // here rather than moving the conversation behind the column.
   expect(pane.handleMouse({ ...wheel, wheelDelta: -3 })).toEqual({ handled: true })
   expect(screen.inputs).toEqual([])
+})
+
+test('a program that never asked for mouse reports receives none', () => {
+  // A shell enables no tracking mode, so the column must not hand it clicks:
+  // in a real terminal they would go to the pty as nothing at all.
+  const screen = new FakeScreen()
+  screen.tracks = false
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false, mouse: true })
+  const press = { type: 'press', button: 'left', x: 4, y: 1, screenX: 44, screenY: 1, width: 40, height: 3, shift: false, alt: false, ctrl: false } as const
+  expect(pane.handleMouse(press)).toBeUndefined()
+  // A wheel notch is still answered by the column — the conversation behind it
+  // must not scroll — but the program is not given a report it never asked for.
+  const wheel = { ...press, type: 'wheel', wheelDelta: -1 } as const
+  expect(pane.handleMouse(wheel)).toEqual({ handled: true })
+  expect(screen.inputs).toEqual([])
+})
+
+test('tracking is asked per event, because a program turns it on and off', () => {
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false, mouse: true })
+  const press = { type: 'press', button: 'left', x: 1, y: 1, screenX: 1, screenY: 1, width: 40, height: 3, shift: false, alt: false, ctrl: false } as const
+  expect(pane.handleMouse(press)).toEqual({ handled: true })
+  // `:set mouse=` — Neovim stops tracking, and the next click belongs to nobody.
+  screen.tracks = false
+  expect(pane.handleMouse(press)).toBeUndefined()
+  expect(screen.inputs).toEqual(['\u001b[<0;2;2M'])
 })
