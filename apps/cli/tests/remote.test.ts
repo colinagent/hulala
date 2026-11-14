@@ -6,10 +6,14 @@
  * forward is opened. All of it is pure or injected, so no test needs sshd.
  */
 import { expect, test } from 'bun:test'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   hostsFromConfig,
   installRemote,
+  liveSshRunner,
   listRemoteHosts,
   openTunnel,
   probeHost,
@@ -22,8 +26,6 @@ import {
   type TunnelSpawner,
 } from '../src/remote/ssh.js'
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 const config = `
 # machines
@@ -206,4 +208,18 @@ test('upgrading a machine is install, stop, then attach', async () => {
   expect(await stopRemoteHost('devbox', run)).toBe(true)
   expect(commands.map(command => command.includes('install.sh') ? 'install' : command.includes('host stop') ? 'stop' : 'other'))
     .toEqual(['install', 'stop'])
+})
+
+test('a command that never answers is killed instead of waited on', async () => {
+  // `/remote` says "checking…" while a probe is in flight: without a budget a
+  // stalled ssh would hold the window there until the client is killed.
+  const dir = await mkdtemp(join(tmpdir(), 'hulala-ssh-'))
+  const fake = join(dir, 'ssh')
+  await writeFile(fake, '#!/bin/sh\nsleep 30\n', { mode: 0o755 })
+  const started = Date.now()
+  const result = await liveSshRunner(fake)('example.invalid', 'host status', { timeoutMs: 120 })
+  expect(result.code).toBeNull()
+  expect(result.stderr).toContain('no answer')
+  expect(Date.now() - started).toBeLessThan(3_000)
+  await rm(dir, { recursive: true, force: true })
 })

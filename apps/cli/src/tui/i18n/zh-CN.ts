@@ -305,7 +305,8 @@ export const zhCN: MessageTable = {
   'remote.already': ({ host }) => `已经连着 ${host}`,
   'remote.cancelled': ({ alias }) => `${alias} 未改动`,
   'remote.installing': ({ alias }) => `正在为 ${alias} 安装 Hulala…`,
-  'remote.installFailed': ({ alias }) => `${alias} 安装失败；远端没有任何改动。`,
+  'remote.installFailed': ({ alias, reason }) =>
+    `${alias} 安装失败；远端没有任何改动。${reason === '' ? '' : ` ${reason}`}`,
   'remote.clientUpdate': ({ alias }) => `${alias} 的 Hulala 比本客户端新；请先更新本地安装`,
   'remote.unreachable': ({ alias }) => `无法连接 ${alias}`,
   'remote.install.title': ({ alias }) => `${alias} 上还没有安装 Hulala`,

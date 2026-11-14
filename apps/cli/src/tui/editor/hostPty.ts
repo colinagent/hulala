@@ -30,6 +30,16 @@ const MAX_UNACKED_BYTES = 32 * 1024
 /** Input held while the attachment is still opening or the Host is behind. */
 const MAX_QUEUED_INPUT = 512 * 1024
 
+/**
+ * Largest single write this adapter puts on the wire.
+ *
+ * The Host refuses a command whose input exceeds `maxInputBytes` (64 KiB) by
+ * throwing, which ends the attachment — so a paste has to be split here, well
+ * under the limit. The size is in **bytes**, because that is what the Host
+ * measures: a page of Chinese is three times the length of the string.
+ */
+const MAX_WRITE_BYTES = 16 * 1024
+
 export interface HostPtyOptions {
   /** Session-owned terminals the Host exposes. */
   readonly terminal: HostTerminals
@@ -166,16 +176,13 @@ class HostPtyProcess implements PtyProcess {
   }
 
   write(data: string): void {
-    if (this.terminated) return
+    if (this.terminated || data === '') return
     if (this.attachment === undefined) {
       this.enqueue(data)
       return
     }
-    if (this.unacked + data.length > MAX_UNACKED_BYTES) {
-      this.enqueue(data)
-      return
-    }
-    this.sendWrite(data)
+    this.enqueue(data)
+    this.flush()
   }
 
   resize(cols: number, rows: number): void {
@@ -209,28 +216,34 @@ class HostPtyProcess implements PtyProcess {
   }
 
   private enqueue(data: string): void {
-    if (this.queued.length + data.length > MAX_QUEUED_INPUT) return
+    if (byteLength(this.queued) + byteLength(data) > MAX_QUEUED_INPUT) return
     this.queued += data
   }
 
-  /** Release held input once the wire has room again. */
+  /**
+   * Release held input in writes the Host accepts.
+   *
+   * A paste arrives as one `write` of any size; the Host takes at most
+   * `maxInputBytes` per command and throws past it, and the window above counts
+   * bytes rather than characters, so both limits are applied here.
+   */
   private flush(): void {
-    if (this.attachment === undefined || this.queued === '') return
-    const data = this.queued
-    this.queued = ''
-    if (this.unacked + data.length > MAX_UNACKED_BYTES) {
-      this.queued = data
-      return
+    if (this.attachment === undefined) return
+    while (this.queued !== '') {
+      const { piece, rest } = takeBytes(this.queued, MAX_WRITE_BYTES)
+      const bytes = byteLength(piece)
+      if (this.unacked + bytes > MAX_UNACKED_BYTES) return
+      this.queued = rest
+      this.sendWrite(piece, bytes)
     }
-    this.sendWrite(data)
   }
 
-  private sendWrite(data: string): void {
+  private sendWrite(data: string, bytes: number): void {
     if (this.attachment === undefined) return
     const sequence = this.sequence + 1
     this.sequence = sequence
-    this.unacked += data.length
-    this.sent.set(sequence, data.length)
+    this.unacked += bytes
+    this.sent.set(sequence, bytes)
     this.attachment.send({ type: 'write', sequence, data })
   }
 
@@ -240,4 +253,40 @@ class HostPtyProcess implements PtyProcess {
     this.sequence = sequence
     this.attachment.send({ type: 'resize', sequence, cols, rows })
   }
+}
+
+/** Bytes one UTF-8 character takes, which is what the Host counts. */
+function characterBytes(code: number): number {
+  if (code < 0x80) return 1
+  if (code < 0x800) return 2
+  if (code < 0x1_0000) return 3
+  return 4
+}
+
+/** Length of one string in UTF-8 bytes. */
+function byteLength(text: string): number {
+  let total = 0
+  for (const character of text) total += characterBytes(character.codePointAt(0) ?? 0)
+  return total
+}
+
+/**
+ * Split one string into a head of at most `limit` bytes and the rest.
+ *
+ * The cut never lands inside a character: a lone surrogate half would reach the
+ * shell as a replacement glyph, and the text after it would be shifted.
+ * @param text - the input to split.
+ * @param limit - how many bytes the head may take.
+ * @returns the head and everything after it.
+ */
+function takeBytes(text: string, limit: number): { piece: string; rest: string } {
+  let size = 0
+  let index = 0
+  for (const character of text) {
+    const bytes = characterBytes(character.codePointAt(0) ?? 0)
+    if (size + bytes > limit) break
+    size += bytes
+    index += character.length
+  }
+  return { piece: text.slice(0, index), rest: text.slice(index) }
 }

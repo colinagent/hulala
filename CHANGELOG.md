@@ -15,6 +15,21 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- A paste into the terminal column was one Host command, and the Host refuses any
+  command above 64 KiB: pasting a long script failed the attachment and lost the
+  text. Input is now split into pieces the Host accepts, measured in UTF-8 bytes
+  (a page of Chinese is three times its character count) and never inside a
+  character.
+- A diagnostic on Neovim's stderr closed the editor column. It is a message, not
+  an ending: the column survives it, and the exit frame is what ends a session.
+- Chords the terminal reports in the Kitty form — Command-C, Command-Left,
+  Ctrl-Shift-Up, and Shift-Enter — were typed into the buffer as text
+  (`<M-[>99;9u`) because the editor's key mapping only knew legacy bytes. They
+  now become `<D-c>`, `<D-Left>`, `<C-S-Up>` and `<S-CR>`, and the numbered keys
+  (F5–F12, Home, End) are named instead of typed.
+- A remote command with no answer hung `/remote` on "checking…" forever. Probes
+  now give up after 20s, control commands after 60s, and an install after 15
+  minutes, and an install failure shows the installer's own last line.
 - A wheel notch over a column went to the frame's own viewports, so a trackpad
   swipe over the terminal or the editor scrolled the conversation behind them.
   The column now answers it: a program that tracks the mouse gets the report

@@ -59,6 +59,14 @@ export interface NvimUiOptions {
   readonly onExit: (exitCode: number) => void
   /** Called when the mode changes, so the column can follow it with the input source. */
   readonly onMode?: (mode: string) => void
+  /**
+   * Neovim's diagnostics.
+   *
+   * A warning on stderr is not a failure: Neovim keeps running and the column
+   * stays usable, so this is something to show, not something to end. A session
+   * that really ended announces that through `onExit`.
+   */
+  readonly onProblem?: (text: string) => void
 }
 
 /** Pad or truncate one rendered row to exactly `width` visible cells. */
@@ -129,7 +137,9 @@ export class NvimUi {
     // The session owns its channel's plumbing: a column that forgot to subscribe
     // would render a blank grid forever, which is a failure with no symptom.
     options.channel.onData(chunk => this.feed(chunk))
-    options.channel.onProblem(() => this.fail())
+    // One `vim.notify` from a plugin must not close the column: the exit event is
+    // what ends a session, and it follows a real failure on its own.
+    options.channel.onProblem(text => this.options.onProblem?.(text))
     options.channel.onExit(event => this.fail(event.code ?? -1))
     // The first thing a UI does: become a UI. The channel buffers this until the
     // Host's `ready`, so constructing the grid and opening the column stay one
@@ -586,31 +596,125 @@ const SEQUENCES: ReadonlyArray<readonly [string, string]> = [
   ['\u001bOS', '<F4>'],
 ]
 
-/** Modifier bits in a CSI `1;<n>` parameter. */
-const MODIFIERS: Readonly<Record<number, string>> = { 2: 'S', 3: 'M', 4: 'C', 5: 'C', 6: 'C-S', 7: 'C-M', 8: 'C-M' }
-
-/** Modifier prefix for one `1;<n>` parameter, or undefined when there is none. */
-function modifierOf(value: number): string | undefined {
-  return MODIFIERS[value]
+/**
+ * Neovim's name for the keys a terminal reports by number.
+ *
+ * Both spellings are here: xterm's `CSI <n> ~` and Kitty's functional-key
+ * codepoints, which is what a terminal with the disambiguate flag sends.
+ */
+const FUNCTIONAL_KEYS: Readonly<Record<string, string>> = {
+  '2': 'Insert',
+  '3': 'Del',
+  '5': 'PageUp',
+  '6': 'PageDown',
+  '7': 'Home',
+  '8': 'End',
+  '11': 'F1',
+  '12': 'F2',
+  '13': 'F3',
+  '14': 'F4',
+  '15': 'F5',
+  '17': 'F6',
+  '18': 'F7',
+  '19': 'F8',
+  '20': 'F9',
+  '21': 'F10',
+  '23': 'F11',
+  '24': 'F12',
 }
 
-/** Recognise `ESC [ 1 ; n <final>` and `ESC [ n ; m <final>` forms. */
-function csiWithModifier(sequence: string): string | undefined {
-  const match = /^\u001b\[(\d+)(?:;(\d+))?([A-Za-z~])$/u.exec(sequence)
-  if (match === null) return undefined
-  const [, first, second] = match
-  const final = match[3] ?? ''
-  const modifier = second === undefined ? undefined : modifierOf(Number(second))
-  if (modifier === undefined) return undefined
-  const base = second === undefined
-    ? ({ A: 'Up', B: 'Down', C: 'Right', D: 'Left', H: 'Home', F: 'End' } as Record<string, string>)[final]
-    : ({ A: 'Up', B: 'Down', C: 'Right', D: 'Left', H: 'Home', F: 'End' } as Record<string, string>)[final]
-  if (base === undefined) {
-    const special: Record<string, string> = { '3': 'Del', '5': 'PageUp', '6': 'PageDown', '2': 'Insert' }
-    const named = special[first ?? '']
-    return named === undefined ? undefined : `<${modifier}-${named}>`
+/** Kitty reports these codepoints for the keys that have no character. */
+const KITTY_CODEPOINTS: Readonly<Record<number, string>> = {
+  9: 'Tab',
+  13: 'CR',
+  27: 'Esc',
+  32: 'Space',
+  127: 'BS',
+  57344: 'Esc',
+  57345: 'CR',
+  57346: 'Tab',
+  57347: 'BS',
+  57348: 'Insert',
+  57349: 'Del',
+  57350: 'Left',
+  57351: 'Right',
+  57352: 'Up',
+  57353: 'Down',
+  57354: 'PageUp',
+  57355: 'PageDown',
+  57356: 'Home',
+  57357: 'End',
+}
+
+/** The final byte of a cursor-key CSI sequence, as a key name. */
+const CURSOR_FINALS: Readonly<Record<string, string>> = {
+  A: 'Up',
+  B: 'Down',
+  C: 'Right',
+  D: 'Left',
+  H: 'Home',
+  F: 'End',
+}
+
+/**
+ * Neovim's modifier prefix for a Kitty modifier value.
+ *
+ * The value is a bitmask plus one: 1 shift, 2 alt, 4 ctrl, 8 super, 16 hyper,
+ * 32 meta. Neovim spells super `D-` (the Command key on a Mac keyboard).
+ * @param value - the `;n` field, or undefined when the sequence has none.
+ * @param named - whether the key is one without a character of its own.
+ * @returns the prefix, e.g. `C-S-`, or an empty string.
+ */
+function modifierPrefix(value: number | undefined, named: boolean): string {
+  if (value === undefined || value <= 1) return ''
+  const bits = value - 1
+  let prefix = ''
+  if ((bits & 4) !== 0) prefix += 'C-'
+  // A printable codepoint already carries the shift the terminal decided, so
+  // only a named key needs the modifier spelled out.
+  if (named && (bits & 1) !== 0) prefix += 'S-'
+  if ((bits & 2) !== 0) prefix += 'M-'
+  if ((bits & 8) !== 0) prefix += 'D-'
+  if ((bits & 16) !== 0) prefix += 'T-'   // hyper: Neovim has no name, T- is its terminal form
+  return prefix
+}
+
+/**
+ * Recognise the modifier forms a terminal may send, and name the key.
+ *
+ * With the disambiguate flag pushed, a terminal reports every chord that legacy
+ * encoding cannot express as `CSI <codepoint> ; <modifiers> u` — Command-C,
+ * Command-Left, Shift-Enter — so a UI that only knows legacy bytes would type
+ * the sequence into the buffer instead of running the key.
+ * @param sequence - the whole input sequence.
+ * @returns the notation, or undefined when this is not one of those forms.
+ */
+function modifiedSequence(sequence: string): string | undefined {
+  const kitty = /^\u001b\[(\d+)(?::\d*)*(?:;(\d+))?(?::\d+)?u$/u.exec(sequence)
+  if (kitty !== null) {
+    const code = Number(kitty[1])
+    const named = KITTY_CODEPOINTS[code]
+    const prefix = modifierPrefix(kitty[2] === undefined ? undefined : Number(kitty[2]), named !== undefined)
+    if (named !== undefined) return `<${prefix}${named}>`
+    const character = String.fromCodePoint(code)
+    return prefix === '' ? character : `<${prefix}${character === '<' ? 'lt' : character}>`
   }
-  return `<${modifier}-${base}>`
+  const csi = /^\u001b\[(\d+)(?:;(\d+))?([A-Za-z~])$/u.exec(sequence)
+  if (csi === null) return undefined
+  const [, first = '', second, final = ''] = csi
+  const value = second === undefined ? undefined : Number(second)
+  if (final === '~') {
+    const name = FUNCTIONAL_KEYS[first]
+    if (name === undefined) return undefined
+    return `<${modifierPrefix(value, true)}${name}>`
+  }
+  // A cursor key's first parameter is `1`; anything else is a form this map
+  // does not name, and guessing would invent a key the user did not press.
+  if (first !== '1') return undefined
+  const name = CURSOR_FINALS[final]
+  if (name === undefined) return undefined
+  const prefix = modifierPrefix(value, true)
+  return prefix === '' && second === undefined ? `<${name}>` : `<${prefix}${name}>`
 }
 
 /**
@@ -625,7 +729,7 @@ function csiWithModifier(sequence: string): string | undefined {
 export function keyNotation(data: string): string {
   const exact = SEQUENCES.find(([sequence]) => sequence === data)
   if (exact !== undefined) return exact[1]
-  const modified = csiWithModifier(data)
+  const modified = modifiedSequence(data)
   if (modified !== undefined) return modified
   let keys = ''
   for (let index = 0; index < data.length; index += 1) {

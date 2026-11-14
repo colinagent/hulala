@@ -149,7 +149,10 @@ export function apply(ctx: Context, config: RemotePluginConfig): void {
     notice(t('remote.installing', { alias }))
     const installed = await installRemote(alias, runner)
     if (!installed.ok) {
-      notice(t('remote.installFailed', { alias }))
+      // The installer's own last line is the only thing that says why: a missing
+      // `curl`, a full disk, a proxy that refuses the download.
+      const last = installed.output.split('\n').map(line => line.trim()).filter(line => line !== '').at(-1)
+      notice(t('remote.installFailed', { alias, reason: last ?? '' }))
       return
     }
     // The installer replaces files; the daemon serving them is still the old

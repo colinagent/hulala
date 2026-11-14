@@ -514,6 +514,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
           runtime.view.imePolicy = modeReadsText(mode) ? 'text' : 'command'
           refreshIme()
         },
+        // Diagnostics are worth seeing and not worth ending a column over: a
+        // plugin's warning on stderr used to close the editor without a word.
+        onProblem: text => config.debug(`editorProblem ${text.trim()}`),
       })
       runtime = mount('editor', session)
       runtime.view.imePolicy = modeReadsText(session.currentMode()) ? 'text' : 'command'

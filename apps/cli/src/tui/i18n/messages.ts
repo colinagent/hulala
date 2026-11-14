@@ -310,7 +310,7 @@ export interface MessageTable {
   'remote.already': (values: { host: string }) => string
   'remote.cancelled': (values: { alias: string }) => string
   'remote.installing': (values: { alias: string }) => string
-  'remote.installFailed': (values: { alias: string }) => string
+  'remote.installFailed': (values: { alias: string; reason: string }) => string
   'remote.clientUpdate': (values: { alias: string }) => string
   'remote.unreachable': (values: { alias: string }) => string
   'remote.install.title': (values: { alias: string }) => string

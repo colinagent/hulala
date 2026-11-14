@@ -190,7 +190,8 @@ function serveOne(options: {
     })
     // Neovim writes diagnostics here, and they must not enter the channel: a
     // stray line would be parsed as msgpack and corrupt the grid. They travel as
-    // a control frame, so a broken init.lua is visible instead of blank.
+    // a control frame instead — a diagnostic, not an ending: the exit frame is
+    // what says the editor is gone.
     started.stderr.on('data', (chunk: Buffer) => {
       sendJson(socket, { kind: 'stderr', text: chunk.toString('utf8') })
     })

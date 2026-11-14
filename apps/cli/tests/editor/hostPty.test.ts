@@ -193,3 +193,30 @@ test('a create failure reaches the column as text and one exit', async () => {
   expect(exits).toEqual([-1])
   expect(recorded.created).toHaveLength(0)
 })
+
+test('one large paste is split into writes the Host accepts', async () => {
+  const { terminals, recorded } = fakeTerminals()
+  const process = hostPty({ terminal: terminals, sessionId: 'session-1' }).spawn('/bin/zsh', [], spawnOptions)
+  await settle()
+
+  // A paste is one `write` of any size, while the Host throws past maxInputBytes
+  // (64 KiB) for a single command — and counts UTF-8 bytes, not characters.
+  const paste = '中'.repeat(20_000)
+  process.write(paste)
+  const pieces: string[] = []
+  // Drain the window the way the Host does, one acknowledgement per command.
+  for (let round = 0; round < 100; round += 1) {
+    const pending = recorded.sent.filter(input => input.type === 'write').slice(pieces.length)
+    if (pending.length === 0) break
+    for (const input of pending) {
+      if (input.type !== 'write') continue
+      pieces.push(input.data)
+      expect(Buffer.byteLength(input.data, 'utf8')).toBeLessThanOrEqual(16 * 1024)
+      emit(recorded, { type: 'ack', sequence: input.sequence })
+    }
+  }
+  // Never more than the Host's 64 KiB per command, and nothing cut mid-character:
+  // the pieces rebuild the paste exactly.
+  expect(pieces.length).toBeGreaterThan(3)
+  expect(pieces.join('')).toBe(paste)
+})

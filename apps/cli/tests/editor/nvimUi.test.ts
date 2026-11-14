@@ -231,3 +231,28 @@ test('a horizontal scroll stays inside its columns', () => {
   // blank and the rest shift left.
   expect(line?.trimEnd()).toBe('a bc')
 })
+
+test('the chords the disambiguate flag reports run as keys, not text', () => {
+  // With Kitty's disambiguate flag pushed, these arrive as CSI-u sequences.
+  // Typing them into the buffer was the bug: Command-C and Command-Left were
+  // inserted as `<M-[>99;9u` instead of copying a line or going to its start.
+  expect(keyNotation('\u001b[99;9u')).toBe('<D-c>')
+  expect(keyNotation('\u001b[1;9D')).toBe('<D-Left>')
+  // The modifier field is a bitmask plus one: 6 is Ctrl+Shift, 13 is Ctrl+Super.
+  expect(keyNotation('\u001b[1;6A')).toBe('<C-S-Up>')
+  expect(keyNotation('\u001b[1;13A')).toBe('<C-D-Up>')
+  // Ctrl-[ and Ctrl-M become CSI-u precisely because they are ambiguous in
+  // legacy encoding: they must stay Control chords, not Escape and Enter.
+  expect(keyNotation('\u001b[91;13u')).toBe('<C-D-[>')
+  expect(keyNotation('\u001b[109;5u')).toBe('<C-m>')
+  // A named key keeps Shift, which a codepoint could not carry.
+  expect(keyNotation('\u001b[13;2u')).toBe('<S-CR>')
+  expect(keyNotation('\u001b[57352;9u')).toBe('<D-Up>')
+})
+
+test('the numbered keys a terminal sends by number are named', () => {
+  expect(keyNotation('\u001b[15~')).toBe('<F5>')
+  expect(keyNotation('\u001b[17;3~')).toBe('<M-F6>')
+  expect(keyNotation('\u001b[7~')).toBe('<Home>')
+  expect(keyNotation('\u001b[24;5~')).toBe('<C-F12>')
+})

@@ -304,7 +304,8 @@ export const en: MessageTable = {
   'remote.already': ({ host }) => `already attached to ${host}`,
   'remote.cancelled': ({ alias }) => `left ${alias} unchanged`,
   'remote.installing': ({ alias }) => `installing Hulala on ${alias}…`,
-  'remote.installFailed': ({ alias }) => `${alias} could not be installed; nothing was changed.`,
+  'remote.installFailed': ({ alias, reason }) =>
+    `${alias} could not be installed; nothing was changed.${reason === '' ? '' : ` ${reason}`}`,
   'remote.clientUpdate': ({ alias }) => `${alias} runs a newer Hulala than this client; update this installation first`,
   'remote.unreachable': ({ alias }) => `cannot reach ${alias}`,
   'remote.install.title': ({ alias }) => `Hulala is not installed on ${alias}`,

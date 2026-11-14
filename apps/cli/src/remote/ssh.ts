@@ -69,8 +69,25 @@ export interface SshResult {
   readonly stderr: string
 }
 
+/** How long one command may take before the runner gives up on it. */
+export interface SshRunOptions {
+  readonly timeoutMs?: number
+}
+
 /** Runs one login-shell command on a remote machine. */
-export type SshRunner = (alias: string, command: string) => Promise<SshResult>
+export type SshRunner = (alias: string, command: string, options?: SshRunOptions) => Promise<SshResult>
+
+/**
+ * Budgets for the three kinds of command this module runs.
+ *
+ * A probe is a status read and has to fail fast, because the picker is waiting
+ * on it; an installer downloads a release and builds a dependency tree, which
+ * takes minutes on a slow machine. Without them a stalled ssh leaves `/remote`
+ * saying "checking…" forever, with no way back to the window.
+ */
+export const PROBE_TIMEOUT_MS = 20_000
+export const CONTROL_TIMEOUT_MS = 60_000
+export const INSTALL_TIMEOUT_MS = 15 * 60_000
 
 /** The Host state a probe learned, mirroring `hulala host status`. */
 export type RemoteHostState =
@@ -113,7 +130,11 @@ function parseStatus(stdout: string): { state: string; version?: string; protoco
  * @returns the state, or the reason it could not be read.
  */
 export async function probeHost(alias: string, run: SshRunner): Promise<RemoteHostState> {
-  const result = await run(alias, `if [ -x ${REMOTE_COMMAND} ]; then ${REMOTE_COMMAND} host status; else echo '{"state":"uninstalled"}'; fi`)
+  const result = await run(
+    alias,
+    `if [ -x ${REMOTE_COMMAND} ]; then ${REMOTE_COMMAND} host status; else echo '{"state":"uninstalled"}'; fi`,
+    { timeoutMs: PROBE_TIMEOUT_MS },
+  )
   if (result.code !== 0) return { state: 'unreachable', reason: result.stderr.trim() || `ssh exited ${String(result.code)}` }
   const status = parseStatus(result.stdout)
   if (status === undefined) return { state: 'unreachable', reason: 'the remote command printed nothing readable' }
@@ -308,7 +329,9 @@ export async function openTunnel(options: TunnelOptions, spawner: TunnelSpawner 
  * @returns the installer's combined output, for the client to show.
  */
 export async function installRemote(alias: string, run: SshRunner): Promise<{ ok: boolean; output: string }> {
-  const result = await run(alias, `HULALA_NO_START=1 curl -fsSL ${INSTALLER_URL} | sh -s -- --yes`)
+  const result = await run(alias, `HULALA_NO_START=1 curl -fsSL ${INSTALLER_URL} | sh -s -- --yes`, {
+    timeoutMs: INSTALL_TIMEOUT_MS,
+  })
   return { ok: result.code === 0, output: `${result.stdout}${result.stderr}` }
 }
 
@@ -323,7 +346,7 @@ export async function installRemote(alias: string, run: SshRunner): Promise<{ ok
  * @returns whether the daemon is gone (or was not running).
  */
 export async function stopRemoteHost(alias: string, run: SshRunner): Promise<boolean> {
-  const result = await run(alias, `${REMOTE_COMMAND} host stop`)
+  const result = await run(alias, `${REMOTE_COMMAND} host stop`, { timeoutMs: CONTROL_TIMEOUT_MS })
   return result.code === 0
 }
 
@@ -334,7 +357,7 @@ export async function stopRemoteHost(alias: string, run: SshRunner): Promise<boo
  * @returns whether it came up.
  */
 export async function startRemoteHost(alias: string, run: SshRunner): Promise<boolean> {
-  const result = await run(alias, `${REMOTE_COMMAND} host start`)
+  const result = await run(alias, `${REMOTE_COMMAND} host start`, { timeoutMs: CONTROL_TIMEOUT_MS })
   return result.code === 0
 }
 
@@ -347,17 +370,30 @@ export async function startRemoteHost(alias: string, run: SshRunner): Promise<bo
  * @returns a runner that never throws: a failure is an exit code.
  */
 export function liveSshRunner(ssh = 'ssh'): SshRunner {
-  return (alias, command) => new Promise(resolve => {
+  return (alias, command, options = {}) => new Promise(resolve => {
     const child = spawn(ssh, ['-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', alias, `bash -l -c ${quote(command)}`], {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
+    let settled = false
+    const finish = (result: SshResult): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(result)
+    }
+    // A command that never answers is not a slow command: kill it, so the caller
+    // gets an answer it can show instead of a picker that waits forever.
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM')
+      finish({ code: null, stdout: '', stderr: `${alias}: no answer within ${String(Math.round((options.timeoutMs ?? 0) / 1000))}s` })
+    }, options.timeoutMs ?? 60_000)
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk))
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk))
-    child.on('error', error => resolve({ code: null, stdout: '', stderr: error.message }))
-    child.on('close', code => resolve({
+    child.on('error', error => finish({ code: null, stdout: '', stderr: error.message }))
+    child.on('close', code => finish({
       code,
       stdout: Buffer.concat(stdout).toString('utf8'),
       stderr: Buffer.concat(stderr).toString('utf8'),
