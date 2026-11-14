@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { TuiMouseEvent } from '@earendil-works/pi-tui'
-import { sgrMouse } from '../../src/tui/view/sgrMouse.js'
+import { sgrMouse, sgrWheel } from '../../src/tui/view/sgrMouse.js'
 
 /** One pointer event, with the defaults a click in a pane carries. */
 function event(overrides: Partial<TuiMouseEvent>): TuiMouseEvent {
@@ -52,4 +52,14 @@ test('a click is the renderer synthesizing the release it already sent', () => {
 test('bare motion and the wheel are not reports a program asked for', () => {
   expect(sgrMouse(event({ type: 'move' }))).toBeUndefined()
   expect(sgrMouse(event({ type: 'wheel', button: 'none', wheelDelta: 3 }))).toBeUndefined()
+})
+
+test('a wheel notch is a button of its own: 64 up, 65 down', () => {
+  expect(sgrWheel(event({ type: 'wheel', wheelDelta: -1, x: 4, y: 6 }))).toBe('\u001b[<64;5;7M')
+  expect(sgrWheel(event({ type: 'wheel', wheelDelta: 3, x: 4, y: 6 }))).toBe('\u001b[<65;5;7M')
+})
+
+test('a click is not a report a program sees', () => {
+  expect(sgrWheel(event({ type: 'click' }))).toBeUndefined()
+  expect(sgrMouse(event({ type: 'click' }))).toBeUndefined()
 })

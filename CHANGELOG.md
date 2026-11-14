@@ -15,6 +15,13 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- A wheel notch over a column went to the frame's own viewports, so a trackpad
+  swipe over the terminal or the editor scrolled the conversation behind them.
+  The column now answers it: a program that tracks the mouse gets the report
+  (Neovim scrolls the buffer), a shell pages its own history, and neither one
+  moves the transcript.
+- A held escape is given back before the key that follows it, so two escapes —
+  or an escape and a key — arriving together no longer lose the first one.
 - A pointer report split by the terminal read — `ESC [ <` and its tail arriving
   separately, which is what a fast-moving mouse produces — was handed to the
   frame as text and typed into the composer. Both fragments are held until the

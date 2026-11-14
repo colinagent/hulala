@@ -148,3 +148,36 @@ test('a lone Escape is still a key, not a held fragment', async () => {
   expect(h.received).toEqual(['\u001b'])
   h.stop()
 })
+
+test('a report split right after the escape is still a report', async () => {
+  // A busy frame reads stdin in small chunks, and the escape is where the split
+  // lands: the head waits a moment for the `[`, and only then becomes the key.
+  const h = harness()
+  h.send('\u001b')
+  h.send('[<64;10;5M')
+  await flush()
+  expect(h.received).toEqual(['\u001b[<64;10;5M'])
+  h.stop()
+})
+
+test('a held escape is given back before the key that follows it', async () => {
+  // Two escapes, or an escape and a key, arriving inside the hold must not lose
+  // the first one: it is a key in its own right and it comes first.
+  const h = harness()
+  // A gap, because two escapes in one read are one sequence the frame reads as
+  // the double-escape chord.
+  h.send('\u001b')
+  await flush()
+  h.send('\u001b')
+  await flush()
+  expect(h.received).toEqual(['\u001b', '\u001b'])
+  h.received.length = 0
+  // A separate read, but inside the hold: the escape is still pending when the
+  // key arrives. Both bytes in one read would be the Alt-j chord instead.
+  h.send('\u001b')
+  await new Promise(resolve => setTimeout(resolve, 10))
+  h.send('j')
+  await flush()
+  expect(h.received).toEqual(['\u001b', 'j'])
+  h.stop()
+})

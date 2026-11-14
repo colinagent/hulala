@@ -22,7 +22,7 @@
 import type { Component, Focusable, TuiMouseEvent, TuiMouseEventResult } from '@earendil-works/pi-tui'
 import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { CursorKind, CaretShape } from '../pane/screenSession.js'
-import { sgrMouse } from './sgrMouse.js'
+import { sgrMouse, sgrWheel } from './sgrMouse.js'
 import { legacyKeys } from '../pane/legacyKeys.js'
 import { buildStyles } from './theme.js'
 import { padEnd } from './pathText.js'
@@ -221,6 +221,7 @@ export class ScreenPane implements Component, Focusable {
     // column. A gesture on the program's own divider must not be ended by that:
     // the pointer is supposed to stay on that rule for as long as it is held.
     if (!this.grabbing) this.options.onPointer?.()
+    if (event.type === 'wheel' && this.claimWheel(event)) return { handled: true }
     if (this.options.mouse !== true) return undefined
     const divider = this.options.divider
     if (divider !== undefined) {
@@ -245,10 +246,42 @@ export class ScreenPane implements Component, Focusable {
           break
       }
     }
+    // The wheel is dispatched here before the frame looks for a scroll view, so
+    // a column has to claim it: the program owns scrolling, and without this the
+    // conversation behind the columns would scroll whenever the pointer rested
+    // over the editor.
     const report = sgrMouse(event)
     if (report === undefined) return undefined
     this.options.screen.input(report)
     return { handled: true }
+  }
+
+  /**
+   * Answer one wheel notch where the pointer is.
+   *
+   * A program that tracks the mouse gets the report, one notch per notch: it
+   * applies its own distance, and the frame's acceleration is about moving a
+   * viewport, not about spinning a program's wheel faster. A column that keeps
+   * history pages it, a little per notch. Either way the notch is answered here,
+   * so the frame never falls back to scrolling the conversation behind the
+   * columns — a swipe over a terminal must not move the transcript.
+   * @param event - the wheel event the frame dispatched to this column.
+   * @returns whether this column answered the notch.
+   */
+  private claimWheel(event: TuiMouseEvent): boolean {
+    const delta = event.wheelDelta ?? 0
+    if (delta === 0) return false
+    if (this.options.mouse === true) {
+      this.options.screen.input(sgrWheel(event) ?? '')
+      return true
+    }
+    const scroll = this.options.scroll
+    // A full-screen program owns its own scrolling, and it is not scrolling the
+    // conversation either: the notch stops at the column.
+    if (scroll === undefined || !scroll.scrollable()) return true
+    // A tenth of a page per notch keeps a trackpad swipe reading, not jumping.
+    if (scroll.scrollPages(delta < 0 ? -0.1 : 0.1)) this.options.onScroll?.()
+    return true
   }
 
   invalidate(): void {

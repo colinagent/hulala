@@ -266,3 +266,42 @@ test('a drag on the program divider keeps the hover for the whole gesture', () =
   pane.handleMouse({ ...base, type: 'move', x: 10 })
   expect(hovered).toBe(false)
 })
+
+test('a wheel notch over an editor scrolls the editor, not the conversation', () => {
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false, mouse: true })
+  const wheel = { type: 'wheel', button: 'none', x: 4, y: 2, screenX: 44, screenY: 2, width: 40, height: 3, shift: false, alt: false, ctrl: false } as const
+  // Answering the notch is what keeps the frame from scrolling the transcript.
+  expect(pane.handleMouse({ ...wheel, wheelDelta: -1 })).toEqual({ handled: true })
+  expect(pane.handleMouse({ ...wheel, wheelDelta: 1 })).toEqual({ handled: true })
+  expect(screen.inputs).toEqual(['\u001b[<64;5;3M', '\u001b[<65;5;3M'])
+})
+
+test('a wheel notch over a shell pages its history instead of the transcript', () => {
+  const screen = new FakeScreen()
+  const scrolled: number[] = []
+  const scroll = {
+    scrollable: () => true,
+    scrollPages: (pages: number) => { scrolled.push(pages); return true },
+    scrolledBack: () => 0,
+    follow: () => false,
+  }
+  const pane = new ScreenPane({ screen, scroll, rows: () => 30, color: false })
+  const wheel = { type: 'wheel', button: 'none', x: 1, y: 1, screenX: 1, screenY: 1, width: 40, height: 30, shift: false, alt: false, ctrl: false } as const
+  expect(pane.handleMouse({ ...wheel, wheelDelta: -1 })).toEqual({ handled: true })
+  expect(pane.handleMouse({ ...wheel, wheelDelta: 1 })).toEqual({ handled: true })
+  expect(scrolled).toEqual([-0.1, 0.1])
+  // The shell itself is not given the report: it does not track the mouse.
+  expect(screen.inputs).toEqual([])
+})
+
+test('a wheel notch over a full-screen program stays in its column', () => {
+  const screen = new FakeScreen()
+  const scroll = { scrollable: () => false, scrollPages: () => false, scrolledBack: () => 0, follow: () => false }
+  const pane = new ScreenPane({ screen, scroll, rows: () => 30, color: false })
+  const wheel = { type: 'wheel', button: 'none', x: 1, y: 1, screenX: 1, screenY: 1, width: 40, height: 30, shift: false, alt: false, ctrl: false } as const
+  // A program in the alternate screen owns its own scrolling: the notch stops
+  // here rather than moving the conversation behind the column.
+  expect(pane.handleMouse({ ...wheel, wheelDelta: -3 })).toEqual({ handled: true })
+  expect(screen.inputs).toEqual([])
+})

@@ -36,16 +36,23 @@ const SGR_MOUSE_REPORT = /^\u001b\[<\d+;\d+;\d+[Mm]$/u
 /**
  * The head of one, which the sequence buffer hands on when it stops waiting.
  *
- * Both `ESC [` and `ESC [ <` count: a fast pointer splits the report wherever
- * the read boundary falls, and a fragment that is not recognised here is handed
- * to the frame as text — which is how a moving mouse ends up typing
- * `<35;58;41M` into the composer.
- *
- * A **bare** `ESC` is not a head. It is the Escape key, and the sequence buffer
- * has already waited its window for a sequence that never came; holding it again
- * here would make Escape feel dead.
+ * Every prefix counts, down to a bare `ESC`: a fast pointer splits the report
+ * wherever the read boundary falls — a busy frame reading stdin in one-byte
+ * chunks splits it right after the escape — and a fragment that is not
+ * recognised here is handed to the frame as text, which is how a moving mouse
+ * ends up typing `<35;58;41M` into the composer.
  */
-const SGR_MOUSE_HEAD = /^\u001b\[<?[\d;]*$/u
+const SGR_MOUSE_HEAD = /^\u001b(?:\[<?[\d;]*)?$/u
+
+/**
+ * How long a bare `ESC` waits for the `[` that would make it a report.
+ *
+ * It is also the Escape key, so this is a compromise, not a buffer: long enough
+ * to catch a report split at the read boundary, short enough that the key does
+ * not feel late. Everything longer than `ESC [` waits the full report timeout,
+ * because no keyboard sequence begins that way.
+ */
+const ESCAPE_HEAD_TIMEOUT_MS = 30
 
 /**
  * The longest a real report can be, and therefore the longest head worth holding.
@@ -213,6 +220,9 @@ export class StreamTerminal implements Terminal {
     // way, so the fragment is given up on and the piece is delivered as it
     // arrived — it is a key the user typed, or the head of the next report.
     this.clearPendingMouseReport()
+    // A held `ESC` is a key too, and it comes first: dropping it would swallow
+    // one Escape whenever two of them, or an Escape and a key, arrive together.
+    if (pending === '\u001b') this.inputHandler?.('\u001b')
     if (!SGR_MOUSE_HEAD.test(sequence)) return sequence
     this.holdMouseReport(sequence)
     return undefined
@@ -228,10 +238,13 @@ export class StreamTerminal implements Terminal {
     this.clearPendingMouseReport()
     if (partial.length > SGR_MOUSE_MAX_LENGTH) return
     this.pendingMouseReport = partial
+    // A held `ESC` is given back as the key it also is when no report follows.
+    const escape = partial === '\u001b'
     const timer = setTimeout(() => {
       this.pendingMouseReport = undefined
       this.pendingMouseTimer = undefined
-    }, this.mouseReportTimeoutMs)
+      if (escape) this.inputHandler?.('\u001b')
+    }, escape ? Math.min(this.mouseReportTimeoutMs, ESCAPE_HEAD_TIMEOUT_MS) : this.mouseReportTimeoutMs)
     // A window that stops with half a report on the wire must still be able to
     // exit: the timer is not a reason to keep the process alive.
     timer.unref()

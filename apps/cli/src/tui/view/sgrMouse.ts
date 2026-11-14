@@ -6,10 +6,9 @@
  * client is that terminal for the column, so a pointer event over the pane has
  * to become the bytes the program already asked for.
  *
- * Only three event kinds are reports: a press, a motion with the button held,
- * and the release. `click` is the renderer's own synthesis on top of a release,
- * and the wheel never reaches a component at all — the renderer routes it to a
- * scroll view before dispatch — so both produce nothing here.
+ * A press, a motion with the button held, and the release are the pointer's own
+ * reports; the wheel is the fourth — `sgrWheel`, below. `click` is the
+ * renderer's own synthesis on top of a release and produces nothing here.
  *
  * @module hulala-cli/tui/view/sgrMouse
  */
@@ -61,4 +60,21 @@ export function sgrMouse(event: TuiMouseEvent): string | undefined {
     if (event[modifier] === true) code += bit
   }
   return `\u001b[<${code};${event.x + 1};${event.y + 1}${final}`
+}
+
+/**
+ * Encode one wheel notch as the report a program in a column expects.
+ *
+ * A wheel notch is a button: 64 is up and 65 is down. The frame accelerates the
+ * wheel for its own viewports, but a program applies its own distance to a
+ * notch — one report per notch is the whole translation.
+ * @param event - the pointer event the renderer dispatched to the pane.
+ * @returns the report, or undefined when the event is not a wheel notch.
+ */
+export function sgrWheel(event: TuiMouseEvent): string | undefined {
+  if (event.type !== 'wheel') return undefined
+  const delta = event.wheelDelta ?? 0
+  if (delta === 0) return undefined
+  const code = delta < 0 ? 64 : 65
+  return `\u001b[<${code};${event.x + 1};${event.y + 1}M`
 }
