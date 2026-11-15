@@ -12,7 +12,7 @@
  *
  * @module hulala-cli/tui/app
  */
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deleteKittyImage } from '@earendil-works/pi-tui'
 import { createInterface } from 'node:readline'
@@ -115,11 +115,27 @@ export interface RunTerminalOptions {
 function debugLog(message: string): void {
   if (process.env.HULALA_DEBUG_CLIENT === undefined) return
   try {
-    appendFileSync(join(resolvePaths().data, 'logs', 'tui-debug.log'), `${new Date().toISOString()} ${message}\n`)
+    const file = join(resolvePaths().data, 'logs', 'tui-debug.log')
+    // Input tracing writes every read and every piece, which a moving pointer
+    // makes thousands of lines a second. One cap keeps a repro from filling the
+    // disk: the file is restarted once, so the newest run is always the one that
+    // survives.
+    debugLines += 1
+    if (debugLines % 2048 === 0) {
+      try {
+        if (statSync(file).size > 8 * 1024 * 1024) writeFileSync(file, '')
+      } catch {
+        // the file does not exist yet, or cannot be restarted
+      }
+    }
+    appendFileSync(file, `${new Date().toISOString()} ${message}\n`)
   } catch {
     // logging is best effort
   }
 }
+
+/** Lines written this process, for the size check above. */
+let debugLines = 0
 
 /** Whether this terminal can take ANSI colour at all. */
 function colorEnabled(): boolean {

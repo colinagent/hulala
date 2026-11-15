@@ -127,11 +127,16 @@ async function defaultSteps(): Promise<DevSteps> {
       // must stay a real entry point, because `/update` re-invokes it, and the
       // editor's Mermaid renderer runs it too. This is also the artifact the
       // release copies to `bin/hulala`.
+      // The dev entry always records what the client read and what it made of
+      // it. Input that arrives in pieces is invisible on screen — the symptom is
+      // a stray character — so the only way to answer "what did the terminal
+      // send" is a trace, and asking for it after the fact costs another run.
       const child = Bun.spawn([process.execPath, join(repositoryRoot, 'apps/cli/dist/hulala.mjs'), ...args], {
         cwd: repositoryRoot,
         stdin: 'inherit',
         stdout: 'inherit',
         stderr: 'inherit',
+        env: { ...process.env, HULALA_DEBUG_CLIENT: process.env.HULALA_DEBUG_CLIENT ?? '1' },
       })
       const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP']
       const forward = (signal: NodeJS.Signals): void => {
