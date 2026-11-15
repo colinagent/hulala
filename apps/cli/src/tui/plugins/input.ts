@@ -45,6 +45,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { isKeyRelease } from '@earendil-works/pi-tui'
 import { matchesAction } from '../../keymap.js'
+import { isStrayTerminalReport } from '../input/reports.js'
 import { t } from '../i18n/index.js'
 
 declare module '@deepseek-ai/cordis' {
@@ -185,6 +186,17 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
 
   const listener = (data: string): { consume: boolean } | undefined => {
     config.debug(`input ${JSON.stringify(data)} active=${String(panes.focused)} overlays=${overlays.open}`)
+    // A terminal's own replies (palette answers, DA1, window and cursor
+    // reports) are not keys. pi-tui consumes the palette answers while its one
+    // startup query is pending; a reply held in the tty's canonical buffer is
+    // released at the next raw-mode switch, long afterwards, unclaimed. Without
+    // this gate it is typed into the composer — `62`, `22t`, `52c` — and into
+    // the shell once the client has stopped reading. It must be swallowed here,
+    // before the modal check, or a picker with the keyboard gets it instead.
+    if (isStrayTerminalReport(data)) {
+      config.debug(`report ${JSON.stringify(data)}`)
+      return { consume: true }
+    }
     // A modal owns the keyboard: its own keys (the Session picker's search, an
     // approval's y/n) must not also drive the columns behind it.
     if (overlays.open > 0) return undefined

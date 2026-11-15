@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { visibleWidth } from '@earendil-works/pi-tui'
 import { decodeMsgpack, encodeMsgpack, type Msgpack } from '../../src/tui/editor/msgpack.ts'
 import { NvimUi, keyNotation, mouseRequest } from '../../src/tui/editor/nvimUi.ts'
 
@@ -292,4 +293,18 @@ test('an emoji cluster is one cell pair, like any wide character', () => {
   session.feed(redraw(['grid_line', 1, 0, 0, [['👨‍👩‍👧', 0], [''], ['x'], [' ']], false]))
   const line = session.renderScreen(4, 1, 'none', '')[0] ?? ''
   expect(line.replace(/\u001b\[[0-9;]*m/gu, '')).toBe('👨‍👩‍👧x ')
+})
+
+test('a wide character and its tail keep the row at the pane width', () => {
+  // Neovim sends a wide glyph in one cell and its right half as an empty cell.
+  // Drawing that empty cell as a space is what pushed every following column
+  // one cell to the right; here the glyph and its tail must occupy exactly two.
+  const { session } = ui({ cols: 6, rows: 1 })
+  session.feed(redraw(
+    ['grid_line', 1, 0, 0, [['你', 0], [''], ['好'], [''], ['a']]],
+    ['grid_cursor_goto', 1, 0, 5],
+  ))
+  const lines = session.renderScreen(6, 1, 'none', '')
+  expect(lines[0]).toContain('你好a')
+  expect(visibleWidth(lines[0] ?? '')).toBe(6)
 })

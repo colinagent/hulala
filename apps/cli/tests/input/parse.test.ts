@@ -112,3 +112,59 @@ test('a sequence split across a stalled frame is rejoined', () => {
   expect(parser.push('[')).toEqual([])
   expect(parser.push('D')).toEqual(['\u001b[D'])
 })
+
+test('the orphan window is the adapter clock, not wall time', () => {
+  // After a bare Escape has been delivered as the Escape key, a tail that lost
+  // it can still be recognised — but only inside one named window. The clock is
+  // injected so this is a fact about the parser, not about how long the test
+  // happened to sleep.
+  let now = 0
+  const within = new InputParser({ orphanWindowMs: 100, now: () => now })
+  within.push('\u001b')
+  expect(within.drain()).toEqual(['\u001b'])
+  now = 99
+  expect(within.push('[C')).toEqual(['\u001b[C'])
+
+  const past = new InputParser({ orphanWindowMs: 100, now: () => now })
+  past.push('\u001b')
+  expect(past.drain()).toEqual(['\u001b'])
+  // The escape was delivered at time 99; the window is 100ms, so 199 is the
+  // first moment it is too late to call the tail an arrow key. It is dropped,
+  // never typed: `[C` in a composer is the bug this parser exists to prevent.
+  now = 199
+  expect(past.push('[C')).toEqual([])
+  expect(past.takeDrops()).toEqual(['[C'])
+})
+
+test('a held fragment says what it is, so the adapter can pick its window', () => {
+  const parser = new InputParser()
+  expect(parser.pendingKind()).toBe('none')
+  parser.push('\u001b[')
+  expect(parser.pendingKind()).toBe('sequence')
+  expect(parser.drain()).toEqual(['\u001b', '['])
+  parser.push('\u001b[<35;6')
+  expect(parser.pendingKind()).toBe('report')
+  parser.push('\u001b[200~a paste')
+  expect(parser.pendingKind()).toBe('paste')
+})
+
+test('a tail past the window is dropped, and ordinary typing survives it', () => {
+  // After the drop, the stale escape time is cleared: the user goes back to
+  // typing real characters, and a literal `[` is text again.
+  let now = 0
+  const parser = new InputParser({ orphanWindowMs: 100, now: () => now })
+  parser.push('\u001b')
+  expect(parser.drain()).toEqual(['\u001b'])
+  now = 150
+  expect(parser.push('[D')).toEqual([])
+  expect(parser.takeDrops()).toEqual(['[D'])
+  now = 200
+  expect(parser.push('[x')).toEqual(['[', 'x'])
+  expect(parser.takeDrops()).toEqual([])
+})
+
+test('a person typing the two characters [C is not a tail', () => {
+  // No escape was ever handed on, so the characters are what they are: text.
+  const parser = new InputParser()
+  expect(parser.push('[C')).toEqual(['[', 'C'])
+})

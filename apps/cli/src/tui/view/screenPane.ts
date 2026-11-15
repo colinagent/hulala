@@ -23,7 +23,7 @@ import type { Component, Focusable, TuiMouseEvent, TuiMouseEventResult } from '@
 import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { CursorKind, CaretShape } from '../pane/screenSession.js'
 import { sgrMouse, sgrWheel, wheelNotches } from '../input/mouse.js'
-import { legacyKeys } from '../pane/legacyKeys.js'
+import { toPtyBytes } from '../input/keys.js'
 import { buildStyles } from './theme.js'
 import { padEnd } from './pathText.js'
 import type { ImePolicy } from '../pane/focus.js'
@@ -189,8 +189,9 @@ export class ScreenPane implements Component, Focusable {
       if (scroll.scrolledBack() > 0 && scroll.follow()) this.options.onScroll?.()
     }
     // The column's program speaks legacy terminal encoding; the outer terminal
-    // may be reporting its keys through the Kitty keyboard protocol.
-    this.options.screen.input(legacyKeys(data))
+    // may be reporting its keys through the Kitty keyboard protocol. One
+    // projection answers what the pty gets; everything else is passed through.
+    this.options.screen.input(toPtyBytes(data))
   }
 
   /**

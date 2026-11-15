@@ -481,7 +481,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     return false
   }
 
-  const open = (kind: PaneKind, cwd: string): boolean => {
+  const openNow = (kind: PaneKind, cwd: string): boolean | 'deferred' => {
     config.debug(`openPane kind=${kind} cwd=${cwd} running=${String(runtimes.has(kind))}`)
     if (runtimes.has(kind)) return true
     // A Host-owned column is created in the Session's own directory, which the
@@ -556,7 +556,16 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       // The terminal column still needs a pty module: a Host terminal reaches it
       // through `hostPty`, a test through its own.
       const pty = moduleFor('terminal', message => unavailable('terminal', message))
-      if (pty === undefined) return unavailable('terminal', t('pane.noPty'))
+      if (pty === undefined) {
+        // A Host terminal needs the Session id, which arrives with the boot. A
+        // Ctrl-T pressed before it landed used to fail silently with "no pty":
+        // the open is deferred and the whole focus retried, so the user's one
+        // keypress ends with the column open and holding the keyboard.
+        if (backend.terminal !== undefined && sessionId() === undefined) {
+          return 'deferred'
+        }
+        return unavailable('terminal', t('pane.noPty'))
+      }
       try {
         // A hosted pty ignores the command: the Host's execution world picks the
         // shell, because a client `$SHELL` names a path on the wrong machine.
@@ -596,9 +605,34 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     runtime.view.imePolicy = modeReadsText(runtime.session.currentMode()) ? 'text' : 'command'
   }
 
-  const focus = (kind: PaneKind, cwd: string): void => {
-    config.debug(`focusPane kind=${kind} overlay=${overlays.open}`)
-    if (!open(kind, cwd)) return
+  /**
+   * Retry a focus whose pane needs a fact that has not landed yet.
+   *
+   * Only one fact is deferred: the Session id the Host terminal is scoped to.
+   * The retry re-runs the whole `focus`, so the open, the seat and the keyboard
+   * all happen together instead of opening a column nobody is typing into.
+   * @param kind - the column the user asked for.
+   * @param cwd - the Session's directory.
+   * @param attempt - retries so far; boot is seconds on a remote Host.
+   */
+  const deferFocus = (kind: PaneKind, cwd: string, attempt: number): void => {
+    if (attempt >= 40) {
+      unavailable(kind, t('pane.noPty'))
+      return
+    }
+    setTimeout(() => {
+      if (shut) return
+      const outcome = openNow(kind, cwd)
+      if (outcome === false) return
+      if (outcome === 'deferred') {
+        deferFocus(kind, cwd, attempt + 1)
+        return
+      }
+      finishFocus(kind)
+    }, 100)
+  }
+
+  const finishFocus = (kind: PaneKind): void => {
     const runtime = runtimes.get(kind)
     if (runtime === undefined) return
     visibleKind = kind
@@ -614,6 +648,19 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     focusOn(runtime.view)
     render.repaint()
   }
+
+  const focus = (kind: PaneKind, cwd: string): void => {
+    config.debug(`focusPane kind=${kind} overlay=${overlays.open}`)
+    const outcome = openNow(kind, cwd)
+    if (outcome === false) return
+    if (outcome === 'deferred') {
+      deferFocus(kind, cwd, 1)
+      return
+    }
+    finishFocus(kind)
+  }
+
+  const open = (kind: PaneKind, cwd: string): boolean => openNow(kind, cwd) !== 'deferred'
 
   const toggle = (kind: PaneKind, cwd: string): void => {
     // The key is a visibility toggle for its own column: whoever has the keyboard
@@ -711,7 +758,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     runtimes.clear()
   }
 
+  let shut = false
   ctx.effect(() => () => {
+    shut = true
     dispose()
     layout.setPane(undefined)
   }, 'hulala: pane processes')

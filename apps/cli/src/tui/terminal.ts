@@ -10,9 +10,13 @@
  * macOS terminal will not report a Command chord any other way — and Command is
  * what the frame's divider keys are bound to. Legacy keys keep working: the
  * renderer matches both spellings, and the column programs get the legacy bytes
- * back through `pane/legacyKeys.ts`. Nothing is flipped in pi-tui's own parser
- * state (`kittyProtocolActive` stays false), so a terminal that ignores the
- * request reads exactly like it always did.
+ * back through `input/keys.ts`'s pty projection. Nothing is flipped in pi-tui's
+ * own parser state (`kittyProtocolActive` stays false), so a terminal that
+ * ignores the request reads exactly like it always did.
+ *
+ * The adapter is also the only writer of terminal modes: it filters the enable
+ * sequences of modes the client does not consume, so a renderer cannot switch
+ * them on behind the frame's back. See `terminal/modes.ts`.
  *
  * Framing is ours, not the renderer's. pi-tui's own buffer splits a chunk into
  * "sequences" for a TUI, which is right for a key and wrong for a program's
@@ -23,62 +27,14 @@
  *
  * @module hulala-cli/tui/terminal
  */
-import { writeSync } from 'node:fs'
 import { formatProgramStatus, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
 import { InputParser } from './input/parse.js'
-
-/** Push the Kitty keyboard protocol's disambiguate mode, keeping older flags. */
-const PUSH_DISAMBIGUATE = '\u001b[>1u'
-
-/** Pop it again, restoring whatever the terminal had before the client started. */
-const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
-
-/**
- * Turn motion reporting off, keeping button motion.
- *
- * The renderer asks for all-motion tracking (`?1003`) on a terminal it does not
- * recognise as a multiplexer, which makes every pointer movement a report — a
- * trackpad sends hundreds a second. Nothing in this client needs bare motion but
- * the pointer shape on a divider, and that is not worth a flood that a slow read
- * can cut in half. Button motion (`?1002`) keeps clicks, drags, selections and
- * the wheel; this is the same trade a multiplexer makes.
- */
-export const MOTION_OFF = '\u001b[?1003l'
-
-/**
- * Turn focus reporting off.
- *
- * The renderer enables `?1004` and consumes `ESC [ I` / `ESC [ O`; nothing in this
- * client uses them. They are emitted on every focus change — taking a screenshot,
- * clicking another window — and each is two more bytes that a busy frame can cut
- * apart into text.
- */
-export const FOCUS_OFF = '\u001b[?1004l'
-
-/**
- * How long an incomplete sequence is held before it is handed back as keys.
- *
- * This is the terminal's `ttimeoutlen`: a lone escape is ambiguous until the next
- * byte decides, and the gap between the two halves of one sequence is how long
- * the frame was busy — tens of milliseconds under a remote Host's load. A shorter
- * hold turns every arrow key into `[C` the moment a frame stalls; a longer one
- * makes Escape feel late. One hundred milliseconds is what Vim settled on for the
- * same decision.
- */
-const HOLD_TIMEOUT_MS = 100
-
-/**
- * How long a report's head waits for its tail.
- *
- * A report is one gesture, so its halves may come a read apart and nothing about
- * the first half can be given back as keys. A second is far longer than any read
- * gap and short enough that a stream which lost the tail does not hold the next
- * keystroke's bytes forever.
- */
-const REPORT_HOLD_MS = 1_000
-
-/** The head of a report, whose tail has not arrived. */
-const REPORT_HEAD = /^\u001b?\[<[\d;]*$/u
+import { filterUnusedModes, POP_KEYBOARD_PROTOCOL, PUSH_DISAMBIGUATE } from './terminal/modes.js'
+import {
+  DEFAULT_ESCAPE_TIMEOUT_MS,
+  DEFAULT_ORPHAN_WINDOW_MS,
+  DEFAULT_REPORT_TIMEOUT_MS,
+} from './terminal/timing.js'
 
 /**
  * Bytes that would end an OSC title early or start a sequence inside it.
@@ -88,91 +44,6 @@ const REPORT_HEAD = /^\u001b?\[<[\d;]*$/u
  * to the terminal as escape sequences. A space keeps the words apart.
  */
 const TITLE_CONTROL = /[\u0000-\u001f\u007f-\u009f]/gu
-
-/**
- * Give the terminal back, whatever happened.
- *
- * A client that dies without this leaves the terminal in the alternate screen
- * with mouse reporting on: the shell then receives the reports, echoes them as
- * text, and no amount of typing can be read. Writing it synchronously on the way
- * out is the only version that survives `process.exit` and an uncaught error.
- */
-export const RESTORE_TERMINAL = [
-  '\u001b[?1049l', // leave the alternate screen
-  '\u001b[?1006l', '\u001b[?1004l', '\u001b[?1003l', '\u001b[?1002l', '\u001b[?1000l',
-  '\u001b[?2004l', // bracketed paste off
-  '\u001b[?25h', // show the cursor
-  '\u001b[?7h', // autowrap back on
-  POP_KEYBOARD_PROTOCOL,
-].join('')
-
-/** One guard: it owns the terminal from `install()` until the process ends. */
-export interface TerminalGuard {
-  /** Put the terminal back; the second and later calls do nothing. */
-  restore(): void
-  /** Restore on every way out: exit, a crash, and the signals a launcher sends. */
-  install(): () => void
-}
-
-/**
- * Build a guard over one write function.
- *
- * The write is injected so a test can watch the bytes and the process can write
- * to its own file descriptor. The sequences are also what the renderer writes on
- * a graceful stop, so both paths are idempotent and safe in either order.
- * @param write - how to put bytes on the terminal's output.
- * @returns the guard.
- */
-export function createTerminalGuard(write: (text: string) => void): TerminalGuard {
-  let taken = false
-  let restored = false
-  const restore = (): void => {
-    if (!taken || restored) return
-    restored = true
-    try {
-      write(RESTORE_TERMINAL)
-    } catch {
-      // A closed tty has nothing to restore.
-    }
-  }
-  return {
-    restore,
-    install() {
-      taken = true
-      restored = false
-      const onExit = (): void => { restore() }
-      const onError = (error: unknown): void => {
-        restore()
-        try {
-          writeSync(2, `\n${String((error as Error)?.stack ?? error)}\n`)
-        } catch {
-          // best effort
-        }
-        process.exit(1)
-      }
-      const onSignal = (signal: NodeJS.Signals): void => {
-        restore()
-        process.exit(signal === 'SIGHUP' ? 129 : 143)
-      }
-      process.once('exit', onExit)
-      process.once('uncaughtException', onError)
-      process.once('unhandledRejection', onError)
-      process.once('SIGHUP', onSignal)
-      process.once('SIGTERM', onSignal)
-      return restore
-    },
-  }
-}
-
-/**
- * The process's guard.
- *
- * `bun run start` is a launcher and an installed client is a shell script: both
- * can end the client with a signal, and neither restores the terminal for it.
- */
-export function installTerminalGuard(): () => void {
-  return createTerminalGuard(text => { writeSync(1, text) }).install()
-}
 
 export interface TerminalStreams {
   input: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void; setEncoding?: (encoding: string) => void }
@@ -187,9 +58,11 @@ export interface TerminalOptions {
    * A lone escape may be the Escape key or the head of a report; `ESC [` may be
    * Alt-`[` or the start of a CSI. Nothing can tell them apart but time.
    */
-  readonly holdTimeoutMs?: number
+  readonly escapeTimeoutMs?: number
   /** How long a report's head waits for its tail; tests shorten it. */
-  readonly reportHoldTimeoutMs?: number
+  readonly reportTimeoutMs?: number
+  /** How long after a delivered Escape its stripped tail can be rejoined. */
+  readonly orphanWindowMs?: number
   /**
    * Every chunk as the terminal read it, and every sequence handed on.
    *
@@ -202,8 +75,9 @@ export interface TerminalOptions {
 
 export class StreamTerminal implements Terminal {
   private readonly streams: TerminalStreams
-  private readonly holdTimeoutMs: number
-  private readonly reportHoldTimeoutMs: number
+  private readonly escapeTimeoutMs: number
+  private readonly reportTimeoutMs: number
+  private readonly orphanWindowMs: number
   private readonly trace: ((line: string) => void) | undefined
   private inputHandler: ((data: string) => void) | undefined
   private resizeHandler: (() => void) | undefined
@@ -220,8 +94,9 @@ export class StreamTerminal implements Terminal {
 
   constructor(streams: TerminalStreams, options: TerminalOptions = {}) {
     this.streams = streams
-    this.holdTimeoutMs = options.holdTimeoutMs ?? HOLD_TIMEOUT_MS
-    this.reportHoldTimeoutMs = options.reportHoldTimeoutMs ?? REPORT_HOLD_MS
+    this.escapeTimeoutMs = options.escapeTimeoutMs ?? DEFAULT_ESCAPE_TIMEOUT_MS
+    this.reportTimeoutMs = options.reportTimeoutMs ?? DEFAULT_REPORT_TIMEOUT_MS
+    this.orphanWindowMs = options.orphanWindowMs ?? DEFAULT_ORPHAN_WINDOW_MS
     this.trace = options.trace
   }
 
@@ -269,11 +144,14 @@ export class StreamTerminal implements Terminal {
     this.write(PUSH_DISAMBIGUATE)
 
     if (process.env.HULALA_TRACE_START !== undefined) console.error('[start] terminal starting')
-    this.parser = new InputParser()
+    this.parser = new InputParser({ orphanWindowMs: this.orphanWindowMs, now: () => Date.now() })
     this.rawData = (chunk: string | Buffer): void => {
       const text = String(chunk)
       this.trace?.(`raw ${JSON.stringify(text)}`)
       for (const piece of this.parser?.push(text) ?? []) this.deliver(piece)
+      // A tail whose escape was already handed on is dropped, never typed; the
+      // trace keeps the evidence for a machine whose read boundaries change.
+      for (const dropped of this.parser?.takeDrops() ?? []) this.trace?.(`drop ${JSON.stringify(dropped)}`)
       this.armHold()
     }
     input.on('data', this.rawData)
@@ -303,6 +181,13 @@ export class StreamTerminal implements Terminal {
   stop(): void {
     if (this.rawData !== undefined) this.streams.input.off('data', this.rawData)
     this.rawData = undefined
+    // `off('data')` alone leaves stdin in flowing mode: Node keeps draining the
+    // fd and discards the bytes, which would steal input from a successor that
+    // inherited the same tty. A restart hands that terminal to a child process,
+    // so this side must stop reading altogether.
+    if ('pause' in this.streams.input && typeof this.streams.input.pause === 'function') {
+      this.streams.input.pause()
+    }
     if (this.endData !== undefined) {
       this.streams.input.off('end', this.endData)
       this.streams.input.off('close', this.endData)
@@ -337,9 +222,12 @@ export class StreamTerminal implements Terminal {
    */
   private armHold(): void {
     this.clearHold()
-    const pending = this.parser?.pending() ?? ''
-    if (pending === '') return
-    const wait = REPORT_HEAD.test(pending) ? this.reportHoldTimeoutMs : this.holdTimeoutMs
+    const kind = this.parser?.pendingKind() ?? 'none'
+    // A paste is not ambiguous: its start marker already said what it is, and
+    // the parser will hold it until the end marker. Giving it a timer would only
+    // hand an unfinished paste back as keys.
+    if (kind === 'none' || kind === 'paste') return
+    const wait = kind === 'report' ? this.reportTimeoutMs : this.escapeTimeoutMs
     this.holdTimer = setTimeout(() => {
       this.holdTimer = undefined
       if (this.parser === undefined) return
@@ -353,7 +241,10 @@ export class StreamTerminal implements Terminal {
   }
 
   write(data: string): void {
-    this.streams.output.write(data)
+    // The only writer of terminal modes: a renderer may ask for all-motion or
+    // focus reports, and neither is consumed here. Filtering on the way out is
+    // what makes that a rule instead of a convention (see `terminal/modes.ts`).
+    this.streams.output.write(filterUnusedModes(data))
   }
 
   moveBy(lines: number): void {

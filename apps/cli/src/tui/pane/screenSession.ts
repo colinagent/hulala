@@ -23,7 +23,7 @@
  * @module hulala-cli/tui/pane/screenSession
  */
 import { CURSOR_MARKER } from '@earendil-works/pi-tui'
-import type { PtyModule, PtyProcess } from '../editor/pty.js'
+import type { PtyModule, PtyProcess, PtySnapshot } from '../editor/pty.js'
 import { GhosttyVt, sgrSequence } from './ghosttyVt.js'
 
 const RESET = '\u001b[0m'
@@ -86,10 +86,12 @@ export class ScreenSession {
   private readonly history: boolean
   private readonly encoder = new TextEncoder()
   private disposed = false
+  private width: number
   private height: number
 
   private constructor(options: ScreenSessionOptions) {
     this.history = (options.scrollback ?? 0) > 0
+    this.width = options.cols
     this.height = options.rows
     this.vt = new GhosttyVt(options.cols, options.rows)
     this.child = options.pty.spawn(options.command, [...options.args], {
@@ -104,6 +106,24 @@ export class ScreenSession {
       // Parsing is synchronous: by the time the callback returns the screen model
       // already holds the new frame, so the repaint reads what the program wrote.
       this.vt.write(this.encoder.encode(data))
+      options.onScreen()
+    })
+    // A Host checkpoint was serialized at the size its own emulator had. Feed it
+    // to a model of that size, then reflow to the pane and tell the program the
+    // pane's size: applying it to a differently-sized model would put every wide
+    // character and wrapped line in a cell the program never wrote.
+    this.child.onSnapshot?.((snapshot: PtySnapshot) => {
+      if (this.disposed) return
+      if (process.env.HULALA_DEBUG_CLIENT !== undefined &&
+        (snapshot.cols !== this.width || snapshot.rows !== this.height)) {
+        console.error(`[screen] snapshot ${String(snapshot.cols)}x${String(snapshot.rows)} into ${String(this.width)}x${String(this.height)}`)
+      }
+      this.vt.resize(snapshot.cols, snapshot.rows)
+      this.vt.write(this.encoder.encode(`\u001b[0m\u001b[H\u001b[2J${snapshot.data}`))
+      this.vt.resize(this.width, this.height)
+      // The Host may still be at the create size; one resize makes the program
+      // repaint for the pane we are actually showing.
+      this.child.resize(this.width, this.height)
       options.onScreen()
     })
     this.child.onExit(event => {
@@ -133,8 +153,9 @@ export class ScreenSession {
   resize(cols: number, rows: number): void {
     if (this.disposed) return
     if (this.vt.columns === cols && this.height === rows) return
-    this.vt.resize(cols, rows)
+    this.width = cols
     this.height = rows
+    this.vt.resize(cols, rows)
     this.child.resize(cols, rows)
   }
 

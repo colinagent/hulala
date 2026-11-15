@@ -23,7 +23,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 
 /** Shape a program asked for with DECSCUSR, as the engine names it. */
 export type VtCursorShape = 'bar' | 'block' | 'underline' | 'hollow'
@@ -69,6 +68,8 @@ interface StructType {
   readonly size: number
   readonly fields: Record<string, Field>
   readonly values?: Record<string, number>
+  /** Bit fields of a packed struct, e.g. `GhosttyCell`'s `wide`. */
+  readonly bits?: Record<string, { readonly lsb: number; readonly width: number }>
 }
 
 /** The subset of the type layout this module reads. */
@@ -188,14 +189,6 @@ export function sgrSequence(sgr: string): string {
   return sgr === '' ? '' : `\u001b[${sgr.slice(1)}m`
 }
 
-/** Pad or truncate one rendered row to exactly `width` visible cells. */
-function fit(line: string, width: number): string {
-  const current = visibleWidth(line)
-  if (current === width) return line
-  if (current > width) return truncateToWidth(line, width, '')
-  return line + ' '.repeat(width - current)
-}
-
 /**
  * Does the sequence at `start` run to the end of the chunk with no final byte?
  *
@@ -267,6 +260,9 @@ export class GhosttyVt {
   private readonly behaviorBuffer: number
   private readonly styleBuffer: number
   private readonly codepointsBuffer: number
+  /** One packed `GhosttyCell`, for reading its `wide` bits. */
+  private readonly cellBuffer: number
+  private readonly cellWide: { readonly lsb: number; readonly width: number } | undefined
   private readonly slot: number
   private readonly tags: {
     readonly color: Record<string, number>
@@ -345,6 +341,8 @@ export class GhosttyVt {
     this.behaviorBuffer = ex.ghostty_wasm_alloc(this.sizes.behavior)
     this.styleBuffer = sizes(ex.ghostty_wasm_alloc(this.sizes.style), this.sizes.style)
     this.codepointsBuffer = ex.ghostty_wasm_alloc(16 * 4)
+    this.cellBuffer = ex.ghostty_wasm_alloc(8)
+    this.cellWide = type('GhosttyCell').bits?.wide
     this.slot = ex.ghostty_wasm_alloc_opaque()
     ex.ghostty_terminal_new(0, this.slot, cols, rows)
     this.terminal = this.handle()
@@ -615,23 +613,30 @@ export class GhosttyVt {
       let out = ''
       let open = ''
       let column = 0
-      let pendingWide = false
       while (column < cols && ex.ghostty_render_state_row_cells_next(cells)) {
         const cell = this.cell(cells)
-        if (cell.text === '') {
-          // The tail of a wide glyph is its own cell and must not add a column.
-          if (pendingWide) {
-            pendingWide = false
-            continue
+        const wide = this.wideOf(cells)
+        // A wide glyph owns two columns: the head advances both, and the tail is
+        // a cell of its own that must not add a column or a space. A spacer head
+        // is the wrap artifact at the end of a soft-wrapped line. The width comes
+        // from the emulator's own cell flag, not from a string-width guess.
+        if (wide === 2 || wide === 3) continue
+        const span = wide === 1 ? 2 : 1
+        if (column + span > cols) {
+          // A wide glyph cannot start in the last column: paint the cell's style
+          // as a blank so the background survives, and never write half a glyph.
+          if (cell.sgr !== open) {
+            out += RESET + sgrSequence(cell.sgr)
+            open = cell.sgr
           }
+          out += ' '
+          column = cols
+          continue
+        }
+        if (cell.text === '') {
           if (cursor !== undefined && cursor.visible && cursor.y === rowIndex && cursor.x === column && ink !== undefined) {
             // The pen is reset first: a cursor is drawn by the caller as an
             // inverted cell, and the colours it inverts are the ones open here.
-            // Without the reset the block takes the colour of whatever cell came
-            // before it — the line number's amber in an editor, a label's accent
-            // in a list — so the same cursor changed colour between columns.
-            // The cell's own style goes to the ink, which needs it to keep a
-            // character visible under a caret.
             out += RESET + ink.draw(cell.text, cell.sgr)
             open = ''
             column += 1
@@ -658,17 +663,40 @@ export class GhosttyVt {
         } else {
           out += cell.text
         }
-        const width = visibleWidth(cell.text)
-        column += Math.max(1, width)
-        pendingWide = width > 1
+        column += span
       }
       out += RESET
-      lines.push(fit(out, cols))
+      // The loop consumed one column per narrow cell and two per wide head, so
+      // `column` is the row's cell count. Pad by that count; a string-width
+      // function would re-decide a fact the emulator already answered.
+      if (column < cols) out += ' '.repeat(cols - column)
+      lines.push(out)
       rowIndex += 1
     }
     ex.ghostty_render_state_clean(this.renderState)
     while (lines.length < rows) lines.push(' '.repeat(cols))
     return lines
+  }
+
+  /**
+   * The emulator's width classification for the cell the iterator points at.
+   *
+   * `GhosttyCell` is a packed u64 whose bit layout comes from the module's own
+   * `ghostty_type_json()`, so a version bump moves the bits with it. The values
+   * are `GhosttyCellWide`: 0 narrow, 1 wide, 2 spacer tail, 3 spacer head.
+   * @param cells - the row's cell iterator.
+   * @returns the wide classification, or 0 when the ABI does not expose it.
+   */
+  private wideOf(cells: number): number {
+    const layout = this.cellWide
+    if (layout === undefined) return 0
+    const ex = this.exports
+    ex.ghostty_render_state_row_cells_get(cells, this.tags.cell.RAW ?? 1, this.cellBuffer)
+    const word = Math.floor(layout.lsb / 32)
+    const shift = layout.lsb - word * 32
+    const view = new DataView(ex.memory.buffer)
+    const value = view.getUint32(this.cellBuffer + word * 4, true)
+    return (value >>> shift) & ((1 << layout.width) - 1)
   }
 
   /** Read the cell the row iterator points at. */
@@ -734,6 +762,7 @@ export class GhosttyVt {
     ex.ghostty_wasm_free(this.behaviorBuffer, this.sizes.behavior)
     ex.ghostty_wasm_free(this.styleBuffer, this.sizes.style)
     ex.ghostty_wasm_free(this.codepointsBuffer, 16 * 4)
+    ex.ghostty_wasm_free(this.cellBuffer, 8)
     ex.ghostty_wasm_free_opaque(this.slot)
   }
 }

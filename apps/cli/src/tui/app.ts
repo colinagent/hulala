@@ -15,7 +15,7 @@
 import { appendFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deleteKittyImage } from '@earendil-works/pi-tui'
-import { FOCUS_OFF, MOTION_OFF } from './terminal.js'
+import { FOCUS_OFF, MOTION_OFF } from './terminal/modes.js'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
@@ -36,7 +36,7 @@ import {
 import { languageProblemText, setActiveLanguage, t } from './i18n/index.js'
 import { languagePlugin } from './plugins/language.js'
 import { checkForUpdate, type UpdateInfo } from '../update/check.js'
-import { collect, spawnDetached } from '../spawn.js'
+import { collect, spawnHandoff } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
@@ -92,7 +92,7 @@ export interface RunTerminalOptions {
   /** Install a downloaded release; tests inject a fixed result. */
   applyUpdate?: () => Promise<{ ok: boolean; message: string }>
   /** Restart onto the installed release; tests inject a recorder. */
-  restartClient?: (resume: string | undefined) => void
+  restartClient?: (resume: string | undefined) => void | Promise<void>
   /**
    * The ssh destination this window attached through, when the Host is remote.
    *
@@ -171,8 +171,14 @@ async function defaultApplyUpdate(): Promise<{ ok: boolean; message: string }> {
  * code being edited would be a surprise. A checkout therefore re-runs the entry it
  * is already running — the bundle `bun run start` built — which is the same
  * process with different arguments, exactly what `/update` already does.
+ *
+ * The successor is started as a **child of this process, in this process's
+ * group, and awaited here**. A detached child would leave the tty's foreground
+ * process group; the shell would come back and read the same bytes, which is how
+ * a `/remote` switch used to split every arrow key and leave terminal replies as
+ * `command not found` in the shell.
  */
-function restartClient(dataRoot: string, resume: string | undefined, remote?: string): void {
+async function restartClient(dataRoot: string, resume: string | undefined, remote?: string): Promise<void> {
   const tail = [
     ...(resume === undefined ? [] : ['--resume', resume]),
     ...(remote === undefined ? [] : ['--remote', remote]),
@@ -180,12 +186,9 @@ function restartClient(dataRoot: string, resume: string | undefined, remote?: st
   const installed = (process.env.HULALA_INSTALL_ROOT ?? '').trim() !== ''
   const entry = installed ? join(dataRoot, 'bin', 'hulala') : process.argv[1]
   if (entry === undefined || entry === '') return
-  try {
-    spawnDetached(process.execPath, [entry, ...tail], 'inherit')
-  } catch {
-    // Restarting is a convenience; failing to spawn leaves the client's own entry
-    // untouched and the user can run it themselves.
-  }
+  // A failed spawn resolves instead of throwing: restarting is a convenience,
+  // and the user can always run their own entry again.
+  await spawnHandoff(process.execPath, [entry, ...tail])
 }
 
 function stringAt(value: unknown, ...path: readonly string[]): string | undefined {
@@ -384,14 +387,23 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     panes.dispose()
     panes.setDividerHover(false)
     // Leave the alternate screen here rather than waiting for the context's
-    // disposer: `/update` hands the terminal to the new client before anything
-    // else, so the order is the caller's to decide. `stop()` is idempotent, and
-    // the terminal plugin's own effect is the fallback for every other exit.
+    // disposer, so the terminal is back in its normal buffer before anything
+    // else runs. `stop()` is idempotent, and the terminal plugin's own effect
+    // is the fallback for every other exit.
     ui.stop()
     if (logoId !== undefined) terminal.write(deleteKittyImage(logoId))
-    // The terminal is back to its normal buffer by now, so the new client can
-    // take it over: that is what makes `/update` feel like a restart rather than
-    // "quit and run it again".
+    // The context owns every plugin, so disposing it is what closes the
+    // transport, the ptys and the subscriptions in one place. It has to happen
+    // before `process.exit`, which would otherwise cut them off mid-flight —
+    // and, critically, before the successor starts. A closing transport can
+    // still publish a notice (a repaint), and a repaint from this process would
+    // land on the new client's frame. Two writers on one tty are the same bug
+    // as two readers.
+    await backend.close().catch(() => undefined)
+    await kernel.dispose().catch(() => undefined)
+    // Only now may the successor take the terminal. It is a child of this
+    // process in the same foreground process group, and this process waits for
+    // it, so the shell never regains the tty between the two windows.
     if (updater.restartWanted) {
       // A window that switched Host decided the destination; otherwise the one
       // this process attached with is carried forward unchanged.
@@ -400,13 +412,8 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
         : updater.nextRemote === null ? undefined : updater.nextRemote
       const restart = options.restartClient
         ?? (exitProcess ? (resume: string | undefined) => restartClient(dataRoot, resume, destination) : undefined)
-      if (restart !== undefined) restart(session.id)
+      if (restart !== undefined) await restart(session.id)
     }
-    // The context owns every plugin, so disposing it is what closes the
-    // transport, the ptys and the subscriptions in one place. It has to happen
-    // before `process.exit`, which would otherwise cut them off mid-flight.
-    await backend.close().catch(() => undefined)
-    await kernel.dispose().catch(() => undefined)
     if (exitProcess) {
       // Explicit exit, like pi's interactive mode: the Host connection or a
       // resumed stdin can otherwise keep the event loop alive after the client
@@ -478,11 +485,13 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // All-motion tracking makes every pointer movement a report; this client only
   // uses bare motion for a divider's pointer shape. Button motion keeps clicks,
   // drags, selection and the wheel — and a trackpad stops flooding the input.
+  // The adapter also filters the enable sequence, so this clears any state a
+  // previous program left behind rather than undoing the renderer's request.
   terminal.write(MOTION_OFF)
-  // Focus reports (`ESC [ I`, `ESC [ O`) are enabled by the renderer and used by
-  // nothing here: they arrive whenever the window's focus changes — a screenshot,
-  // a click elsewhere — and each one is another sequence that can be split and
-  // typed. Turning them off removes the traffic instead of parsing it.
+  // Focus reports (`ESC [ I`, `ESC [ O`) fire whenever the window's focus
+  // changes — a screenshot, a click elsewhere — and each one is another sequence
+  // that can be split and typed. pi-tui uses `ESC[O` to drop a drag in progress,
+  // but with bare motion off that is a smaller loss than the garbage is.
   terminal.write(FOCUS_OFF)
   // The language picker (when the language is unset) is a first-frame surface:
   // emitting after `start()` keeps attach and Session boot off its path.

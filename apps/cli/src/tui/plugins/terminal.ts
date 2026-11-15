@@ -29,7 +29,8 @@ import { imePolicyOf, type ImePolicy } from '../pane/focus.js'
 import type { CaretShape } from '../pane/screenSession.js'
 import { copyToClipboard, liveClipboardPorts, type CopyProblem } from '../clipboard.js'
 import { t } from '../i18n/index.js'
-import { installTerminalGuard, StreamTerminal, type TerminalStreams } from '../terminal.js'
+import { installTerminalGuard } from '../terminal/guard.js'
+import { StreamTerminal, type TerminalStreams } from '../terminal.js'
 
 /** DECSCUSR code for each caret shape the client hands the terminal. */
 const CURSOR_SHAPE_CODES: Record<CaretShape, number> = { block: 2, underline: 4, bar: 6 }
@@ -198,7 +199,7 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     { input: config.input, output: config.output } as TerminalStreams,
     {
       ...(config.debug === undefined ? {} : { trace: config.debug }),
-      ...(config.escapeTimeoutMs === undefined ? {} : { holdTimeoutMs: config.escapeTimeoutMs }),
+      ...(config.escapeTimeoutMs === undefined ? {} : { escapeTimeoutMs: config.escapeTimeoutMs }),
     },
   )
   // A closed window ends its stdin. Nothing on screen can be shown any more, so

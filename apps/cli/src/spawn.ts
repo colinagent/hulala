@@ -48,9 +48,9 @@ export async function collect(command: string, args: readonly string[]): Promise
  * Start a command that must outlive this process.
  *
  * `detached` puts the child in its own process group so it survives the parent's
- * exit — which is the point for a background download and for handing the
- * terminal to a freshly installed release. `unref` then lets this process exit
- * instead of waiting on it.
+ * exit — which is the point for a background download. It is **not** for a
+ * process that takes this one's terminal: see {@link spawnHandoff}.
+ * `unref` then lets this process exit instead of waiting on it.
  * @param command - executable to run.
  * @param args - its arguments.
  * @param stdio - `inherit` when the child takes the terminal, `ignore` otherwise.
@@ -68,4 +68,53 @@ export function spawnDetached(
   })
   child.unref()
   return { pid: child.pid }
+}
+
+/**
+ * Start the process that takes this one's terminal, and stay alive until it
+ * leaves.
+ *
+ * A detached successor becomes the leader of a new session: it keeps the tty's
+ * file descriptors but is no longer in the terminal's foreground process group.
+ * The shell (or the dev wrapper) regains the foreground as soon as this process
+ * exits, so two readers share one tty. Every escape sequence is then split —
+ * `ESC` reaches one reader and `[D` the other — the frame's caret is drawn by a
+ * renderer that no longer owns the screen, and terminal query replies left in
+ * the canonical buffer are read by the shell as commands (`62`, `22t`, `52c`).
+ * That is exactly what a `/remote` switch from a source checkout produced.
+ *
+ * Keeping the child in this process's group (no `detached`) and waiting here
+ * leaves exactly one owner of the terminal across the swap: the foreground
+ * process group never changes, and the shell only comes back when the whole
+ * chain has exited.
+ * @param command - executable to run.
+ * @param args - its arguments.
+ * @returns the child's exit code, or 1 when it died by signal or could not start.
+ */
+export async function spawnHandoff(command: string, args: readonly string[]): Promise<number> {
+  return await new Promise<number>(resolve => {
+    const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP']
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(command, [...args], {
+        stdio: ['inherit', 'inherit', 'inherit'],
+        env: { ...process.env },
+      })
+    } catch {
+      resolve(1)
+      return
+    }
+    const forward = (signal: NodeJS.Signals): void => {
+      try { child.kill(signal) } catch { /* already gone */ }
+    }
+    const cleanUp = (): void => {
+      for (const signal of signals) process.off(signal, forward)
+    }
+    for (const signal of signals) process.on(signal, forward)
+    child.once('error', () => { cleanUp(); resolve(1) })
+    child.once('close', (code, signal) => {
+      cleanUp()
+      resolve(signal !== null ? 1 : code ?? 1)
+    })
+  })
 }

@@ -220,3 +220,28 @@ test('one large paste is split into writes the Host accepts', async () => {
   expect(pieces.length).toBeGreaterThan(3)
   expect(pieces.join('')).toBe(paste)
 })
+
+test('a screen model that can take a checkpoint is offered its own size', async () => {
+  // A Host terminal reattaches to a process that kept running: its first frame
+  // is a screen serialized at the size that process had. A model rebuilt at the
+  // pane's size instead would put every wrapped line in the wrong cell.
+  const { terminals, recorded } = fakeTerminals()
+  const snapshots: Array<{ cols: number, rows: number, data: string }> = []
+  const received: string[] = []
+  const process = hostPty({ terminal: terminals, sessionId: 'session-1' }).spawn('/bin/zsh', [], spawnOptions)
+  process.onData(data => received.push(data))
+  process.onSnapshot?.(snapshot => snapshots.push(snapshot))
+  await settle()
+
+  emit(recorded, {
+    type: 'snapshot',
+    sequence: 0,
+    screen: 'wide 你好',
+    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 40, rows: 12, state: 'running', exitCode: null },
+    writable: true,
+  })
+
+  expect(snapshots).toEqual([{ cols: 40, rows: 12, data: 'wide 你好' }])
+  // The checkpoint is not also delivered as output: one frame, one consumer.
+  expect(received).toEqual([])
+})

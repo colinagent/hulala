@@ -15,7 +15,7 @@
  *
  * @module hulala-cli/tui/editor/hostPty
  */
-import type { PtyModule, PtyProcess, PtySpawnOptions } from './pty.js'
+import type { PtyModule, PtyProcess, PtySnapshot, PtySpawnOptions } from './pty.js'
 import type { HostTerminalAttachment, HostTerminals } from '../data/remote.js'
 
 /**
@@ -83,6 +83,7 @@ class HostPtyProcess implements PtyProcess {
   private readonly rows: number
   private readonly shellPath: string | undefined
   private handler: ((data: string) => void) | undefined
+  private snapshot: ((snapshot: PtySnapshot) => void) | undefined
   private exit: ((event: { exitCode: number }) => void) | undefined
   private attachment: HostTerminalAttachment | undefined
   private sequence = 0
@@ -137,8 +138,15 @@ class HostPtyProcess implements PtyProcess {
   private receive(frame: Parameters<Parameters<HostTerminalAttachment['onFrame']>[0]>[0]): void {
     switch (frame.type) {
       case 'snapshot':
-        // The snapshot is a complete screen, not a delta: clear first so a
-        // reattach over a live column does not interleave two paints.
+        // The snapshot is a complete screen, not a delta, and it was serialized
+        // at `info.cols`/`info.rows` — which can differ from the pane if the
+        // window changed while the attachment opened. A screen model that has a
+        // snapshot path rebuilds itself at the checkpoint's size; one without
+        // keeps the old "clear, then whole screen" behavior.
+        if (this.snapshot !== undefined) {
+          this.snapshot({ cols: frame.info.cols, rows: frame.info.rows, data: frame.screen })
+          break
+        }
         this.handler?.(`\u001b[0m\u001b[H\u001b[2J${frame.screen}`)
         break
       case 'output':
@@ -168,6 +176,10 @@ class HostPtyProcess implements PtyProcess {
 
   onData(handler: (data: string) => void): void {
     this.handler = handler
+  }
+
+  onSnapshot(handler: (snapshot: PtySnapshot) => void): void {
+    this.snapshot = handler
   }
 
   onExit(handler: (event: { exitCode: number }) => void): void {

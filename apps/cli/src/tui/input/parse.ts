@@ -35,18 +35,22 @@ const ORPHAN_REPORT = /^\[<(\d+);(\d+);(\d+)([Mm])/u
 /** A prefix of one, which must be held instead of being typed. */
 const ORPHAN_HEAD = /^\[<?[\d;]*$/u
 
+/** The head of a report, whose tail has not arrived. */
+const REPORT_HEAD = /^\u001b?\[<[\d;]*$/u
+
 /** A whole cursor or function key without its escape byte: `[C`, `[3~`, `OA`. */
 const ORPHAN_SEQUENCE = /^(?:\[[\d;]*[A-Za-z~]|O[A-Z])/u
 
 /**
- * How long after an Escape its stripped sequence can still arrive.
+ * The default for how long after an Escape its stripped sequence can arrive.
  *
- * The gap is the frame being busy, not the user pausing: an arrow key's escape is
- * read on its own when a read ends after it, and the rest follows within the same
- * burst of work. A second covers a stalled frame without covering a person who
- * pressed Escape and then typed a bracket.
+ * The adapter owns the clock and passes its window in; this is the value a
+ * parser built without options uses (and the one the tests read as "the
+ * production window"). The gap is the frame being busy, not the user pausing: an
+ * arrow key's escape is read on its own when a read ends after it, and the rest
+ * follows within the same burst of work.
  */
-const ORPHAN_SEQUENCE_WINDOW_MS = 1_000
+const DEFAULT_ORPHAN_WINDOW_MS = 1_000
 
 /** A CSI body: parameters, then intermediates, then one final byte. */
 const CSI = /^\u001b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/u
@@ -82,6 +86,14 @@ const MAX_HELD = 8 * 1024 * 1024
  */
 const MAX_HELD_PREFIX = 64
 
+/** Options a parser needs; the adapter supplies the clock and its window. */
+export interface InputParserOptions {
+  /** How long after a delivered Escape its stripped tail may still be rejoined. */
+  readonly orphanWindowMs?: number
+  /** Clock, injected so a test can move time without sleeping. */
+  readonly now?: () => number
+}
+
 /**
  * The incremental parser.
  *
@@ -91,12 +103,41 @@ const MAX_HELD_PREFIX = 64
  */
 export class InputParser {
   private held = ''
-  /** When a bare Escape was handed on, so an escape-less sequence can follow. */
-  private escapedAt = 0
+  private readonly orphanWindowMs: number
+  private readonly now: () => number
+  /** When a bare Escape was handed on (-1 = never), so an escape-less tail can follow. */
+  private escapedAt = -1
+  /** Fragments dropped because their escape had already been handed on. */
+  private dropped: string[] = []
+
+  /** The dropped fragments, for the adapter's trace; read and cleared. */
+  takeDrops(): string[] {
+    return this.dropped.splice(0)
+  }
+
+  constructor(options: InputParserOptions = {}) {
+    this.orphanWindowMs = options.orphanWindowMs ?? DEFAULT_ORPHAN_WINDOW_MS
+    this.now = options.now ?? (() => Date.now())
+  }
 
   /** Bytes waiting for their remainder. */
   pending(): string {
     return this.held
+  }
+
+  /**
+   * What kind of fragment is waiting, so the adapter can choose its window.
+   *
+   * A report is one gesture and may wait longer than a key sequence; a paste is
+   * not ambiguous at all once its start marker arrived and must never be given
+   * back as keys. This is the only place that answers what a held fragment is.
+   * @returns the fragment's kind, or `none` when nothing is held.
+   */
+  pendingKind(): 'none' | 'paste' | 'report' | 'sequence' {
+    if (this.held === '') return 'none'
+    if (this.held.startsWith(PASTE_START)) return 'paste'
+    if (REPORT_HEAD.test(this.held)) return 'report'
+    return 'sequence'
   }
 
   /**
@@ -132,11 +173,17 @@ export class InputParser {
    * @returns the pieces to deliver, in order.
    */
   drain(): string[] {
+    // A bracketed paste is not ambiguous: its start marker already said what it
+    // is, and it ends only at the end marker. Handing back an unfinished paste as
+    // keys would type its first lines plus `[200~` into whatever has the
+    // keyboard — the exact bug this parser exists to prevent. If the tail never
+    // comes, `MAX_HELD` is the bound.
+    if (this.held.startsWith(PASTE_START)) return []
     const held = this.held
     this.held = ''
     if (held === '') return []
     if (held === '\u001b') {
-      this.escapedAt = Date.now()
+      this.escapedAt = this.now()
       return ['\u001b']
     }
     // A report whose tail never came is dropped: half a mouse report is not
@@ -172,11 +219,25 @@ export class InputParser {
     // `ESC [ C`, and typing it is the same bug as typing a mouse report. It is
     // only read this way right after an escape, because a person typing `[C`
     // produces two separate events, not one chunk.
-    if (Date.now() - this.escapedAt < ORPHAN_SEQUENCE_WINDOW_MS) {
+    if (this.escapedAt >= 0 && this.now() - this.escapedAt < this.orphanWindowMs) {
       const orphan = ORPHAN_SEQUENCE.exec(this.held)
       if (orphan !== null) {
-        this.escapedAt = 0
+        this.escapedAt = -1
         return `\u001b${this.cut(orphan[0].length)}`
+      }
+    }
+    // The same tail after the window has closed: its escape was already handed
+    // on as the Escape key, so rejoining is impossible. It is never typing
+    // either — `[C` in the composer or the shell is the same garbage as a mouse
+    // report, and a person who really wants the two characters has a whole
+    // second of ordinary text in between. Dropped, with the stale escape time
+    // cleared so ordinary typing is not punished for it.
+    if (this.escapedAt >= 0) {
+      const stale = ORPHAN_SEQUENCE.exec(this.held)
+      if (stale !== null) {
+        this.dropped.push(this.cut(stale[0].length))
+        this.escapedAt = -1
+        return undefined
       }
     }
     // A report whose escape was lost: the tail is whole in one read, so it is

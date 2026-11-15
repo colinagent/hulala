@@ -22,6 +22,16 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+/** A complete screen a Host hands a new attachment before its output. */
+export interface PtySnapshot {
+  /** Width the snapshot was serialized at. */
+  readonly cols: number
+  /** Height the snapshot was serialized at. */
+  readonly rows: number
+  /** The screen as terminal bytes, to be fed to a fresh screen model. */
+  readonly data: string
+}
+
 /** One spawned pty, narrowed to what a column uses. */
 export interface PtyProcess {
   readonly pid: number
@@ -30,6 +40,18 @@ export interface PtyProcess {
   write(data: string): void
   resize(cols: number, rows: number): void
   kill(): void
+  /**
+   * A complete screen for a new attachment, when the backend has one.
+   *
+   * A local pty has no snapshot: the program's bytes are the whole story. A
+   * Host terminal reattaches to a process that kept running, so its first frame
+   * is a checkpoint produced at the checkpoint's own size. The screen model
+   * must be built at that size before the bytes are replayed, or every wide
+   * character and wrapped line lands in a different cell than the one the
+   * program wrote.
+   * @param handler - receives the checkpoint instead of an `onData` chunk.
+   */
+  onSnapshot?(handler: (snapshot: PtySnapshot) => void): void
 }
 
 /** Spawn options; only the fields the editor sets. */

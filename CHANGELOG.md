@@ -13,17 +13,53 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.16] - 2026-11-15
+
 ### Fixed
 
+- Switching to a remote Host with `/remote` left the shell and the restarted
+  client reading one terminal: the caret jumped to the front of the text, arrow
+  keys arrived split, and terminal replies reached the shell as commands that
+  could end the client on the first send. The restart now hands the terminal to
+  one successor in the same process group and waits for it, and releases stdin
+  before that successor starts, so a single process owns the tty throughout.
+- Stray terminal reports — color replies, device attributes, cursor position and
+  window-size replies — are dropped before they reach a modal or the composer.
+- A key sequence whose escape byte was read on its own — an arrow key over a
+  stalled frame — no longer types its tail as text once the rejoin window has
+  closed: `[C` / `[D` can never appear in the composer or a shell again. The
+  tail is dropped with a trace, and ordinary typing after it is untouched.
+- `Ctrl-T` pressed right after startup used to fail silently: the Host terminal
+  is scoped to the Session id, which had not landed yet. The open is now
+  deferred until the id is known and the focus completes with it, so the column
+  opens and holds the keyboard instead of leaving the keypress unanswered.
+- A bracketed paste that took longer than the escape hold was handed back as the
+  Escape key plus its own `[200~` marker and text. An unfinished paste is now
+  held until its end marker; a paste is never a key sequence.
+- Reattaching to a Host terminal now rebuilds the screen at the snapshot's own
+  size before returning to the pane size, so wide characters, wrapped lines and
+  the cursor land in the cells the program wrote instead of being reflowed at a
+  different width.
+- Wide characters are placed by the terminal emulator's own cell width instead
+  of a string-width guess: a wide glyph never starts in the last column, and its
+  spacer tail no longer becomes an extra space.
+- Leaving the client also resets the cursor shape a column's program chose
+  (`DECSCUSR`) and ends synchronized output (`?2026l`). A shell no longer
+  inherits a bar cursor, and a frame that was mid-update is not left held.
+- The client no longer enables all-motion (`?1003`) or focus (`?1004`) reports at
+  all: the adapter filters the renderer's enable sequence and clears any stale
+  state, instead of switching the modes on and immediately off.
+- The packaged client resolves `ws` from the runtime dependency tree instead of
+  bundling it. The bundled copy kept the multiplex connection alive until a
+  terminal column attached, then dropped it — a source run could not reproduce
+  it, but every release artifact had it.
 - Arrow keys and function keys arrived as `[C` / `[D` in the composer: their
   escape byte was read on its own, the frame took it for the Escape key, and what
-  followed was text. A lone escape is now held for a tenth of a second — Vim's
-  own `ttimeoutlen` — so a frame that stalls between the two halves still gets one
-  sequence, and a sequence that lost its escape (`[C`, `[3~`, `OA`) is restored
-  from its tail instead of typed.
-
-### Fixed
-
+  followed was text. A lone escape is now held for a tenth of a second — longer
+  than Neovim's 50 ms `ttimeoutlen`, because this client reads stdin on the
+  frame's event loop — so a frame that stalls between the two halves still gets
+  one sequence, and a sequence that lost its escape (`[C`, `[3~`, `OA`) is
+  restored from its tail instead of typed.
 - The terminal was left unusable after the client went away: the alternate screen
   stayed on and mouse reporting stayed enabled, so the shell received every
   pointer report and echoed it as text. The client now writes the restore
@@ -34,9 +70,6 @@ that version has no section. Releases before 0.2.30 are not recorded.
   remote frame cuts them in half. It now keeps button motion (`?1002`): clicks,
   drags, selection and the wheel still work, and a trackpad no longer floods the
   input or moves the caret while typing.
-
-### Fixed
-
 - A client whose window was closed stayed alive, holding its Host connection and
   its forward. Several of those on one Host are indistinguishable from the window
   a user is typing into — and a process keeps the code it started with, so a

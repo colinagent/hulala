@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import { visibleWidth } from '@earendil-works/pi-tui'
 import { GhosttyVt } from '../../src/tui/pane/ghosttyVt.js'
 
 const encoder = new TextEncoder()
@@ -80,4 +81,42 @@ test('the cursor reports the shape the program asked for', () => {
   expect(vt.cursor().shape).toBe('underline')
   paint(vt, '\u001b[2 q')
   expect(vt.cursor().shape).toBe('block')
+})
+
+test('a wide glyph advances two cells and its tail adds nothing', () => {
+  const vt = new GhosttyVt(6, 2)
+  paint(vt, '你好')
+  // Two glyphs, four cells, two blanks. The old renderer added a space for the
+  // right half of each wide glyph, which pushed everything after it one cell to
+  // the right — the "a Chinese line is shifted" bug.
+  expect(row(vt, 6)).toBe('你好  \u001b[0m')
+  const narrow = new GhosttyVt(4, 2)
+  paint(narrow, '好a')
+  expect(row(narrow, 4)).toBe('好a \u001b[0m')
+})
+
+test('a wide glyph that cannot fit is wrapped, not split', () => {
+  const vt = new GhosttyVt(3, 2)
+  paint(vt, 'ab好')
+  // The emulator wraps the wide glyph and leaves a spacer-head in the last
+  // column of the first row. That spacer is not a character: the row is `ab `
+  // and the glyph starts the next row.
+  const lines = vt.renderRows(3, 2, undefined, undefined)
+  expect(lines[0]).toBe('ab\u001b[0m ')
+  expect(lines[1]).toBe('好 \u001b[0m')
+})
+
+test('emoji and combining marks keep the row at the pane width', () => {
+  // A ZWJ family is deliberately absent: this ghostty build keeps each member
+  // as its own wide cell (six columns), while modern outer terminals draw the
+  // joined sequence as one two-column glyph. `ScreenPane.fitToWidth` pads the
+  // row to the pane width, but a glyph *after* it would sit further right in the
+  // model than on the outer terminal. That is a known emulator/terminal
+  // divergence, not something a client-side width table can fix.
+  for (const text of ['🙂', 'a\u0301', '你好']) {
+    const vt = new GhosttyVt(8, 2)
+    paint(vt, text)
+    const line = row(vt, 8)
+    expect(visibleWidth(line)).toBe(8)
+  }
 })

@@ -298,6 +298,40 @@ test('TTY mode draws the pi-tui editor borders and keeps them after submit', asy
   await expect(run).resolves.toBe(0)
 })
 
+/**
+ * A palette query's reply burst, exactly as the terminal sends it. The first
+ * round belongs to pi-tui's startup query; the second is a stale one held in the
+ * canonical tty buffer and released at the next raw-mode switch.
+ */
+const stalePaletteRound = [
+  '\u001b[6;34;16t',
+  '\u001b]10;rgb:ffff/ffff/ffff\u0007',
+  '\u001b]11;rgb:2828/2c2c/3434\u0007',
+  ...Array.from({ length: 16 }, (_, i) => `\u001b]4;${String(i)};rgb:1d1d/1f1f/2121\u0007`),
+  '\u001b[?62;22;52c',
+].join('')
+
+test('TTY mode swallows a stale palette reply instead of typing it into the composer', async () => {
+  const fake = fakeBackend()
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 40 })
+  let text = ''
+  output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
+  await waitFor(() => (text.match(/─/gu) ?? []).length >= 2, 'editor borders')
+  // The startup query consumes its own round; a second, stale round has no
+  // consumer but the client's gate. Without it, `62`, `22t` and `52c` join the
+  // draft and the prompt is not `hello` any more.
+  input.write(stalePaletteRound)
+  input.write(stalePaletteRound)
+  input.write('hello\r')
+  await waitFor(() => fake.prompts.length > 0, 'prompt')
+  expect(fake.prompts).toEqual(['hello'])
+  input.write('/quit\r')
+  await expect(run).resolves.toBe(0)
+})
+
 test('TTY mode puts the Session directory on the window title', async () => {
   const fake = fakeBackend()
   const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
@@ -1784,6 +1818,32 @@ test('/restart reopens the window on the installed release without installing', 
   expect(restarted).toBe('session-1234')
 })
 
+test('a restart releases stdin before the successor takes the terminal', async () => {
+  // The successor inherits the same tty. If this process is still reading it,
+  // every read is a race: one side gets `ESC`, the other `[D`. Releasing the
+  // listener is not enough — a resumed stream keeps draining and discarding the
+  // bytes, so it has to be paused too.
+  const fake = fakeBackend()
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100 })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  let dataListeners = -1
+  let paused = false
+  const run = runTerminalClient({
+    backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234',
+    applyUpdate: async () => ({ ok: true, message: 'unused' }),
+    restartClient: () => {
+      dataListeners = input.listenerCount('data')
+      paused = input.isPaused()
+    },
+  })
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  input.write('/restart\r')
+  await expect(run).resolves.toBe(0)
+  expect(dataListeners).toBe(0)
+  expect(paused).toBe(true)
+})
+
 test('/update switches a stale window onto the installed release without installing', async () => {
   // Another terminal already installed 9.9.9; this process still runs an older
   // one, so `/update` is a swap, not a download.
@@ -2492,28 +2552,28 @@ test('a Host that cannot create the workspace says so and keeps the window', asy
 
 test('the frame asks for button motion only, so a trackpad does not flood input', async () => {
   // All-motion tracking (`?1003`) makes every pointer movement a report. The
-  // renderer enables it on any terminal it does not recognise as a multiplexer,
-  // and a busy remote frame then cuts those reports in half.
+  // renderer asks for it on any terminal it does not recognise as a multiplexer;
+  // the adapter strips the request and writes the disable itself, so the mode is
+  // never on in the first place.
   const tty = startTty(fakeBackend())
   await waitFor(() => tty.painted().includes('❯'), 'composer')
-  expect(tty.painted()).toContain('\u001b[?1003h')
+  expect(tty.painted()).not.toContain('\u001b[?1003h')
   expect(tty.painted()).toContain('\u001b[?1003l')
-  const lastOn = tty.painted().lastIndexOf('\u001b[?1003h')
-  const lastOff = tty.painted().lastIndexOf('\u001b[?1003l')
-  expect(lastOff).toBeGreaterThan(lastOn)
+  expect(tty.painted()).toContain('\u001b[?1002h')
+  expect(tty.painted()).toContain('\u001b[?1006h')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
 
 test('focus reports are turned off, so a screenshot does not type them', async () => {
   // `ESC [ I` and `ESC [ O` arrive whenever the window's focus changes — taking a
-  // screenshot, clicking another window — and the frame does not use them.
+  // screenshot, clicking another window — and each is a sequence that can be
+  // split and typed. The adapter never lets the enable through, and clears any
+  // state a previous program left behind.
   const tty = startTty(fakeBackend())
   await waitFor(() => tty.painted().includes('❯'), 'composer')
-  expect(tty.painted()).toContain('\u001b[?1004h')
-  const on = tty.painted().lastIndexOf('\u001b[?1004h')
-  const off = tty.painted().lastIndexOf('\u001b[?1004l')
-  expect(off).toBeGreaterThan(on)
+  expect(tty.painted()).not.toContain('\u001b[?1004h')
+  expect(tty.painted()).toContain('\u001b[?1004l')
   // And the key itself reaches nobody: the composer keeps only what was typed.
   tty.input.write('\u001b[I')
   await new Promise(resolve => setTimeout(resolve, 120))

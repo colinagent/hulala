@@ -97,8 +97,15 @@ await copyFile(join(repositoryRoot, 'apps/cli/vendor/ghostty-vt.wasm'), join(sta
 
 const runtimeManifest = JSON.parse(await readFile(join(repositoryRoot, 'packages/runtime/package.json'), 'utf8')) as { dependencies?: Record<string, string> }
 const serverManifest = JSON.parse(await readFile(join(repositoryRoot, 'apps/server/package.json'), 'utf8')) as { dependencies?: Record<string, string> }
+const cliManifest = JSON.parse(await readFile(join(repositoryRoot, 'apps/cli/package.json'), 'utf8')) as { dependencies?: Record<string, string> }
 const rootManifest = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8')) as { patchedDependencies?: Record<string, string> }
-const dependencies = { ...dependenciesOf(runtimeManifest), ...dependenciesOf(serverManifest) }
+// `ws` is resolved at runtime by the client (see `tui/data/websocket.ts`): it is
+// a Node library with dynamic requires, and inlining it kept the mux alive only
+// until a second stream attached. The archive's dependency tree is the client's
+// search path for it, so it has to be declared here rather than left to a
+// transitive.
+const clientRuntime = cliManifest.dependencies?.ws === undefined ? {} : { ws: cliManifest.dependencies.ws }
+const dependencies = { ...dependenciesOf(runtimeManifest), ...dependenciesOf(serverManifest), ...clientRuntime }
 await writeFile(join(staging, 'runtime', 'package.json'), `${JSON.stringify({
   name: '@hulala/tui-runtime',
   version,

@@ -10,7 +10,8 @@
  */
 import { expect, test } from 'bun:test'
 import { PassThrough } from 'node:stream'
-import { createTerminalGuard, StreamTerminal, type TerminalStreams } from '../../src/tui/terminal.js'
+import { createTerminalGuard } from '../../src/tui/terminal/guard.js'
+import { StreamTerminal, type TerminalStreams } from '../../src/tui/terminal.js'
 
 interface Harness {
   readonly input: PassThrough
@@ -21,7 +22,7 @@ interface Harness {
   stop(): void
 }
 
-function harness(holdTimeoutMs?: number): Harness {
+function harness(escapeTimeoutMs?: number, orphanWindowMs?: number): Harness {
   const input = Object.assign(new PassThrough(), {
     isTTY: true,
     setRawMode: (_mode: boolean): void => undefined,
@@ -32,7 +33,7 @@ function harness(holdTimeoutMs?: number): Harness {
   const received: string[] = []
   const terminal = new StreamTerminal(
     { input, output } as unknown as TerminalStreams,
-    { holdTimeoutMs: holdTimeoutMs ?? 120, reportHoldTimeoutMs: holdTimeoutMs ?? 120 },
+    { escapeTimeoutMs: escapeTimeoutMs ?? 120, reportTimeoutMs: escapeTimeoutMs ?? 120, ...(orphanWindowMs === undefined ? {} : { orphanWindowMs }) },
   )
   terminal.start(sequence => received.push(sequence), () => undefined)
   return {
@@ -318,5 +319,35 @@ test('the terminal is given back on every way out, once', () => {
   expect(written[0]).toContain('\u001b[?1006l')
   expect(written[0]).toContain('\u001b[?1003l')
   expect(written[0]).toContain('\u001b[?2004l')
+  expect(written[0]).toContain('\u001b[?2026l')
+  expect(written[0]).toContain('\u001b[0 q')
   expect(written[0]).toContain('\u001b[?25h')
+})
+
+test('a paste that waits longer than the escape hold is still one paste', async () => {
+  // A paste's content arrives at the speed of the source; a slow terminal can
+  // leave the head waiting far longer than a lone Escape ever should. Handing
+  // it back as keys would type `[200~line one` into the composer, which is the
+  // same class of bug as a split report — and it was live until this test.
+  const h = harness(30)
+  h.send('\u001b[200~line one\n')
+  await new Promise(resolve => setTimeout(resolve, 150))
+  h.send('line two\u001b[201~')
+  await flush()
+  expect(h.received).toEqual(['\u001b[200~line one\nline two\u001b[201~'])
+  h.stop()
+})
+
+test('a tail past the orphan window is dropped, never typed', async () => {
+  const h = harness(30, 60)
+  h.send('\u001b')
+  // The hold expires and the Escape key is delivered.
+  await new Promise(resolve => setTimeout(resolve, 130))
+  expect(h.received).toEqual(['\u001b'])
+  // The tail arrives after the escape AND after the rejoin window: typing it is
+  // the `[C` / `[D` garbage, so the adapter drops it instead.
+  h.send('[D')
+  await flush()
+  expect(h.received).toEqual(['\u001b'])
+  h.stop()
 })

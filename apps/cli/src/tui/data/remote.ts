@@ -31,7 +31,7 @@ import type { WorkspaceDirectoryListing, WorkspaceFileStat, WorkspaceFileText } 
 import type {} from '@deepseek-ai/dsh-user-approval/types'
 import type {} from '@deepseek-ai/dsh-user-questions/types'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
-import WebSocket from 'ws'
+import { ClientWebSocket as WebSocket } from './websocket.js'
 import { createEditorChannel, type EditorChannel } from './editorChannel.js'
 import type { HostAttachment } from '../../hostAttach.js'
 import { t } from '../i18n/index.js'

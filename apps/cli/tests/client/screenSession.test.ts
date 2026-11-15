@@ -79,3 +79,43 @@ test('a column without focus keeps the block whatever shape the program chose', 
   expect(line).not.toContain('▏')
   session.dispose()
 })
+
+test('a checkpoint is replayed at its own size, then the pane size', () => {
+  // The Host serializes the screen at the size its emulator had. Replaying it
+  // into a model of a different width reflows every wrapped line before the
+  // program gets a chance to repaint, which is how a remote attach starts out
+  // garbled.
+  let checkpoint: ((snapshot: { cols: number, rows: number, data: string }) => void) | undefined
+  const resizes: Array<[number, number]> = []
+  const pty: PtyModule = {
+    spawn() {
+      return {
+        pid: 1,
+        onData() {},
+        onSnapshot(handler) { checkpoint = handler },
+        onExit() {},
+        write() {},
+        resize(cols, rows) { resizes.push([cols, rows]) },
+        kill() {},
+      }
+    },
+  }
+  const session = ScreenSession.start({
+    pty,
+    command: '/bin/true',
+    args: [],
+    env: {},
+    cwd: '/tmp',
+    cols: 12,
+    rows: 2,
+    onScreen: () => undefined,
+    onExit: () => undefined,
+  })
+  checkpoint?.({ cols: 6, rows: 1, data: '你好' })
+  const lines = session.renderScreen(12, 2, 'none', '')
+  // The glyphs survive, the row is the pane's width, and the Host was told the
+  // pane's size so the program repaints for the column actually on screen.
+  expect(lines[0]).toContain('你好')
+  expect(resizes).toContainEqual([12, 2])
+  session.dispose()
+})
