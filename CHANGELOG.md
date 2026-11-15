@@ -15,6 +15,15 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- Arrow keys and function keys arrived as `[C` / `[D` in the composer: their
+  escape byte was read on its own, the frame took it for the Escape key, and what
+  followed was text. A lone escape is now held for a tenth of a second — Vim's
+  own `ttimeoutlen` — so a frame that stalls between the two halves still gets one
+  sequence, and a sequence that lost its escape (`[C`, `[3~`, `OA`) is restored
+  from its tail instead of typed.
+
+### Fixed
+
 - The terminal was left unusable after the client went away: the alternate screen
   stayed on and mouse reporting stayed enabled, so the shell received every
   pointer report and echoed it as text. The client now writes the restore

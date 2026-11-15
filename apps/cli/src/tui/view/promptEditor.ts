@@ -246,7 +246,12 @@ export class PromptEditor extends Editor {
       }
       return { handled: true, focus: true }
     }
-    return super.handleMouse({ ...event, y: event.y - this.renderedMenuHeight })
+    // The composer is not a text editor with a pointer: a press would move the
+    // caret to wherever a trackpad tap happened to land, and a stray tap while
+    // typing is indistinguishable from a click. Clicks below the menu take the
+    // keyboard and nothing else; the wheel falls through to the transcript.
+    if (event.type === 'wheel' || event.type === 'move') return undefined
+    return { handled: true, focus: true }
   }
 
   handleInput(data: string): void {

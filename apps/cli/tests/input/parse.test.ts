@@ -90,3 +90,25 @@ test('terminal replies are passed through as their own piece', () => {
   const dcS = '\u001bP>|Ghostty 1.0\u001b\\'
   expect(parseChunked(dcS, 3)).toEqual([dcS])
 })
+
+test('an arrow key whose escape was read alone is still that arrow', () => {
+  // The shape from a stalled frame: the escape reaches the frame as the Escape
+  // key, and `[C` follows — typed as text it reads `[C` in the composer.
+  const parser = new InputParser()
+  expect(parser.push('\u001b')).toEqual([])
+  expect(parser.drain()).toEqual(['\u001b'])
+  expect(parser.push('[C')).toEqual(['\u001b[C'])
+  // A typed `[C` without a preceding escape is two characters of text (the lone
+  // bracket waits a moment first, in case it is a report).
+  const typed = new InputParser()
+  expect(typed.push('[')).toEqual([])
+  expect(typed.push('C')).toEqual(['[', 'C'])
+})
+
+test('a sequence split across a stalled frame is rejoined', () => {
+  const parser = new InputParser()
+  expect(parser.push('\u001b')).toEqual([])
+  expect(parser.pending()).toBe('\u001b')
+  expect(parser.push('[')).toEqual([])
+  expect(parser.push('D')).toEqual(['\u001b[D'])
+})

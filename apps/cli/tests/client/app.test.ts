@@ -270,7 +270,7 @@ test('non-TTY mode prints history and forwards prompts line by line', async () =
   let text = ''
   output.on('data', chunk => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => text.includes('history answer'), 'history')
   expect(text).toContain('Session session-1234')
   expect(text).toContain('› history question')
@@ -288,7 +288,7 @@ test('TTY mode draws the pi-tui editor borders and keeps them after submit', asy
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => (text.match(/─/gu) ?? []).length >= 2, 'editor borders')
   input.write('hello\r')
   await waitFor(() => fake.prompts.includes('hello'), 'prompt')
@@ -306,7 +306,7 @@ test('TTY mode puts the Session directory on the window title', async () => {
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
   // Started in `/launch`; the Session the Host lists works in `/workspace`.
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/launch', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/launch', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => text.includes('\u001b]0;Hulala - workspace\u0007'), 'window title')
   // The Host names the Session after its first turn; the name joins the title
   // behind the directory and cannot end the OSC sequence early.
@@ -323,7 +323,7 @@ test('TTY mode shows the running indicator while the turn is live', async () => 
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.handlers?.onRunning(true)
   await waitFor(() => text.includes('Deep diving for'), 'running indicator')
@@ -363,7 +363,7 @@ test('TTY mode cancels the running turn on Escape', async () => {
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.handlers?.onRunning(true)
   await waitFor(() => text.includes('Deep diving for'), 'running indicator')
@@ -387,7 +387,7 @@ test('TTY mode lets an open completion menu close on Escape before it cancels', 
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.handlers?.onRunning(true)
   await waitFor(() => text.includes('Deep diving for'), 'running indicator')
@@ -411,7 +411,7 @@ test('TTY mode moves Escape onto the rail, and the picker returns once the rail 
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/launch', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/launch', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => text.includes('history answer'), 'transcript')
   const listedBefore = fake.listSessionsCalls()
   // On an idle empty composer Escape is the leftward move into the rail.
@@ -450,7 +450,7 @@ test('Ctrl-[ then Ctrl-N and Enter switches to the next Session in the rail', as
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => plain(text).includes('older one'), 'rail rows')
   input.write('\u001b')
   await new Promise(resolve => setTimeout(resolve, 120))
@@ -592,7 +592,7 @@ test('a composer draft survives moving into the rail and back', async () => {
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => plain(text).includes('history answer'), 'transcript')
   input.write('draft text')
   await new Promise(resolve => setTimeout(resolve, 60))
@@ -627,7 +627,7 @@ test('Ctrl-[ moves onto the rail before the first Session has opened', async () 
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => plain(text).includes('+ new session'), 'rail')
   input.write('\u001b')
   await new Promise(resolve => setTimeout(resolve, 120))
@@ -649,7 +649,7 @@ test('the rail shows the open directory, its Sessions and a background turn spin
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => text.includes('history answer'), 'transcript')
   await waitFor(() => plain(text).includes('+ new session'), 'rail rows')
   expect(plain(text)).toContain('/workspace')
@@ -683,7 +683,7 @@ test('a Session the rail started blank takes its title from the journal', async 
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => plain(text).includes('new session'), 'blank rail row')
   fake.handlers?.onEvent({ type: 'user/message', seq: 3, time: Date.now(), data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'hi' }] } })
   fake.handlers?.onEvent({ type: 'session/title', seq: 4, time: Date.now(), data: { title: 'X Bio', source: { kind: 'fallback' } } })
@@ -713,7 +713,7 @@ test('TTY mode opens the terminal with Ctrl-T and the editor with Ctrl-D', async
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => text.includes('history answer'), 'transcript')
   input.write(CTRL_T) // Ctrl-T: the built-in terminal
   await waitFor(() => text.includes('terminal unavailable'), 'terminal column')
@@ -731,7 +731,7 @@ test('TTY mode leaves Ctrl-D to an open overlay', async () => {
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => text.includes('history answer'), 'transcript')
   input.write('/help\r')
   await waitFor(() => text.includes('any key closes'), 'help overlay')
@@ -1180,6 +1180,9 @@ function startTty(fake: FakeBackend, columns = 100, promptLanguage?: boolean, re
     input,
     output,
     ...(resume === null ? {} : { resume }),
+    // Production holds a lone escape for a tenth of a second so a stalled frame
+    // can finish its sequence; the suite's waits are shorter than that.
+    escapeTimeoutMs: 20,
     ...(promptLanguage === undefined ? {} : { promptLanguage }),
   })
   // Detach even when an assertion threw, so a failure cannot leave the client's
@@ -1652,6 +1655,9 @@ function startPtyTty(
     input,
     output,
     resume: 'session-1234',
+    // The suite's Escape arrives within 60 ms; production waits a tenth of a
+    // second so a stalled frame can finish the sequence it belongs to.
+    escapeTimeoutMs: 20,
     ...(options.pty === undefined ? {} : { pty: options.pty }),
     ...(options.remote === undefined ? {} : { remote: options.remote }),
   })
@@ -2124,7 +2130,7 @@ test('plain mode uses the saved language without asking or writing', async () =>
     let text = ''
     output.on('data', chunk => { text += String(chunk) })
     cleanups.push(() => { input.destroy(); output.destroy() })
-    const run = runTerminalClient({ backend: fakeBackend().backend, cwd: '/workspace', input, output, resume: 'session-1234' })
+    const run = runTerminalClient({ backend: fakeBackend().backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
     await waitFor(() => text.includes('会话 session-1234'), 'Chinese plain session line')
     expect(text).not.toContain('Choose a language')
     expect(JSON.parse(readFileSync(languageFile(state.home), 'utf8'))).toEqual({ language: 'zh-CN' })
@@ -2169,7 +2175,7 @@ test('Cmd-E reports a column that cannot start instead of blanking the frame', a
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234' })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/hulala-missing-column-dir', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
   await waitFor(() => plain(text).includes('history answer'), 'transcript')
   input.write(CMD_E)
   await waitFor(() => plain(text).includes('editor unavailable'), 'editor column')
@@ -2495,6 +2501,23 @@ test('the frame asks for button motion only, so a trackpad does not flood input'
   const lastOn = tty.painted().lastIndexOf('\u001b[?1003h')
   const lastOff = tty.painted().lastIndexOf('\u001b[?1003l')
   expect(lastOff).toBeGreaterThan(lastOn)
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('focus reports are turned off, so a screenshot does not type them', async () => {
+  // `ESC [ I` and `ESC [ O` arrive whenever the window's focus changes — taking a
+  // screenshot, clicking another window — and the frame does not use them.
+  const tty = startTty(fakeBackend())
+  await waitFor(() => tty.painted().includes('❯'), 'composer')
+  expect(tty.painted()).toContain('\u001b[?1004h')
+  const on = tty.painted().lastIndexOf('\u001b[?1004h')
+  const off = tty.painted().lastIndexOf('\u001b[?1004l')
+  expect(off).toBeGreaterThan(on)
+  // And the key itself reaches nobody: the composer keeps only what was typed.
+  tty.input.write('\u001b[I')
+  await new Promise(resolve => setTimeout(resolve, 120))
+  expect(tty.painted()).not.toContain('[I')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

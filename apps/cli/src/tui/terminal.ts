@@ -46,14 +46,26 @@ const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 export const MOTION_OFF = '\u001b[?1003l'
 
 /**
+ * Turn focus reporting off.
+ *
+ * The renderer enables `?1004` and consumes `ESC [ I` / `ESC [ O`; nothing in this
+ * client uses them. They are emitted on every focus change — taking a screenshot,
+ * clicking another window — and each is two more bytes that a busy frame can cut
+ * apart into text.
+ */
+export const FOCUS_OFF = '\u001b[?1004l'
+
+/**
  * How long an incomplete sequence is held before it is handed back as keys.
  *
- * Only the *escape* needs this: a report whose escape was read on its own is
- * still recognised from its tail alone (see `InputParser`), so waiting longer
- * would buy nothing and cost the two things an escape must keep — it is the
- * Escape key, and `ESC x` within this window is the Alt chord the terminal sent.
+ * This is the terminal's `ttimeoutlen`: a lone escape is ambiguous until the next
+ * byte decides, and the gap between the two halves of one sequence is how long
+ * the frame was busy — tens of milliseconds under a remote Host's load. A shorter
+ * hold turns every arrow key into `[C` the moment a frame stalls; a longer one
+ * makes Escape feel late. One hundred milliseconds is what Vim settled on for the
+ * same decision.
  */
-const HOLD_TIMEOUT_MS = 25
+const HOLD_TIMEOUT_MS = 100
 
 /**
  * How long a report's head waits for its tail.

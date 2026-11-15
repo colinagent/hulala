@@ -35,6 +35,19 @@ const ORPHAN_REPORT = /^\[<(\d+);(\d+);(\d+)([Mm])/u
 /** A prefix of one, which must be held instead of being typed. */
 const ORPHAN_HEAD = /^\[<?[\d;]*$/u
 
+/** A whole cursor or function key without its escape byte: `[C`, `[3~`, `OA`. */
+const ORPHAN_SEQUENCE = /^(?:\[[\d;]*[A-Za-z~]|O[A-Z])/u
+
+/**
+ * How long after an Escape its stripped sequence can still arrive.
+ *
+ * The gap is the frame being busy, not the user pausing: an arrow key's escape is
+ * read on its own when a read ends after it, and the rest follows within the same
+ * burst of work. A second covers a stalled frame without covering a person who
+ * pressed Escape and then typed a bracket.
+ */
+const ORPHAN_SEQUENCE_WINDOW_MS = 1_000
+
 /** A CSI body: parameters, then intermediates, then one final byte. */
 const CSI = /^\u001b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/u
 
@@ -78,6 +91,8 @@ const MAX_HELD_PREFIX = 64
  */
 export class InputParser {
   private held = ''
+  /** When a bare Escape was handed on, so an escape-less sequence can follow. */
+  private escapedAt = 0
 
   /** Bytes waiting for their remainder. */
   pending(): string {
@@ -120,7 +135,10 @@ export class InputParser {
     const held = this.held
     this.held = ''
     if (held === '') return []
-    if (held === '\u001b') return ['\u001b']
+    if (held === '\u001b') {
+      this.escapedAt = Date.now()
+      return ['\u001b']
+    }
     // A report whose tail never came is dropped: half a mouse report is not
     // typing, and delivering it would put `[<35;` in whatever has the keyboard.
     if (held.includes('<') && /^\u001b?\[/u.test(held)) return []
@@ -150,6 +168,17 @@ export class InputParser {
       return undefined
     }
     if (this.held.startsWith('\u001b')) return this.takeEscape()
+    // An arrow key whose escape byte was read on its own: `[C` is what is left of
+    // `ESC [ C`, and typing it is the same bug as typing a mouse report. It is
+    // only read this way right after an escape, because a person typing `[C`
+    // produces two separate events, not one chunk.
+    if (Date.now() - this.escapedAt < ORPHAN_SEQUENCE_WINDOW_MS) {
+      const orphan = ORPHAN_SEQUENCE.exec(this.held)
+      if (orphan !== null) {
+        this.escapedAt = 0
+        return `\u001b${this.cut(orphan[0].length)}`
+      }
+    }
     // A report whose escape was lost: the tail is whole in one read, so it is
     // recognised at once and never becomes text. The escape is restored because
     // everything above this parser reads a report as one sequence.

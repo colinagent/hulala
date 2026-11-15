@@ -15,7 +15,7 @@
 import { appendFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deleteKittyImage } from '@earendil-works/pi-tui'
-import { MOTION_OFF } from './terminal.js'
+import { FOCUS_OFF, MOTION_OFF } from './terminal.js'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
@@ -65,6 +65,14 @@ export interface RunTerminalOptions {
   backend: TerminalBackend
   cwd: string
   resume?: string
+  /**
+   * How long an incomplete input sequence waits before it is taken as keys.
+   *
+   * The terminal's `ttimeoutlen`, and the one timing a test shortens: a suite
+   * that waited a tenth of a second for every Escape would spend minutes doing
+   * it.
+   */
+  escapeTimeoutMs?: number
   /**
    * The window's plugin host. The running client boots one (see `cli.ts`),
    * installs the transport on it, and disposes it when the window closes; tests
@@ -222,6 +230,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
       output,
       composerPaging: true,
       debug: debugLog,
+      ...(options.escapeTimeoutMs === undefined ? {} : { escapeTimeoutMs: options.escapeTimeoutMs }),
       ...(options.copySelection === undefined ? {} : { copySelection: options.copySelection }),
     })
     await ctx.plugin(renderPlugin)
@@ -470,6 +479,11 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // uses bare motion for a divider's pointer shape. Button motion keeps clicks,
   // drags, selection and the wheel — and a trackpad stops flooding the input.
   terminal.write(MOTION_OFF)
+  // Focus reports (`ESC [ I`, `ESC [ O`) are enabled by the renderer and used by
+  // nothing here: they arrive whenever the window's focus changes — a screenshot,
+  // a click elsewhere — and each one is another sequence that can be split and
+  // typed. Turning them off removes the traffic instead of parsing it.
+  terminal.write(FOCUS_OFF)
   // The language picker (when the language is unset) is a first-frame surface:
   // emitting after `start()` keeps attach and Session boot off its path.
   setImmediate(() => { if (!lifecycle.closing) ctx.emit('hulala/first-frame') })

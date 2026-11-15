@@ -256,3 +256,18 @@ test('the terminal is told when the menu takes the paging keys', async () => {
   editor.handleInput('\u001b') // Escape closes the menu
   expect(states).toEqual([true, false])
 })
+
+test('a pointer press does not move the caret, and the wheel still scrolls', () => {
+  // A trackpad tap while typing is indistinguishable from a click, and a click
+  // that moves the caret puts the next characters before the text — typing `ls`
+  // left the caret at the front of it.
+  const { editor } = makeEditor()
+  type(editor, 'ls')
+  expect(editor.getCursor().col).toBe(2)
+  editor.handleMouse(mouse({ type: 'press', button: 'left', x: 1, y: 1 }))
+  expect(editor.getCursor().col).toBe(2)
+  type(editor, 'x')
+  expect(editor.getText()).toBe('lsx')
+  // The wheel is the one pointer gesture the composer leaves to the frame.
+  expect(editor.handleMouse(mouse({ type: 'wheel', wheelDelta: -1 }))).toBeUndefined()
+})

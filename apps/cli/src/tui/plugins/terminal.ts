@@ -158,6 +158,13 @@ export interface TerminalPluginConfig {
   readonly copySelection?: (text: string) => Promise<boolean | string>
   /** Append one diagnostic line; only set while `HULALA_DEBUG_CLIENT` is. */
   readonly debug?: (message: string) => void
+  /**
+   * How long a lone escape waits for the rest of its sequence.
+   *
+   * The terminal's `ttimeoutlen`. Tests shorten it so they need not wait a tenth
+   * of a second for every Escape.
+   */
+  readonly escapeTimeoutMs?: number
 }
 
 /** The client's own way of putting a selection on the clipboard. */
@@ -189,7 +196,10 @@ function copyProblemText(problem: CopyProblem): string {
 export function apply(ctx: Context, config: TerminalPluginConfig): void {
   const terminal = new StreamTerminal(
     { input: config.input, output: config.output } as TerminalStreams,
-    config.debug === undefined ? {} : { trace: config.debug },
+    {
+      ...(config.debug === undefined ? {} : { trace: config.debug }),
+      ...(config.escapeTimeoutMs === undefined ? {} : { holdTimeoutMs: config.escapeTimeoutMs }),
+    },
   )
   // A closed window ends its stdin. Nothing on screen can be shown any more, so
   // the client leaves instead of holding a Host connection and a forward open for
