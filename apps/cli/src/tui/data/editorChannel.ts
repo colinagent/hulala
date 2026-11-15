@@ -9,7 +9,7 @@
  * @module hulala-cli/tui/data/editorChannel
  */
 import type WebSocket from 'ws'
-import { ClientWebSocket } from './websocket.js'
+import { webSocketClass } from './websocket.js'
 
 /** What one open request tells the Host. */
 export interface EditorOpenRequest {
@@ -64,7 +64,7 @@ export interface EditorChannelOptions {
 
 /** Build the channel one editor column uses. */
 export function createEditorChannel(options: EditorChannelOptions): EditorChannel {
-  const factory = options.socket ?? ((url, headers) => new ClientWebSocket(url, { headers }) as unknown as WebSocket)
+  const factory = options.socket ?? ((url, headers) => new (webSocketClass())(url, { headers }) as unknown as WebSocket)
   const url = `${options.baseUrl.replace(/^http/u, 'ws')}/api/editor`
   const maxAttempts = options.reconnect?.attempts ?? 6
   const firstDelayMs = options.reconnect?.delayMs ?? 400

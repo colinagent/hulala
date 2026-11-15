@@ -30,24 +30,32 @@ const ROOTS = [
   join(dirname(here), 'runtime'),
 ]
 
+/** The constructor once found; the search runs at most once per process. */
+let resolved: typeof WebSocketClass | undefined
+
 /**
  * Resolve the real `ws` constructor.
  *
  * A missing library is a packaging bug, not a runtime condition: failing here
  * with the paths tried is what turns a mysterious reconnect loop into an
  * actionable error.
+ *
+ * The search is deferred to the first connection on purpose. The release
+ * archive carries code only, so `ws` does not exist until the package's own
+ * `hulala install` has run `npm ci`; resolving at module load made every
+ * command in a freshly unpacked archive — `--version`, `install`, the
+ * installer's own handoff — die before it could install the tree.
  * @returns the `ws` WebSocket class.
  */
-function loadWebSocket(): typeof WebSocketClass {
+export function webSocketClass(): typeof WebSocketClass {
+  if (resolved !== undefined) return resolved
   for (const root of ROOTS) {
     try {
-      return createRequire(join(root, 'package.json'))('ws') as typeof WebSocketClass
+      resolved = createRequire(join(root, 'package.json'))('ws') as typeof WebSocketClass
+      return resolved
     } catch {
       // Try the next layout.
     }
   }
   throw new Error(`ws not found beside ${here}; tried ${ROOTS.join(', ')}`)
 }
-
-/** The authenticated WebSocket both the mux and the editor channel use. */
-export const ClientWebSocket = loadWebSocket()

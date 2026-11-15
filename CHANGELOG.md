@@ -13,6 +13,18 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-11-15
+
+### Fixed
+
+- `curl | sh` and `hulala update` could not install 0.3.16 at all: the release
+  archive carries code only and installs its dependency tree with `npm ci`
+  after it starts, but the client resolved `ws` while its bundle loaded, so
+  every command in a freshly unpacked archive — including `hulala install`
+  itself — died with `ws not found`. The lookup now runs on the first
+  connection, and a built-bundle test starts `--version` with no
+  `node_modules` beside it, which is the archive's own shape.
+
 ## [0.3.16] - 2026-11-15
 
 ### Fixed

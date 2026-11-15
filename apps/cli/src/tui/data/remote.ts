@@ -31,7 +31,7 @@ import type { WorkspaceDirectoryListing, WorkspaceFileStat, WorkspaceFileText } 
 import type {} from '@deepseek-ai/dsh-user-approval/types'
 import type {} from '@deepseek-ai/dsh-user-questions/types'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
-import { ClientWebSocket as WebSocket } from './websocket.js'
+import { webSocketClass } from './websocket.js'
 import { createEditorChannel, type EditorChannel } from './editorChannel.js'
 import type { HostAttachment } from '../../hostAttach.js'
 import { t } from '../i18n/index.js'
@@ -648,7 +648,7 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
         ...init,
         headers: { ...Object.fromEntries(new Headers(init.headers)), cookie: attachment.cookie },
       }),
-      createWebSocket: url => new WebSocket(url, {
+      createWebSocket: url => new (webSocketClass())(url, {
         headers: { cookie: attachment.cookie, origin: attachment.baseUrl },
       }) as never,
     },

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   disposeHome,
@@ -49,6 +51,31 @@ built('the built bundle keeps the Host connection when a terminal column opens',
     expect(await client.quit()).toBe(0)
   } finally {
     await client.dispose()
+  }
+}, 45_000)
+
+built('the bundle starts beside no dependency tree at all', () => {
+  // The release archive carries code only: `hulala install` runs `npm ci` after
+  // it has started. A library resolved at module load therefore killed every
+  // command in a freshly unpacked archive (0.3.16 shipped exactly that), and no
+  // test that ran the bundle from the checkout could see it. This is the
+  // archive's shape: `bin/hulala` beside a package root that has no
+  // `node_modules`.
+  const root = mkdtempSync(join(tmpdir(), 'hulala-bare-bundle-'))
+  try {
+    const entry = join(root, 'bin', 'hulala.mjs')
+    mkdirSync(join(root, 'bin'), { recursive: true })
+    copyFileSync(BUNDLE, entry)
+    const version = (JSON.parse(readFileSync(join(REPOSITORY_ROOT, 'apps', 'cli', 'package.json'), 'utf8')) as { version: string }).version
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'hulala', version, type: 'module' }))
+    const run = spawnSync(node ?? 'node', [entry, '--version'], { encoding: 'utf8', timeout: 30_000 })
+    expect(run.stderr).not.toContain('ws not found')
+    expect(run.status).toBe(0)
+    // The bundle may predate a version bump in the manifest; the point is that
+    // it answers at all with nothing beside it.
+    expect(run.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
   }
 }, 45_000)
 
