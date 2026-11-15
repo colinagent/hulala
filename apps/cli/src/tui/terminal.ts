@@ -23,6 +23,7 @@
  *
  * @module hulala-cli/tui/terminal
  */
+import { writeSync } from 'node:fs'
 import { formatProgramStatus, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
 import { InputParser } from './input/parse.js'
 
@@ -33,13 +34,24 @@ const PUSH_DISAMBIGUATE = '\u001b[>1u'
 const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
 
 /**
+ * Turn motion reporting off, keeping button motion.
+ *
+ * The renderer asks for all-motion tracking (`?1003`) on a terminal it does not
+ * recognise as a multiplexer, which makes every pointer movement a report — a
+ * trackpad sends hundreds a second. Nothing in this client needs bare motion but
+ * the pointer shape on a divider, and that is not worth a flood that a slow read
+ * can cut in half. Button motion (`?1002`) keeps clicks, drags, selections and
+ * the wheel; this is the same trade a multiplexer makes.
+ */
+export const MOTION_OFF = '\u001b[?1003l'
+
+/**
  * How long an incomplete sequence is held before it is handed back as keys.
  *
  * Only the *escape* needs this: a report whose escape was read on its own is
  * still recognised from its tail alone (see `InputParser`), so waiting longer
  * would buy nothing and cost the two things an escape must keep — it is the
  * Escape key, and `ESC x` within this window is the Alt chord the terminal sent.
- * A human pressing Escape and then a key slower than this gets two keys.
  */
 const HOLD_TIMEOUT_MS = 25
 
@@ -64,6 +76,91 @@ const REPORT_HEAD = /^\u001b?\[<[\d;]*$/u
  * to the terminal as escape sequences. A space keeps the words apart.
  */
 const TITLE_CONTROL = /[\u0000-\u001f\u007f-\u009f]/gu
+
+/**
+ * Give the terminal back, whatever happened.
+ *
+ * A client that dies without this leaves the terminal in the alternate screen
+ * with mouse reporting on: the shell then receives the reports, echoes them as
+ * text, and no amount of typing can be read. Writing it synchronously on the way
+ * out is the only version that survives `process.exit` and an uncaught error.
+ */
+export const RESTORE_TERMINAL = [
+  '\u001b[?1049l', // leave the alternate screen
+  '\u001b[?1006l', '\u001b[?1004l', '\u001b[?1003l', '\u001b[?1002l', '\u001b[?1000l',
+  '\u001b[?2004l', // bracketed paste off
+  '\u001b[?25h', // show the cursor
+  '\u001b[?7h', // autowrap back on
+  POP_KEYBOARD_PROTOCOL,
+].join('')
+
+/** One guard: it owns the terminal from `install()` until the process ends. */
+export interface TerminalGuard {
+  /** Put the terminal back; the second and later calls do nothing. */
+  restore(): void
+  /** Restore on every way out: exit, a crash, and the signals a launcher sends. */
+  install(): () => void
+}
+
+/**
+ * Build a guard over one write function.
+ *
+ * The write is injected so a test can watch the bytes and the process can write
+ * to its own file descriptor. The sequences are also what the renderer writes on
+ * a graceful stop, so both paths are idempotent and safe in either order.
+ * @param write - how to put bytes on the terminal's output.
+ * @returns the guard.
+ */
+export function createTerminalGuard(write: (text: string) => void): TerminalGuard {
+  let taken = false
+  let restored = false
+  const restore = (): void => {
+    if (!taken || restored) return
+    restored = true
+    try {
+      write(RESTORE_TERMINAL)
+    } catch {
+      // A closed tty has nothing to restore.
+    }
+  }
+  return {
+    restore,
+    install() {
+      taken = true
+      restored = false
+      const onExit = (): void => { restore() }
+      const onError = (error: unknown): void => {
+        restore()
+        try {
+          writeSync(2, `\n${String((error as Error)?.stack ?? error)}\n`)
+        } catch {
+          // best effort
+        }
+        process.exit(1)
+      }
+      const onSignal = (signal: NodeJS.Signals): void => {
+        restore()
+        process.exit(signal === 'SIGHUP' ? 129 : 143)
+      }
+      process.once('exit', onExit)
+      process.once('uncaughtException', onError)
+      process.once('unhandledRejection', onError)
+      process.once('SIGHUP', onSignal)
+      process.once('SIGTERM', onSignal)
+      return restore
+    },
+  }
+}
+
+/**
+ * The process's guard.
+ *
+ * `bun run start` is a launcher and an installed client is a shell script: both
+ * can end the client with a signal, and neither restores the terminal for it.
+ */
+export function installTerminalGuard(): () => void {
+  return createTerminalGuard(text => { writeSync(1, text) }).install()
+}
 
 export interface TerminalStreams {
   input: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void; setEncoding?: (encoding: string) => void }

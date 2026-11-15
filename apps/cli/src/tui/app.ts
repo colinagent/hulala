@@ -15,6 +15,7 @@
 import { appendFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deleteKittyImage } from '@earendil-works/pi-tui'
+import { MOTION_OFF } from './terminal.js'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
@@ -465,6 +466,10 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   focusOn(editor)
 
   ui.start()
+  // All-motion tracking makes every pointer movement a report; this client only
+  // uses bare motion for a divider's pointer shape. Button motion keeps clicks,
+  // drags, selection and the wheel — and a trackpad stops flooding the input.
+  terminal.write(MOTION_OFF)
   // The language picker (when the language is unset) is a first-frame surface:
   // emitting after `start()` keeps attach and Session boot off its path.
   setImmediate(() => { if (!lifecycle.closing) ctx.emit('hulala/first-frame') })

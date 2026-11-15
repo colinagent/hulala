@@ -10,7 +10,7 @@
  */
 import { expect, test } from 'bun:test'
 import { PassThrough } from 'node:stream'
-import { StreamTerminal, type TerminalStreams } from '../../src/tui/terminal.js'
+import { createTerminalGuard, StreamTerminal, type TerminalStreams } from '../../src/tui/terminal.js'
 
 interface Harness {
   readonly input: PassThrough
@@ -299,4 +299,24 @@ test('a closed window ends the client instead of leaving it attached', async () 
   input.emit('close')
   await new Promise(resolve => setTimeout(resolve, 20))
   expect(hangups).toBe(1)
+})
+
+test('the terminal is given back on every way out, once', () => {
+  // A client that dies without this leaves the terminal in the alternate screen
+  // with mouse reporting on, and the shell that comes back receives the pointer
+  // reports and echoes them as text — the terminal has to be closed by hand.
+  const written: string[] = []
+  const guard = createTerminalGuard(text => { written.push(text) })
+  guard.restore()
+  // Nothing was taken yet, so nothing is given back.
+  expect(written).toEqual([])
+  guard.install()
+  guard.restore()
+  guard.restore()
+  expect(written).toHaveLength(1)
+  expect(written[0]).toContain('\u001b[?1049l')
+  expect(written[0]).toContain('\u001b[?1006l')
+  expect(written[0]).toContain('\u001b[?1003l')
+  expect(written[0]).toContain('\u001b[?2004l')
+  expect(written[0]).toContain('\u001b[?25h')
 })

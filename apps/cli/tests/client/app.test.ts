@@ -2483,3 +2483,18 @@ test('a Host that cannot create the workspace says so and keeps the window', asy
     // Nothing else to clean: `startTty` owns the temporary state root.
   }
 })
+
+test('the frame asks for button motion only, so a trackpad does not flood input', async () => {
+  // All-motion tracking (`?1003`) makes every pointer movement a report. The
+  // renderer enables it on any terminal it does not recognise as a multiplexer,
+  // and a busy remote frame then cuts those reports in half.
+  const tty = startTty(fakeBackend())
+  await waitFor(() => tty.painted().includes('❯'), 'composer')
+  expect(tty.painted()).toContain('\u001b[?1003h')
+  expect(tty.painted()).toContain('\u001b[?1003l')
+  const lastOn = tty.painted().lastIndexOf('\u001b[?1003h')
+  const lastOff = tty.painted().lastIndexOf('\u001b[?1003l')
+  expect(lastOff).toBeGreaterThan(lastOn)
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})

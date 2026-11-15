@@ -29,7 +29,7 @@ import { imePolicyOf, type ImePolicy } from '../pane/focus.js'
 import type { CaretShape } from '../pane/screenSession.js'
 import { copyToClipboard, liveClipboardPorts, type CopyProblem } from '../clipboard.js'
 import { t } from '../i18n/index.js'
-import { StreamTerminal, type TerminalStreams } from '../terminal.js'
+import { installTerminalGuard, StreamTerminal, type TerminalStreams } from '../terminal.js'
 
 /** DECSCUSR code for each caret shape the client hands the terminal. */
 const CURSOR_SHAPE_CODES: Record<CaretShape, number> = { block: 2, underline: 4, bar: 6 }
@@ -77,6 +77,15 @@ export interface TuiTerminal {
    * Give the terminal back. Idempotent; the context also calls it on dispose.
    */
   stop(): void
+  /**
+   * Put the terminal back synchronously: alternate screen, mouse modes, paste
+   * mode, cursor.
+   *
+   * The same sequences `stop()` writes, on the file descriptor, so a crash or a
+   * signal can run it. A terminal left in mouse mode is unusable after the client
+   * is gone — the shell receives the reports and echoes them as text.
+   */
+  restoreTerminal(): void
   /**
    * Decide whether the transcript or the focused column owns `PageUp`/`PageDown`.
    *
@@ -186,6 +195,9 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   // the client leaves instead of holding a Host connection and a forward open for
   // as long as the machine is up — a stale client is a client with an older build.
   terminal.onHangup(() => { ctx.emit('hulala/hangup') })
+  // The terminal is ours from here: every way out has to give it back, including
+  // the ways that skip the client's own shutdown.
+  const restoreTerminal = installTerminalGuard()
   // The hardware cursor is the caret a program column shows. A grid cell holds
   // one glyph, so drawing Neovim's insert-mode bar in the grid would have to
   // delete the character under it; the terminal's own cursor composites over the
@@ -301,8 +313,9 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     refreshIme,
     observeIme,
     setCaretShape,
-    setTitle: title => { terminal.setTitle(title) },
-    setOverlayTitle: title => { terminal.setOverlayTitle(title) },
+    setTitle: (title: string) => { terminal.setTitle(title) },
+    restoreTerminal,
+    setOverlayTitle: (title: string | undefined) => { terminal.setOverlayTitle(title) },
   })
 }
 

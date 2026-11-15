@@ -15,6 +15,19 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- The terminal was left unusable after the client went away: the alternate screen
+  stayed on and mouse reporting stayed enabled, so the shell received every
+  pointer report and echoed it as text. The client now writes the restore
+  sequences synchronously on exit, on an uncaught error and on the signals a
+  launcher sends, so a crashed or killed client no longer costs the terminal.
+- The frame asked for all-motion mouse tracking (`?1003`), which turns every
+  pointer movement into a report — hundreds a second on a trackpad, and a busy
+  remote frame cuts them in half. It now keeps button motion (`?1002`): clicks,
+  drags, selection and the wheel still work, and a trackpad no longer floods the
+  input or moves the caret while typing.
+
+### Fixed
+
 - A client whose window was closed stayed alive, holding its Host connection and
   its forward. Several of those on one Host are indistinguishable from the window
   a user is typing into — and a process keeps the code it started with, so a
