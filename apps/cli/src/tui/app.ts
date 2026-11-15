@@ -358,6 +358,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // buffers it cannot: a question there would strand the window the swap was
   // asked from. `/quit` keeps the question.
   ctx.on('hulala/quit', () => { void requestShutdown() })
+  ctx.on('hulala/hangup', () => { void requestShutdown({ force: true }) })
   ctx.on('hulala/update-installed', () => { void requestShutdown({ force: true }) })
 
   const shutdown = async (code: number): Promise<void> => {

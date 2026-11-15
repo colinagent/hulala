@@ -13,6 +13,21 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- A client whose window was closed stayed alive, holding its Host connection and
+  its forward. Several of those on one Host are indistinguishable from the window
+  a user is typing into — and a process keeps the code it started with, so a
+  rebuilt `bin/hulala` does not change a client that never exited. A closed
+  stdin now ends the client.
+
+### Added
+
+- `bun run start` records every stdin read and every piece the input parser made
+  of it (`~/.hulala/logs/tui-debug.log`, capped at 8 MB). Input that arrives in
+  pieces is invisible on screen; the trace is the only way to see what the
+  terminal actually sent.
+
 ## [0.3.15] - 2026-11-14
 
 ### Fixed

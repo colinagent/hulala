@@ -98,6 +98,10 @@ export class StreamTerminal implements Terminal {
   private readonly trace: ((line: string) => void) | undefined
   private inputHandler: ((data: string) => void) | undefined
   private resizeHandler: (() => void) | undefined
+  /** The terminal went away (the window was closed or the pty was lost). */
+  private hangupHandler: (() => void) | undefined
+  private endData: (() => void) | undefined
+  private hungUp = false
   /** The one place input is framed; see {@link InputParser}. */
   private parser: InputParser | undefined
   private wasRaw = false
@@ -122,6 +126,20 @@ export class StreamTerminal implements Terminal {
 
   get kittyProtocolActive(): boolean {
     return false
+  }
+
+  /**
+   * Hear the terminal going away.
+   *
+   * A window that was closed is not a window that is still there: its stdin ends,
+   * and a client that ignores that keeps a Host connection and a forward open for
+   * as long as the machine is up. Stale clients stacked up on one Host are then
+   * indistinguishable from the one the user is typing into — one of them runs an
+   * older build.
+   * @param handler - called once when the terminal's input ends.
+   */
+  onHangup(handler: () => void): void {
+    this.hangupHandler = handler
   }
 
   start(onInput: (data: string) => void, onResize: () => void): void {
@@ -150,6 +168,14 @@ export class StreamTerminal implements Terminal {
       this.armHold()
     }
     input.on('data', this.rawData)
+    this.endData = () => {
+      // `end` and `close` can both arrive, and one window is still one hangup.
+      if (this.hungUp) return
+      this.hungUp = true
+      this.hangupHandler?.()
+    }
+    input.on('end', this.endData)
+    input.on('close', this.endData)
 
     const output = this.streams.output as { on?: (event: string, listener: () => void) => void; removeListener?: (event: string, listener: () => void) => void }
     if (output.on !== undefined) {
@@ -168,6 +194,11 @@ export class StreamTerminal implements Terminal {
   stop(): void {
     if (this.rawData !== undefined) this.streams.input.off('data', this.rawData)
     this.rawData = undefined
+    if (this.endData !== undefined) {
+      this.streams.input.off('end', this.endData)
+      this.streams.input.off('close', this.endData)
+    }
+    this.endData = undefined
     this.clearHold()
     this.parser = undefined
     this.detachResize?.()

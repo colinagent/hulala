@@ -182,6 +182,10 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     { input: config.input, output: config.output } as TerminalStreams,
     config.debug === undefined ? {} : { trace: config.debug },
   )
+  // A closed window ends its stdin. Nothing on screen can be shown any more, so
+  // the client leaves instead of holding a Host connection and a forward open for
+  // as long as the machine is up — a stale client is a client with an older build.
+  terminal.onHangup(() => { ctx.emit('hulala/hangup') })
   // The hardware cursor is the caret a program column shows. A grid cell holds
   // one glyph, so drawing Neovim's insert-mode bar in the grid would have to
   // delete the character under it; the terminal's own cursor composites over the

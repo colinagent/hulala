@@ -275,3 +275,28 @@ test('"[" followed by real typing is not held', async () => {
   expect(h.received).toEqual(['[', 'x'])
   h.stop()
 })
+
+test('a closed window ends the client instead of leaving it attached', async () => {
+  // A client whose terminal is gone keeps a Host connection and a forward open
+  // forever; several of those on one Host are indistinguishable from the window
+  // the user is typing into, and one of them runs an older build.
+  const input = Object.assign(new PassThrough(), {
+    isTTY: true,
+    setRawMode: (_mode: boolean): void => undefined,
+    setEncoding: (): void => undefined,
+  })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 80, rows: 24 })
+  output.on('data', () => undefined)
+  let hangups = 0
+  const terminal = new StreamTerminal({ input, output } as unknown as TerminalStreams)
+  terminal.onHangup(() => { hangups += 1 })
+  terminal.start(() => undefined, () => undefined)
+  input.end()
+  await new Promise(resolve => setTimeout(resolve, 40))
+  expect(hangups).toBe(1)
+  terminal.stop()
+  // `stop()` detaches, so a late close cannot fire it again.
+  input.emit('close')
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(hangups).toBe(1)
+})

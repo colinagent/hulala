@@ -37,6 +37,8 @@ declare module '@deepseek-ai/cordis' {
   interface Events {
     /** A command asked the client to quit; the boot code owns the exit. */
     'hulala/quit'(): void
+    /** The terminal went away; there is nobody left to show a dialog to. */
+    'hulala/hangup'(): void
   }
 }
 
