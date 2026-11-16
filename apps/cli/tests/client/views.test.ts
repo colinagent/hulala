@@ -13,6 +13,17 @@ import type { TerminalSession } from '../../src/tui/data/remote.js'
 
 const NO_HINT = { keys: 'Ctrl-G', text: 'show or hide the Session rail' }
 
+/**
+ * Drop the card's padding.
+ *
+ * A tool card is a full-width surface, so every one of its rows ends in the
+ * spaces that fill the slab. Assertions are about what the row *says*, so the
+ * trailing fill is trimmed away rather than written out.
+ */
+function bare(lines: string[]): string[] {
+  return lines.map(line => line.trimEnd())
+}
+
 test('StatusBar never carries the version', () => {
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek', model: 'chat' },
@@ -268,7 +279,7 @@ test('ResumeOverlay marks running sessions and hides blank sessions on empty que
   expect(lines.some(line => line.includes('dddddddd…4444'))).toBe(false)
 })
 
-test('a folded tool call keeps the start of its output under the title', () => {
+test('a folded shell row keeps the end of its output under the title', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   transcript.setItems([
     {
@@ -281,32 +292,35 @@ test('a folded tool call keeps the start of its output under the title', () => {
       durationMs: 120,
     },
   ])
-  const lines = transcript.render(120)
+  const lines = bare(transcript.render(120))
   expect(lines).toEqual([
-    '  >_ Bash · List working directory contents',
+    '',
+    '  >_ Bash · List working directory contents  0.1s',
     '  ❯ ls -la && cat package.json',
     '    total 1328',
     '    drwxr-xr-x@ 23 colin staff',
+    '',
   ])
-  expect(lines[0]).not.toContain('{')
+  expect(lines[1]).not.toContain('{')
 })
 
-test('a folded shell row keeps the first lines and counts the rest', () => {
+test('a folded shell row keeps its last lines and counts the ones above', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   const output = Array.from({ length: 9 }, (_, index) => `line ${index + 1}`).join('\n')
   transcript.setItems([
     { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'build', description: 'Build' }), result: `${output}\n[exit code: 0]`, status: 'ok', time: 0 },
   ])
-  const lines = transcript.render(80)
-  expect(lines[0]).toBe('  >_ Bash · Build')
-  expect(lines[1]).toBe('  ❯ build')
-  expect(lines.slice(2)).toEqual([
-    '    line 1',
-    '    line 2',
-    '    line 3',
-    '    line 4',
+  expect(bare(transcript.render(80))).toEqual([
+    '',
+    '  >_ Bash · Build',
+    '  ❯ build',
+    '    … 4 lines above',
     '    line 5',
-    '    … +4 lines',
+    '    line 6',
+    '    line 7',
+    '    line 8',
+    '    line 9',
+    '',
   ])
 })
 
@@ -325,11 +339,11 @@ test('expanding a tool call shows the command, the output, and the hidden count'
     },
   ])
   transcript.toggleExpandAll()
-  const lines = transcript.render(80)
-  expect(lines[0]).toBe('▾ >_ Bash · List files  0.1s')
-  expect(lines[1]).toBe('  ❯ ls -la')
-  expect(lines[2]).toBe('    line 1')
-  expect(lines.at(-1)).toBe('    … +6 lines')
+  const lines = bare(transcript.render(80))
+  expect(lines[1]).toBe('▾ >_ Bash · List files  0.1s')
+  expect(lines[2]).toBe('  ❯ ls -la')
+  expect(lines[3]).toBe('    line 1')
+  expect(lines.at(-2)).toBe('    … +6 lines')
 })
 
 test('an edit row draws its change without a click and counts it in the title', () => {
@@ -346,17 +360,19 @@ test('an edit row draws its change without a click and counts it in the title', 
       time: 0,
     },
   ])
-  expect(transcript.render(80)).toEqual([
+  expect(bare(transcript.render(80))).toEqual([
+    '',
     '  ✎  Edit · src/app.ts  +1 -1',
     '    src/app.ts',
     '      a',
     '    - b',
     '    + B',
     '      c',
+    '',
   ])
 })
 
-test('a long change folds to nine rows with the rest counted', () => {
+test('a long change folds to five rows with the rest counted', () => {
   const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
   const path = '/work/hulala/big.ts'
   const content = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join('\n')
@@ -371,20 +387,19 @@ test('a long change folds to nine rows with the rest counted', () => {
       time: 0,
     },
   ])
-  const folded = transcript.render(80)
-  expect(folded[0]).toBe('  ✎  Write · big.ts  +20 -0')
-  expect(folded).toHaveLength(11)
-  expect(folded[1]).toBe('    big.ts')
-  expect(folded[2]).toBe('    + line 1')
-  expect(folded[5]).toBe('    + line 4')
-  expect(folded[6]).toBe('    … +12 lines')
-  expect(folded.slice(7)).toEqual(['    + line 17', '    + line 18', '    + line 19', '    + line 20'])
+  const folded = bare(transcript.render(80))
+  expect(folded[1]).toBe('  ✎  Write · big.ts  +20 -0')
+  expect(folded).toHaveLength(9)
+  expect(folded[2]).toBe('    big.ts')
+  expect(folded[3]).toBe('    + line 1')
+  expect(folded[6]).toBe('    + line 4')
+  expect(folded[7]).toBe('    … +16 lines')
 
   transcript.toggleExpandAll()
-  const opened = transcript.render(80)
-  expect(opened).toHaveLength(22)
-  expect(opened[1]).toBe('    big.ts')
-  expect(opened.at(-1)).toBe('    + line 20')
+  const opened = bare(transcript.render(80))
+  expect(opened).toHaveLength(24)
+  expect(opened[2]).toBe('    big.ts')
+  expect(opened.at(-2)).toBe('    + line 20')
 })
 
 test('a search row previews the head of its result and counts the rest', () => {
@@ -393,9 +408,9 @@ test('a search row previews the head of its result and counts the rest', () => {
   transcript.setItems([
     { kind: 'tool', name: 'grep', args: JSON.stringify({ pattern: 'match' }), result, status: 'ok', time: 0 },
   ])
-  const lines = transcript.render(80)
-  expect(lines[0]).toBe('  ⌕  Grep · match')
-  expect(lines.slice(1, 7)).toEqual([
+  const lines = bare(transcript.render(80))
+  expect(lines[1]).toBe('  ⌕  Grep · match')
+  expect(lines.slice(2, 8)).toEqual([
     '    match 1',
     '    match 2',
     '    match 3',
@@ -403,7 +418,7 @@ test('a search row previews the head of its result and counts the rest', () => {
     '    match 5',
     '    match 6',
   ])
-  expect(lines[7]).toBe('    … +3 lines')
+  expect(lines[8]).toBe('    … +3 lines')
 })
 
 test('a read row keeps its window in the title and its body closed', () => {
@@ -418,9 +433,9 @@ test('a read row keeps its window in the title and its body closed', () => {
       time: 0,
     },
   ])
-  expect(transcript.render(80)).toEqual(['  ▤  Read · a.ts (10-14)'])
+  expect(bare(transcript.render(80))).toEqual(['', '  ▤  Read · a.ts (10-14)', ''])
   transcript.toggleExpandAll()
-  expect(transcript.render(80)).toEqual(['▾ ▤  Read · a.ts (10-14)', '    const x = 1'])
+  expect(bare(transcript.render(80))).toEqual(['', '▾ ▤  Read · a.ts (10-14)', '    const x = 1', ''])
 })
 
 test('a read row highlights its output as the file it read', () => {
@@ -459,8 +474,10 @@ test('a bash row keeps its output in the muted body ink', () => {
   transcript.toggleExpandAll()
   const line = transcript.render(80).find((entry) => entry.includes('const answer'))
   expect(line).toBeDefined()
-  // Dim only: a shell's output is text, not a language.
-  expect(new Set(line!.match(/\u001b\[[0-9;]*m/g) ?? [])).toEqual(new Set(['\u001b[2m', '\u001b[0m']))
+  // One ink: a shell's output is text, not a language. A plain card body row
+  // carries exactly four sequences — the surface, its foreground, the body ink,
+  // and the reset — while a highlighted one paints each token family separately.
+  expect(new Set(line!.match(/\u001b\[[0-9;]*m/g) ?? []).size).toBe(4)
 })
 
 test('a failed call keeps its summary and shows the exit capsule', () => {
@@ -475,7 +492,7 @@ test('a failed call keeps its summary and shows the exit capsule', () => {
       time: 0,
     },
   ])
-  expect(transcript.render(80)[0]).toBe('  >_ Bash · Run tests  exit 2')
+  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Run tests  exit 2')
 })
 
 test('a stopped call reads as stopped', () => {
@@ -483,7 +500,7 @@ test('a stopped call reads as stopped', () => {
   transcript.setItems([
     { kind: 'tool', name: 'edit', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: '', status: 'stopped', time: 0 },
   ])
-  expect(transcript.render(80)[0]).toBe('  ✎  Edit · Stopped')
+  expect(bare(transcript.render(80))[1]).toBe('  ✎  Edit · Stopped')
 })
 
 test('reasoning shows the end of the thought while streaming', () => {
@@ -551,7 +568,7 @@ test('an expanded call leaves no blank line behind the exit marker', () => {
     },
   ])
   transcript.toggleExpandAll()
-  expect(transcript.render(80)).toEqual(['▾ >_ Bash · Show the directory', '  ❯ pwd', '    /work/hulala'])
+  expect(bare(transcript.render(80))).toEqual(['', '▾ >_ Bash · Show the directory', '  ❯ pwd', '    /work/hulala', ''])
 })
 
 function clickEvent(y: number, type: 'press' | 'click' = 'click'): Parameters<Transcript['handleMouse']>[0] {
@@ -576,24 +593,29 @@ test('a click on a row header folds and unfolds that row alone', () => {
     { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'pwd', description: 'Show the directory' }), result: '/work/hulala', status: 'ok', time: 0 },
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'code', status: 'ok', time: 0 },
   ])
-  expect(transcript.render(80)).toEqual([
+  expect(bare(transcript.render(80))).toEqual([
+    '',
     '  >_ Bash · Show the directory',
     '  ❯ pwd',
     '    /work/hulala',
+    '',
+    '', // the page row between two cards
+    '',
     '  ▤  Read · a.ts',
+    '',
   ])
 
   // The press is left to the alternate screen's own text selection, so a drag
-  // that starts on a row header selects text instead of folding it.
-  expect(transcript.handleMouse(clickEvent(0, 'press'))).toBeUndefined()
-  expect(transcript.handleMouse(clickEvent(0))).toEqual({ handled: true, render: true })
-  const opened = transcript.render(80)
-  expect(opened[0]).toBe('▾ >_ Bash · Show the directory')
-  expect(opened).toHaveLength(4) // header + command line + output, then the read row
-  expect(opened.at(-1)).toBe('  ▤  Read · a.ts')
+  // that starts on a row header selects text instead of folding it. A card
+  // opens with a blank row of its own surface, so the header is one row down.
+  expect(transcript.handleMouse(clickEvent(1, 'press'))).toBeUndefined()
+  expect(transcript.handleMouse(clickEvent(1))).toEqual({ handled: true, render: true })
+  const opened = bare(transcript.render(80))
+  expect(opened[1]).toBe('▾ >_ Bash · Show the directory')
+  expect(opened.at(-2)).toBe('  ▤  Read · a.ts')
 
-  transcript.handleMouse(clickEvent(0))
-  expect(transcript.render(80)[0]).toBe('  >_ Bash · Show the directory')
+  transcript.handleMouse(clickEvent(1))
+  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Show the directory')
 })
 
 test('the row body is not a click target, so its text stays selectable', () => {
@@ -602,10 +624,11 @@ test('the row body is not a click target, so its text stays selectable', () => {
     { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'pwd', description: 'Show the directory' }), result: '/work/hulala', status: 'ok', time: 0 },
   ])
   transcript.toggleExpandAll()
-  expect(transcript.render(80)).toHaveLength(3)
-  expect(transcript.handleMouse(clickEvent(1, 'press'))).toBeUndefined()
-  expect(transcript.handleMouse(clickEvent(1))).toBeUndefined()
+  expect(transcript.render(80)).toHaveLength(5)
+  // Rows 2 and 3 are the command and its output: the title is the only target.
+  expect(transcript.handleMouse(clickEvent(2, 'press'))).toBeUndefined()
   expect(transcript.handleMouse(clickEvent(2))).toBeUndefined()
+  expect(transcript.handleMouse(clickEvent(3))).toBeUndefined()
 })
 
 test('a drag that starts on a row header stays available to text selection', () => {
@@ -616,10 +639,10 @@ test('a drag that starts on a row header stays available to text selection', () 
   transcript.render(80)
   // Nothing claims the gesture, so the alternate screen keeps drawing its own
   // selection across the header line instead of folding the row.
-  expect(transcript.handleMouse(clickEvent(0, 'press'))).toBeUndefined()
-  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'drag', x: 12 })).toBeUndefined()
-  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'release', button: 'left' })).toBeUndefined()
-  expect(transcript.render(80)[0]).toBe('  >_ Bash · Show the directory')
+  expect(transcript.handleMouse(clickEvent(1, 'press'))).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'drag', x: 12 })).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'release', button: 'left' })).toBeUndefined()
+  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Show the directory')
 })
 
 test('a click anywhere on a thought unfolds it', () => {
@@ -658,15 +681,16 @@ test('hover marks the row the pointer is on without moving the text', () => {
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'x', status: 'ok', time: 0 },
   ])
   const flat = transcript.render(80)
-  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'move', button: 'none' }))
-    .toEqual({ handled: true, render: true })
-  const hovered = transcript.render(80)
-  expect(hovered[0]).toBe('▸ >_ Bash · Show the directory')
-  expect(hovered[1]).toBe(flat[1])
-  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'move', button: 'none' })).toBeUndefined()
   expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'move', button: 'none' }))
     .toEqual({ handled: true, render: true })
-  expect(transcript.render(80)[0]).toBe('  >_ Bash · Show the directory')
+  const hovered = transcript.render(80)
+  expect(bare(hovered)[1]).toBe('▸ >_ Bash · Show the directory')
+  expect(hovered[2]).toBe(flat[2])
+  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'move', button: 'none' })).toBeUndefined()
+  // Off the title line and onto the body: no row under the pointer any more.
+  expect(transcript.handleMouse({ ...clickEvent(2, 'press'), type: 'move', button: 'none' }))
+    .toEqual({ handled: true, render: true })
+  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Show the directory')
 })
 
 test('Ctrl-O opens every body, the thought included, and a click closes one again', () => {
@@ -676,29 +700,35 @@ test('Ctrl-O opens every body, the thought included, and a click closes one agai
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'x', status: 'ok', time: 0 },
     { kind: 'reasoning', text: 'A thought', streaming: false, time: 0 },
   ])
-  expect(transcript.render(80)).toEqual([
+  expect(bare(transcript.render(80))).toEqual([
+    '',
     '  >_ Bash · Show the directory',
     '  ❯ pwd',
     '    /work/hulala',
+    '',
+    '',
+    '',
     '  ▤  Read · a.ts',
+    '',
     '  ✳  Think',
     '    A thought',
   ])
 
   transcript.toggleExpandAll()
-  const opened = transcript.render(80)
-  expect(opened[0]).toBe('▾ >_ Bash · Show the directory')
-  expect(opened[3]).toBe('▾ ▤  Read · a.ts')
-  expect(opened[5]).toBe('▾ ✳  Think')
+  const opened = bare(transcript.render(80))
+  expect(opened[1]).toBe('▾ >_ Bash · Show the directory')
+  expect(opened[7]).toBe('▾ ▤  Read · a.ts')
+  expect(opened[8]).toBe('    x')
+  expect(opened[10]).toBe('▾ ✳  Think')
   // Markdown pads each rendered line to the width, as it always has.
-  expect(opened[6]?.trimEnd()).toBe('    A thought')
+  expect(opened[11]?.trimEnd()).toBe('    A thought')
 
-  transcript.handleMouse(clickEvent(0))
-  const lines = transcript.render(80)
-  expect(lines[0]).toBe('  >_ Bash · Show the directory')
-  expect(lines[1]).toBe('  ❯ pwd')
-  expect(lines[2]).toBe('    /work/hulala')
-  expect(lines[3]).toBe('▾ ▤  Read · a.ts')
+  transcript.handleMouse(clickEvent(1))
+  const lines = bare(transcript.render(80))
+  expect(lines[1]).toBe('  >_ Bash · Show the directory')
+  expect(lines[2]).toBe('  ❯ pwd')
+  expect(lines[3]).toBe('    /work/hulala')
+  expect(lines[7]).toBe('▾ ▤  Read · a.ts')
 })
 
 test('every step row starts its title in the same column', () => {

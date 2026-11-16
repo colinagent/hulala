@@ -3,10 +3,13 @@
  *
  * Only ANSI color/styling lives here; cursor movement and rendering are owned
  * entirely by pi-tui. Selected/current text uses foreground highlight, never a
- * background block (product UI rule). Two full-width background panels are not
+ * background block (product UI rule). Full-width background panels are not
  * selection state and are therefore allowed: an archived user message, which is
- * message content drawn like Claude Code's transcript rows, and the status band,
- * which is the frame's own bottom row rather than any column's content.
+ * message content drawn like Claude Code's transcript rows; the status band,
+ * which is the frame's own bottom row rather than any column's content; and a
+ * tool card, which is a *surface* a call's body is printed on. A card carries
+ * every state in the same ink, so a block never says "this one failed" — its
+ * marker and its `exit 5` capsule do.
  *
  * @module hulala-cli/tui/view/theme
  */
@@ -53,6 +56,29 @@ const USER_PANEL_ARROW = [0x9a, 0x9a, 0x9a] as const
  */
 const BAND_BG = [0x34, 0x3a, 0x44] as const
 const BAND_TEXT = [0xa8, 0xad, 0xb7] as const
+
+/**
+ * Tool card: the surface every tool call and step body sits on.
+ *
+ * One colour for every state, not a traffic light. pi tints its cards green on
+ * success and red on failure, which turns a conversation into a signal board and
+ * gives the page a green cast; here the card is a quiet slab a step above the
+ * page and below the status band, and *state* stays ink: the leading marker, the
+ * `exit 5` capsule, the duration. A reader scanning for a failed command looks
+ * for the red word, not a red room.
+ *
+ * The foregrounds are fixed values rather than the terminal's, for the same
+ * reason the user-panel chip fixes its own: a card is a surface with one contrast
+ * ratio, so it cannot inherit a palette chosen for the page.
+ */
+const CARD_BG = [0x2b, 0x30, 0x38] as const
+const CARD_TEXT = [0xe6, 0xe8, 0xea] as const
+const CARD_MUTED = [0xa3, 0xaa, 0xb4] as const
+const CARD_OK = [0x9f, 0xc0, 0x9a] as const
+const CARD_ERROR = [0xe0, 0x79, 0x6a] as const
+/** Stopped and signalled rows reuse the current-location sand, the one warm ink. */
+const CARD_WARN = [0xd8, 0xaa, 0x78] as const
+const CARD_ACCENT = [0x79, 0xb8, 0xc8] as const
 
 /**
  * Column divider ink: one step fainter than the composer's rules.
@@ -184,6 +210,21 @@ function createStyles(color: boolean): {
   error: (text: string) => string
   warn: (text: string) => string
   ok: (text: string) => string
+  /**
+   * The tool-card surface: fill the line to the frame width before applying it.
+   *
+   * It carries its own foreground, and re-opens both after every nested reset,
+   * so the slab stays continuous under coloured text.
+   */
+  card: (text: string) => string
+  /** Body, arguments and counts on a card. */
+  cardMuted: (text: string) => string
+  cardOk: (text: string) => string
+  cardError: (text: string) => string
+  cardWarn: (text: string) => string
+  cardAccent: (text: string) => string
+  /** Colour one syntax token of a card body, by the name its tokenizer gave it. */
+  cardSyntax: (type: string, text: string) => string
   bold: (text: string) => string
   italic: (text: string) => string
   strike: (text: string) => string
@@ -196,7 +237,7 @@ function createStyles(color: boolean): {
 } {
   if (!color) {
     const identity = (text: string): string => text
-    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity, violet: identity, syntax: (_type: string, text: string) => text }
+    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, card: identity, cardMuted: identity, cardOk: identity, cardError: identity, cardWarn: identity, cardAccent: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity, violet: identity, syntax: (_type: string, text: string) => text, cardSyntax: (_type: string, text: string) => text }
   }
   // A panel carries its own background and foreground. Inner styles reset both,
   // so re-open the panel after every nested reset to keep the row continuous to
@@ -215,6 +256,12 @@ function createStyles(color: boolean): {
     error: wrap('\u001b[31m', RESET),
     warn: wrap('\u001b[33m', RESET),
     ok: wrap('\u001b[32m', RESET),
+    card: panel(`${bgOpen(CARD_BG)}${fgOpen(CARD_TEXT)}`),
+    cardMuted: wrap(fgOpen(CARD_MUTED), RESET),
+    cardOk: wrap(fgOpen(CARD_OK), RESET),
+    cardError: wrap(fgOpen(CARD_ERROR), RESET),
+    cardWarn: wrap(fgOpen(CARD_WARN), RESET),
+    cardAccent: wrap(fgOpen(CARD_ACCENT), RESET),
     bold: wrap('\u001b[1m', RESET),
     italic: wrap('\u001b[3m', RESET),
     strike: wrap('\u001b[9m', RESET),
@@ -222,6 +269,7 @@ function createStyles(color: boolean): {
     code: wrap('\u001b[33m', RESET),
     violet: wrap('\u001b[35m', RESET),
     syntax: (type: string, text: string): string => SYNTAX[type]?.(text) ?? text,
+    cardSyntax: (type: string, text: string): string => CARD_SYNTAX[type]?.(text) ?? text,
   }
 }
 
@@ -247,6 +295,30 @@ const SYNTAX: Readonly<Record<string, (text: string) => string>> = {
   esc: wrap('\u001b[36m', RESET),
   err: wrap('\u001b[31m', RESET),
   deleted: wrap('\u001b[31m', RESET),
+  section: wrap('\u001b[1m', RESET),
+}
+
+/**
+ * The same token families on a card, at fixed values.
+ *
+ * The page's inks are the terminal's own sixteen colours, which are picked to
+ * read against the terminal's background — not against this card. Reading a file
+ * inside a card therefore needs its own set: the same one hue per family, chosen
+ * to clear the card's contrast instead of the page's.
+ */
+const CARD_SYNTAX: Readonly<Record<string, (text: string) => string>> = {
+  kwd: wrap(fgOpen([0xc5, 0x9a, 0xd8]), RESET),
+  func: wrap(fgOpen([0x79, 0xb8, 0xc8]), RESET),
+  str: wrap(fgOpen([0xa8, 0xc6, 0x92]), RESET),
+  insert: wrap(fgOpen([0xa8, 0xc6, 0x92]), RESET),
+  num: wrap(fgOpen([0xd8, 0xaa, 0x78]), RESET),
+  bool: wrap(fgOpen([0xd8, 0xaa, 0x78]), RESET),
+  type: wrap(fgOpen([0x8f, 0xb1, 0xe0]), RESET),
+  class: wrap(fgOpen([0x8f, 0xb1, 0xe0]), RESET),
+  cmnt: wrap(fgOpen([0x7d, 0x85, 0x90]), RESET),
+  esc: wrap(fgOpen([0x79, 0xb8, 0xc8]), RESET),
+  err: wrap(fgOpen([0xe0, 0x79, 0x6a]), RESET),
+  deleted: wrap(fgOpen([0xe0, 0x79, 0x6a]), RESET),
   section: wrap('\u001b[1m', RESET),
 }
 

@@ -13,6 +13,19 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- Tool calls are drawn on a card. Every step's title and body now sit on one
+  quiet full-width surface, with a blank row of that surface above and below it,
+  instead of running together with the prose around them — a long conversation no
+  longer asks the reader to count indents to see where one call ends. The card
+  says nothing about status: a failed command is marked by its red leading glyph
+  and its `exit 5` capsule, not by a red block, and a page-background row keeps
+  two consecutive calls from fusing into a single slab. A shell's folded preview
+  now keeps the *end* of its output — the last five lines, with the count of the
+  lines above them, since a command's answer is usually there — a change previews
+  in five rows instead of nine, and a settled call always shows how long it took.
+
 ### Fixed
 
 - Scrolling a conversation with a trackpad did nothing, and each swipe instead

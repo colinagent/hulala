@@ -1,19 +1,21 @@
 /**
- * Tool-call row.
+ * Tool-call card.
  *
- * One line per call — icon, title, summary — exactly like the DeepSeek Harness
- * web transcript, followed by a *preview* of the body instead of nothing: a
- * text body keeps its first lines, a mutation row its applied `-`/`+` change.
- * The derivation itself lives in `data/toolRow.ts` and `data/diffRow.ts`; this
- * component only draws it and applies the line budgets.
+ * One card per call: a title line (icon, name, summary), then a *preview* of its
+ * body — a text body keeps its first lines, a shell body its last ones, a
+ * mutation row its applied `-`/`+` change. The derivation itself lives in
+ * `data/toolRow.ts` and `data/diffRow.ts`; this component only draws it and
+ * applies the line budgets.
+ *
+ * The card is the surface, not the status: every state gets the same slab and
+ * the same ink, and a reader finds a failure by the red marker and the `exit 5`
+ * capsule rather than by a red room. That is why `view/theme` owns one
+ * `card` fill instead of one per lifecycle state.
  *
  * A body that fits its budget is shown whole; a longer one is folded to the
  * budget with a counted hint line, and the reader opens the rest with a click
  * or `Ctrl-O`. The budgets are visual lines, not source lines: one long line
  * (minified JSON) must not wrap across the whole screen.
- *
- * State is carried by foreground colour and a trailing capsule, never by a
- * filled row (product UI rule: selection and status use colour, not blocks).
  *
  * @module hulala-cli/tui/view/toolRow
  */
@@ -23,7 +25,7 @@ import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
 import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
 import { activeLanguage, t } from '../i18n/index.js'
 import { colourLines, languageForPath } from './codeHighlight.js'
-import { headPreview } from './preview.js'
+import { headPreview, tailPreview } from './preview.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles } from './theme.js'
 
@@ -45,10 +47,27 @@ const ICONS: Readonly<Record<ToolVariant, string>> = {
 const OUTPUT_LINES = 20
 /** Visual lines a folded text row keeps from the start of its output. */
 const TEXT_PREVIEW_LINES = 6
-/** Body lines a folded change shows, head and tail around a counted hint. */
-const DIFF_PREVIEW_LINES = 9
+/** Output lines a folded shell row keeps from the end of what it printed. */
+const SHELL_PREVIEW_LINES = 5
+/** Body rows a folded change shows before the rest is counted. */
+const DIFF_PREVIEW_LINES = 5
 /** Indent of every wrapped continuation and body line. */
 const INDENT = '  '
+/**
+ * Card columns kept clear on the right.
+ *
+ * There is no matching left inset: the row's own gutter already holds two empty
+ * columns at the card's edge, and adding one more would push every tool title one
+ * column right of a thought's title on the row above it.
+ */
+const CARD_RIGHT_PAD = 1
+/**
+ * Card rows above the title line.
+ *
+ * The card opens with a blank row of its own surface, so the line a click has
+ * to hit is the title: one below the item's first row.
+ */
+export const TOOL_CARD_HEADER = 1
 type ToolItem = Extract<TranscriptItem, { kind: 'tool' }>
 
 export class ToolRowView implements Component {
@@ -116,38 +135,42 @@ export class ToolRowView implements Component {
 
   private draw(width: number, row: ToolRow, expanded: boolean, gutter: string): string[] {
     const s = buildStyles(this.color)
-    const inner = Math.max(1, width - visibleWidth(gutter))
-    const marker = row.state === 'error' ? s.error
-      : row.state === 'stopped' ? s.warn
-        : row.state === 'running' ? s.accent
-          : s.dim
-    const tone = row.state === 'error' ? s.error : row.state === 'stopped' ? s.warn : s.dim
-    const duration = expanded && this.item.durationMs !== undefined
-      ? `  ${s.dim(this.seconds(this.item.durationMs))}`
-      : ''
+    // Everything inside the card wraps into the surface, not the frame.
+    const content = Math.max(1, width - CARD_RIGHT_PAD)
+    const inner = Math.max(1, content - visibleWidth(gutter))
+    const marker = row.state === 'error' ? s.cardError
+      : row.state === 'stopped' ? s.cardWarn
+        : row.state === 'running' ? s.cardAccent
+          : s.cardMuted
+    const tone = row.state === 'error' ? s.cardError : row.state === 'stopped' ? s.cardWarn : s.cardMuted
+    // A settled call always says how long it took: in a card the duration is one
+    // more reading on the title line, not a reason to open the body.
+    const duration = this.item.durationMs === undefined
+      ? ''
+      : `  ${s.cardMuted(this.seconds(this.item.durationMs))}`
     const exit = row.exit === undefined ? ''
-      : row.exit.signal !== undefined ? `  ${s.error(t('tool.signal', { signal: row.exit.signal }))}`
-        : `  ${s.error(t('tool.exit', { code: String(row.exit.code ?? '?') }))}`
+      : row.exit.signal !== undefined ? `  ${s.cardError(t('tool.signal', { signal: row.exit.signal }))}`
+        : `  ${s.cardError(t('tool.exit', { code: String(row.exit.code ?? '?') }))}`
     const stat = row.diff === undefined ? '' : this.stat(row.diff.stats)
 
-    let line = `${marker(iconBox(ICONS[row.variant]))} ${row.title}`
+    let line = `${gutter}${marker(iconBox(ICONS[row.variant]))} ${row.title}`
     if (row.summary !== '') {
       const tail = visibleWidth(exit) + visibleWidth(duration) + visibleWidth(stat)
       const room = Math.max(1, inner - visibleWidth(line) - tail - 3)
       line += ` · ${tone(truncateToWidth(row.summary, room, '…'))}`
     }
-    line = `${gutter}${line}${stat}${exit}${duration}`
+    line = `${line}${stat}${exit}${duration}`
 
     const lines = [line]
     // A mutation's change is what the reader came for, so it is drawn in both
     // states; the arguments it replaced said nothing about the file.
     if (row.diff !== undefined) {
-      lines.push(...this.diffBody(row.diff, width, expanded))
-      return lines
+      lines.push(...this.diffBody(row.diff, content, expanded))
+      return this.card(lines, width)
     }
     if (!expanded) {
-      lines.push(...this.preview(row, width))
-      return lines
+      lines.push(...this.preview(row, content))
+      return this.card(lines, width)
     }
 
     // A file row's own text is code: the language comes from the path the call
@@ -155,26 +178,45 @@ export class ToolRowView implements Component {
     const fileLanguage = row.variant === 'read' ? languageForPath(row.filePath) : undefined
     if (row.command !== undefined) {
       const command = truncateToWidth(row.command, Math.max(1, inner - INDENT.length - 2), '…')
-      lines.push(`${INDENT}${s.dim(`❯ ${command}`)}`)
+      lines.push(`${INDENT}${s.cardMuted(`❯ ${command}`)}`)
     } else if (row.body !== undefined) {
-      lines.push(...this.block(t('tool.in'), row.body, width, text => s.dim(text)))
+      lines.push(...this.block(t('tool.in'), row.body, content, text => s.cardMuted(text)))
     }
     if (row.output !== undefined) {
       const label = row.command === undefined && row.body !== undefined ? t('tool.out') : undefined
       const language = row.variant === 'read' ? fileLanguage : undefined
-      lines.push(...this.block(label, row.output, width, text => s.dim(text), language))
+      lines.push(...this.block(label, row.output, content, text => s.cardMuted(text), language))
     }
-    return lines
+    return this.card(lines, width)
+  }
+
+  /**
+   * Wrap the drawn rows in the card: the surface inset on both sides, and a
+   * blank row of the same surface above and below.
+   *
+   * The padding rows are what keep two calls in a row from fusing into one
+   * slab, and they are drawn *inside* the card (pi's `Box` does the same) so the
+   * block keeps one continuous edge.
+   */
+  private card(lines: string[], width: number): string[] {
+    const s = buildStyles(this.color)
+    const fill = (line: string): string => {
+      const body = truncateToWidth(line, Math.max(1, width - CARD_RIGHT_PAD), '…')
+      const pad = ' '.repeat(Math.max(0, width - visibleWidth(body) - CARD_RIGHT_PAD))
+      return s.card(`${body}${pad}`)
+    }
+    const blank = s.card(' '.repeat(Math.max(0, width)))
+    return [blank, ...lines.map(fill), blank]
   }
 
   /** `+3 -1`, in the change's own inks. */
   private stat(stats: DiffStats): string {
     const s = buildStyles(this.color)
-    return `  ${s.ok(`+${stats.added}`)} ${s.error(`-${stats.removed}`)}`
+    return `  ${s.cardOk(`+${stats.added}`)} ${s.cardError(`-${stats.removed}`)}`
   }
 
   /**
-   * The folded body: what ran, then the start of what it printed.
+   * The folded body: what ran, then the part of what it printed worth seeing.
    *
    * A shell row prints its command under the title, the way pi prints `bash
    * <command>` as the title itself: hulala keeps the model's description as the
@@ -182,9 +224,11 @@ export class ToolRowView implements Component {
    * command that produced it is half a story. The command is skipped when the
    * summary already is the command.
    *
-   * Only a thought previews its end — every other body is read from its first
-   * line (`ls`, `cat`, a test header), and starting in the middle makes the
-   * reader guess what they are looking at.
+   * A shell's answer is its *last* lines — a test's summary, a build's failure,
+   * `tail`'s output — so that body keeps its end and counts what is above it.
+   * Every other body is read from its first line (`ls`, `cat`, a search hit), and
+   * starting in the middle makes the reader guess what they are looking at. A
+   * thought is the other exception and keeps its tail in `thinkRow`.
    */
   private preview(row: ToolRow, width: number): string[] {
     const s = buildStyles(this.color)
@@ -193,22 +237,29 @@ export class ToolRowView implements Component {
     const showsCommand = row.command !== undefined && !row.summaryIsCommand
     if (showsCommand) {
       const command = truncateToWidth(row.command!, Math.max(1, text - 2), '…')
-      lines.push(`${INDENT}${s.dim(`❯ ${command}`)}`)
+      lines.push(`${INDENT}${s.cardMuted(`❯ ${command}`)}`)
     }
     // A read shows its header only (the window is in the summary), unless it
     // failed: then the error text is the one thing worth previewing.
     if (row.output === undefined || row.output.trim() === '') return lines
     if (row.variant === 'read' && row.state !== 'error') return lines
-    const budget = TEXT_PREVIEW_LINES - (showsCommand ? 1 : 0)
-    const body = headPreview(row.output, text, budget)
+    if (row.variant === 'bash') {
+      const body = tailPreview(row.output, text, SHELL_PREVIEW_LINES)
+      if (body.hidden > 0) {
+        lines.push(`${INDENT}${INDENT}${s.cardMuted(t('tool.earlierLines', { n: body.hidden }))}`)
+      }
+      for (const line of body.lines) lines.push(`${INDENT}${INDENT}${s.cardMuted(line)}`)
+      return lines
+    }
+    const body = headPreview(row.output, text, TEXT_PREVIEW_LINES)
     const hint = body.hidden === 0 ? [] : [t('tool.moreLines', { n: body.hidden })]
-    return [...lines, ...[...body.lines, ...hint].map(line => `${INDENT}${INDENT}${s.dim(line)}`)]
+    return [...lines, ...[...body.lines, ...hint].map(line => `${INDENT}${INDENT}${s.cardMuted(line)}`)]
   }
 
   /**
    * The change, with each row keeping its marker.
-   * A folded change shows its head and its tail around a counted hint, the
-   * same split the web client's diff card draws; an open one shows all of it.
+   * A folded change shows its first rows — the file, then the first edits — and
+   * counts the rest; an open one shows all of it.
    */
   private diffBody(diff: { rows: DiffRow[]; stats: DiffStats }, width: number, expanded: boolean): string[] {
     const s = buildStyles(this.color)
@@ -217,10 +268,10 @@ export class ToolRowView implements Component {
     const paint = (row: DiffRow): string => {
       switch (row.kind) {
         case 'path':
-        case 'gap': return s.dim(row.text)
-        case 'del': return `${s.error('-')} ${s.error(row.text)}`
-        case 'add': return `${s.ok('+')} ${s.ok(row.text)}`
-        case 'context': return `  ${s.dim(row.text)}`
+        case 'gap': return s.cardMuted(row.text)
+        case 'del': return `${s.cardError('-')} ${s.cardError(row.text)}`
+        case 'add': return `${s.cardOk('+')} ${s.cardOk(row.text)}`
+        case 'context': return `  ${s.cardMuted(row.text)}`
       }
     }
     const fit = (text: string): string[] => expanded
@@ -231,12 +282,8 @@ export class ToolRowView implements Component {
     const folded = !expanded && rows.length > DIFF_PREVIEW_LINES
     if (!folded) return rows.flatMap(row => fit(paint(row)).map(line => `${INDENT}${INDENT}${line}`))
 
-    const head = Math.ceil(DIFF_PREVIEW_LINES / 2)
-    const tail = DIFF_PREVIEW_LINES - head
-    const hidden = rows.length - DIFF_PREVIEW_LINES
-    const lines = rows.slice(0, head).flatMap(row => fit(paint(row)))
-    lines.push(s.dim(t('tool.moreLines', { n: hidden })))
-    lines.push(...rows.slice(rows.length - tail).flatMap(row => fit(paint(row))))
+    const lines = rows.slice(0, DIFF_PREVIEW_LINES).flatMap(row => fit(paint(row)))
+    lines.push(s.cardMuted(t('tool.moreLines', { n: rows.length - DIFF_PREVIEW_LINES })))
     return lines.map(line => `${INDENT}${INDENT}${line}`)
   }
 
@@ -289,10 +336,12 @@ export class ToolRowView implements Component {
     if (label !== undefined) lines.push(`${INDENT}${style(label)}`)
     const inner = Math.max(1, width - INDENT.length * 2)
     // A highlighted body carries its own colours, so the muted body ink steps
-    // aside: dimming over a keyword's colour would wash both out.
+    // aside: dimming over a keyword's colour would wash both out. A card body
+    // takes the card's own token inks rather than the page's, because the card
+    // is a surface with its own contrast.
     const source = language === undefined
       ? text
-      : colourLines(text, language, (type, token) => buildStyles(this.color).syntax(type, token)).join('\n')
+      : colourLines(text, language, (type, token) => buildStyles(this.color).cardSyntax(type, token)).join('\n')
     const body = language === undefined ? style : (text: string): string => text
     const wrapped = wrapTextWithAnsi(source, inner)
     const shown = wrapped.slice(0, OUTPUT_LINES)
