@@ -21,12 +21,14 @@ import {
   truncateToWidth,
   visibleWidth,
   type Component,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
 } from '@earendil-works/pi-tui'
 import type { TerminalSession } from '../data/remote.js'
 import { t } from '../i18n/index.js'
 import { listMove } from '../keys.js'
 import { fitPath, padEnd } from './pathText.js'
-import { buildStyles } from './theme.js'
+import { buildStyles, faintLines } from './theme.js'
 import type { ImePolicy } from '../pane/focus.js'
 
 /**
@@ -244,6 +246,8 @@ export interface SessionRailOptions {
   readonly onRefresh: () => void
   /** The pointer is somewhere in the rail, which ends the rule's hover state. */
   readonly onPointer?: () => void
+  /** The pointer pressed inside the rail: the keyboard moves to the list. */
+  readonly onFocus?: () => void
 }
 
 export class SessionRail implements Component {
@@ -262,10 +266,19 @@ export class SessionRail implements Component {
 
   invalidate(): void {}
 
-  /** Any pointer event reports that the rule beside the rail is no longer hovered. */
-  handleMouse(): undefined {
+  /**
+   * A press takes the keyboard; the rail's rows are read with the keys.
+   *
+   * Only a press is claimed. The wheel keeps falling through to the transcript,
+   * which is the scroll view this column sits beside, and bare motion only ends
+   * the divider's hover state.
+   */
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
     this.options.onPointer?.()
-    return undefined
+    if (this.options.onFocus === undefined) return undefined
+    if (event.type !== 'press') return undefined
+    this.options.onFocus()
+    return { handled: true }
   }
 
   /** True while Esc belongs to the filter box rather than to leaving the rail. */
@@ -381,7 +394,10 @@ export class SessionRail implements Component {
         : this.rowLine(row, styles, width, state, focused && this.offset + index + 1 === this.cursor, showCaret))
     }
     lines.push(this.allLine(state, styles, width, focused && this.cursor === rows.length, showCaret))
-    return lines.slice(0, height)
+    const fitted = lines.slice(0, height)
+    // A rail that is painted beside a column keeps its list and its clock, but
+    // it is not where the next keystroke goes; faint says so without hiding it.
+    return focused ? fitted : faintLines(fitted, this.options.color)
   }
 
   /**

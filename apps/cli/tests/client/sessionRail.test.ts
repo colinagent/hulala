@@ -51,6 +51,8 @@ interface Harness {
   folds: boolean[]
   reveals: boolean[]
   refreshed: number
+  /** Pointer presses that asked for the keyboard. */
+  focusCalls: number
 }
 
 function harness(overrides: Partial<RailState> = {}, rows = 12, color = false): Harness {
@@ -58,7 +60,7 @@ function harness(overrides: Partial<RailState> = {}, rows = 12, color = false): 
   const queries: string[] = []
   const folds: boolean[] = []
   const reveals: boolean[] = []
-  const result: Harness = { rail: undefined as unknown as SessionRail, opened, created: 0, queries, folds, reveals, refreshed: 0 }
+  const result: Harness = { rail: undefined as unknown as SessionRail, opened, created: 0, queries, folds, reveals, refreshed: 0, focusCalls: 0 }
   let current = state({ pageRows: Math.max(1, rows - 4), ...overrides })
   result.rail = new SessionRail({
     state: () => current,
@@ -72,6 +74,7 @@ function harness(overrides: Partial<RailState> = {}, rows = 12, color = false): 
     onAllExpanded: (expanded) => { folds.push(expanded); current = { ...current, allExpanded: expanded } },
     onRevealed: (revealed) => { reveals.push(revealed); current = { ...current, revealed } },
     onRefresh: () => { result.refreshed += 1 },
+    onFocus: () => { result.focusCalls += 1 },
   })
   return result
 }
@@ -441,4 +444,32 @@ test('an unfocused rail shows the selection ink but no cursor', () => {
   test.rail.focused = false
   const lines = test.rail.render(24)
   expect(lines.join('')).not.toContain(CURSOR_MARKER)
+})
+
+test('a press takes the keyboard; the wheel and bare motion do not', () => {
+  const test = harness()
+  const base = { type: 'press', button: 'left', x: 3, y: 4, screenX: 3, screenY: 4, width: 24, height: 12, shift: false, alt: false, ctrl: false } as const
+  expect(test.rail.handleMouse(base)).toEqual({ handled: true })
+  expect(test.focusCalls).toBe(1)
+  test.rail.handleMouse({ ...base, type: 'release' })
+  test.rail.handleMouse({ ...base, type: 'click', clickCount: 1 })
+  test.rail.handleMouse({ ...base, type: 'move' })
+  test.rail.handleMouse({ ...base, type: 'wheel', button: 'none', wheelDelta: -3 })
+  expect(test.focusCalls).toBe(1)
+})
+
+test('a rail beside the focused column is faded, a focused one is not', () => {
+  const test = harness({}, 12, true)
+  const faint = '\u001b[2m'
+  const faded = test.rail.render(24)
+  test.rail.focused = true
+  const lit = test.rail.render(24)
+  // Row 5 is an unselected Session: nothing in its own ink starts dim, so the
+  // attribute there is the panel's, not the row's.
+  expect(faded[5]).toStartWith(faint)
+  expect(lit[5]).not.toStartWith(faint)
+  // The fade does not change a single cell of the list (the focused rail's
+  // cursor marker is a zero-width APC, not a cell).
+  const cells = (rows: string[]): string[] => rows.map(row => strip(row).replace(/\u001b_pi:[^\u0007]*\u0007/gu, ''))
+  expect(cells(faded)).toEqual(cells(lit))
 })

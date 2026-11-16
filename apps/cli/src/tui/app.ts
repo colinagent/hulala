@@ -42,6 +42,7 @@ import { collect, spawnHandoff } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
+import { focusPlugin } from './plugins/focus.js'
 import { imePlugin } from './plugins/ime.js'
 import { keymapPlugin } from './plugins/keymap.js'
 import { layoutPlugin } from './plugins/layout.js'
@@ -242,7 +243,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     // Before anything that reads a chord or prints one: the composer's menu, the
     // input pipeline, `/keys` and the startup hints all read the active keymap.
     await ctx.plugin(keymapPlugin, { dataRoot })
-    await ctx.plugin(layoutPlugin)
+    await ctx.plugin(layoutPlugin, { color: colorEnabled() })
     await ctx.plugin(editorPlugin)
     // The input source is a window-wide fact: the rail and both sidebar columns
     // ask it for English while they own the keyboard, so it loads before them.
@@ -275,6 +276,9 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     // window among shells and other Sessions.
     await ctx.plugin(titlePlugin)
     await ctx.plugin(railPlugin, { color: colorEnabled(), isClosing: () => ctx.hulalaLifecycle.closing })
+    // After the three panels it arbitrates. A click reaches it only once the
+    // frame is on screen, so it reads the panels' services lazily.
+    await ctx.plugin(focusPlugin)
     await ctx.plugin(viewPlugin, { color: colorEnabled() })
     // Before the command surface: `/changelog` reads the service it provides.
     await ctx.plugin(changelogPlugin, { dataRoot })

@@ -32,7 +32,7 @@ import {
   type Component,
   type TuiMouseEvent,
 } from '@earendil-works/pi-tui'
-
+import { Fade } from './fade.js'
 
 export interface TerminalLayoutOptions {
   readonly transcript: Component
@@ -48,13 +48,26 @@ export interface TerminalLayoutOptions {
   readonly statusBar: Component
   /** Viewport to reuse when a rebuild has to keep the reader's position. */
   readonly scroll?: ScrollView
+  /**
+   * Whether the conversation column holds the keyboard.
+   *
+   * A conversation beside a rail or a column is still readable while the user
+   * types into the other one, but it must not look like where the keys go. The
+   * column is drawn faint while this says false; absent means "always focused",
+   * which is the plain layout's case.
+   */
+  readonly conversationFocused?: () => boolean
+  /** Whether styling is enabled, which a faded conversation needs. */
+  readonly color?: boolean
+  /** A press inside the conversation column, e.g. to take the keyboard back. */
+  readonly onConversationPress?: () => void
 }
 
 /** The dock entries shared by every layout, with the optional directory row. */
 function chatEntries(options: TerminalLayoutOptions): NonNullable<ConstructorParameters<typeof VStack>[0]> {
   return [
-    { component: options.pending, shrink: 1, minSize: 0 },
-    ...(options.cwdBar === undefined ? [] : [{ component: options.cwdBar, shrink: 1, minSize: 0 }]),
+    { component: fadeWhenInactive(options.pending, options), shrink: 1, minSize: 0 },
+    ...(options.cwdBar === undefined ? [] : [{ component: fadeWhenInactive(options.cwdBar, options), shrink: 1, minSize: 0 }]),
   ]
 }
 
@@ -66,16 +79,44 @@ class BlankColumn implements Component {
   }
 }
 
+/** What the conversation column reports and how it draws while it is inactive. */
+interface ConversationColumnOptions {
+  /** The pointer is somewhere in the conversation, not on a divider. */
+  readonly onPointer?: (() => void) | undefined
+  /** The pointer pressed in the conversation: the composer takes the keyboard. */
+  readonly onPress?: (() => void) | undefined
+}
+
 /** Left column that reports pointer presence while keeping normal mouse routing. */
 class ConversationColumn extends VStack {
-  constructor(children: ConstructorParameters<typeof VStack>[0], private readonly onPointer: () => void) {
+  constructor(children: ConstructorParameters<typeof VStack>[0], private readonly options: ConversationColumnOptions) {
     super(children)
   }
 
   handleMouse(event: TuiMouseEvent) {
-    this.onPointer()
+    this.options.onPointer?.()
+    // A press moves the keyboard to the composer before the child sees the
+    // event, so the same click can also fold a step row or start a selection.
+    if (event.type === 'press') this.options.onPress?.()
     return super.handleMouse(event)
   }
+}
+
+/**
+ * Wrap one conversation leaf so it is drawn faint while the keyboard is away.
+ *
+ * The conversation is a layout node, so the frame paints its leaves rather than
+ * the column; the fade has to sit on each leaf the column owns. The transcript
+ * is the exception: it lives inside a viewport the frame reuses, so it carries
+ * its own fade from the view plugin.
+ * @param component - the leaf to draw.
+ * @param options - the layout's focus predicate and colour capability.
+ * @returns the leaf unchanged when the frame has no focus predicate.
+ */
+function fadeWhenInactive(component: Component, options: TerminalLayoutOptions): Component {
+  const focused = options.conversationFocused
+  if (focused === undefined) return component
+  return new Fade(component, () => !focused(), options.color ?? false)
 }
 
 export interface SplitTerminalLayoutOptions extends TerminalLayoutOptions {
@@ -256,8 +297,11 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
   const conversation = new ConversationColumn([
     { component: transcriptScroll, basis: 0, grow: 1, shrink: 1, minSize: 1 },
     ...chatEntries(options),
-    { component: options.editor, shrink: 1, minSize: COMPOSER_MIN_SIZE },
-  ], options.onConversationPointer ?? options.pane?.onConversationPointer ?? (() => undefined))
+    { component: fadeWhenInactive(options.editor, options), shrink: 1, minSize: COMPOSER_MIN_SIZE },
+  ], {
+    onPointer: options.onConversationPointer ?? options.pane?.onConversationPointer,
+    onPress: options.onConversationPress,
+  })
 
   const railWidth = Math.max(RAIL_MIN_SIZE, Math.round(options.railWidth))
   const pane = options.pane
@@ -373,8 +417,11 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
   const conversation = new ConversationColumn([
     { component: transcriptScroll, basis: 0, grow: 1, shrink: 1, minSize: 1 },
     ...chatEntries(options),
-    { component: options.editor, shrink: 1, minSize: COMPOSER_MIN_SIZE },
-  ], options.onConversationPointer)
+    { component: fadeWhenInactive(options.editor, options), shrink: 1, minSize: COMPOSER_MIN_SIZE },
+  ], {
+    onPointer: options.onConversationPointer,
+    onPress: options.onConversationPress,
+  })
 
   let paneWidth = Math.max(SPLIT_MIN_SIZE, Math.round(options.paneWidth))
 

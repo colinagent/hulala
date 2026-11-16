@@ -15,6 +15,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { CwdBar } from '../view/cwdBar.js'
+import { Fade } from '../view/fade.js'
 import { HINT_INTERVAL_MS } from '../view/hints.js'
 import { PendingMessages } from '../view/pendingMessages.js'
 import { StatusBar } from '../view/statusBar.js'
@@ -73,7 +74,16 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
     return () => { clearInterval(timer) }
   }, 'hulala: status hints')
 
-  layout.register('main', { id: 'transcript', component: transcript })
+  // The transcript sits inside a viewport the frame reuses across rebuilds, so
+  // it carries its own fade instead of receiving one from the layout tree: a
+  // ScrollView keeps the content component it was built with, and a wrapped
+  // content created per rebuild would only ever apply to the first layout.
+  const transcriptPanel = new Fade(
+    transcript,
+    () => (ctx.get('hulalaFocus')?.panel ?? 'composer') !== 'composer',
+    config.color,
+  )
+  layout.register('main', { id: 'transcript', component: transcriptPanel })
   layout.register('dock.pending', { id: 'pending', component: pending })
   layout.register('dock.cwd', { id: 'cwd', component: cwdBar })
   layout.register('dock.status', { id: 'status', component: statusBar })

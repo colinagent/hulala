@@ -24,7 +24,7 @@ import { compositeTuiLine, matchesKey, truncateToWidth, visibleWidth } from '@ea
 import type { CursorKind, CaretShape } from '../pane/screenSession.js'
 import { sgrMouse, sgrWheel, wheelNotches } from '../input/mouse.js'
 import { toPtyBytes } from '../input/keys.js'
-import { buildStyles } from './theme.js'
+import { buildStyles, faintLines } from './theme.js'
 import { padEnd } from './pathText.js'
 import type { ImePolicy } from '../pane/focus.js'
 
@@ -82,6 +82,15 @@ export interface ScreenPaneOptions {
   readonly onScroll?: () => void
   /** The pointer entered the pane, which ends any divider hover. */
   readonly onPointer?: () => void
+  /**
+   * The pointer pressed inside the pane: the keyboard moves here.
+   *
+   * A press is also what a terminal pane's program receives, so this is a side
+   * effect of the gesture rather than a reply to it: the press keeps falling
+   * through to the program when it tracks the mouse, and stays available for the
+   * frame's own text selection when it does not.
+   */
+  readonly onFocus?: () => void
   /**
    * A divider the program inside this pane draws, reported by the program.
    *
@@ -167,8 +176,12 @@ export class ScreenPane implements Component, Focusable {
       ? Array.from({ length: height }, () => ' '.repeat(width))
       : lines.map(line => fitToWidth(line, width))
     if (history > 0) fitted[fitted.length - 1] = this.historyRow(width, history)
-    this.paintDividerHover(fitted, width)
-    return fitted
+    // A column without the keyboard is still the same program, one step quieter:
+    // the frame has two or three columns, and only one of them is where typing
+    // goes. The divider accent is painted after, so a hovered rule keeps its ink.
+    const rows = this.focused ? fitted : faintLines(fitted, this.options.color)
+    this.paintDividerHover(rows, width)
+    return rows
   }
 
   handleInput(data: string): void {
@@ -225,6 +238,10 @@ export class ScreenPane implements Component, Focusable {
    * divider — the hover the frame's own dividers have.
    */
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    // A press takes the keyboard before anything else looks at the gesture: the
+    // user pointed at the column they want to type into, and both a program that
+    // tracks the mouse and the frame's own selection still get the event below.
+    if (event.type === 'press') this.options.onFocus?.()
     // The frame ends its own divider hovers as soon as the pointer is inside a
     // column. A gesture on the program's own divider must not be ended by that:
     // the pointer is supposed to stay on that rule for as long as it is held.

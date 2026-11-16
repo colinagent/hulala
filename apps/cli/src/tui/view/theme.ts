@@ -177,6 +177,34 @@ export function faintCursorSgr(color: boolean, background: string, foreground: s
   return `${bgOpen(fill)}${fgOpen(bg)}`
 }
 
+/** SGR 2: the one attribute a terminal cell has for "present, not active". */
+const FAINT = '\u001b[2m'
+
+/**
+ * Fade a panel that is painted but does not hold the keyboard.
+ *
+ * A split screen needs one signal that says which column the next keystroke
+ * lands in, and a terminal's own answer is faint: the content stays readable and
+ * keeps every colour it was drawn with, but it no longer competes with the
+ * column the user is in. This is the same thing Ghostty does to the unfocused
+ * side of a split, expressed as an attribute rather than as a second palette —
+ * the cards, chips and syntax inks the client already chose stay recognisable.
+ *
+ * The attribute is reset by every SGR reset a row contains, so it is re-opened
+ * after each one; otherwise a single coloured token would leave the rest of its
+ * row looking focused again.
+ * @param lines - the panel's rendered rows.
+ * @param color - whether styling is enabled at all.
+ * @returns the rows to paint, faded when styling is available.
+ */
+export function faintLines(lines: readonly string[], color: boolean): string[] {
+  if (!color) return [...lines]
+  return lines.map(line => {
+    const body = line.endsWith(RESET) ? line.slice(0, -RESET.length) : line
+    return `${FAINT}${body.split(RESET).join(`${RESET}${FAINT}`)}${RESET}`
+  })
+}
+
 /**
  * Styles rebuilt per frame by every row that draws is a per-frame cost with no
  * content: the same closures, the same escape sequences, once per row. One set

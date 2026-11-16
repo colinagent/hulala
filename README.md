@@ -121,6 +121,13 @@ slash-command equal, so the layout is reachable from any terminal:
 `/nvim`, `/rail`, `/chat`, `/commands`. Ctrl-`F` is not taken by anything: it
 stays forward-char in the composer and a shell, and page-down in Neovim.
 
+A panel can also be taken with the pointer: clicking the conversation, the
+Session rail or the open column moves the keyboard there. The panels that do not
+hold it are drawn faint, so a split reads at a glance the way a terminal's own
+panes do, and the click still does what the cell said — a step row folds, a drag
+across prose selects it, and a click inside the column reaches its program when it
+asked for the pointer.
+
 ### Custom keybindings
 
 Every chord above can be rebound in `$HULALA_HOME/config/keybindings.json`:
@@ -182,13 +189,14 @@ lifecycle         the closing flag
 viewModel         Host events folded into transcript items
 terminal          the terminal device, its screen, the keybinding table
 render            the frame loop and its sync steps
-layout            the frame: seven seats, column geometry, focus
+layout            the frame: seven seats and column geometry
 editor            the bundled editor: publication, environment, marker files
 panes             the right column: a program in a pty
 composer          the input line and the dock slot a picker borrows
 overlays          approvals, questions, selectors, the keyboard hold
 session           the open Session, its directory, model and follow stream
 rail              the Session list column
+focus             which panel owns the keyboard, and click-to-focus
 view              the transcript and the dock rows
 commands          slash commands and prompt delivery
 input             the single input pipeline

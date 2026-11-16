@@ -189,6 +189,52 @@ test('a pane without mouse support leaves the pointer to the frame', () => {
   expect(screen.inputs).toEqual([])
 })
 
+test('a press says the keyboard belongs to the column, even without mouse tracking', () => {
+  let tookFocus = 0
+  const screen = new FakeScreen()
+  screen.tracks = false
+  const pane = new ScreenPane({
+    screen,
+    rows: () => 3,
+    color: false,
+    onFocus: () => { tookFocus += 1 },
+  })
+  const press = { type: 'press', button: 'left', x: 4, y: 1, screenX: 44, screenY: 1, width: 40, height: 3, shift: false, alt: false, ctrl: false } as const
+  // The press is not claimed, so a drag from here still selects text, but the
+  // column took the keyboard all the same — a shell that never enabled tracking
+  // is still a column the user can click into.
+  expect(pane.handleMouse(press)).toBeUndefined()
+  expect(tookFocus).toBe(1)
+  // Only the press: the release and the synthesized click are the same gesture.
+  pane.handleMouse({ ...press, type: 'release' })
+  pane.handleMouse({ ...press, type: 'click', clickCount: 1 })
+  expect(tookFocus).toBe(1)
+  expect(screen.inputs).toEqual([])
+})
+
+test('the wheel does not move the keyboard into a column', () => {
+  let tookFocus = 0
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: false, onFocus: () => { tookFocus += 1 } })
+  pane.handleMouse({ type: 'wheel', button: 'none', x: 4, y: 1, screenX: 44, screenY: 1, width: 40, height: 3, shift: false, alt: false, ctrl: false, wheelDelta: -3 })
+  expect(tookFocus).toBe(0)
+})
+
+test('a column without the keyboard is faded, and regains its ink with it', () => {
+  const screen = new FakeScreen()
+  const pane = new ScreenPane({ screen, rows: () => 3, color: true })
+  const faint = '\u001b[2m'
+  const faded = pane.render(20)
+  expect(faded.every(line => line.startsWith(faint))).toBe(true)
+  pane.focused = true
+  const lit = pane.render(20)
+  expect(lit.every(line => !line.startsWith(faint))).toBe(true)
+  // The fade is a terminal attribute, not a different screen: the cells are the
+  // same ones the program drew.
+  expect(stripTerminalSequences(faded[0] ?? '').trimEnd()).toBe('one')
+  expect(stripTerminalSequences(lit[0] ?? '').trimEnd()).toBe('one')
+})
+
 test('an editor pane reports the pointer resting on the program divider', () => {
   const screen = new FakeScreen()
   let column: number | undefined = 3

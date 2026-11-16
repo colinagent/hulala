@@ -345,3 +345,56 @@ test('the rail carries the path instead of the row above the composer', () => {
   expect(conversation(withoutBar)).toHaveLength(3)
   expect(conversation(withoutBar).at(-1)?.rect.height).toBe(3)
 })
+
+test('a press inside the conversation asks for the keyboard, and only a press does', () => {
+  let presses = 0
+  const layout = buildSplitTerminalLayout({
+    transcript: overflowingTranscript(20),
+    pending: slab('pending', 1),
+    cwdBar: slab('cwd', 1),
+    editor: slab('composer', 3),
+    statusBar: slab('status', 1),
+    pane: slab('nvim', 20),
+    paneWidth: 40,
+    divider: slab('|', 20),
+    onConversationPointer: () => undefined,
+    onConversationPress: () => { presses += 1 },
+  })
+  const frame = renderLayoutFrame(layout.root, 100, 20, () => undefined)
+  const conversation = frame.root.children[0]?.children?.[0]?.component
+  const event = {
+    type: 'press', button: 'left', x: 3, y: 2, screenX: 23, screenY: 2,
+    width: 59, height: 20, shift: false, alt: false, ctrl: false,
+  } as const
+  conversation?.handleMouse?.(event)
+  expect(presses).toBe(1)
+  // The wheel and bare motion stay with the viewports; they do not move the keys.
+  conversation?.handleMouse?.({ ...event, type: 'move' })
+  conversation?.handleMouse?.({ ...event, type: 'wheel', button: 'none', wheelDelta: -3 })
+  expect(presses).toBe(1)
+})
+
+test('a conversation beside a column drawn apart from it is faded, cell for cell', () => {
+  const build = (focused: boolean): ReturnType<typeof renderLayoutFrame> => renderLayoutFrame(buildSplitTerminalLayout({
+    transcript: overflowingTranscript(20),
+    pending: slab('pending', 1),
+    editor: slab('composer', 3),
+    statusBar: slab('status', 1),
+    pane: slab('nvim', 20),
+    paneWidth: 40,
+    divider: slab('|', 20),
+    onConversationPointer: () => undefined,
+    conversationFocused: () => focused,
+    color: true,
+  }).root, 100, 20, () => undefined)
+  const lit = build(true)
+  const faded = build(false)
+  expect(faded.lines.map(strip)).toEqual(lit.lines.map(strip))
+  // The transcript belongs to the conversation and is faded with it; the column
+  // beside it carries its own fading and stays as it was painted.
+  expect(faded.lines.find(line => line.includes('composer'))).toContain('\u001b[2mcomposer')
+  expect(lit.lines.find(line => line.includes('composer'))).not.toContain('\u001b[2mcomposer')
+  // The transcript fades itself (the viewport is reused across rebuilds), so
+  // this layout only owns the dock leaves and the column beside them.
+  expect(faded.lines.find(line => line.includes('nvim'))).not.toContain('\u001b[2mnvim')
+})

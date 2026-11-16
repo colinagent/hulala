@@ -788,9 +788,11 @@ test('a focused column hands the caret to the terminal, in the shape nvim asked 
   await waitFor(() => tty.painted().includes('history answer'), 'transcript')
 
   // The composer paints its own caret, so the terminal's cursor stays hidden and
-  // untouched while the keyboard is in the prompt.
+  // untouched while the keyboard is in the prompt: no DECSCUSR shape, and never
+  // a show — a terminal cursor over the composer's block would blink there.
   await waitFor(() => tty.painted().includes('\u001b[?25l'), 'the client owns the caret')
   expect(tty.painted()).not.toContain('\u001b[2 q')
+  expect(tty.painted()).not.toContain('\u001b[?25h')
 
   tty.input.write(CTRL_D) // Ctrl-D: the column takes the keyboard and the caret
   await waitFor(() => editor.spawned(), 'editor column')
@@ -2428,6 +2430,73 @@ test('a mouse report split by the input timeout is not typed into the column', a
 
   tty.input.write('\u001b')
   await new Promise(resolve => setTimeout(resolve, 60))
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+}, 20_000)
+
+test('a pointer press moves the keyboard to the panel it lands in', async () => {
+  // The fade is a colour attribute, so this test pins the colour capability it
+  // reads instead of depending on the machine's NO_COLOR/TERM.
+  const previousNoColor = process.env.NO_COLOR
+  const previousTerm = process.env.TERM
+  delete process.env.NO_COLOR
+  process.env.TERM = 'xterm-256color'
+  cleanups.push(() => {
+    if (previousNoColor === undefined) delete process.env.NO_COLOR
+    else process.env.NO_COLOR = previousNoColor
+    if (previousTerm === undefined) delete process.env.TERM
+    else process.env.TERM = previousTerm
+  })
+  const home = mkdtempSync(join(tmpdir(), 'hulala-mouse-focus-'))
+  const fake = fakeBackend(home)
+  const panes = fakePanes()
+  const tty = startPtyTty(home, fake, { pty: panes.module })
+  const shellWrites = (): string => panes.panes[0]?.writes.join('') ?? ''
+  /** One left-button press and release on the same cell: a click, not a drag. */
+  const click = async (column: number, row: number): Promise<void> => {
+    tty.input.write(`\u001b[<0;${column};${row}M`)
+    await new Promise(resolve => setTimeout(resolve, 40))
+    tty.input.write(`\u001b[<0;${column};${row}m`)
+    await new Promise(resolve => setTimeout(resolve, 60))
+  }
+  await waitFor(() => tty.painted().includes('history answer'), 'transcript')
+
+  tty.input.write(CTRL_T) // Ctrl-T: the terminal column opens with the keyboard in it
+  await waitFor(() => panes.panes.length === 1, 'terminal column')
+  // Opening the column rebuilds the frame, and the next press needs the layout
+  // that rebuild painted (pi-tui drops pointer events until then).
+  await new Promise(resolve => setTimeout(resolve, 120))
+
+  // Clicking the conversation hands the keys back without closing the column: the
+  // transcript brightens again and the prompt goes to the Host, not into the
+  // shell's input line.
+  const fadedAt = tty.painted().length
+  await click(40, 5)
+  await waitFor(() => {
+    const delta = tty.painted().slice(fadedAt)
+    return delta.includes('history answer') && !delta.includes('\u001b[2m  history answer')
+  }, 'the conversation to brighten again')
+  tty.input.write('clicked the conversation\r')
+  await waitFor(() => fake.prompts.includes('clicked the conversation'), 'the composer took the click')
+  expect(shellWrites()).not.toContain('clicked the conversation')
+
+  // Clicking the column hands the keys to its program, and the conversation it
+  // left behind is drawn faint instead of looking like where typing goes.
+  const focusedAt = tty.painted().length
+  await click(90, 5)
+  await waitFor(
+    () => /\u001b\[2m {2}history answer/u.test(tty.painted().slice(focusedAt)),
+    'the faded conversation',
+  )
+  tty.input.write('echo pane\r')
+  await waitFor(() => shellWrites().includes('echo pane\r'), 'the pane took the click')
+  expect(fake.prompts).not.toContain('echo pane')
+
+  // Clicking the rail hands the keys to the list, where `n` creates a Session.
+  await click(5, 5)
+  tty.input.write('n')
+  await waitFor(() => fake.created.length === 1, 'the rail took the click')
+
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 }, 20_000)

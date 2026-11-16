@@ -105,6 +105,10 @@ Kitty 键盘协议的终端才送得到：Ghostty、kitty、WezTerm、iTerm2 可
 所以每一个都有等价的斜杠命令：`/nvim`、`/rail`、`/chat`、`/commands`。`Ctrl-F` 不再被
 任何东西占用：它在 composer、shell 里还是前移光标，在 Neovim 里还是下翻一屏。
 
+列也能用指针切换：点对话、会话栏或已经打开的那一列，键盘就移到那里；没拿到键盘的
+面板会画得淡一点，像 Ghostty 自己的分屏一样一眼能看出键盘在哪。点在那一格上的手势
+照旧：工具行照样折叠，拖过正文照样选中，点进列里也照样把鼠标报告交给开了跟踪的程序。
+
 ### 自定义键位
 
 上面每个键都能在 `$HULALA_HOME/config/keybindings.json` 里改：
@@ -158,13 +162,14 @@ lifecycle         关闭标志
 viewModel         Host 事件折成 transcript 条目
 terminal          终端设备、屏幕、键位表
 render            帧循环与它的同步步
-layout            帧：七个座位、列宽、焦点
+layout            帧：七个座位与列宽
 editor            内置编辑器：发布、环境、标记文件
 panes             右列：pty 里的一个程序
 composer          输入行，以及选择器借用那个 dock 槽
 overlays          审批、提问、选择器、键盘持有
 session           打开的 Session、它的目录、模型和 follow 流
 rail              Session 列表列
+focus             哪块面板拥有键盘，以及指针焦点切换
 view              transcript 与 dock 各行
 commands          斜杠命令与 prompt 投递
 input             唯一的输入管线

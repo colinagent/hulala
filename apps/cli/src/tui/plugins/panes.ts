@@ -95,6 +95,17 @@ export interface TuiPanes {
   close(): void
   /** Move the keyboard back to the composer; the sidebar stays visible. */
   blur(): void
+  /**
+   * Let go of the keyboard without saying where it goes next.
+   *
+   * The focus moving to another panel is what hands it on, so this only retires
+   * what belonged to the column: the paging override, the mode watch, the title,
+   * the divider hover. Focusing the composer here would put a panel in between
+   * two owners and, worse, would bring a deliberately hidden conversation back.
+   */
+  unfocus(): void
+  /** Give the keyboard to a column that is already painted, without opening one. */
+  refocus(kind: PaneKind): void
   /** Kill one column's process and hide the sidebar if that column is shown. */
   drop(kind: PaneKind): void
   /** Drop both columns and hide, e.g. because the Session changed. */
@@ -350,8 +361,14 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   /** The visible column's runtime, if one is painted. */
   const visibleRuntime = (): PaneRuntime | undefined => visibleKind === undefined ? undefined : runtimes.get(visibleKind)
 
-  const blur = (): void => {
-    config.debug(`blurPane focused=${String(focused)} visible=${String(visibleKind)} overlays=${overlays.open}`)
+  /**
+   * Retire everything that belonged to the column's ownership of the keyboard.
+   *
+   * Deliberately says nothing about where focus goes: the new owner sets it, so
+   * a click on another panel does not pass through the composer on its way and
+   * does not re-show a conversation the user put away on purpose.
+   */
+  const unfocus = (): void => {
     if (!focused) return
     focused = false
     // Nobody is asking what Neovim's mode means any more, and a hidden column
@@ -361,6 +378,13 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     setPaging(true)
     setDividerHover(false)
     applyTitle()
+    render.request()
+  }
+
+  const blur = (): void => {
+    config.debug(`blurPane focused=${String(focused)} visible=${String(visibleKind)} overlays=${overlays.open}`)
+    if (!focused) return
+    unfocus()
     // Leaving the column returns to the conversation, bringing it back if it was
     // put away with `Shift-Cmd-C`: the composer has to be on screen to take the
     // keyboard. The sidebar itself stays open.
@@ -458,6 +482,10 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       ...(kind === 'editor' ? { divider: treeDivider } : {}),
       onScroll: () => { if (visibleKind === kind) render.request() },
       onPointer: () => layout.clearDividerHover(),
+      // The click names the column, so the coordinator clears whichever panel
+      // held the keyboard and this column takes it; the gesture still falls
+      // through to the program (or to the frame's own selection) afterwards.
+      onFocus: () => ctx.get('hulalaFocus')?.pane(kind),
     })
     const runtime: PaneRuntime = { kind, session, view }
     runtimes.set(kind, runtime)
@@ -649,6 +677,19 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     render.repaint()
   }
 
+  /**
+   * Hand the keyboard to a column the frame already drew.
+   *
+   * A click can only land on a painted column, so there is nothing to start and
+   * no working directory to choose; the process, its buffer and its scroll
+   * position are all already there.
+   * @param kind - the painted column the pointer was in.
+   */
+  const refocus = (kind: PaneKind): void => {
+    if (focused && visibleKind === kind) return
+    finishFocus(kind)
+  }
+
   const focus = (kind: PaneKind, cwd: string): void => {
     config.debug(`focusPane kind=${kind} overlay=${overlays.open}`)
     const outcome = openNow(kind, cwd)
@@ -776,6 +817,8 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     switchable,
     close,
     blur,
+    unfocus,
+    refocus,
     drop,
     reset,
     dispose,

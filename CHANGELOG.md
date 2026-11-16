@@ -13,6 +13,26 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.20] - 2026-11-16
+
+### Fixed
+
+- The composer's caret is a steady block again at startup. The renderer is
+  built with the terminal's own cursor enabled, and the client's first "no
+  column owns the caret" answer was skipped as a no-op, so the hardware cursor
+  stayed on: the input box showed the terminal's blinking caret instead of the
+  client's static block, until a column took the caret and gave it back once.
+
+### Changed
+
+- A click moves the keyboard to the panel it lands in. The conversation, the
+  Session rail and the open column are now three panels with one owner: clicking
+  one focuses it, and the panels that do not hold the keyboard are drawn faint,
+  so a split reads at a glance the way a terminal's own panes do. The gesture
+  still does what the cell said — a step row folds, a drag across prose selects
+  it, and a click inside a column still reaches its program when it tracks the
+  pointer — and a modal or an open selector keeps the keyboard until it closes.
+
 ## [0.3.19] - 2026-11-16
 
 ### Added

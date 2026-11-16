@@ -243,8 +243,16 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     // one cannot fight each other.
     screen.stop()
   }
-  /** The shape the terminal is currently asked to draw the caret in. */
-  let caretShape: CaretShape | undefined
+  /**
+   * The shape the terminal is currently asked to draw the caret in.
+   *
+   * `null` until the first request: the renderer is constructed with the
+   * hardware cursor on, so the first "no column owns the caret" must switch it
+   * off instead of being skipped as a no-op. Otherwise the composer's fake block
+   * is dropped and the terminal's own cursor sits there — blinking, in whatever
+   * shape and blink setting the user gave their terminal.
+   */
+  let caretShape: CaretShape | undefined | null = null
   ctx.effect(() => stop, 'hulala: terminal restore')
   const setPaging = (viewport: boolean): void => {
     viewportPaging = viewport

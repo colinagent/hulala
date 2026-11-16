@@ -48,6 +48,14 @@ export interface TuiRail {
   focus(): void
   /** Move the keyboard back to the composer; the rail stays visible. */
   blur(): void
+  /**
+   * Let go of the keyboard without saying where it goes next.
+   *
+   * The focus moving to another panel is what hands it on, so the rail only
+   * drops its own state: the cursor keeps its row, the filter is cleared, and a
+   * conversation that was deliberately put away stays away.
+   */
+  unfocus(): void
   /** The rail's filter box has the keyboard, not the list. */
   readonly filterFocused: boolean
   /** One raw key event, while the rail owns the keyboard. */
@@ -133,6 +141,9 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     onRefresh: () => { void session.refresh() },
     // The pointer sits on a column, not on the rule beside it.
     onPointer: () => layout.clearDividerHover(),
+    // A press is the user pointing at the list: the coordinator clears whichever
+    // column had the keyboard, then this rail takes it.
+    onFocus: () => ctx.get('hulalaFocus')?.rail(),
   })
   /** The rule is already hovered; its pointer shape needs no second write. */
   let dividerHovered = false
@@ -216,10 +227,17 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     timer = setInterval(() => { render.request() }, wanted)
   }
 
-  const blur = (): void => {
+  /** Drop the rail's claim on the keyboard, leaving focus to the next owner. */
+  const unfocus = (): void => {
     if (!focused) return
     focused = false
     query = ''
+    render.request()
+  }
+
+  const blur = (): void => {
+    if (!focused) return
+    unfocus()
     // The composer is the keyboard's home. If the conversation was put away,
     // leaving the rail brings it back rather than focusing a column that is not
     // painted; the rail itself stays open.
@@ -318,6 +336,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     toggle,
     focus,
     blur,
+    unfocus,
     handleInput: (data: string) => { rail.handleInput(data) },
     sync: syncTimer,
     moveDivider,

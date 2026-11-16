@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { CwdBar } from '../../src/tui/view/cwdBar.js'
+import { Fade } from '../../src/tui/view/fade.js'
 import { StatusBar } from '../../src/tui/view/statusBar.js'
-import { faintCursorSgr } from '../../src/tui/view/theme.js'
+import { faintCursorSgr, faintLines } from '../../src/tui/view/theme.js'
 import { Transcript } from '../../src/tui/view/transcript.js'
 import { RunningRow, formatRunDuration } from '../../src/tui/view/runningRow.js'
 import { ResumeOverlay } from '../../src/tui/view/overlays/resume.js'
@@ -770,4 +771,40 @@ test('an unfocused cursor is a ghost of the background, not a half-visible block
   expect(Math.abs(r - bg)).toBeLessThan(Math.abs(fg - r))
   expect([g, b]).toEqual([r, r])
   expect(faintCursorSgr(false, '#1e1e1e', '#d8d8d8')).toBe('')
+})
+
+test('a fade wrapper draws its leaf quieter without taking the keyboard', () => {
+  let faded = true
+  let pointers = 0
+  let invalidations = 0
+  const child = {
+    render: (width: number) => ['\u001b[36mcyan\u001b[0m'.padEnd(width)],
+    handleMouse: () => { pointers += 1; return { handled: true, focus: true } },
+    invalidate: () => { invalidations += 1 },
+  }
+  const fade = new Fade(child, () => faded, true)
+  expect(fade.render(8)[0]).toContain('\u001b[2m')
+  faded = false
+  expect(fade.render(8)[0]).toBe('\u001b[36mcyan\u001b[0m'.padEnd(8))
+  // The pointer reaches the leaf, but a child's focus request is dropped: a
+  // wrapper with no `handleInput` must never become the keyboard owner.
+  const press = {
+    type: 'press', button: 'left', x: 1, y: 1, screenX: 1, screenY: 1,
+    width: 8, height: 1, shift: false, alt: false, ctrl: false,
+  } as const
+  expect(fade.handleMouse(press)).toEqual({ handled: true })
+  expect(pointers).toBe(1)
+  fade.invalidate()
+  expect(invalidations).toBe(1)
+})
+
+test('a faded panel keeps every ink it was drawn with, only quieter', () => {
+  // A row resets between runs (a link, a syntax token), which would drop SGR 2
+  // for the rest of the line if the fade were only a prefix.
+  const [row] = faintLines(['\u001b[36mcyan\u001b[0m and plain'], true)
+  expect(row).toBe('\u001b[2m\u001b[36mcyan\u001b[0m\u001b[2m and plain\u001b[0m')
+  // Fading is zero-width: the frame's geometry does not change with focus.
+  expect(visibleWidth(row ?? '')).toBe('cyan and plain'.length)
+  // Without colour output the rows pass through untouched.
+  expect(faintLines(['plain'], false)).toEqual(['plain'])
 })

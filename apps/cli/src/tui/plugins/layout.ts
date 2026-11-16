@@ -44,6 +44,11 @@ declare module '@deepseek-ai/cordis' {
 
 export type { SeatId }
 
+/** Colour flag: a conversation that is not focused is faded with it. */
+export interface LayoutPluginConfig {
+  readonly color: boolean
+}
+
 /** A component in a seat, with no say over its size. */
 export interface SeatEntry {
   /** Stable name, used to replace or remove exactly this entry. */
@@ -140,9 +145,14 @@ const EXCLUSIVE: ReadonlySet<SeatId> = new Set<SeatId>(['main', 'dock.cwd', 'doc
 // `dock.status`: multiple owners' rows are drawn in registration order.
 
 /** Provide the frame. */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: LayoutPluginConfig): void {
   const { screen, terminal } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
+  // The conversation is the keyboard's home; it is faded only while the rail or
+  // a column actually holds the keyboard. The focus service reads the panels'
+  // own flags, so this stays true during boot, before any of them exists.
+  const conversationFocused = (): boolean => (ctx.get('hulalaFocus')?.panel ?? 'composer') === 'composer'
+  const onConversationPress = (): void => { ctx.get('hulalaFocus')?.composer() }
   // Per seat, an ordered map of id → entry. Exclusive seats hold one entry;
   // every other seat renders every entry, top to bottom.
   const seats = new Map<SeatId, Map<string, SeatEntry | ColumnSeatEntry>>()
@@ -310,6 +320,9 @@ export function apply(ctx: Context): void {
               railDivider: rail!.divider,
               ...scroll,
               onConversationPointer: clearDividerHover,
+              onConversationPress,
+              conversationFocused,
+              color: config.color,
               pane: {
                 component: paneShown.component,
                 width: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
@@ -328,6 +341,9 @@ export function apply(ctx: Context): void {
               divider: paneShown.divider,
               paneWidth: Math.max(SPLIT_MIN_SIZE, Math.round(paneShown.width())),
               onConversationPointer: clearDividerHover,
+              onConversationPress,
+              conversationFocused,
+              color: config.color,
               ...scroll,
             })
       } else if (railShown) {
@@ -340,6 +356,9 @@ export function apply(ctx: Context): void {
           railWidth,
           railDivider: rail!.divider,
           onConversationPointer: clearDividerHover,
+          onConversationPress,
+          conversationFocused,
+          color: config.color,
           ...scroll,
         })
       } else {

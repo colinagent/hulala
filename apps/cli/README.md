@@ -143,13 +143,23 @@ a diff, a file's contents — stays available for selection.
 
 ## Selecting and copying text
 
-The client owns the mouse: clicking a step row's `▸` folds it, and a column
-running a program is that program's terminal. So a drag across the conversation
-is the client's own selection — the text is drawn in reverse video, and letting
-go copies it (copy-on-select) — while the terminal's native selection needs its
+The client owns the mouse: clicking a panel moves the keyboard to it. The
+conversation, the Session rail and the open column are three panels with one
+owner, so a click is the pointer's version of `Ctrl-[` / `Ctrl-]` and the panels
+that do not hold the keyboard are drawn faint — the same signal a terminal's own
+split gives. The click is a focus move only; it still does what the cell said:
+clicking a step row's `▸` folds it, and a drag across the conversation is the
+client's own selection — the text is drawn in reverse video, and letting go
+copies it (copy-on-select) — while the terminal's native selection needs its
 bypass key, `Shift` on most terminals (`Option` in Terminal.app and iTerm2 by
 default). A drag that starts on a step row's first line is a selection too; the
 row only folds on a completed click.
+
+A column running a program is that program's terminal: the same click is also a
+pointer report to it when it asked for one, which is what lets Neovim's tree and
+text respond to the pointer. The wheel never moves the keyboard — it belongs to
+whatever is under it. A modal dialog, or a selector that has taken the
+composer's place, keeps the keyboard until it closes.
 
 Where the copy lands depends on where you sit. On your own machine the client
 writes the system clipboard (`pbcopy` on macOS, `wl-copy` or `xclip`/`xsel` on
