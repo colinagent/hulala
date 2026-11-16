@@ -7,8 +7,8 @@ type PageKind = "home" | "download";
 const metadataCopy = {
   en: {
     home: {
-      title: "Hulala — DeepSeek Harness for hackers.",
-      description: "The terminal client for DeepSeek Harness: one Host daemon, many windows, Neovim and a real shell beside the conversation. macOS and Linux, one command.",
+      title: "Hulala — Your local personal agent, on DeepSeek Harness.",
+      description: "Your local personal agent on DeepSeek Harness: one Host daemon, many windows, Neovim and a real shell beside the conversation, the same agent in Telegram and Feishu, and `hulala ssh <host>` to a Host on another machine, pasted images included. macOS and Linux, one command.",
     },
     download: {
       title: "Install Hulala — Downloads",
@@ -17,8 +17,8 @@ const metadataCopy = {
   },
   "zh-CN": {
     home: {
-      title: "Hulala 呼啦啦｜面向 hacker 的 DeepSeek Harness",
-      description: "DeepSeek Harness 的终端客户端：一个 Host 守护进程、多个窗口，对话旁边是 Neovim 和真实 shell。macOS 与 Linux，一行命令安装。",
+      title: "Hulala 呼啦啦｜跑在你本地的 DeepSeek Harness 个人 Agent",
+      description: "跑在你本地的 DeepSeek Harness 个人 Agent：一个 Host 守护进程、多个窗口，对话旁边是 Neovim 和真实 shell；同一个 agent 也在 Telegram 和飞书里回你，`hulala ssh <host>` 还能把窗口开到另一台机器的 Host 上，粘贴的图片直接过去。macOS 与 Linux，一行命令安装。",
     },
     download: {
       title: "安装 Hulala｜下载与安装说明",

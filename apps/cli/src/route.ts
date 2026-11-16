@@ -2,8 +2,9 @@
  * Command routing for the `hulala` entry point.
  *
  * The bare command opens the terminal client. `hulala host` owns the shared
- * daemon; `hulala plugin` and `hulala creator` own the client's extension
- * surface; lifecycle commands own the installed program.
+ * daemon; `hulala remote` (and its `hulala ssh` synonym) opens the client on a
+ * Host that runs on another machine; `hulala plugin` and `hulala creator` own the
+ * client's extension surface; lifecycle commands own the installed program.
  *
  * @module hulala-cli/route
  */
@@ -12,6 +13,7 @@
 export type Route =
   | { kind: 'tui'; args: string[] }
   | { kind: 'host'; args: string[] }
+  | { kind: 'remote'; command: 'remote' | 'ssh'; args: string[] }
   | { kind: 'plugin'; args: string[] }
   | { kind: 'creator'; args: string[] }
   | { kind: 'distribution'; command: string; args: string[] }
@@ -39,6 +41,9 @@ export function routeCommand(args: readonly string[]): Route {
     return { kind: 'distribution', command, args: rest }
   }
   if (command === 'host') return { kind: 'host', args: rest }
+  // Two spellings of one command: the window's own `/remote`, and the `ssh` the
+  // user was already typing before Hulala existed.
+  if (command === 'remote' || command === 'ssh') return { kind: 'remote', command, args: rest }
   if (command === 'creator') return { kind: 'creator', args: rest }
   if (command === 'tui') return { kind: 'tui', args: rest }
   return { kind: 'tui', args: [...args] }

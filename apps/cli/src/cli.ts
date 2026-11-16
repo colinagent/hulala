@@ -5,6 +5,8 @@ import { attachHost, inspectHost, stopHost } from './hostAttach.js'
 import { routeCommand } from './route.js'
 import { createHostBackend } from './tui/data/remote.js'
 import { attachRemote } from './hostAttach.js'
+import { connectRemote, type RemoteCommandWord } from './remote/command.js'
+import { listRemoteHosts } from './remote/ssh.js'
 import { runTerminalClient } from './tui/app.js'
 import { createTerminalKernel } from './tui/kernel.js'
 import { readCreatorMode, writeCreatorMode, creatorModePath } from '@hulala/runtime/creator'
@@ -15,6 +17,8 @@ import { publishImeHelper } from './tui/editor/imeHelper.js'
 function usage(): string {
   return [
     'Usage: hulala [--resume <id>]      attach to the Host and open the terminal client',
+    '       hulala remote <ssh-host>            open it on another machine\'s Host',
+    '       hulala ssh <ssh-host>               the same command, spelled with ssh',
     '       hulala host start|stop|status',
     '       hulala plugin --profile <name> add|remove|list <package>',
     '       hulala creator on|off|status',
@@ -167,6 +171,49 @@ async function runTerminal(args: string[]): Promise<number> {
   }
 }
 
+/**
+ * The help line for a `remote`/`ssh` invocation that named no machine.
+ *
+ * The list is the user's own ssh config, because those are the names this command
+ * accepts: typing one of them is the whole argument.
+ * @param command - the word the user typed.
+ * @returns the usage block to print.
+ */
+function remoteUsage(command: RemoteCommandWord): string {
+  const hosts = listRemoteHosts()
+  return [
+    `Usage: hulala ${command} <ssh-host>`,
+    '',
+    'A window on another machine, the same one `/remote` opens from inside a',
+    'running client: the Host there is started when it is stopped, installed when',
+    'it is missing, and always reached through your own ssh.',
+    '',
+    hosts.length === 0
+      ? 'No hosts in ~/.ssh/config yet; add one there, then name it here.'
+      : ['Machines in ~/.ssh/config:', ...hosts.map(host => `  ${host}`)].join('\n'),
+  ].join('\n')
+}
+
+/**
+ * `hulala remote <machine>` / `hulala ssh <machine>` — the client opens on that
+ * machine's Host instead of this one's.
+ *
+ * `/remote` remains the in-window way to make the same choice; this entry exists
+ * for the case where the user already knows the machine before any window opens.
+ * @param command - the word the user typed.
+ * @param args - arguments after that word.
+ * @returns process exit code.
+ */
+async function runRemoteCommand(command: RemoteCommandWord, args: string[]): Promise<number> {
+  const [alias, ...rest] = args
+  if (alias === undefined) {
+    console.error(remoteUsage(command))
+    return 1
+  }
+  if (rest.length > 0) throw new Error(`one machine at a time, not ${args.join(' ')}\n\n${usage()}`)
+  return await connectRemote(alias, { runClient: destination => runTerminal(['--remote', destination]) })
+}
+
 export async function runCli(args = process.argv.slice(2)): Promise<number> {
   const route = routeCommand(args)
   if (route.kind === 'version') { console.log(VERSION); return 0 }
@@ -175,5 +222,6 @@ export async function runCli(args = process.argv.slice(2)): Promise<number> {
   if (route.kind === 'host') return await runHostCommand(route.args)
   if (route.kind === 'plugin') return await runHostPluginCommand(route.args)
   if (route.kind === 'creator') return runCreatorCommand(route.args)
+  if (route.kind === 'remote') return await runRemoteCommand(route.command, route.args)
   return await runTerminal(route.args)
 }

@@ -295,7 +295,7 @@ export const en: MessageTable = {
   'notice.connectionUnavailable': ({ reason }) => `event connection unavailable: ${reason}`,
   'choice.footer': 'Enter confirms · Esc cancels',
   'remote.stopFailed': ({ alias }) => `${alias}: the old Host did not stop; try again`,
-  'remote.restartUnavailable': 'this build cannot switch machines; run `hulala --remote <ssh>` from an installation',
+  'remote.restartUnavailable': 'this build cannot switch machines; run `hulala remote <ssh-host>` from an installation',
   'remote.title': 'Select a machine',
   'remote.hint': 'Enter attaches · Esc cancels',
   'remote.empty': 'No ssh hosts in ~/.ssh/config yet; add one to attach to another machine.',

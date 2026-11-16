@@ -7,9 +7,20 @@ per state root; closing the terminal only detaches, and running turns continue.
 ```sh
 hulala                              # attach to the Host and open the terminal client
 hulala --resume <session-id>        # continue a saved Session
+hulala remote <ssh-host>            # open the client on another machine's Host
+hulala ssh <ssh-host>               # the same command, spelled like the ssh you use
+hulala remote                       # list the machines in ~/.ssh/config
 hulala host start|stop|status       # manage the shared Host daemon
 hulala install|update|rollback|uninstall|doctor [options]
 ```
+
+`remote` and `ssh` are one command: the destination is an alias from your own
+`~/.ssh/config`. The Host there is started when it is stopped, installed or
+upgraded through the same website script `/remote` uses when it is missing or
+behind, and reported instead of changed when it is unreachable or newer than
+this client. Nothing is copied and no second Host is created here — the window
+is the same client attached through one loopback forward. Inside a running
+window `/remote` makes the same choice, and `/remote local` comes back.
 
 The terminal client performs the DSH `/connect?token=...` exchange for a signed
 Cookie, then uses the native `/api` Remote calls and `/api/remote.mux` event

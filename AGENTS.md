@@ -45,9 +45,10 @@
   start:attach` only attaches.
 - The terminal client is bundled into the CLI; it must not spawn a private
   second Runtime or a DSH profile.
-- A window may attach to a Host on another machine (`/remote`, `hulala --remote
-  <ssh>`). The transport is the user's own system `ssh`: the remote Host still
-  binds loopback only, the client reaches it through one loopback forward, and
+- A window may attach to a Host on another machine (`/remote`, `hulala remote
+  <ssh>`, and its `hulala ssh <ssh>` synonym). The transport is the user's own
+  system `ssh`: the remote Host still binds loopback only, the client reaches it
+  through one loopback forward, and
   the launch token is read over that ssh session into memory rather than stored
   in `config/`. The remote path must never call `ensureHostDaemon`: one state
   root, one Host, and which machine owns it is the user's explicit choice. Editor,

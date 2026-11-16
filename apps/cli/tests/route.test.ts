@@ -14,6 +14,14 @@ test('host commands manage the shared daemon', () => {
   assert.deepEqual(routeCommand(['host', 'stop']), { kind: 'host', args: ['stop'] })
 })
 
+test('remote and ssh name one machine to attach to', () => {
+  assert.deepEqual(routeCommand(['remote', 'dev']), { kind: 'remote', command: 'remote', args: ['dev'] })
+  assert.deepEqual(routeCommand(['ssh', 'dev']), { kind: 'remote', command: 'ssh', args: ['dev'] })
+  // No machine named is still this route: it lists ~/.ssh/config instead of
+  // opening a local window, which is what the words mean.
+  assert.deepEqual(routeCommand(['ssh']), { kind: 'remote', command: 'ssh', args: [] })
+})
+
 test('lifecycle commands are unchanged', () => {
   assert.deepEqual(routeCommand(['install']), { kind: 'distribution', command: 'install', args: [] })
   assert.deepEqual(routeCommand(['update', '--check']), {

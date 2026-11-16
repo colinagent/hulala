@@ -1,7 +1,7 @@
 {
   "name": "hulala",
-  "version": "0.3.17",
-  "description": "Launch the local-first Hulala Agent workbench with one npx command.",
+  "version": "0.3.18",
+  "description": "Launch your local personal agent, built on DeepSeek Harness, with one npx command.",
   "type": "module",
   "bin": {
     "hulala": "./dist/cli.js"

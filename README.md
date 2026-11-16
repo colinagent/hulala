@@ -1,8 +1,8 @@
 <div align="center">
   <img src="assets/brand/hulala-logo-v2.svg" alt="Hulala" width="128" />
   <h1>Hulala</h1>
-  <p>DeepSeek Harness for hackers.</p>
-  <p>One TUI: Neovim, a real shell, a daemon you never have to babysit.</p>
+  <p>Your local personal agent, on DeepSeek Harness.</p>
+  <p>One TUI on your machine: the agent, Neovim, a real shell, and a daemon you never babysit.</p>
   <p><a href="README.zh-CN.md">简体中文</a> · <a href="https://hulala.ai/">Website</a></p>
 </div>
 
@@ -43,6 +43,16 @@ a file opens it beside the tree in the same column.
   model selection, cancellation, `/connect`, `/api` and `/api/remote.mux`.
 - **Plugins are DSH plugins** — a bundle installed into the Host profile with
   `hulala plugin --profile tui add <package>`, exactly like `dsh plugin`.
+- **Answers in Telegram and Feishu** — `hulala install bot` adds the first-party
+  bot (`@colinagent/hulala-bot`) to the Host profile, so the same agent on the
+  same state root answers you from a chat window;
+  `hulala plugin --profile tui exec hulala-bot --init` writes its config.
+- **A window on another machine** — `hulala ssh <ssh-host>` opens the client
+  straight on that machine's Host, spelled like the ssh you already type
+  (`hulala remote` is the same command): the aliases come from your own
+  `~/.ssh/config`, Hulala is installed or updated there first when it is missing
+  or behind, and a `Ctrl-V` image travels inside the prompt frame, so the remote
+  Host gets the screenshot without an upload.
 - **Creator mode** — the agent gains a read-only view of the Host's own Cordis
   surface and the tools to inspect it, so it can explain and extend the running
   composition.

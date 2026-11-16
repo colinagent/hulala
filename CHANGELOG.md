@@ -13,6 +13,19 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.18] - 2026-11-16
+
+### Added
+
+- `hulala remote <ssh-host>` — and its `hulala ssh <ssh-host>` synonym — opens
+  the client directly on a Host that runs on another machine, so reaching the dev
+  box no longer means opening a local window and switching it with `/remote`
+  first. It runs the same probe `/remote` runs: a stopped Host is started, a
+  missing or older one is installed through the same website script, and an
+  unreachable or newer one is reported instead of changed. `hulala remote` with
+  no machine lists the aliases in your own `~/.ssh/config`; the in-window
+  `/remote` picker is unchanged.
+
 ## [0.3.17] - 2026-11-15
 
 ### Fixed

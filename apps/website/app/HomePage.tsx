@@ -8,7 +8,7 @@ export type SiteLocale = "en" | "zh-CN";
 
 const translations = {
   en: {
-    footerSlogan: "Hulala. DeepSeek Harness for hackers.",
+    footerSlogan: "Hulala. Your local personal agent, on DeepSeek Harness.",
     screens: {
       label: "THE CLIENT, UNRETOUCHED",
       conversation: "Session rail, conversation, tool rows and the composer.",
@@ -20,9 +20,9 @@ const translations = {
     hero: {
       kicker: "The Hulala terminal client",
       titleLead: "Hulala",
-      titleAccent: "DeepSeek Harness for hackers.",
-      subtitle: "One TUI: Neovim, a real shell, a daemon you never babysit.",
-      lede: "Hulala runs DeepSeek Harness in your terminal. One Host daemon owns the state root, every window attaches to it, and closing a window detaches instead of stopping the turn.",
+      titleAccent: "Your local personal agent, on DeepSeek Harness.",
+      subtitle: "One TUI on your machine: the agent, Neovim, a real shell, and a daemon you never babysit.",
+      lede: "Hulala runs DeepSeek Harness in your terminal. One Host daemon owns the state root, every window attaches to it, and closing a window detaches instead of stopping the turn. The same agent answers in Telegram and Feishu, and `hulala ssh <host>` opens a window straight on another machine's Host through your own ssh — a pasted screenshot arrives there without an upload.",
       primary: "Install on macOS & Linux",
       secondary: "See what is inside",
       availability: "macOS & Linux · Node.js included · no tmux",
@@ -87,7 +87,7 @@ const translations = {
     },
   },
   zh: {
-    footerSlogan: "呼啦啦，面向 hacker 的 DeepSeek Harness",
+    footerSlogan: "呼啦啦，跑在你本地的 DeepSeek Harness 个人 Agent",
     screens: {
       label: "客户端原样截图",
       conversation: "会话栏、对话、工具行和 composer。",
@@ -99,9 +99,9 @@ const translations = {
     hero: {
       kicker: "Hulala 终端客户端",
       titleLead: "Hulala",
-      titleAccent: "面向 hacker 的 DeepSeek Harness",
-      subtitle: "一个 TUI：内置 Neovim、真实 shell，还有一个你永远不用看着的守护进程。",
-      lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host 守护进程拥有状态根目录，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。",
+      titleAccent: "跑在你本地的 DeepSeek Harness 个人 Agent",
+      subtitle: "一个跑在你自己机器上的 TUI：Agent、Neovim、真实 shell，还有一个你永远不用看着的守护进程。",
+      lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host 守护进程拥有状态根目录，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。同一个 agent 也能在 Telegram 和飞书里回你；`hulala ssh <host>` 用你自己的 ssh 直接把窗口开到另一台机器的 Host 上，粘贴的截图也跟着过去，不需要上传。",
       primary: "在 macOS 与 Linux 上安装",
       secondary: "看看里面有什么",
       availability: "macOS 与 Linux · 自带 Node.js · 不需要 tmux",
