@@ -48,11 +48,10 @@ a file opens it beside the tree in the same column.
   same state root answers you from a chat window;
   `hulala plugin --profile tui exec hulala-bot --init` writes its config.
 - **A window on another machine** — `hulala ssh <ssh-host>` opens the client
-  straight on that machine's Host, spelled like the ssh you already type
-  (`hulala remote` is the same command): the aliases come from your own
-  `~/.ssh/config`, Hulala is installed or updated there first when it is missing
-  or behind, and a `Ctrl-V` image travels inside the prompt frame, so the remote
-  Host gets the screenshot without an upload.
+  straight on that machine's Host, spelled like the ssh you already type: the
+  aliases come from your own `~/.ssh/config`, Hulala is installed or updated
+  there first when it is missing or behind, and a `Ctrl-V` image travels inside
+  the prompt frame, so the remote Host gets the screenshot without an upload.
 - **Creator mode** — the agent gains a read-only view of the Host's own Cordis
   surface and the tools to inspect it, so it can explain and extend the running
   composition.

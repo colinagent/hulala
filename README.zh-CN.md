@@ -42,9 +42,9 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
   （`@colinagent/hulala-bot`）装进 Host 的 profile，同一个 agent、同一个状态根目录也能
   从聊天窗口里回你；配置用 `hulala plugin --profile tui exec hulala-bot --init` 写入。
 - **窗口可以直接开在另一台机器上** —— `hulala ssh <ssh-host>` 直接把客户端开到那台
-  机器的 Host 上，写法就是你平时用的 ssh（`hulala remote` 是同一条命令）：alias 来自
-  你自己的 `~/.ssh/config`，那台机器没装或版本落后时会先装好或更新 Hulala；`Ctrl-V`
-  粘的图片放在 prompt 帧里一起走，远端 Host 直接拿到截图，不需要上传。
+  机器的 Host 上，写法就是你平时用的 ssh：alias 来自你自己的 `~/.ssh/config`，那台
+  机器没装或版本落后时会先装好或更新 Hulala；`Ctrl-V` 粘的图片放在 prompt 帧里一起走，
+  远端 Host 直接拿到截图，不需要上传。
 - **Creator mode** —— agent 拿到 Host 自己 Cordis 面的只读视图和检查它的工具，能对着
   活着的组合回答问题、扩展它。
 
