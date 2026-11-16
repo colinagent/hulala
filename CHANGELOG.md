@@ -13,7 +13,18 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-11-16
+
 ### Added
+
+- Scheduled tasks live in the Host. DSH's schedule service is now part of the
+  Host composition, so a task keeps the Host's state root instead of a cron
+  entry and survives client restarts. `/tasks` lists every Host task with its
+  frequency, next run, and last delivery, and `/create-auto-task` fills the
+  composer with the same requirements prompt DSH Web uses; Telegram runs the
+  same pair against the same service, with the requirements inline. The agent
+  still owns creation: it reads the clock and the client zone, then calls
+  `schedule_create`, so neither client parses natural language.
 
 - A tool approval can grant the whole thread Full access. The approval dialog
   now offers `f` next to allow-once and reject: it answers the pending request

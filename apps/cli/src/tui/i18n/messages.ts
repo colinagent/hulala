@@ -55,6 +55,7 @@ export interface MessageTable {
   'slash.chat': string
   'slash.commands': string
   'slash.keys': string
+  'slash.createAutoTask': string
   'list.moveHint': string
 
   'palette.group.host': string
@@ -389,6 +390,8 @@ export interface MessageTable {
   'reasoning.tail': string
   'reasoning.full': string
   'reasoning.hidden': string
+
+  'composer.autoTaskSeed': string
 }
 
 /** Every key a caller may pass to `t()`. */

@@ -305,6 +305,20 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       case 'new':
         await session.startNew()
         return
+      case 'create-auto-task': {
+        // A scheduled task starts as an ordinary conversation turn: the seed
+        // sentence names the intent, the user appends requirements, and the
+        // agent calls schedule_create. The command never sends anything itself.
+        const seed = t('composer.autoTaskSeed')
+        const draft = editor.getText().trim()
+        const lines = draft === '' ? [] : [draft]
+        if (!draft.includes(seed)) lines.push(seed)
+        if (argument !== '') lines.push(argument)
+        editor.setText(lines.join('\n'))
+        focusOn(editor)
+        render.repaint()
+        return
+      }
       case 'model':
         await session.chooseModel(argument)
         return

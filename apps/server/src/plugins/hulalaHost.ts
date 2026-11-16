@@ -20,6 +20,7 @@ import { ensureHulalaPaths, type ServerConfig } from '../config.ts'
 import { apiEditorPlugin } from './apiEditor.ts'
 import { apiFilesPlugin } from './apiFiles.ts'
 import { apiGitPlugin } from './apiGit.ts'
+import { commandTasksPlugin } from './commandTasks.ts'
 
 /** Host transport facts exposed to sibling plugins and the Host bootstrap. */
 export interface HulalaHostService {
@@ -108,6 +109,10 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
   )
 
   await ctx.plugin({ apply: apiRemotes, inject: ['typertGateway'] })
+  // `/tasks` reads the Host schedule service directly: listing is a human
+  // command, not a model turn, and the client only renders the text. Not
+  // awaited: a composition without the `schedule` row simply has no command.
+  ctx.plugin(commandTasksPlugin)
   await ctx.plugin(apiFilesPlugin)
   // The editor column runs Neovim here, not in the client: one authenticated
   // socket per editor carries Neovim's own msgpack channel.

@@ -53,6 +53,7 @@ export const en: MessageTable = {
   'slash.chat': 'show or hide the conversation',
   'slash.commands': 'open the command palette from anywhere',
   'slash.keys': 'show the key bindings, then reload the file',
+  'slash.createAutoTask': 'create a scheduled task (fills the requirements draft)',
   'list.moveHint': '↑↓/Ctrl-N/P move',
 
   'palette.group.host': 'Host',
@@ -384,4 +385,6 @@ export const en: MessageTable = {
   'reasoning.tail': 'tail',
   'reasoning.full': 'full',
   'reasoning.hidden': 'hidden',
+
+  'composer.autoTaskSeed': 'Please create an automation task based on the requirements.',
 }

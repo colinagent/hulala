@@ -190,7 +190,6 @@ test('replaces stale Host rows in an existing profile', async () => {
     patches.push({ insert: [
       { id: 'hulala-network', name: '/stale/network-proxy/lib/index.js' },
       { id: 'agent-loop-selector', name: '/stale/agent-loop-selector/lib/index.js' },
-      { id: 'schedule', name: '@deepseek-ai/dsh-schedule' },
     ] })
     await writeFile(profile, JSON.stringify(patches, null, 2), 'utf8')
 
@@ -202,7 +201,7 @@ test('replaces stale Host rows in an existing profile', async () => {
     try {
       expect(second.ctx.get('networkProxy' as never)).toBeUndefined()
       expect(second.ctx.get('agentLoopSelector' as never)).toBeUndefined()
-      expect(second.ctx.get('schedule' as never)).toBeUndefined()
+      expect(second.ctx.get('schedule' as never)).toBeDefined()
     } finally {
       await second.stop()
     }
@@ -210,7 +209,7 @@ test('replaces stale Host rows in an existing profile', async () => {
     expect(text).not.toContain('/stale/')
     expect(text).not.toContain('hulala-network')
     expect(text).not.toContain('agent-loop-selector')
-    expect(text).not.toContain('"id": "schedule"')
+    expect(text).toContain('"id": "schedule"')
     expect(text).toContain('@deepseek-ai/dsh-agent-loop')
   } finally {
     await rm(root, { recursive: true, force: true })

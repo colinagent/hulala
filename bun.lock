@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.3.6",
+      "version": "0.3.18",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -68,8 +68,10 @@
         "@deepseek-ai/cordis": "4.1.0",
         "@deepseek-ai/dsh-api-remotes": "0.2.2-rc.1",
         "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-commands": "0.2.2-rc.1",
         "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
         "@deepseek-ai/dsh-host-webserver": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-schedule": "0.2.2-rc.1",
         "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
         "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.1",
         "@deepseek-ai/dsh-typert-registry": "0.2.2-rc.1",
@@ -122,7 +124,7 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.3.6",
+      "version": "0.3.18",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
@@ -133,7 +135,7 @@
     },
     "packages/editor-home": {
       "name": "@hulala/editor-home",
-      "version": "0.3.6",
+      "version": "0.3.16",
       "dependencies": {
         "@earendil-works/pi-tui": "1.4.0",
       },
@@ -155,7 +157,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.3.6",
+      "version": "0.3.18",
       "bin": {
         "hulala-runtime": "./lib/cli.js",
       },
@@ -188,6 +190,7 @@
         "@deepseek-ai/dsh-launch-environment": "0.2.2-rc.1",
         "@deepseek-ai/dsh-output-retention": "0.2.2-rc.1",
         "@deepseek-ai/dsh-sandbox": "0.2.2-rc.1",
+        "@deepseek-ai/dsh-schedule": "0.2.2-rc.1",
         "@deepseek-ai/dsh-session-telemetry": "0.2.2-rc.1",
         "@deepseek-ai/dsh-session-title-llm": "0.2.2-rc.1",
         "@deepseek-ai/dsh-shell": "0.2.2-rc.1",

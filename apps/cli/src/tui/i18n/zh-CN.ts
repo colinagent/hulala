@@ -54,6 +54,7 @@ export const zhCN: MessageTable = {
   'slash.chat': '开/关对话栏',
   'slash.commands': '从任何位置打开命令面板',
   'slash.keys': '查看键位表，并重新读取配置文件',
+  'slash.createAutoTask': '创建一个定时任务（把需求模板写进对话框）',
   'list.moveHint': '↑↓/Ctrl-N/P 移动',
 
   'palette.group.host': 'Host',
@@ -385,4 +386,6 @@ export const zhCN: MessageTable = {
   'reasoning.tail': '尾部',
   'reasoning.full': '完整',
   'reasoning.hidden': '隐藏',
+
+  'composer.autoTaskSeed': '请根据需求创建一个自动化任务。',
 }

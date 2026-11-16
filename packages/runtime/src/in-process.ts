@@ -80,6 +80,10 @@ function hostRows(webPort = 0, creator = false): PatchOptions[] {
       { id: 'connection', name: '@deepseek-ai/dsh-client-connection' },
       { id: 'file-uploads', name: '@deepseek-ai/dsh-client-file-upload' },
       { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
+      // Host-owned scheduled tasks: storage, delivery, and the `/tasks` command
+      // the terminal renders. The agent's four schedule tools already sit in the
+      // standard preset, so the service is the only missing half.
+      { id: 'schedule', name: '@deepseek-ai/dsh-schedule' },
       // The terminal's panes run on the Host, not in the client: terminal
       // processes and workspace file reads are Session-owned Host services, so
       // the client stays a renderer over one SSH or loopback attachment.

@@ -85,6 +85,7 @@ export const COMMANDS: readonly CatalogCommand[] = [
   { name: 'restart', descriptionKey: 'slash.restart', group: 'app' },
   { name: 'remote', descriptionKey: 'slash.remote', argumentHint: '[ssh-host|local]', group: 'app' },
   { name: 'language', descriptionKey: 'slash.language', argumentHint: '[en|zh-CN]', group: 'app' },
+  { name: 'create-auto-task', descriptionKey: 'slash.createAutoTask', argumentHint: '[requirements]', group: 'app' },
   { name: 'quit', descriptionKey: 'slash.quit', action: 'app.quit', group: 'app' },
 ]
 
