@@ -18,9 +18,9 @@ const COLUMNS = 100
 const ROWS = 30
 const ANSWER = 'I reinstalled the dependencies and the build passes now.'
 
-/** A Host that has already said these things, like a resumed Session. */
-function stubBackend(): TerminalBackend {
-  const events = [
+/** The one exchange the selection tests work with, like a resumed Session. */
+function resumedExchange(): never[] {
+  return [
     {
       type: 'user/message',
       seq: 1,
@@ -46,6 +46,34 @@ function stubBackend(): TerminalBackend {
       data: { message: { content: [{ type: 'text', text: ANSWER }] } },
     },
   ] as never[]
+}
+
+/**
+ * Numbered question/answer pairs, for a conversation taller than the viewport.
+ *
+ * Every line says which turn it belongs to, so a rendered frame says which part
+ * of the transcript is on screen.
+ */
+function numberedTurns(turns: number): never[] {
+  return Array.from({ length: turns }, (_, turn) => [
+    {
+      type: 'user/message',
+      seq: turn * 2 + 1,
+      time: Date.now(),
+      data: { source: { kind: 'user' }, content: [{ type: 'text', text: `question ${String(turn)}` }] },
+    },
+    {
+      type: 'assistant/message',
+      seq: turn * 2 + 2,
+      time: Date.now(),
+      data: { message: { content: [{ type: 'text', text: `answer ${String(turn)}` }] } },
+    },
+  ]).flat() as never[]
+}
+
+/** A Host that has already said these things, like a resumed Session. */
+function stubBackend(historyTurns?: number): TerminalBackend {
+  const events = historyTurns === undefined ? resumedExchange() : numberedTurns(historyTurns)
   return {
     host: { url: 'http://127.0.0.1:9', home: '/home/test' },
     async ready() {},
@@ -221,5 +249,39 @@ test('over SSH the selection reaches the terminal clipboard as OSC 52', async ()
     await run
     if (previous === undefined) delete process.env.SSH_CONNECTION
     else process.env.SSH_CONNECTION = previous
+  }
+})
+
+test('the wheel scrolls the conversation, not the composer history', async () => {
+  // A trackpad scroll arrives as SGR wheel reports, and every one of them has to
+  // move the transcript. The failure this pins is the opposite: a client that
+  // leaves mouse reporting off hands the alternate screen back to the terminal,
+  // which then turns scrolling into Up/Down keys — so the wheel walks the
+  // composer's prompt history instead of the conversation.
+  const input = Object.assign(new PassThrough(), {
+    isTTY: true,
+    setRawMode: (_mode: boolean): void => undefined,
+    setEncoding: (): void => undefined,
+  })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: COLUMNS, rows: ROWS })
+  const screen = new GhosttyVt(COLUMNS, ROWS)
+  output.on('data', (chunk: Buffer | string) => { screen.write(new TextEncoder().encode(String(chunk))) })
+  const run = runTerminalClient({ backend: stubBackend(30), cwd: '/workspace', input, output, resume: 'session-1234' })
+  const plainRows = (): string[] => screen.renderRows(COLUMNS, ROWS, undefined, undefined).map(plain)
+  try {
+    await waitFor(() => plainRows().some(line => line.includes('question 29')), 'the newest turn')
+    // Twenty notches up, over the conversation column and well above the dock.
+    for (let notch = 0; notch < 20; notch += 1) input.write(pointer(64, COLUMNS - 5, 5, 'M'))
+    await waitFor(() => !plainRows().some(line => line.includes('question 29')), 'the transcript to scroll up')
+    // A scrolled frame is the earlier part of the same conversation.
+    const scrolled = plainRows().join('\n')
+    expect(scrolled).toMatch(/question \d+/u)
+    // And the composer still holds an empty draft: none of those notches walked
+    // the prompt history and put an old prompt back in the box.
+    const emptyDraft = plainRows().some(line => /❯\s*$/u.test(line))
+    expect(emptyDraft).toBe(true)
+  } finally {
+    input.write('/quit\r')
+    await run
   }
 })

@@ -78,6 +78,9 @@ const MENU_KEYS_MAX_WIDTH = 16
 /** Fallback for the dim cursor when colour output is disabled. */
 const HOLLOW_CURSOR = '□'
 
+/** Prompts the editor keeps for `Up`/`Down`; the base editor's own limit. */
+const HISTORY_LIMIT = 100
+
 /**
  * pi-tui's fake-cursor APC markers (the pair `renderFakeCursor` wraps a cell
  * with). The base `Editor` always draws a filled cursor, and the renderer only
@@ -126,6 +129,15 @@ export class PromptEditor extends Editor {
   private readonly onMenuOpen: ((open: boolean) => void) | undefined
   private readonly styles: ReturnType<typeof buildStyles>
   /**
+   * The prompts this composer has already placed in its Up/Down history.
+   *
+   * A Session's journal is replayed when it opens, and again when the reader
+   * switches back to it, so the same prompt can arrive more than once. pi seeds
+   * its editor history from the loaded transcript for the same reason; the only
+   * difference here is that a second replay must not stack duplicates.
+   */
+  private readonly remembered = new Set<string>()
+  /**
    * Receive every submitted draft with the gesture that named its delivery
    * mode.
    *
@@ -168,6 +180,29 @@ export class PromptEditor extends Editor {
    */
   get completionMenuOpen(): boolean {
     return this.menu !== null && this.menu.length > 0
+  }
+
+  /**
+   * Put one prompt in the Up/Down history, once.
+   *
+   * Both voices land here: the draft this process submitted, and the prompts
+   * the Host replays with a Session. The second is what makes `Up` reach the
+   * turn sent before this window existed — a resumed Session, another client's
+   * prompt — which is what pi's own editor does. A blank draft is not history.
+   * @param text - the prompt, as it was submitted or as the journal carries it.
+   */
+  addToHistory(text: string): void {
+    const trimmed = text.trim()
+    if (trimmed === '' || this.remembered.has(trimmed)) return
+    this.remembered.add(trimmed)
+    // The base editor keeps the newest 100; forget older texts alongside it so
+    // a journal that replays an ancient prompt cannot grow this set forever.
+    while (this.remembered.size > HISTORY_LIMIT) {
+      const oldest = this.remembered.values().next().value
+      if (oldest === undefined) break
+      this.remembered.delete(oldest)
+    }
+    super.addToHistory(trimmed)
   }
 
   /**

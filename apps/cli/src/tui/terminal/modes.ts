@@ -6,7 +6,8 @@
  * client uses button-motion mouse reports (its own UI) but consumes neither bare
  * motion (`?1003`) nor focus reports (`?1004`). Every unused mode is another
  * sequence that can be cut by a read and typed as text, so the adapter filters
- * the enable sequences out of everything written and clears them once at start.
+ * the enable sequences out of everything written and writes their disables
+ * before the renderer asks for the ones it keeps.
  *
  * Enable, disable and restore live here so a mode cannot be switched on in one
  * place and forgotten in another. `RESTORE_TERMINAL` is the single sequence the
@@ -42,17 +43,31 @@ const USED_MODES = [
  * reporting (`?1004`) fires on every window focus change (a screenshot, a click
  * elsewhere) and nothing in the frame needs it. pi-tui enables both on a terminal
  * it does not recognise as a multiplexer, so the adapter strips the enables and
- * writes the disables itself.
+ * writes the disables itself — see {@link MOTION_OFF} for why the order of those
+ * two writes is part of the contract.
  */
 const UNUSED_MODES = [
   { name: 'all-motion', enable: '\u001b[?1003h', disable: '\u001b[?1003l' },
   { name: 'focus', enable: '\u001b[?1004h', disable: '\u001b[?1004l' },
 ] as const
 
-/** Turn bare-motion reporting off; also clears a previous program's state. */
+/**
+ * Turn bare-motion reporting off; also clears a previous program's state.
+ *
+ * Written before the renderer's own mouse enable, never after. A terminal that
+ * keeps mouse reporting in one flag (Ghostty) turns the whole group off on any
+ * one mode's reset: `?1003l` after `?1002h` leaves no mouse at all, and a
+ * trackpad's scroll becomes Up/Down keys. The enable is what has the last word.
+ */
 export const MOTION_OFF = UNUSED_MODES[0].disable
 
-/** Turn focus reporting off; also clears a previous program's state. */
+/**
+ * Turn focus reporting off; also clears a previous program's state.
+ *
+ * Unlike the mouse modes this one is its own flag, so it may follow the
+ * renderer's enable; it is still written with {@link MOTION_OFF} so one place
+ * owns the order.
+ */
 export const FOCUS_OFF = UNUSED_MODES[1].disable
 
 /** The mouse modes the client keeps on, for the frame and for tests. */

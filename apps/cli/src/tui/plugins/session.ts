@@ -36,6 +36,7 @@ import { FULL_ACCESS_PRESET, permissionLabel } from '../view/permission.js'
 import { ThinkingSelector, type ThinkingPickerResult } from '../view/selector/thinking.js'
 import { ResumeOverlay, type ResumeResult } from '../view/overlays/resume.js'
 import { PermissionConfirmOverlay } from '../view/overlays/permissionConfirm.js'
+import { textOf } from '../data/viewModel.js'
 import {
   defaultThinkingLevelOf,
   thinkingLevelOf,
@@ -266,6 +267,12 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
           sessions = sessions.map(session => session.sessionId === id && session.blank
             ? { ...session, blank: false }
             : session)
+          // The journal is also where `Up` gets its history: a prompt sent
+          // before this window existed — a resumed Session, another client — is
+          // a prompt the reader can recall, the same way pi seeds its editor
+          // from the loaded transcript. The composer dedupes, so the echo of a
+          // prompt this window just submitted adds nothing.
+          composer.editor.addToHistory(textOf((event.data as { content?: unknown }).content))
         }
       }
       reducer.applyEvent(event)

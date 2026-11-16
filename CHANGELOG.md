@@ -13,6 +13,23 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- Scrolling a conversation with a trackpad did nothing, and each swipe instead
+  recalled an earlier prompt into the composer. The client cleared all-motion
+  tracking (`?1003l`) *after* the renderer had enabled button tracking, and a
+  terminal that keeps mouse reporting in one flag — Ghostty, for one — turns the
+  whole group off on any one mode's reset. With no mouse reporting the alternate
+  screen converts scrolling into Up/Down keys, which is exactly the composer's
+  history. The disable is now written before the renderer's enable, so button
+  tracking, the wheel and click-to-expand stay on.
+- `Up`/`Down` in the composer only knew the prompts the running window had
+  submitted, so after a restart or when attaching to a Session the history was
+  empty — pi seeds its editor from the loaded transcript instead. The prompts a
+  Session's journal replays (a resumed conversation, a prompt another window
+  sent) are now remembered once, and `Up` reaches the turn sent before this
+  window existed.
+
 ## [0.3.18] - 2026-11-16
 
 ### Added

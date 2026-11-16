@@ -481,18 +481,26 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   rebuildLayout()
   focusOn(editor)
 
-  ui.start()
   // All-motion tracking makes every pointer movement a report; this client only
   // uses bare motion for a divider's pointer shape. Button motion keeps clicks,
   // drags, selection and the wheel — and a trackpad stops flooding the input.
   // The adapter also filters the enable sequence, so this clears any state a
-  // previous program left behind rather than undoing the renderer's request.
+  // previous program left behind.
+  //
+  // It has to be written *before* `ui.start()`, never after: resetting any one
+  // of the mouse-reporting modes turns the whole group off on a terminal that
+  // keeps them in one flag (Ghostty: `?1003l` sets `mouse_event = .none`, it
+  // does not stop at "any-motion"). Written after the renderer's enable it
+  // would switch the just-enabled button tracking off again, and a trackpad
+  // would then scroll the alternate screen as Up/Down keys — which is history
+  // recall in the composer, not a moving transcript.
   terminal.write(MOTION_OFF)
   // Focus reports (`ESC [ I`, `ESC [ O`) fire whenever the window's focus
   // changes — a screenshot, a click elsewhere — and each one is another sequence
   // that can be split and typed. pi-tui uses `ESC[O` to drop a drag in progress,
   // but with bare motion off that is a smaller loss than the garbage is.
   terminal.write(FOCUS_OFF)
+  ui.start()
   // The language picker (when the language is unset) is a first-frame surface:
   // emitting after `start()` keeps attach and Session boot off its path.
   setImmediate(() => { if (!lifecycle.closing) ctx.emit('hulala/first-frame') })

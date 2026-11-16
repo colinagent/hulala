@@ -2557,10 +2557,17 @@ test('the frame asks for button motion only, so a trackpad does not flood input'
   // never on in the first place.
   const tty = startTty(fakeBackend())
   await waitFor(() => tty.painted().includes('❯'), 'composer')
-  expect(tty.painted()).not.toContain('\u001b[?1003h')
-  expect(tty.painted()).toContain('\u001b[?1003l')
-  expect(tty.painted()).toContain('\u001b[?1002h')
-  expect(tty.painted()).toContain('\u001b[?1006h')
+  const painted = tty.painted()
+  expect(painted).not.toContain('\u001b[?1003h')
+  expect(painted).toContain('\u001b[?1002h')
+  expect(painted).toContain('\u001b[?1006h')
+  // The disable comes *before* the renderer's enable. Ghostty keeps mouse
+  // reporting in one flag and any mode's reset turns the whole group off, so
+  // `?1003l` after `?1002h` leaves no mouse at all; the alternate screen then
+  // turns a trackpad scroll into Up/Down keys, which is history recall in the
+  // composer rather than a moving transcript.
+  expect(painted.indexOf('\u001b[?1003l')).toBeGreaterThanOrEqual(0)
+  expect(painted.indexOf('\u001b[?1003l')).toBeLessThan(painted.indexOf('\u001b[?1002h'))
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
@@ -2578,6 +2585,26 @@ test('focus reports are turned off, so a screenshot does not type them', async (
   tty.input.write('\u001b[I')
   await new Promise(resolve => setTimeout(resolve, 120))
   expect(tty.painted()).not.toContain('[I')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('Up recalls a prompt the resumed Session already carries', async () => {
+  // pi seeds the editor history from the loaded Session, so a prompt sent before
+  // this window existed is still reachable with Up. hulala used to remember only
+  // what this process had submitted, which left Up with nothing after a restart.
+  const tty = startTty(fakeBackend())
+  await waitFor(() => tty.painted().includes('history answer'), 'replayed transcript')
+  const mark = tty.painted().length
+  tty.input.write('\u001b[A')
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('❯ history question'), 'recalled prompt')
+  // Down gives the empty draft back, so the next Enter is not a stale prompt.
+  const mark2 = tty.painted().length
+  tty.input.write('\u001b[B')
+  await waitFor(() => {
+    const repainted = plain(tty.painted().slice(mark2))
+    return repainted.includes('❯') && !repainted.includes('history question')
+  }, 'the empty draft')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

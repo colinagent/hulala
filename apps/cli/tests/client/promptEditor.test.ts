@@ -271,3 +271,25 @@ test('a pointer press does not move the caret, and the wheel still scrolls', () 
   // The wheel is the one pointer gesture the composer leaves to the frame.
   expect(editor.handleMouse(mouse({ type: 'wheel', wheelDelta: -1 }))).toBeUndefined()
 })
+
+test('a prompt replayed by the Session is remembered once', () => {
+  const { editor } = makeEditor()
+  // What the Host replays when a Session opens: oldest first.
+  editor.addToHistory('first prompt')
+  editor.addToHistory('second prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('second prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('first prompt')
+  // Switching back to the same Session replays it again; Up must not walk
+  // through the same two prompts twice.
+  editor.setText('')
+  editor.addToHistory('first prompt')
+  editor.addToHistory('second prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('second prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('first prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('first prompt')
+})
