@@ -9,12 +9,14 @@ import type { PtyModule } from '../../src/tui/editor/pty.js'
 import { decodeMsgpack, encodeMsgpack, type Msgpack } from '../../src/tui/editor/msgpack.js'
 import type { EditorChannel } from '../../src/tui/data/editorChannel.js'
 import type {
+  HostConnection,
   HostEditor,
   SessionListEvent,
   TerminalApproval,
   TerminalApprovalOutcome,
   TerminalBackend,
   TerminalInbox,
+  TerminalModelCatalog,
   TerminalPromptMode,
   TerminalQuestion,
   TerminalQuestionAnswer,
@@ -77,7 +79,19 @@ interface FakeBackend {
   setSessions(sessions: TerminalSession[]): void
 }
 
-function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
+/** What a test may replace in the fake Host without rebuilding it. */
+interface FakeBackendOptions {
+  /**
+   * Replace the model catalog read. A test that never resolves it is how a
+   * carrier that stalls mid-RPC is simulated: nothing else in the client is
+   * allowed to depend on that call.
+   */
+  readonly catalog?: () => Promise<TerminalModelCatalog>
+  /** The transport's state source, when a test needs to forge a reconnect. */
+  readonly connection?: HostConnection
+}
+
+function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}): FakeBackend {
   const prompts: string[] = []
   const modes: TerminalPromptMode[] = []
   const removes: string[] = []
@@ -139,7 +153,9 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
     },
     async removeQueued(_sessionId, itemId) { removes.push(itemId) },
     async cancel(sessionId) { cancels.push(sessionId) },
+    ...(options.connection === undefined ? {} : { connection: options.connection }),
     async modelCatalog() {
+      if (options.catalog !== undefined) return await options.catalog()
       return {
         default: { provider: 'test', model: 'test-model' },
         groups: [{
@@ -2661,6 +2677,49 @@ test('a Host that cannot create the workspace says so and keeps the window', asy
   } finally {
     // Nothing else to clean: `startTty` owns the temporary state root.
   }
+})
+
+test('a dropped follow stream reattaches without waiting on a Host call', async () => {
+  // The reopen used to read the model catalog before subscribing the stream, so a
+  // single stalled RPC left the window disconnected for as long as it was open —
+  // the transport retried underneath, and the transcript never came back.
+  const transport: { state: 'connected' | 'disconnected' } = { state: 'connected' }
+  const watchers = new Set<() => void>()
+  let catalogCalls = 0
+  const fake = fakeBackend('/workspace', {
+    catalog: () => {
+      catalogCalls += 1
+      return new Promise<TerminalModelCatalog>(() => undefined)
+    },
+    connection: {
+      state: () => transport.state,
+      subscribe: handler => {
+        watchers.add(handler)
+        return () => { watchers.delete(handler) }
+      },
+    },
+  })
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 60 })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  void runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
+  await waitFor(() => fake.followed.length === 1, 'the first follow stream')
+
+  // The socket dies: the stream fails with it while the transport goes down.
+  transport.state = 'disconnected'
+  fake.handlers?.onError('socket closed')
+  for (const watcher of watchers) watcher()
+  await new Promise(resolve => setTimeout(resolve, 120))
+  // Nothing may be retried while the transport is down: the mux would park the
+  // request until a socket returns, and each parked request is a leaked stream.
+  expect(fake.followed).toHaveLength(1)
+
+  // The transport is back. The stream has to be re-attached now, and the stalled
+  // catalog — already pending from the first open — must not stand in the way.
+  transport.state = 'connected'
+  for (const watcher of watchers) watcher()
+  await waitFor(() => fake.followed.length === 2, 'the reattached stream')
+  expect(catalogCalls).toBeGreaterThan(0)
 })
 
 test('the frame asks for button motion only, so a trackpad does not flood input', async () => {

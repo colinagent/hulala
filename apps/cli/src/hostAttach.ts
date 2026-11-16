@@ -21,12 +21,11 @@ import {
   type HostEndpointRecord,
 } from '@hulala/host-client/node'
 import { VERSION } from './constants.js'
+import { openForward, type Forward } from './remote/forward.js'
 import {
   liveSshRunner,
-  openTunnel,
   resolveRemoteHost,
   type SshRunner,
-  type Tunnel,
   type TunnelSpawner,
 } from './remote/ssh.js'
 import { resolvePaths } from './paths.js'
@@ -106,19 +105,16 @@ export async function attachHost(): Promise<HostAttachment> {
       env: { HULALA_VERSION: VERSION, ...(ripgrepPath === undefined ? {} : { PATH: ripgrepPath }) },
     },
   })
-  const exchange = await fetch(
-    `${record.descriptor.httpUrl}/connect?token=${encodeURIComponent(record.descriptor.token)}&interactions=answer`,
-    { redirect: 'manual' },
-  )
-  if (exchange.status !== 302) throw new Error(`Hulala Host refused the connection exchange (${exchange.status})`)
-  const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
-  if (!cookie) throw new Error('Hulala Host did not return an API cookie')
-  const location = exchange.headers.get('location')
+  const exchange = await exchangeConnection({
+    baseUrl: record.descriptor.httpUrl,
+    token: record.descriptor.token,
+    interactions: 'answer',
+  })
   return {
     record,
-    cookie,
+    cookie: exchange.cookie,
     baseUrl: record.descriptor.httpUrl,
-    muxUrl: location !== null && location.startsWith('ws') ? location : `${record.descriptor.httpUrl.replace(/^http/, 'ws')}/api/remote.mux`,
+    muxUrl: exchange.muxUrl,
   }
 }
 
@@ -146,30 +142,57 @@ export async function stopHost(): Promise<'absent' | 'stopped'> {
   return stopHostDaemon(daemonRoots())
 }
 
-/** A remote Host this client reached over the user's own SSH. */
-export interface RemoteAttachment extends HostAttachment {
-  /** The ssh forward carrying this attachment; the caller owns its lifetime. */
-  readonly tunnel: Tunnel
-  /** The ssh destination the user picked. */
-  readonly alias: string
+/** What the Host behind an attachment answers about itself. */
+export interface ForwardedHealth {
+  readonly instanceId: string
+  readonly version: string
+  readonly state: string
 }
 
-/** Ask the operating system for a free loopback port. */
-async function freePort(): Promise<number> {
-  const { createServer } = await import('node:net')
-  return new Promise((resolve, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      if (address === null || typeof address === 'string') {
-        server.close(() => reject(new Error('could not reserve a loopback port')))
-        return
-      }
-      const port = address.port
-      server.close(() => resolve(port))
+/**
+ * Ask the Host behind an attachment's origin what it is.
+ *
+ * A remote window's forward can start answering for a *different* daemon than
+ * the one this process attached to — an update, a `host restart` and a reboot
+ * each mint a new endpoint token and possibly a new port. That is the one drop a
+ * live transport cannot repair, and it is invisible from the outside: the port
+ * answers either way. The short timeout is deliberate, because a recovery probe
+ * runs while the window is disconnected and must not become another thing that
+ * hangs.
+ * @param baseUrl - the attachment's forwarded origin.
+ * @returns the daemon's own facts, or undefined when nothing answers in time.
+ */
+export async function probeForwardedHost(baseUrl: string): Promise<ForwardedHealth | undefined> {
+  try {
+    const response = await fetch(`${baseUrl}/health`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2_000),
     })
-  })
+    if (!response.ok) return undefined
+    const value = await response.json() as { instanceId?: unknown; version?: unknown; runtime?: { state?: unknown } }
+    if (typeof value.instanceId !== 'string' || typeof value.version !== 'string') return undefined
+    return {
+      instanceId: value.instanceId,
+      version: value.version,
+      state: typeof value.runtime?.state === 'string' ? value.runtime.state : 'unknown',
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** A remote Host this client reached over the user's own SSH. */
+export interface RemoteAttachment extends HostAttachment {
+  /**
+   * The forward carrying this attachment, rebuilt by the client after any drop.
+   *
+   * It keeps one local port for its whole life: the `/connect` cookie obtained
+   * below is bound to that origin, so a forward that comes back on the same port
+   * is what lets the transport reconnect without a new process.
+   */
+  readonly forward: Forward
+  /** The ssh destination the user picked. */
+  readonly alias: string
 }
 
 /** What the remote endpoint record holds; the token never leaves this process. */
@@ -184,6 +207,57 @@ interface RemoteEndpointRecord {
   readonly protocol?: number
   readonly version?: string
   readonly pid?: number
+}
+
+/** What one `/connect` exchange yields. */
+export interface ConnectionExchange {
+  /** `Cookie:` header value the Host signed for this origin. */
+  readonly cookie: string
+  /** Absolute mux WebSocket URL, resolved against the forwarded origin. */
+  readonly muxUrl: string
+}
+
+/**
+ * Exchange a launch token for an API cookie on one origin.
+ *
+ * A cookie is not a durable credential: it carries the id of the Peer the Host
+ * published for it, and that Peer is disposed with the socket that owned it. Any
+ * dropped socket therefore invalidates the cookie, and every later request on the
+ * same origin answers 401 — which is why a reconnecting client has to exchange
+ * the token again rather than retry with what it holds. The token itself belongs
+ * to the daemon process and survives this, so the exchange is all that is needed.
+ * @param options - the origin being spoken to, the launch token, and the
+ *   forwarded-event participation this client wants.
+ * @returns the cookie plus the mux URL that origin advertises.
+ * @throws when the Host refuses the exchange or returns no cookie.
+ */
+export async function exchangeConnection(options: {
+  readonly baseUrl: string
+  readonly token: string
+  readonly interactions: 'answer' | 'none'
+}): Promise<ConnectionExchange> {
+  const response = await fetch(
+    `${options.baseUrl}/connect?token=${encodeURIComponent(options.token)}&interactions=${options.interactions}`,
+    { redirect: 'manual' },
+  )
+  if (response.status !== 302) throw new Error(`the Host refused the connection exchange (${String(response.status)})`)
+  const cookie = response.headers.get('set-cookie')?.split(';', 1)[0]
+  if (cookie === undefined) throw new Error('the Host did not return an API cookie')
+  // The redirect names the Host's own origin, which is on the other side of the
+  // forward: only its path is kept, or the mux would try to reach a port this
+  // machine does not serve. `/connect` answers with a **relative** location
+  // (`./api/remote.mux`), so it is resolved against the forwarded origin rather
+  // than parsed on its own — `new URL('./api/remote.mux')` throws "Invalid URL".
+  const location = response.headers.get('location')
+  const path = (() => {
+    if (location === null || location === '') return '/api/remote.mux'
+    try {
+      return new URL(location, `${options.baseUrl}/`).pathname
+    } catch {
+      return '/api/remote.mux'
+    }
+  })()
+  return { cookie, muxUrl: `${options.baseUrl.replace(/^http/u, 'ws')}${path}` }
 }
 
 /**
@@ -237,26 +311,23 @@ export async function attachRemote(alias: string, options: {
   const remotePort = Number(new URL(endpoint.descriptor.httpUrl).port)
   if (!Number.isInteger(remotePort) || remotePort <= 0) throw new Error(`${alias}: the Host endpoint has no port`)
 
+  // The forward keeps its local port for its whole life, revivals included: the
+  // `/connect` cookie below is bound to this origin, so a port that changed under
+  // the transport would mean a background process instead of a live window.
   // `freePort` asks the OS for a port and then lets it go, so another process can
-  // take it before ssh binds it. `ExitOnForwardFailure=yes` turns that race into
-  // an immediate failure instead of a wrong forward, and a new port is the fix.
-  let opened: { tunnel: Tunnel; localPort: number } | undefined
-  for (let attempt = 0; attempt < 3 && opened === undefined; attempt += 1) {
-    const localPort = await freePort()
-    const tunnel = await openTunnel({ alias, localPort, remotePort }, options.spawner).catch((error: unknown) => {
-      if (attempt === 2) throw error
-      return undefined
-    })
-    if (tunnel !== undefined) opened = { tunnel, localPort }
-  }
-  if (opened === undefined) throw new Error(`${alias}: ssh could not forward a loopback port`)
-  const { tunnel, localPort } = opened
-  const baseUrl = `http://127.0.0.1:${String(localPort)}`
+  // take it before ssh binds it — `ExitOnForwardFailure=yes` and a fresh port
+  // inside `openForward` are what turn that race into one retried attempt.
+  const forward = await openForward({
+    alias,
+    remotePort,
+    ...(options.spawner === undefined ? {} : { spawner: options.spawner }),
+  })
+  const baseUrl = `http://127.0.0.1:${String(forward.port)}`
   // A forward is a child process with no stdio to notice its parent leaving, so
   // the process itself has to end it: a normal exit, and the two signals a
   // window can receive from a terminal or a supervisor. Without this a killed
   // client leaves an ssh holding a port on both ends.
-  const endTunnel = (): void => { tunnel.close() }
+  const endTunnel = (): void => { forward.close() }
   process.once('exit', endTunnel)
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
@@ -268,39 +339,23 @@ export async function attachRemote(alias: string, options: {
     })
   }
   try {
-    const exchange = await fetch(
-      `${baseUrl}/connect?token=${encodeURIComponent(endpoint.descriptor.token)}&interactions=answer`,
-      { redirect: 'manual' },
-    )
-    if (exchange.status !== 302) throw new Error(`the remote Host refused the connection exchange (${String(exchange.status)})`)
-    const cookie = exchange.headers.get('set-cookie')?.split(';', 1)[0]
-    if (cookie === undefined) throw new Error('the remote Host did not return an API cookie')
-    // The redirect names the Host's own origin, which is on the other side of
-    // the tunnel: only its path is kept, or the mux would try to reach a port
-    // this machine does not serve. `/connect` answers with a **relative** location
-    // (`./api/remote.mux`), so it is resolved against the forwarded origin rather
-    // than parsed on its own — `new URL('./api/remote.mux')` throws "Invalid URL".
-    const location = exchange.headers.get('location')
-    const muxPath = (() => {
-      if (location === null || location === '') return '/api/remote.mux'
-      try {
-        return new URL(location, `${baseUrl}/`).pathname
-      } catch {
-        return '/api/remote.mux'
-      }
-    })()
+    const { cookie, muxUrl } = await exchangeConnection({
+      baseUrl,
+      token: endpoint.descriptor.token,
+      interactions: 'answer',
+    })
     return {
       // The descriptor is rewritten to the forwarded origin: everything above
       // this line speaks to `127.0.0.1:<localPort>`, exactly like a local Host.
       record: { ...endpoint, descriptor: { ...endpoint.descriptor, httpUrl: baseUrl } } as HostEndpointRecord,
       cookie,
       baseUrl,
-      muxUrl: `${baseUrl.replace(/^http/u, 'ws')}${muxPath}`,
-      tunnel,
+      muxUrl,
+      forward,
       alias,
     }
   } catch (error) {
-    tunnel.close()
+    forward.close()
     throw error
   }
 }

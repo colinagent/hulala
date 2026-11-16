@@ -28,7 +28,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { t } from '../i18n/index.js'
 import { VERSION } from '../../constants.js'
-import { inspectHost } from '../../hostAttach.js'
+import { inspectHost, probeForwardedHost } from '../../hostAttach.js'
+import type { Forward } from '../../remote/forward.js'
 import { installedRelease, type InstalledRelease } from '../../distribution/installedRelease.js'
 import { resolvePaths } from '../../paths.js'
 import type { UpdateInfo } from '../../update/check.js'
@@ -95,6 +96,19 @@ export interface UpdatePluginConfig {
    * somewhere else, and starting this machine's would be the wrong machine.
    */
   readonly remote?: string
+  /**
+   * The forward carrying a remote attachment, when this window has one.
+   *
+   * Its phase is what tells a drop that heals itself from a drop that needs a
+   * new process, so recovery reads it instead of guessing from a closed port.
+   */
+  readonly forward?: Forward
+  /**
+   * How long a reachable Host may stay unattached before this window becomes a
+   * new process. The transport retries at a ten-second ceiling, so a healthy
+   * forward has had several attempts by then; tests shorten it.
+   */
+  readonly reattachAfterMs?: number
 }
 
 /** What a window does when its event connection drops. */
@@ -143,11 +157,68 @@ export function decideRecovery(facts: RecoveryFacts): RecoveryDecision {
   return stale ? 'restart' : 'stopped'
 }
 
+/** What a remote window does with a dropped connection. */
+export type RemoteRecoveryDecision =
+  /** The ssh forward is being rebuilt; it returns on the same port and the transport reconnects. */
+  | 'reviving'
+  /** Nothing answers through the forward; a restart could not attach either. */
+  | 'unreachable'
+  /** The Host answers but this process cannot attach; only a fresh `/connect` gets in. */
+  | 'reattach'
+  /** The same Host answers and the drop is young: give the transport its retries. */
+  | 'watch'
+
+/** What the remote decision needs to know. */
+export interface RemoteRecoveryFacts {
+  /** Phase of the forward carrying the attachment; absent when none is injected. */
+  readonly forward: 'forwarding' | 'reviving' | undefined
+  /** What the forwarded origin answers about itself; absent when nothing answers. */
+  readonly live: { readonly instanceId: string } | undefined
+  /** Daemon instance this process attached to; absent when the backend does not know. */
+  readonly mine: string | undefined
+  /** How long the window has been disconnected. */
+  readonly lostForMs: number
+  /** How long a reachable Host may stay unattached before a new process takes over. */
+  readonly reattachAfterMs: number
+}
+
+/**
+ * Decide what a dropped connection means for a window on another machine.
+ *
+ * Three situations look identical in the status band, and only one of them wants
+ * a new process: a forward being rebuilt heals on its own on the same port; a
+ * machine that answers nothing cannot be restarted into; and a Host that answers
+ * while this process still cannot attach means the far side was replaced, so its
+ * token — maybe its port — is new. A transport that is merely stuck on a live
+ * endpoint is the remaining case, and a fresh process is what fixes that too, so
+ * it escalates on the clock instead of on a fact.
+ * @param facts - forward phase, the forwarded origin's answer, and the clock.
+ * @returns what the caller should do next.
+ */
+export function decideRemoteRecovery(facts: RemoteRecoveryFacts): RemoteRecoveryDecision {
+  // The forward is gone but being rebuilt: nothing above it can succeed yet, and
+  // nothing above it should give up either.
+  if (facts.forward === 'reviving') return 'reviving'
+  if (facts.live === undefined) return 'unreachable'
+  if (facts.mine !== undefined && facts.live.instanceId !== facts.mine) return 'reattach'
+  return facts.lostForMs >= facts.reattachAfterMs ? 'reattach' : 'watch'
+}
+
 /** How often a dropped connection is re-examined while recovery waits. */
 const PROBE_MS = 2_000
 
 /** A decision that needs no action is re-examined less often than the first look. */
 const IDLE_PROBE_MS = 10_000
+
+/**
+ * How long a Host that still answers may stay unattached before this window
+ * becomes a new process.
+ *
+ * The transport retries with a ten-second ceiling, so anything that heals on its
+ * own has healed well before this; what is left is a transport that is stuck on a
+ * live endpoint, and a fresh process is the only cure for that.
+ */
+const REATTACH_AFTER_MS = 20_000
 
 /** Provide the updater. */
 export function apply(ctx: Context, config: UpdatePluginConfig): void {
@@ -163,6 +234,8 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   let restartWanted = false
   /** Whether the "lost the remote Host" notice has been shown for this drop. */
   let remoteLost = false
+  /** When this drop was first seen, so a stuck transport can be escalated. */
+  let disconnectedSince: number | undefined
   /** Destination the next process should use; undefined keeps this window's own. */
   let nextRemote: string | null | undefined
   let installing = false
@@ -210,17 +283,24 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   async function probe(): Promise<void> {
     probeTimer = undefined
     if (swapping || installing || ctx.hulalaLifecycle.closing) return
-    if (!session.disconnected) return
-    // A remote attachment owns a tunnel and a Host on the other machine. Probing
-    // this machine would find no daemon, and restarting would come back local —
-    // so the only offer is the one that reconnects to the same place.
-    if (config.remote !== undefined) {
-      if (remoteLost === false) {
-        remoteLost = true
-        say(t('notice.remoteLost', { alias: config.remote }))
+    if (!session.disconnected) {
+      // Attached again, usually because the forward was rebuilt and the
+      // transport's own retry landed. A later drop is a new drop: it gets said
+      // again, and its clock starts over instead of inheriting the old one.
+      if (disconnectedSince !== undefined) {
+        say(config.remote === undefined
+          ? t('notice.reconnectedLocal')
+          : t('notice.reconnected', { alias: config.remote }))
       }
+      disconnectedSince = undefined
+      remoteLost = false
       return
     }
+    disconnectedSince ??= Date.now()
+    // A remote attachment owns a forward and a Host on the other machine.
+    // Probing this machine would find no daemon, and restarting would come back
+    // local — so recovery is about the forward and that Host only.
+    if (config.remote !== undefined) return await recoverRemote(config.remote)
     const live = await inspectHost().catch(() => ({ state: 'stopped' } as const))
     const current = await installed()
     const decision = decideRecovery({
@@ -252,6 +332,41 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
       say(t('notice.hostReplaced'))
     }
     requestRestart()
+  }
+
+  /**
+   * Recovery for a window attached to another machine.
+   *
+   * Reads the same facts the pure decision below names, then turns them into the
+   * one notice the transcript shows and, when nothing else can help, a new
+   * process.
+   * @param alias - the ssh destination this window attached through.
+   */
+  async function recoverRemote(alias: string): Promise<void> {
+    const live = await probeForwardedHost(ctx.backend.host.url).catch(() => undefined)
+    const decision = decideRemoteRecovery({
+      forward: config.forward?.state(),
+      live,
+      mine: ctx.backend.host.instanceId,
+      lostForMs: Date.now() - (disconnectedSince ?? Date.now()),
+      reattachAfterMs: config.reattachAfterMs ?? REATTACH_AFTER_MS,
+    })
+    if (decision === 'reattach') {
+      say(t('notice.remoteReattaching', { alias }))
+      requestRestart()
+      return
+    }
+    if (remoteLost === false) {
+      remoteLost = true
+      say(decision === 'reviving'
+        ? t('notice.remoteReviving', { alias })
+        : decision === 'unreachable'
+          ? t('notice.remoteUnreachable', { alias })
+          : t('notice.remoteStuck', { alias }))
+    }
+    // A forward that is being rebuilt comes back in a second or two, so it is
+    // worth looking again soon; an unreachable machine is not.
+    return schedule(decision === 'unreachable' ? IDLE_PROBE_MS : config.probeMs ?? PROBE_MS)
   }
 
   /**

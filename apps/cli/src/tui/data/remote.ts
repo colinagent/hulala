@@ -31,9 +31,9 @@ import type { WorkspaceDirectoryListing, WorkspaceFileStat, WorkspaceFileText } 
 import type {} from '@deepseek-ai/dsh-user-approval/types'
 import type {} from '@deepseek-ai/dsh-user-questions/types'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
+import { exchangeConnection, type HostAttachment } from '../../hostAttach.js'
 import { webSocketClass } from './websocket.js'
 import { createEditorChannel, type EditorChannel } from './editorChannel.js'
-import type { HostAttachment } from '../../hostAttach.js'
 import { t } from '../i18n/index.js'
 
 /** Host settings namespace that owns `defaultPreset` for new Sessions. */
@@ -338,6 +338,16 @@ export interface HostTerminalShell {
  */
 export interface HostTerminalAttachment {
   onFrame(handler: (frame: TerminalFrame) => void): void
+  /**
+   * Called when this attachment failed, which is not the terminal dying.
+   *
+   * A dropped socket, a stalled forward and a replaced Host all end the stream
+   * while the process on the other side keeps running, so the column can attach
+   * again with the same identity. Without this the pane froze on its last frame
+   * with nothing to say and no way back.
+   * @param handler - called once with the reason; the attachment is spent.
+   */
+  onFailure?(handler: (message: string) => void): void
   send(input: TerminalInput): void
   dispose(): void
 }
@@ -369,8 +379,24 @@ export interface HostWorkspaceFiles {
   read(sessionId: string, path: string, range?: { offset?: number; limit?: number }): Promise<WorkspaceFileText>
 }
 
+/** The transport's own view of the attachment, as DSH reports it. */
+export interface HostConnection {
+  /** `undefined` until the first attempt has an outcome. */
+  state(): 'connected' | 'connecting' | 'disconnected' | undefined
+  /** Subscribe to state changes; returns the unsubscribe. */
+  subscribe(handler: () => void): () => void
+}
+
 export interface TerminalBackend {
   readonly host: { url: string; home?: string; /** Daemon instance this transport belongs to. */ instanceId?: string }
+  /**
+   * The transport's own view of the attachment.
+   *
+   * The status band and recovery both read it instead of inferring liveness from
+   * a failed stream: the transport knows when it is reconnecting, and a client
+   * that guessed would show "connected" for a window that is not.
+   */
+  readonly connection?: HostConnection
   /**
    * Session-owned Host terminals. Absent on a backend that serves no panes, so
    * a fake Host in a test never has to model pty semantics.
@@ -640,16 +666,34 @@ function catalogOf(catalog: ModelCatalog): TerminalModelCatalog {
 export async function createHostBackend(attachment: HostAttachment, context?: Context): Promise<TerminalBackend> {
   const ownsContext = context === undefined
   const ctx = context ?? new Context()
+  /**
+   * The credential every request carries, replaced whenever the Host retires it.
+   *
+   * A `/connect` cookie names the Peer the Host published for it, and that Peer
+   * dies with the socket that owned it — so one dropped socket invalidates the
+   * cookie for the whole origin, on HTTP and on the mux alike. The launch token
+   * does not expire with a socket, so re-connecting is an exchange, not a new
+   * window: this cell is what makes the retry carry the fresh one.
+   */
+  let cookie = attachment.cookie
+  /** The launch token that mints cookies for this origin; it outlives sockets. */
+  const launchToken = attachment.record.descriptor.token
   installConnection(ctx, {
     interactions: 'answer',
     transport: {
       streamBaseUrl: attachment.baseUrl,
       fetch: (input, init) => fetch(new URL(String(input), attachment.baseUrl), {
         ...init,
-        headers: { ...Object.fromEntries(new Headers(init.headers)), cookie: attachment.cookie },
+        headers: { ...Object.fromEntries(new Headers(init.headers)), cookie },
       }),
       createWebSocket: url => new (webSocketClass())(url, {
-        headers: { cookie: attachment.cookie, origin: attachment.baseUrl },
+        headers: { cookie, origin: attachment.baseUrl },
+        // Without this a handshake that never answers holds the socket in
+        // CONNECTING forever: the mux keeps waiting on its own attempt and never
+        // starts another, so a single stalled upgrade is a permanently dead
+        // window instead of one retry. Anywhere a forward can black-hole, that is
+        // the difference between a blip and a restart.
+        handshakeTimeout: 10_000,
       }) as never,
     },
   })
@@ -671,7 +715,67 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   const home = (): string | undefined => ctx.remote.$host.home
   let closed = false
 
-  /** Narrow one Host terminal identity to what a column renders. */
+  /**
+   * Mint a new cookie for this origin, at most one exchange at a time.
+   *
+   * The transport reports `connecting` only when it is retrying — the first
+   * attempt never announces itself — so such a report means the previous socket
+   * is gone and its Peer with it. The exchange itself can land while the forward
+   * is still being rebuilt, which is why a failed one is retried rather than
+   * abandoned: a cookie is what makes the next attempt succeed, and the retry
+   * loop is the only thing that knows when the way through is open again.
+   * @returns whether the cookie changed, which is what makes a retry worth
+   *   forcing now instead of waiting out the transport's backoff.
+   */
+  let refreshing: Promise<boolean> | undefined
+  const refreshPeer = (): Promise<boolean> => {
+    if (refreshing !== undefined) return refreshing
+    refreshing = exchangeConnection({
+      baseUrl: attachment.baseUrl,
+      token: launchToken,
+      interactions: 'answer',
+    }).then((exchange) => {
+      const changed = exchange.cookie !== cookie
+      cookie = exchange.cookie
+      return changed
+    }).catch(() => false).finally(() => {
+      refreshing = undefined
+    })
+    return refreshing
+  }
+
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined
+  const stopRefresh = (): void => {
+    if (refreshTimer === undefined) return
+    clearTimeout(refreshTimer)
+    refreshTimer = undefined
+  }
+  const scheduleRefresh = (): void => {
+    if (closed || refreshTimer !== undefined) return
+    refreshTimer = setTimeout(() => {
+      refreshTimer = undefined
+      void attemptRefresh()
+    }, 1_000)
+    refreshTimer.unref?.()
+  }
+  const attemptRefresh = async (): Promise<void> => {
+    const changed = await refreshPeer()
+    if (closed) return
+    if (connection.state.getSnapshot() === 'connected') return
+    // A fresh cookie only helps once something uses it, and the transport is
+    // otherwise asleep in its backoff for up to ten seconds.
+    if (changed) connection.reconnect()
+    scheduleRefresh()
+  }
+  const stopPeerWatch = connection.state.subscribe(() => {
+    if (closed) return
+    if (connection.state.getSnapshot() === 'connected') {
+      stopRefresh()
+      return
+    }
+    void attemptRefresh()
+  })
+
   const terminalOf = (info: {
     id: string; title: string; cols: number; rows: number
     state: 'running' | 'exited' | 'failed'; exitCode: number | null; error?: string
@@ -713,17 +817,21 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     },
     attach(sessionId, id) {
       const stream = ctx.remote.terminal.attach(sessionId as never, id as never)
+      let failed: ((message: string) => void) | undefined
       return {
         onFrame(handler) {
           void (async () => {
             try {
               for await (const frame of stream) handler(frame)
-            } catch {
-              // A cancelled attachment is the normal end of a viewer; the
-              // column learns about a dead Host through its session status.
+              // The Host ended the attachment without an error: the terminal is
+              // gone (its `state` frame already said so), or the carrier did.
+              failed?.('the Host ended this terminal attachment')
+            } catch (error) {
+              failed?.(error instanceof Error ? error.message : String(error))
             }
           })()
         },
+        onFailure(handler) { failed = handler },
         send: input => stream.send(input),
         dispose: () => stream.dispose(),
       }
@@ -735,7 +843,10 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
 
   // The editor channel is per column, not per backend: one socket, one Neovim.
   const editor: HostEditor = {
-    connect: () => createEditorChannel({ baseUrl: attachment.baseUrl, cookie: attachment.cookie }),
+    // The live cookie, not the one this backend opened with: an editor column
+    // reconnects on its own, and after a socket loss only the newest cookie can
+    // attach to the Neovim the Host kept.
+    connect: () => createEditorChannel({ baseUrl: attachment.baseUrl, cookie: () => cookie }),
   }
 
   const workspaceFiles: HostWorkspaceFiles = {
@@ -780,6 +891,13 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
         url: attachment.baseUrl,
         instanceId: attachment.record.descriptor.instanceId,
         ...(hostHome === undefined ? {} : { home: hostHome }),
+      }
+    },
+
+    get connection() {
+      return {
+        state: () => connection.state.getSnapshot(),
+        subscribe: (handler: () => void) => connection.state.subscribe(handler),
       }
     },
 
@@ -1163,6 +1281,8 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     async close() {
       if (closed) return
       closed = true
+      stopPeerWatch()
+      stopRefresh()
       // The kernel owns a context it supplied; only a self-made one goes with
       // this backend.
       if (ownsContext) await ctx.fiber.dispose()

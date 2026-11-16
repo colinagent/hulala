@@ -55,8 +55,14 @@ export type EditorSocketFactory = (url: string, headers: Record<string, string>)
 export interface EditorChannelOptions {
   /** Host origin, e.g. `http://127.0.0.1:1234`. */
   readonly baseUrl: string
-  /** The `/connect` cookie, sent as one `Cookie` header. */
-  readonly cookie: string
+  /**
+   * The `/connect` cookie, sent as one `Cookie` header.
+   *
+   * A function is read on every attempt, because a cookie is retired with the
+   * socket that owned its Peer: a reconnect has to carry the newest one or the
+   * Host answers 401 and the column never comes back.
+   */
+  readonly cookie: string | (() => string)
   readonly socket?: EditorSocketFactory
   /** Reconnect budget: attempts and the first delay; tests shrink both. */
   readonly reconnect?: { readonly attempts?: number; readonly delayMs?: number }
@@ -65,8 +71,9 @@ export interface EditorChannelOptions {
 /** Build the channel one editor column uses. */
 export function createEditorChannel(options: EditorChannelOptions): EditorChannel {
   const factory = options.socket ?? ((url, headers) => new (webSocketClass())(url, { headers }) as unknown as WebSocket)
+  const cookie = (): string => typeof options.cookie === 'string' ? options.cookie : options.cookie()
   const url = `${options.baseUrl.replace(/^http/u, 'ws')}/api/editor`
-  const maxAttempts = options.reconnect?.attempts ?? 6
+  const maxAttempts = options.reconnect?.attempts ?? 12
   const firstDelayMs = options.reconnect?.delayMs ?? 400
   let data: (chunk: Uint8Array) => void = () => undefined
   let problem: (text: string) => void = () => undefined
@@ -92,7 +99,7 @@ export function createEditorChannel(options: EditorChannelOptions): EditorChanne
   const connect = (): void => {
     generation += 1
     const mine = generation
-    socket = factory(url, { cookie: options.cookie, origin: options.baseUrl })
+    socket = factory(url, { cookie: cookie(), origin: options.baseUrl })
     socket.on('open', () => {
       if (mine !== generation) return
       flushRequests()

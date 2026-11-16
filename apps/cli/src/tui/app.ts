@@ -53,6 +53,7 @@ import { sessionPlugin } from './plugins/session.js'
 import { titlePlugin } from './plugins/title.js'
 import { updatePlugin } from './plugins/update.js'
 import { hostKeyOf, lastSessionFor } from '../clientPreferences.js'
+import type { Forward } from '../remote/forward.js'
 import { remotePlugin } from './plugins/remote.js'
 import { railPlugin } from './plugins/rail.js'
 import { brandBannerImageId } from './view/brandBanner.js'
@@ -103,6 +104,15 @@ export interface RunTerminalOptions {
    * to the same machine; losing it would silently drop the window back to local.
    */
   remote?: string
+  /**
+   * The forward carrying a remote attachment, when there is one.
+   *
+   * Recovery has to know *why* the event connection is gone: a forward that is
+   * being rebuilt heals on its own on the same port, while a forward that answers
+   * while this process cannot attach means the Host is another daemon now, which
+   * only a new process can reach.
+   */
+  forward?: Forward
   /** Inject the resolved language; tests use this instead of touching `HULALA_LANG`. */
   language?: ResolvedLanguage
   /** Override the first-use prompt default (on only when this process owns the terminal). */
@@ -294,6 +304,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
       dataRoot,
       ...(applyUpdate === undefined ? {} : { applyUpdate }),
       ...(options.remote === undefined ? {} : { remote: options.remote }),
+      ...(options.forward === undefined ? {} : { forward: options.forward }),
     })
     // Last: a user plugin may register into any service above.
     return await runInteractive({ ...options, kernel }, production)

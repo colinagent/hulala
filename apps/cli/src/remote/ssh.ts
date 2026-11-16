@@ -229,6 +229,16 @@ export interface Tunnel {
   readonly port: number
   /** Stop the forward. Idempotent. */
   close(): void
+  /**
+   * Called when the ssh carrying this forward exits.
+   *
+   * A forward outlives every request that goes through it, and its death is the
+   * only physical fact a tunnel owner can act on: the transport above it sees a
+   * refused loopback port and nothing else, which is why a client that ignored
+   * this could retry a dead forward forever.
+   * @param handler - called once with the exit code, or null when it was killed.
+   */
+  onExit(handler: (code: number | null) => void): void
 }
 
 /** Options for a tunnel: which machine, which ports, how long to wait. */
@@ -267,6 +277,9 @@ export function tunnelArgs(alias: string, localPort: number, remotePort: number,
   return [
     '-T',
     '-o', 'BatchMode=yes',
+    // An unreachable machine must fail the attempt, not leave a forward that
+    // never binds while the window waits on it.
+    '-o', 'ConnectTimeout=10',
     '-o', 'ExitOnForwardFailure=yes',
     '-o', 'ServerAliveInterval=15',
     '-o', 'ServerAliveCountMax=3',
@@ -324,6 +337,10 @@ export async function openTunnel(options: TunnelOptions, spawner: TunnelSpawner 
   const child = spawner(tunnelArgs(options.alias, options.localPort, options.remotePort))
   let closed = false
   let exited = false
+  let exitCode: number | null = null
+  /** Whether this forward ever served, which is what makes its exit a loss. */
+  let established = false
+  const exitHandlers: Array<(code: number | null) => void> = []
   const close = (): void => {
     if (closed) return
     closed = true
@@ -332,10 +349,14 @@ export async function openTunnel(options: TunnelOptions, spawner: TunnelSpawner 
   // A forward that refused to bind exits at once; waiting out the full readiness
   // budget would make a port clash look like a twelve-second hang.
   const exitedEarly = new Promise<'exited'>(resolve => {
-    child.onExit(() => {
+    child.onExit(code => {
       exited = true
+      exitCode = code
       closed = true
       resolve('exited')
+      // An attempt that never bound reports through the readiness race; only a
+      // forward that was serving is a loss its owner can act on.
+      if (established) for (const handler of exitHandlers.splice(0)) handler(code)
     })
   })
   const outcome = await Promise.race([
@@ -346,9 +367,14 @@ export async function openTunnel(options: TunnelOptions, spawner: TunnelSpawner 
     close()
     throw new Error(`ssh could not forward 127.0.0.1:${String(options.localPort)} from ${options.alias}`)
   }
+  established = true
   return {
     port: options.localPort,
     close,
+    onExit(handler) {
+      if (exited) handler(exitCode)
+      else exitHandlers.push(handler)
+    },
   }
 }
 

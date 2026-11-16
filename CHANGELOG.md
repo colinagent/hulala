@@ -13,6 +13,30 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.21] - 2026-11-16
+
+### Fixed
+
+- A window on another machine survives the ssh dropping under it. The forward
+  is rebuilt on the port it already had, the launch token is exchanged for a
+  fresh cookie, and the transport reconnects by itself — the Session, the open
+  editor and the terminal column come back instead of the window retrying a
+  dead loopback port until it is restarted by hand. Three separate faults made
+  that fatal: the forward's ssh was never watched, a `/connect` cookie dies with
+  the socket that owned its Peer so every retry after one drop answered 401, and
+  the first reopen waited on a Host call that a stalled carrier never answers.
+- A Host that was replaced while the client was away (an update, `hulala host
+  restart`, a reboot) is re-attached automatically, at the moment the forwarded
+  origin reports a different daemon, instead of leaving a window that can never
+  attach again.
+- Library log lines no longer land in the middle of the transcript. The
+  transport's `[connection] connection lost, retry #N` was written to the same
+  terminal the alternate screen was painting; while the client owns the screen,
+  console output goes to the debug log instead.
+- A dropped terminal or editor column re-attaches to the process the Host kept,
+  replaying its screen, instead of freezing on the last frame it received. The
+  editor column also survives a longer outage before it gives up.
+
 ## [0.3.20] - 2026-11-16
 
 ### Fixed

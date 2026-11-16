@@ -40,6 +40,15 @@ const MAX_QUEUED_INPUT = 512 * 1024
  */
 const MAX_WRITE_BYTES = 16 * 1024
 
+/** Attachments that may fail in a row before the column says the terminal is gone. */
+const MAX_ATTACH_FAILURES = 8
+
+/** Delay before the first re-attachment, doubled per failure up to a ceiling. */
+const FIRST_ATTACH_RETRY_MS = 300
+
+/** Ceiling of the re-attachment delay. */
+const MAX_ATTACH_RETRY_MS = 4_000
+
 export interface HostPtyOptions {
   /** Session-owned terminals the Host exposes. */
   readonly terminal: HostTerminals
@@ -47,6 +56,14 @@ export interface HostPtyOptions {
   readonly sessionId: string
   /** A create or attach failure, for the column to report instead of a blank pane. */
   readonly onFailure?: (message: string) => void
+  /**
+   * Re-attachment budget after the stream dies.
+   *
+   * The delay doubles from `firstMs` to a ceiling and `attempts` bounds how many
+   * refusals in a row mean the Host lost the terminal; tests shrink both so a
+   * lost shell does not take half a minute to report.
+   */
+  readonly reconnect?: { readonly firstMs?: number; readonly attempts?: number }
 }
 
 /** Where the column's program runs; the shell profile stays the Host's choice. */
@@ -91,6 +108,10 @@ class HostPtyProcess implements PtyProcess {
   private readonly sent = new Map<number, number>()
   private queued = ''
   private pendingResize: { cols: number; rows: number } | undefined
+  /** Pending re-attachment after the stream died; one at a time. */
+  private reattachTimer: ReturnType<typeof setTimeout> | undefined
+  /** Attachments that failed since the last frame; spaces out the retries. */
+  private attachFailures = 0
   private terminated = false
   private killed = false
 
@@ -116,9 +137,7 @@ class HostPtyProcess implements PtyProcess {
         await this.options.terminal.close(this.options.sessionId, this.id).catch(() => undefined)
         return
       }
-      const attachment = this.options.terminal.attach(this.options.sessionId, this.id)
-      this.attachment = attachment
-      attachment.onFrame(frame => this.receive(frame))
+      this.attach()
       if (this.pendingResize !== undefined) {
         const resize = this.pendingResize
         this.pendingResize = undefined
@@ -134,8 +153,69 @@ class HostPtyProcess implements PtyProcess {
     }
   }
 
+  /**
+   * Attach to the Host terminal, replacing any previous attachment.
+   *
+   * The identity is the Host's, and an attachment is only a view of it: a lost
+   * socket — a dropped forward, a slept laptop — leaves the shell running, so
+   * re-attaching to the same id is how the column comes back with its scrollback
+   * instead of freezing on the last frame it received. The Host answers every
+   * attachment with a complete screen, which is what makes that safe.
+   */
+  private attach(): void {
+    if (this.terminated || this.killed) return
+    // Command numbering restarts inside every attachment, so the counters belong
+    // to the attachment and not to the terminal.
+    this.sequence = 0
+    this.unacked = 0
+    this.sent.clear()
+    const attachment = this.options.terminal.attach(this.options.sessionId, this.id)
+    this.attachment = attachment
+    attachment.onFrame(frame => this.receive(frame))
+    attachment.onFailure?.(() => { this.recover() })
+  }
+
+  /**
+   * Attach again after the stream died.
+   *
+   * The delay grows to a ceiling and never gives up: the shell on the other side
+   * keeps running, and the column is the only surface that can show it again. A
+   * frame that arrives puts the delay back to its start.
+   */
+  private recover(): void {
+    if (this.terminated || this.killed || this.reattachTimer !== undefined) return
+    this.attachment?.dispose()
+    this.attachment = undefined
+    // A Host that keeps refusing the attachment is not a dropped socket: it lost
+    // the terminal (a Host restart, a Session that ended it), so saying so is
+    // more honest than attaching forever.
+    const budget = this.options.reconnect?.attempts ?? MAX_ATTACH_FAILURES
+    if (this.attachFailures >= budget) {
+      this.options.onFailure?.('the Host no longer has this terminal')
+      this.finish(-1)
+      return
+    }
+    const first = this.options.reconnect?.firstMs ?? FIRST_ATTACH_RETRY_MS
+    const delay = Math.min(MAX_ATTACH_RETRY_MS, first * 2 ** Math.min(this.attachFailures, 4))
+    this.attachFailures += 1
+    this.reattachTimer = setTimeout(() => {
+      this.reattachTimer = undefined
+      if (this.terminated || this.killed) return
+      this.attach()
+      if (this.pendingResize !== undefined) {
+        const resize = this.pendingResize
+        this.pendingResize = undefined
+        this.writeCommand(resize.cols, resize.rows)
+      }
+      this.flush()
+    }, delay)
+    this.reattachTimer.unref?.()
+  }
+
   /** Translate one Host frame into the byte and exit events a pty delivers. */
   private receive(frame: Parameters<Parameters<HostTerminalAttachment['onFrame']>[0]>[0]): void {
+    // A frame proves the attachment works, so the next loss retries at once.
+    this.attachFailures = 0
     switch (frame.type) {
       case 'snapshot':
         // The snapshot is a complete screen, not a delta, and it was serialized
@@ -210,6 +290,10 @@ class HostPtyProcess implements PtyProcess {
     if (this.killed) return
     this.killed = true
     this.terminated = true
+    if (this.reattachTimer !== undefined) {
+      clearTimeout(this.reattachTimer)
+      this.reattachTimer = undefined
+    }
     this.attachment?.dispose()
     this.attachment = undefined
     void this.options.terminal.close(this.options.sessionId, this.id).catch(() => undefined)

@@ -25,9 +25,13 @@ window `/remote` makes the same choice, and `/remote local` comes back.
 The terminal client performs the DSH `/connect?token=...` exchange for a signed
 Cookie, then uses the native `/api` Remote calls and `/api/remote.mux` event
 streams. It does not start a private Agent Runtime and there is no second REST
-surface. `/help` inside the client lists `/sessions`, `/new`, `/model`,
-`/permission`, `/thinking`, `/reasoning`, `/cancel`, `/status`, `/editor`,
-`/terminal`, `/language` and `/quit`.
+surface. A dropped forward is rebuilt on the port it already had and the token
+is exchanged again — a Cookie is retired with the socket that owned its Peer —
+so a slept laptop or a roamed network reconnects this window instead of ending
+it; a Host that was replaced underneath the window (an update, a restart) is
+re-attached as a new process. `/help` inside the client lists `/sessions`,
+`/new`, `/model`, `/permission`, `/thinking`, `/reasoning`, `/cancel`,
+`/status`, `/editor`, `/terminal`, `/language` and `/quit`.
 `Shift-Tab` cycles the thinking level in place, and the footer names the level in
 effect next to the model; a choice made there (or in `/model`) is also the default
 DeepSeek Harness saves for new Sessions. `/permission` lists the presets the Host

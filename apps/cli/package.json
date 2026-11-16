@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "description": "Launch your local personal agent, built on DeepSeek Harness, with one npx command.",
   "type": "module",
   "bin": {

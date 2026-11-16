@@ -7,7 +7,12 @@
  * Host running another release cannot be fixed by restarting.
  */
 import { expect, test } from 'bun:test'
-import { decideRecovery, type RecoveryFacts } from '../src/tui/plugins/update.js'
+import {
+  decideRecovery,
+  decideRemoteRecovery,
+  type RecoveryFacts,
+  type RemoteRecoveryFacts,
+} from '../src/tui/plugins/update.js'
 
 const base: RecoveryFacts = {
   live: { version: '0.2.27', instanceId: 'one' },
@@ -45,4 +50,39 @@ test('a Host serving another release is named, not fought over', () => {
   // With another release installed, a restart is exactly what fixes it.
   expect(decideRecovery({ ...base, live: { version: '0.2.30', instanceId: 'two' }, installed: '0.2.27' })).toBe('mismatch')
   expect(decideRecovery({ ...base, live: { version: '0.2.30', instanceId: 'two' }, installed: '0.2.31' })).toBe('restart')
+})
+
+/**
+ * A window on another machine has one more fact than a local one: whether the ssh
+ * forward under it is currently being rebuilt. That fact decides between healing
+ * on its own and becoming a new process, so it is pinned here.
+ */
+const remote: RemoteRecoveryFacts = {
+  forward: 'forwarding',
+  live: { instanceId: 'one' },
+  mine: 'one',
+  lostForMs: 2_000,
+  reattachAfterMs: 20_000,
+}
+
+test('a forward being rebuilt is left alone: it returns on the same port', () => {
+  expect(decideRemoteRecovery(remote)).toBe('watch')
+  // Even when the far side is unreachable this instant, a revival in flight is
+  // the thing that has to finish first — a restart would only race it.
+  expect(decideRemoteRecovery({ ...remote, forward: 'reviving', live: undefined })).toBe('reviving')
+})
+
+test('a machine that answers nothing is waited out, not restarted into', () => {
+  expect(decideRemoteRecovery({ ...remote, live: undefined, lostForMs: 600_000 })).toBe('unreachable')
+})
+
+test('a Host that answers but is another daemon is re-attached at once', () => {
+  // Its endpoint token (and maybe its port) belong to the new process, so no
+  // amount of retrying this window can attach.
+  expect(decideRemoteRecovery({ ...remote, live: { instanceId: 'two' } })).toBe('reattach')
+})
+
+test('the same daemon gets its retries before this window gives up on itself', () => {
+  expect(decideRemoteRecovery({ ...remote, lostForMs: 19_000 })).toBe('watch')
+  expect(decideRemoteRecovery({ ...remote, lostForMs: 20_000 })).toBe('reattach')
 })

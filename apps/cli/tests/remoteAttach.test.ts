@@ -8,7 +8,7 @@
  */
 import { expect, test } from 'bun:test'
 import { createServer, connect as connectTo } from 'node:net'
-import { attachRemote } from '../src/hostAttach.js'
+import { attachRemote, exchangeConnection } from '../src/hostAttach.js'
 import { HOST_DAEMON_PROTOCOL } from '@hulala/host-client/node'
 import { VERSION } from '../src/constants.js'
 import type { SshRunner, TunnelSpawner } from '../src/remote/ssh.js'
@@ -103,7 +103,7 @@ test('a remote attach reads the record over ssh and speaks to the forwarded orig
     expect(commands.some(command => command.includes('host status'))).toBe(true)
     expect(commands.some(command => command.includes('endpoint.json'))).toBe(true)
     expect(host.requests[0]).toContain('/connect?token=')
-    attached.tunnel.close()
+    attached.forward.close()
   } finally {
     host.stop()
   }
@@ -175,7 +175,7 @@ test('a stopped Host is started once, then attached', async () => {
     const attached = await attachRemote('devbox', { runner: run, spawner: tunnel.spawner })
     expect(started).toHaveLength(1)
     expect(attached.baseUrl).toContain('127.0.0.1')
-    attached.tunnel.close()
+    attached.forward.close()
   } finally {
     host.stop()
   }
@@ -196,7 +196,7 @@ test('a signalled client ends its forward before it goes', async () => {
   process.emit('exit', 0)
   await new Promise(resolve => setTimeout(resolve, 50))
   expect(tunnel.closed()).toBe(1)
-  attached.tunnel.close()
+  attached.forward.close()
   host.stop()
 })
 
@@ -226,7 +226,7 @@ test('an absolute ws location keeps only its path, and a missing one falls back'
     try {
       const attached = await attachRemote('devbox', { runner: run, spawner: tunnel.spawner })
       expect(attached.muxUrl).toBe(`${attached.baseUrl.replace('http', 'ws')}/api/remote.mux`)
-      attached.tunnel.close()
+      attached.forward.close()
     } finally {
       server.stop(true)
     }
@@ -262,7 +262,7 @@ test('a stopped Host is started and asked again before anything is attached', as
     expect(commands.some(command => command.includes('host start'))).toBe(true)
     // Started once, then asked again: two probes, not one.
     expect(commands.filter(command => command.includes('host status'))).toHaveLength(2)
-    attached.tunnel.close()
+    attached.forward.close()
   } finally {
     host.stop()
   }
@@ -301,6 +301,35 @@ test('a loopback port taken between choice and bind is retried, not fatal', asyn
   }
   const attached = await attachRemote('devbox', { runner: run, spawner })
   expect(attempts).toBe(2)
-  await attached.tunnel.close()
+  await attached.forward.close()
   host.stop()
+})
+
+/**
+ * A cookie is spent when the socket that owned its Peer dies, so a reconnecting
+ * client has to exchange the launch token again. That exchange is the one thing
+ * standing between a dropped forward and a dead window, so it is pinned here.
+ */
+test('the launch token exchanges for a fresh cookie on the forwarded origin', async () => {
+  const host = fakeHost()
+  try {
+    const first = await exchangeConnection({ baseUrl: host.url, token: 't'.repeat(40), interactions: 'answer' })
+    expect(first.cookie).toBe('hulala_test=secret')
+    // The relative location `/connect` answers with is resolved against the
+    // origin being spoken to, not the Host's own idea of where it lives.
+    expect(first.muxUrl).toBe(`${host.url.replace('http', 'ws')}/api/remote.mux`)
+    expect(host.requests.at(-1)).toBe(`/connect?token=${'t'.repeat(40)}&interactions=answer`)
+  } finally {
+    host.stop()
+  }
+})
+
+test('an exchange the Host refuses is an error, not a silent empty credential', async () => {
+  const host = fakeHost({ status: 401 })
+  try {
+    await expect(exchangeConnection({ baseUrl: host.url, token: 't'.repeat(40), interactions: 'answer' }))
+      .rejects.toThrow('refused the connection exchange (401)')
+  } finally {
+    host.stop()
+  }
 })

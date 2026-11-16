@@ -193,6 +193,48 @@ function copyProblemText(problem: CopyProblem): string {
   }
 }
 
+/** One console argument as one line of text; never throws on a circular value. */
+function consoleText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value instanceof Error) return `${value.name}: ${value.message}`
+  try {
+    return JSON.stringify(value) ?? String(value)
+  } catch {
+    return String(value)
+  }
+}
+
+/**
+ * Keep library logging off the frame.
+ *
+ * The transport's libraries log to the console — `[connection] connection lost,
+ * retry #447` is one of them — and stderr is the very terminal the alternate
+ * screen is painting. One stray line lands in the middle of the transcript and
+ * stays there until the next full repaint, which is a window that looks broken
+ * for reasons that have nothing to do with it.
+ *
+ * While this plugin owns the screen, console output goes to the debug log
+ * instead. The real methods come back the moment the terminal is given back, so
+ * a message printed after the window is gone — the client's own error path, a
+ * successor's output — still reaches the user.
+ * @param debug - diagnostic sink; absent means the lines are dropped.
+ * @returns the restore function.
+ */
+function captureConsole(debug: ((message: string) => void) | undefined): () => void {
+  const methods = ['log', 'info', 'warn', 'error', 'debug'] as const
+  const original = methods.map(method => console[method])
+  for (const method of methods) {
+    console[method] = (...args: unknown[]): void => {
+      debug?.(`console.${method} ${args.map(consoleText).join(' ')}`)
+    }
+  }
+  return () => {
+    for (const [index, method] of methods.entries()) {
+      console[method] = original[index] as typeof console[typeof method]
+    }
+  }
+}
+
 /** Construct the terminal, install the keybinding table, and own both. */
 export function apply(ctx: Context, config: TerminalPluginConfig): void {
   const terminal = new StreamTerminal(
@@ -209,6 +251,11 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   // The terminal is ours from here: every way out has to give it back, including
   // the ways that skip the client's own shutdown.
   const restoreTerminal = installTerminalGuard()
+  // Nothing else may write to the device while this plugin paints it. The guard
+  // is installed first so a crash still restores the screen, and the console is
+  // captured second so its lines cannot land on the frame in between.
+  const restoreConsole = captureConsole(config.debug)
+  ctx.effect(() => restoreConsole, 'hulala: console capture')
   // The hardware cursor is the caret a program column shows. A grid cell holds
   // one glyph, so drawing Neovim's insert-mode bar in the grid would have to
   // delete the character under it; the terminal's own cursor composites over the

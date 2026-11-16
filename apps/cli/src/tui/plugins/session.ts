@@ -142,11 +142,25 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
   /** The open Session's effective permission preset, mirrored from its projection. */
   let permission: string | undefined
   let sessions: TerminalSession[] = []
-  let disconnected = false
+  /** Whether the transport is attached; a `connecting` retry still counts as up. */
+  let transportUp = true
+  /** The follow stream died and no replacement has been attached yet. */
+  let followLost = false
+  /** Whether the window has already been told it is disconnected. */
+  let announcedDown = false
   let followDispose: (() => void) | undefined
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+  /** Failed reopens since the last event, which is what spaces out the retries. */
+  let reopenAttempts = 0
   /** True once the client is closing; a reconnect must not resurrect it. */
   let shut = false
+
+  /**
+   * The one fact the band and recovery share: this window cannot show the
+   * Session live, either because the transport is reconnecting or because the
+   * stream that feeds it died.
+   */
+  const isDisconnected = (): boolean => !transportUp || followLost
 
   const repaint = (): void => { render.repaint() }
   const error = (caught: unknown): void => {
@@ -218,21 +232,51 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     repaint()
   }
 
-  const reconnect = (): void => {
-    if (shut || id === undefined || reconnectTimer !== undefined) return
-    disconnected = true
-    ctx.emit('hulala/session-disconnected')
+  /**
+   * Repaint the band and tell the rest of the client about a transition.
+   *
+   * The event is edge-triggered on purpose: it is what starts recovery, and a
+   * per-second repetition would make every probe re-arm itself.
+   */
+  const syncDisconnected = (): void => {
+    const down = isDisconnected()
+    if (down && !announcedDown) {
+      announcedDown = true
+      ctx.emit('hulala/session-disconnected')
+    } else if (!down && announcedDown) {
+      announcedDown = false
+    }
     repaint()
+  }
+
+  /**
+   * Attach a new follow stream after the old one died.
+   *
+   * A dead transport cannot accept one — the mux would park the request until a
+   * socket returns — so the retry belongs to the transport reconnect, and this
+   * timer only covers a stream that failed while the socket was fine. The delay
+   * grows to a ceiling so a Host that refuses the stream does not get one
+   * request per second for the life of the window.
+   */
+  const reopen = (): void => {
+    if (shut || id === undefined || reconnectTimer !== undefined) return
+    if (!transportUp) return
+    const delay = Math.min(8_000, 1_000 * 2 ** Math.min(reopenAttempts, 3))
+    reopenAttempts += 1
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined
       if (shut || id === undefined) return
       const resume = id
       void open(resume).catch(() => undefined)
-    }, 1_000)
+    }, delay)
+    reconnectTimer.unref?.()
   }
 
   const handlers: TerminalSessionHandlers = {
     onEvent: event => {
+      // A stream that delivers proves itself: the next failure starts its
+      // retries from the shortest delay again.
+      reopenAttempts = 0
       // The Host writes a title after the first turn; take it from the journal
       // so the rail renames the row without waiting for the list projection.
       if (event.type === 'session/title' && id !== undefined) {
@@ -292,7 +336,12 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     },
     onError: () => {
       reducer.endStream()
-      reconnect()
+      // The socket took this stream with it. Say so, then let the transport's
+      // own reconnect reopen it: a retry started while the socket is down would
+      // only park a request the mux has nowhere to send.
+      followLost = true
+      syncDisconnected()
+      reopen()
     },
     onRunning: running => {
       reducer.setRunning(running)
@@ -329,7 +378,6 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     followDispose = undefined
     id = next
     reducer.reset()
-    disconnected = false
 
     const summary = sessions.find(session => session.sessionId === next)
     cwd = summary?.cwd ?? directory ?? config.cwd
@@ -339,19 +387,65 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     // Session ends both processes instead of leaving the editor in the old tree.
     // A reconnect re-opens the same Session and keeps them alive.
     if (previous !== undefined && (previous !== next || previousCwd !== cwd)) panes.reset()
+    // The stream is attached before anything that waits on the Host: a reopen
+    // whose catalog call is queued behind a stalled carrier must not be the
+    // reason the transcript stops updating.
+    followDispose = backend.follow(next, handlers)
+    followLost = false
+    ctx.emit('hulala/session-opened', next)
+    syncDisconnected()
+    // The footer's thinking level is the catalog default for a route nobody
+    // chose. It is read now, after the Session is live, so a slow catalog costs
+    // the band one value and never the conversation.
     if (model === undefined) {
       const loaded = await catalogOrUndefined()
-      if (loaded !== undefined) model = loaded.default
+      if (loaded !== undefined && !shut) {
+        model = loaded.default
+        repaint()
+      }
     } else if (catalog === undefined) {
-      // The level for an untouched route is the catalog default; a late catalog
-      // only repaints the band, so opening never waits for it.
       void catalogOrUndefined().then(() => { if (!shut) repaint() })
     }
-    if (shut) return
-    followDispose = backend.follow(next, handlers)
-    ctx.emit('hulala/session-opened', next)
-    repaint()
   }
+
+  // The transport is the one component that knows whether this attachment is
+  // live, and its reconnect is also the moment a follow stream can be attached
+  // again: a lost socket takes every stream with it, and a retry started while
+  // the socket is down would only park a request the mux has nowhere to send.
+  ctx.effect(() => {
+    const watch = backend.connection
+    if (watch === undefined) return () => undefined
+    const applyState = (): void => {
+      // `connecting` still counts as up: the transport is already working on it,
+      // and the follow stream's own failure is what says the data path is down.
+      const next = watch.state() !== 'disconnected'
+      const wasUp = transportUp
+      transportUp = next
+      if (!next) {
+        followLost = true
+        syncDisconnected()
+        return
+      }
+      if (wasUp) {
+        syncDisconnected()
+        return
+      }
+      reopenAttempts = 0
+      if (id !== undefined && followLost) {
+        // The transport reconnect is the reopen; a pending timer would attach a
+        // second stream over this one.
+        if (reconnectTimer !== undefined) {
+          clearTimeout(reconnectTimer)
+          reconnectTimer = undefined
+        }
+        void open(id).catch(() => undefined)
+      } else {
+        syncDisconnected()
+      }
+    }
+    applyState()
+    return watch.subscribe(applyState)
+  }, 'hulala: transport state')
 
   const create = async (directory?: string): Promise<string | undefined> => {
     let target = directory ?? cwd
@@ -809,7 +903,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     get thinkingLevel() { return thinkingLevelOf(model, catalog) },
     get permission() { return permission },
     get sessions() { return sessions },
-    get disconnected() { return disconnected },
+    get disconnected() { return isDisconnected() },
     refresh,
     create,
     open: (next: string, directory?: string) => open(next, directory),

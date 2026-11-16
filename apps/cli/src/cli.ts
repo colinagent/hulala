@@ -160,6 +160,7 @@ async function runTerminal(args: string[]): Promise<number> {
         kernel,
         cwd: process.cwd(),
         ...(remote === undefined ? {} : { remote }),
+        ...(remoteAttachment === undefined ? {} : { forward: remoteAttachment.forward }),
         ...(resume === undefined ? {} : { resume }),
       })
     } finally {
@@ -167,7 +168,7 @@ async function runTerminal(args: string[]): Promise<number> {
     }
   } finally {
     await kernel.dispose()
-    remoteAttachment?.tunnel.close()
+    remoteAttachment?.forward.close()
   }
 }
 

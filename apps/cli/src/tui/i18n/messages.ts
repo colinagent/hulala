@@ -330,6 +330,12 @@ export interface MessageTable {
   'notice.remoteLost': (values: { alias: string }) => string
   'notice.hostStopped': (params: { version: string }) => string
   'notice.hostReplaced': string
+  'notice.remoteReviving': (params: { alias: string }) => string
+  'notice.remoteReattaching': (params: { alias: string }) => string
+  'notice.remoteStuck': (params: { alias: string }) => string
+  'notice.remoteUnreachable': (params: { alias: string }) => string
+  'notice.reconnected': (params: { alias: string }) => string
+  'notice.reconnectedLocal': string
   'notice.hostMismatch': (params: { host: string; client: string }) => string
   'notice.resumeMissing': (params: { id: string }) => string
 

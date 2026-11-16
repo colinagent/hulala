@@ -24,13 +24,17 @@ interface Recorded {
   readonly closed: string[]
   readonly sent: TerminalInput[]
   frames: Array<(frame: TerminalFrame) => void>
+  /** Attachments the column opened, including re-attachments. */
+  attachments: number
+  /** Failure handlers of the live attachments, newest last. */
+  failures: Array<(message: string) => void>
 }
 
 function fakeTerminals(options: { failCreate?: string, environment?: Partial<HostTerminalEnvironment> } = {}): {
   terminals: HostTerminals
   recorded: Recorded
 } {
-  const recorded: Recorded = { created: [], closed: [], sent: [], frames: [] }
+  const recorded: Recorded = { created: [], closed: [], sent: [], frames: [], attachments: 0, failures: [] }
   const terminals: HostTerminals = {
     async environment(): Promise<HostTerminalEnvironment> {
       return { cwd: '/work', maxCols: 500, maxRows: 200, scrollback: 1_000, ...options.environment }
@@ -59,8 +63,10 @@ function fakeTerminals(options: { failCreate?: string, environment?: Partial<Hos
       }
     },
     attach(): HostTerminalAttachment {
+      recorded.attachments += 1
       return {
         onFrame(handler) { recorded.frames.push(handler) },
+        onFailure(handler) { recorded.failures.push(handler) },
         send(input) { recorded.sent.push(input) },
         dispose() { recorded.frames = [] },
       }
@@ -77,6 +83,11 @@ function emit(recorded: Recorded, frame: TerminalFrame): void {
 
 /** Let the create/attach promise chain settle. */
 const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
+
+/** Fail every live attachment, the way a dropped socket does. */
+function fail(recorded: Recorded, message: string): void {
+  for (const handler of recorded.failures.splice(0)) handler(message)
+}
 
 const spawnOptions = { name: 'xterm-256color', cols: 80, rows: 24, cwd: '/work', env: {} }
 
@@ -244,4 +255,61 @@ test('a screen model that can take a checkpoint is offered its own size', async 
   expect(snapshots).toEqual([{ cols: 40, rows: 12, data: 'wide 你好' }])
   // The checkpoint is not also delivered as output: one frame, one consumer.
   expect(received).toEqual([])
+})
+
+test('a lost attachment re-attaches to the same terminal and replays the screen', async () => {
+  const { terminals, recorded } = fakeTerminals()
+  const received: string[] = []
+  const process = hostPty({ terminal: terminals, sessionId: 'session-1' }).spawn('/bin/zsh', [], spawnOptions)
+  process.onData(data => received.push(data))
+  await settle()
+  process.write('ls\r')
+  await settle()
+  expect(recorded.sent).toEqual([{ type: 'write', sequence: 1, data: 'ls\r' }])
+  const identity = recorded.created[0]!.id
+
+  // The forward died: the shell it was showing keeps running on the Host.
+  fail(recorded, 'socket closed')
+  await new Promise(resolve => setTimeout(resolve, 400))
+
+  expect(recorded.attachments).toBe(2)
+  // A re-attachment is the same identity, never a new terminal: a second shell
+  // would be an empty one, and the column would have lost the work in progress.
+  expect(recorded.created).toHaveLength(1)
+  emit(recorded, {
+    type: 'snapshot',
+    sequence: 0,
+    screen: 'restored $ ',
+    info: { id: identity as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'running', exitCode: null },
+    writable: true,
+  })
+  expect(received.at(-1)).toBe('\u001b[0m\u001b[H\u001b[2Jrestored $ ')
+
+  // Command numbering belongs to the attachment, so the new one starts at one.
+  process.write('pwd\r')
+  await settle()
+  expect(recorded.sent.at(-1)).toEqual({ type: 'write', sequence: 1, data: 'pwd\r' })
+})
+
+test('a Host that keeps refusing the attachment ends the column instead of retrying forever', async () => {
+  const { terminals, recorded } = fakeTerminals()
+  const reported: string[] = []
+  const exits: number[] = []
+  const process = hostPty({
+    terminal: terminals,
+    sessionId: 'session-1',
+    onFailure: message => reported.push(message),
+    reconnect: { firstMs: 5, attempts: 3 },
+  }).spawn('/bin/zsh', [], spawnOptions)
+  process.onExit(event => exits.push(event.exitCode))
+  await settle()
+
+  // Every attempt fails at once, which is a Host that no longer has this
+  // terminal rather than a socket that will come back.
+  for (let attempt = 0; attempt < 6 && exits.length === 0; attempt += 1) {
+    fail(recorded, 'no such terminal')
+    await new Promise(resolve => setTimeout(resolve, 40))
+  }
+  expect(exits).toEqual([-1])
+  expect(reported).toContain('the Host no longer has this terminal')
 })
