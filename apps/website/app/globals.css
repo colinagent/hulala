@@ -124,36 +124,43 @@ img { display: block; }
 .kicker { align-items: center; display: flex; gap: 10px; }
 .kicker span { background: var(--moss); border-radius: 50%; height: 6px; width: 6px; }
 
+/* Hero: a short promise up top, then the proof and the product side by side.
+   The screenshot used to sit a full viewport below the copy, so the first
+   screen showed nothing but text. Keeping it in this grid puts the client's
+   own pixels beside the claim it proves. */
 .hero {
-  align-items: center;
-  display: block;
   margin: 0 auto;
   max-width: 1440px;
-  padding: 78px 40px 0;
+  padding: 56px 40px 84px;
 }
-.hero-copy { max-width: 860px; }
-.hero-copy h1 {
+.hero-head { max-width: 1120px; }
+.hero-head h1 {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(70px, 7.1vw, 108px);
+  font-size: clamp(54px, 6vw, 88px);
   font-weight: 400;
-  letter-spacing: -.065em;
-  line-height: .88;
-  margin: 39px 0 36px;
-  transform: translateY(-10px);
+  letter-spacing: -.055em;
+  line-height: 1;
+  margin: 26px 0 22px;
 }
-.hero-copy h1 em { color: var(--moss); font-weight: 400; white-space: nowrap; }
-main[data-locale="en"] .hero-copy h1 { font-size: clamp(58px, 5.6vw, 86px); }
-main[data-locale="en"] .hero-copy h1 em { display: inline-block; font-size: .86em; white-space: nowrap; }
+.hero-head h1 em { color: var(--moss); font-weight: 400; }
+main[data-locale="en"] .hero-head h1 { font-size: clamp(52px, 5.6vw, 80px); }
+main[data-locale="zh"] .hero-head h1 { font-size: clamp(52px, 5.4vw, 76px); }
 .hero-title-lead { align-items: center; display: inline-flex; }
 .hero-title-spinner { align-items: center; display: inline-flex; flex: 0 0 auto; height: .54em; justify-content: center; margin-left: .06em; transform: translateY(.02em); width: .54em; }
 .hero-title-spinner img { animation: hulala-flywheel-spin 4s linear infinite; height: 100%; opacity: .86; transform-origin: center; width: 100%; will-change: transform; }
 @keyframes hulala-flywheel-spin { to { transform: rotate(360deg); } }
-.hero-subtitle { color: var(--moss-dark); font-family: Georgia, "Times New Roman", serif; font-size: clamp(28px, 2.8vw, 40px); font-weight: 600; letter-spacing: -.035em; line-height: 1.16; margin: 0 0 30px; }
-.hero-lede { color: var(--muted); font-size: 15px; line-height: 1.75; margin: 0; max-width: 540px; }
-.hero-actions { align-items: center; display: flex; gap: 30px; margin-top: 34px; }
+.hero-subtitle { color: var(--moss-dark); font-family: Georgia, "Times New Roman", serif; font-size: clamp(22px, 2.2vw, 31px); font-weight: 600; letter-spacing: -.03em; line-height: 1.25; margin: 0; max-width: 1120px; }
+.hero-grid { align-items: start; display: grid; gap: 56px; grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); margin-top: 38px; }
+.hero-detail { min-width: 0; }
+.hero-lede { color: var(--moss-dark); font-size: 15px; line-height: 1.75; margin: 0 0 20px; max-width: 520px; }
+.hero-points { border-top: 1px solid var(--line); list-style: none; margin: 0; padding: 0; }
+.hero-points li { align-items: baseline; border-bottom: 1px solid var(--line); display: flex; font-size: 12px; gap: 14px; line-height: 1.5; padding: 10px 0; }
+.hero-points li span { color: var(--moss); flex: 0 0 auto; font-size: 8px; font-weight: 760; letter-spacing: .12em; }
+.hero-detail .web-install { margin: 18px 0 8px; max-width: 100%; }
+.hero-actions { align-items: center; display: flex; gap: 30px; margin-top: 12px; }
 .plain-link { border-bottom: 1px solid var(--ink); font-size: 14px; font-weight: 520; padding-bottom: 8px; }
 .plain-link span { margin-left: 15px; }
-.availability { color: var(--muted); font-size: 9px; margin: 24px 0 0; }
+.availability { color: var(--muted); font-size: 10px; letter-spacing: .02em; margin: 20px 0 0; }
 
 .field-note { background: var(--paper-light); border: 1px solid var(--ink); box-shadow: 12px 12px 0 var(--paper-deep); }
 .field-note-head { align-items: center; border-bottom: 1px solid var(--ink); display: grid; font-size: 7px; font-weight: 700; grid-template-columns: 1fr auto 1fr; letter-spacing: .13em; min-height: 46px; padding: 0 15px; }
@@ -235,7 +242,7 @@ main[data-locale="en"] .hero-copy h1 em { display: inline-block; font-size: .86e
 .closing-github:hover, .closing-github:focus-visible { border-color: var(--paper-light); color: var(--paper-light); }
 
 main[data-locale="zh"] { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
-main[data-locale="zh"] .hero-copy h1,
+main[data-locale="zh"] .hero-head h1,
 main[data-locale="zh"] .hero-subtitle,
 main[data-locale="zh"] .note-page h2,
 main[data-locale="zh"] .conviction h2,
@@ -253,9 +260,9 @@ main[data-locale="zh"] .principle-grid h3,
 main[data-locale="zh"] .meaning-copy h2,
 main[data-locale="zh"] .trust-section h2,
 main[data-locale="zh"] .closing-section h2 { font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; letter-spacing: -.035em; line-height: 1.08; }
-main[data-locale="zh"] .hero-copy h1 { font-size: clamp(60px, 5.5vw, 82px); letter-spacing: -.06em; line-height: .94; }
+main[data-locale="zh"] .hero-head h1 { letter-spacing: -.045em; line-height: 1.06; }
 main[data-locale="zh"] .hero-title-spinner { margin-left: .02em; }
-main[data-locale="zh"] .hero-subtitle { font-size: clamp(27px, 2.5vw, 36px); font-weight: 600; letter-spacing: .02em; }
+main[data-locale="zh"] .hero-subtitle { font-size: clamp(21px, 2.1vw, 30px); font-weight: 600; letter-spacing: .02em; }
 main[data-locale="zh"] .note-page > p:not(.note-label) { font-family: "Songti SC", "STSong", serif; }
 main[data-locale="zh"] .section-label, main[data-locale="zh"] .kicker { letter-spacing: .12em; }
 
@@ -263,7 +270,7 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 
 @media (max-width: 1120px) {
   .site-header > nav { display: none; }
-  .hero { grid-template-columns: 1fr; }.hero-copy { max-width: 780px; }.field-note { margin: 0 auto; max-width: 720px; width: 100%; }
+  .hero { padding-top: 56px; }.hero-head { max-width: 900px; }.hero-grid { gap: 36px; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); }.field-note { margin: 0 auto; max-width: 720px; width: 100%; }
   .section-heading, .workspace-heading { grid-template-columns: .45fr 1.2fr; }.section-heading > p:last-child, .workspace-heading > p:last-child { grid-column: 2; }
   .practice-row { grid-template-columns: 45px .7fr 1.3fr; }.practice-detail { display: none; }
   .continuity-section { gap: 60px; grid-template-columns: 1fr; }.continuity-copy { max-width: 650px; }
@@ -273,11 +280,9 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 
 @media (max-width: 720px) {
   .site-header { grid-template-columns: 1fr auto; height: 74px; padding: 0 18px; }.header-actions { gap: 6px; }.button-small { font-size: 11px; gap: 9px; min-height: 40px; padding: 0 10px; }.github-link { gap: 0; padding: 0 11px; }.github-link span { display: none; }.language-switcher { min-height: 40px; padding: 0 7px; }.language-switcher a, .language-switcher button { font-size: 10px; padding-left: 3px; padding-right: 3px; }
-  .hero { display: block; min-height: auto; padding: 70px 18px 90px; }.hero-copy h1 { font-size: 67px; }.hero-copy h1 em { white-space: normal; }.hero-subtitle { font-size: 24px; }.hero-lede { font-size: 13px; }.hero-actions { align-items: flex-start; flex-direction: column; }.field-note { margin-top: 65px; }.field-note-head { grid-template-columns: 1fr auto; }.field-note-head > span:nth-child(2) { display: none; }.field-note-body { grid-template-columns: 35px 1fr; min-height: 480px; }.year-index { font-size: 5px; }.year-index i { height: 27px; }.note-page { padding: 43px 24px 25px; }.note-page h2 { font-size: 39px; }.practice-log { grid-template-columns: 1fr; }.practice-log > div { border-bottom: 1px solid var(--line); border-right: 0; padding: 10px 0 !important; }.practice-log > div:last-child { border-bottom: 0; }.note-footer > span:last-child { display: none; }
-  .hero-copy h1 { transform: translateY(-6px); }
-  main[data-locale="en"] .hero-copy h1 { font-size: 52px; }
-  main[data-locale="en"] .hero-copy h1 em { font-size: 32px; white-space: nowrap; }
-  main[data-locale="zh"] .hero-copy h1 { font-size: 48px; }
+  .hero { padding: 52px 18px 76px; }.hero-head h1 { font-size: 46px; margin: 22px 0 20px; }.hero-subtitle { font-size: 21px; }.hero-lede { font-size: 13px; }.hero-grid { gap: 32px; margin-top: 32px; }.hero-actions { align-items: flex-start; flex-direction: column; gap: 18px; }.field-note { margin-top: 65px; }.field-note-head { grid-template-columns: 1fr auto; }.field-note-head > span:nth-child(2) { display: none; }.field-note-body { grid-template-columns: 35px 1fr; min-height: 480px; }.year-index { font-size: 5px; }.year-index i { height: 27px; }.note-page { padding: 43px 24px 25px; }.note-page h2 { font-size: 39px; }.practice-log { grid-template-columns: 1fr; }.practice-log > div { border-bottom: 1px solid var(--line); border-right: 0; padding: 10px 0 !important; }.practice-log > div:last-child { border-bottom: 0; }.note-footer > span:last-child { display: none; }
+  main[data-locale="en"] .hero-head h1 { font-size: 38px; }
+  main[data-locale="zh"] .hero-head h1 { font-size: 44px; }
   .conviction { min-height: 620px; padding: 90px 18px; }.conviction h2 { font-size: 52px; margin: 50px 0 70px; }.conviction > p:last-child { font-size: 25px; margin-left: 12%; }
   .practice-section { padding: 100px 18px; }.section-heading, .workspace-heading { display: block; }.section-heading h2, .workspace-heading h2 { font-size: 50px; margin: 28px 0; }.practice-row { display: block; min-height: 0; padding: 34px 0; }.practice-row h3 { font-size: 45px; margin: 18px 0 25px; }.practice-row > div strong { font-size: 18px; }
   .continuity-section { min-height: auto; padding: 95px 18px; }.continuity-copy h2 { font-size: 55px; }.continuity-path { padding-left: 42px; }.path-line { left: 10px; }.continuity-path article::before { left: -37px; }
@@ -310,7 +315,7 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 /* A captured frame is shown near its capture size: a terminal screenshot blown
    up to the page width is a wall of pixels, so the section and the hero keep the
    screenshots in a narrower column. */
-.screens-section { border-top: 1px solid var(--line); margin: 90px auto 0; max-width: 1160px; padding: 90px 40px 110px; }
+.screens-section { border-top: 1px solid var(--line); margin: 0 auto; max-width: 1160px; padding: 90px 40px 110px; }
 .screens-section > .section-label { margin: 0 0 28px; }
 .screens-main { margin: 0; }
 .screens-main img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; }
@@ -319,7 +324,13 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 .screens-section figcaption { color: var(--muted); font-size: 13px; line-height: 1.7; margin-top: 14px; }
 @media (max-width: 900px) { .screens-section { padding: 60px 18px 70px; } }
 
-/* The hero's product shot: the client's own pixels, framed like the section below. */
-.hero-shot { margin: 60px auto 0; max-width: 1080px; }
+/* The hero's product shot: the client's own pixels, framed like the section below.
+   It sits in the hero grid so it is visible in the first viewport, not a screen
+   below the copy. On narrow screens it moves above the detail column. */
+.hero-shot { margin: 0; min-width: 0; }
 .hero-shot img { border: 1px solid var(--line); border-radius: 14px; display: block; height: auto; width: 100%; box-shadow: 0 22px 60px rgba(15, 36, 31, .2); }
-@media (max-width: 900px) { .hero-shot { margin-top: 38px; } }
+.hero-shot figcaption { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 14px; }
+@media (max-width: 900px) {
+  .hero-grid { gap: 34px; grid-template-columns: 1fr; }
+  .hero-shot { order: -1; }
+}

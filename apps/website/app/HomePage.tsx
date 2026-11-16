@@ -8,24 +8,29 @@ export type SiteLocale = "en" | "zh-CN";
 
 const translations = {
   en: {
-    footerSlogan: "Hulala. Your local personal agent, on DeepSeek Harness.",
+    footerSlogan: "Hulala — the local agent that outlives your terminal window.",
     screens: {
       label: "THE CLIENT, UNRETOUCHED",
-      conversation: "Session rail, conversation, tool rows and the composer.",
-      terminal: "Ctrl-T: your shell in the Session directory.",
-      files: "Ctrl-D: Neovim on the Session directory — the bundled file tree, with a file open beside it.",
+      hero: "The Hulala client: Session rail, conversation, tool rows and composer. Ctrl-Q detaches the window; the turn keeps running in the Host.",
+      terminal: "Ctrl-T: your own shell in the Session directory, with its own scrollback.",
+      files: "Ctrl-D: Neovim on the Session directory — the bundled file tree with a file open beside it.",
     },
     nav: ["The terminal", "The screens", "What we refuse"],
     cta: "Install Hulala",
     hero: {
-      kicker: "The Hulala terminal client",
-      titleLead: "Hulala",
-      titleAccent: "Your local personal agent, on DeepSeek Harness.",
-      subtitle: "One TUI on your machine: the agent, Neovim, a real shell, and a daemon you never babysit.",
-      lede: "Hulala runs DeepSeek Harness in your terminal. One Host daemon owns the state root, every window attaches to it, and closing a window detaches instead of stopping the turn. The same agent answers in Telegram and Feishu, and `hulala ssh <host>` opens a window straight on another machine's Host through your own ssh — a pasted screenshot arrives there without an upload.",
-      primary: "Install on macOS & Linux",
+      kicker: "HULALA · TERMINAL CLIENT ON DEEPSEEK HARNESS",
+      titleLead: "Close the window.",
+      titleAccent: "The work keeps going.",
+      subtitle: "One TUI: your agent, Neovim and a real shell — one daemon behind them.",
+      lede: "Hulala runs DeepSeek Harness on your machine. One Host owns the state root, so every window is just a client: detach with Ctrl-Q and the turn finishes without you.",
+      points: [
+        "The same agent answers in Telegram and Feishu.",
+        "hulala ssh <host> opens a window on another machine.",
+        "Plugins are DSH plugins, installed with hulala plugin.",
+      ],
+      primary: "All install options",
       secondary: "See what is inside",
-      availability: "macOS & Linux · Node.js included · no tmux",
+      availability: "No account · no hosted relay · open source under GPL-3.0",
     },
     conviction: {
       label: "A SIMPLE CONVICTION",
@@ -54,18 +59,18 @@ const translations = {
       ],
     },
     principles: {
-      label: "04 / WHAT WE REFUSE",
-      title: ["Built against", "the babysitting."],
-      lede: "No multiplexer to remember, no runner script to keep alive, no private rival daemon, no second REST layer.",
+      label: "03 / WHAT WE REFUSE",
+      title: ["Built to be", "left alone."],
+      lede: "No multiplexer to remember, no runner script to keep alive, no second daemon hiding behind a window, no second REST layer.",
       items: [
         ["No tmux", "The Host is already a daemon. Attach, detach, reattach."],
         ["One state root", "Windows share one Host, so a Session is never a per-window thing."],
-        ["Yours to rewrite", "Every panel is a plugin, and the contract only ever grows."],
+        ["One plugin system", "A plugin is a DSH bundle installed into the Host profile with hulala plugin. There is no second extension mechanism."],
       ],
     },
     meaning: {
       label: "WHY HULALA?",
-      title: ["The window is closed.", "The keyboard keeps", "clicking along."],
+      title: ["The window is closed.", "The keys keep", "clacking away."],
       copy: "呼啦啦 is the sound of a terminal still working after you walked away: a turn finishing, a shell job landing, a Session waiting for you to reattach.",
     },
     trust: {
@@ -87,24 +92,29 @@ const translations = {
     },
   },
   zh: {
-    footerSlogan: "呼啦啦，跑在你本地的 DeepSeek Harness 个人 Agent",
+    footerSlogan: "呼啦啦——关掉窗口也还在跑的本地 Agent。",
     screens: {
       label: "客户端原样截图",
-      conversation: "会话栏、对话、工具行和 composer。",
-      terminal: "Ctrl-T：会话目录里你自己的 shell。",
-      files: "Ctrl-D：在会话目录上打开 Neovim——内置文件树，旁边打开着一个文件。",
+      hero: "Hulala 客户端：会话栏、对话、工具行和 composer。Ctrl-Q 只是断开窗口，turn 仍在 Host 里继续跑。",
+      terminal: "Ctrl-T：会话目录里你自己的 shell，带独立回滚。",
+      files: "Ctrl-D：在会话目录上打开 Neovim——内置文件树，旁边开着一个文件。",
     },
     nav: ["终端", "截图", "我们不做什么"],
     cta: "安装 Hulala",
     hero: {
-      kicker: "Hulala 终端客户端",
-      titleLead: "Hulala",
-      titleAccent: "跑在你本地的 DeepSeek Harness 个人 Agent",
-      subtitle: "一个跑在你自己机器上的 TUI：Agent、Neovim、真实 shell，还有一个你永远不用看着的守护进程。",
-      lede: "Hulala 把 DeepSeek Harness 放进终端。一个 Host 守护进程拥有状态根目录，每个窗口都是连到它的客户端；关掉窗口只是断开，正在跑的 turn 不会停。同一个 agent 也能在 Telegram 和飞书里回你；`hulala ssh <host>` 用你自己的 ssh 直接把窗口开到另一台机器的 Host 上，粘贴的截图也跟着过去，不需要上传。",
-      primary: "在 macOS 与 Linux 上安装",
+      kicker: "HULALA · 基于 DEEPSEEK HARNESS 的终端客户端",
+      titleLead: "关掉窗口，",
+      titleAccent: "活儿还在跑。",
+      subtitle: "一个 TUI：Agent、Neovim、真实 shell，背后一个守护进程。",
+      lede: "Hulala 把 DeepSeek Harness 跑在你自己的机器上。一个 Host 拥有状态根目录，每个窗口都只是它的客户端；Ctrl-Q 断开，正在跑的 turn 照样收尾。",
+      points: [
+        "同一个 agent 也能在 Telegram 和飞书里回你。",
+        "hulala ssh <host> 把窗口开到另一台机器上。",
+        "插件就是 DSH 插件，用 hulala plugin 安装。",
+      ],
+      primary: "查看全部安装方式",
       secondary: "看看里面有什么",
-      availability: "macOS 与 Linux · 自带 Node.js · 不需要 tmux",
+      availability: "不要账户 · 不要云端中继 · GPL-3.0 开源",
     },
     conviction: {
       label: "一个简单的信念",
@@ -118,7 +128,7 @@ const translations = {
       items: [
         ["对话", "Agent Loop 的原生面。", "prompt、流式输出、审批、提问和选模型，都是 DeepSeek Harness 自己的面，不是另抄一套。", "Shift-Cmd-S · /sessions · /model"],
         ["Shell", "会话目录里你自己的 shell。", "真实 pty，带着你的 rc、alias 和 PATH。列收起来，作业照样在跑。", "Ctrl-T · Ctrl-[ · Ctrl-]"],
-        ["编辑器", "内置 Neovim。", "真正的 Neovim，自己的配色、键位和缓冲区；以真实二进制发布，机器上什么都不用装。", "Ctrl-F · 自动保存 · Ctrl-S"],
+        ["编辑器", "内置 Neovim。", "真正的 Neovim，自己的配色、键位和缓冲区；以真实二进制发布，机器上什么都不用装。", "Ctrl-D · Cmd-E · Ctrl-S"],
       ],
     },
     continuity: {
@@ -126,20 +136,20 @@ const translations = {
       title: ["Session 比启动它的", "那个窗口活得", "更久。"],
       copy: "Host 是守护进程，不是启动脚本。它拥有状态根目录，负责把 turn 跑完，并回应每一个连上来的客户端。",
       stages: [
-        ["AB", "找到 Host", "客户端读 endpoint.json，没有就 detached 起一个。"],
+        ["ATTACH", "找到 Host", "客户端读 endpoint.json，没有就 detached 起一个。"],
         ["RUN", "送一个 turn", "Agent Loop 在 Host 里跑，每个窗口看到同一条流。"],
-        ["DST", "关掉窗口", "Ctrl-Q 只是断开，turn 和它的工具继续跑。"],
-        ["BACK", "再回来", "续上这个 Session，读你不在时跑完的部分。"],
+        ["DETACH", "关掉窗口", "Ctrl-Q 只是断开，turn 和它的工具继续跑。"],
+        ["REATTACH", "再回来", "续上这个 Session，读你不在时跑完的部分。"],
       ],
     },
     principles: {
-      label: "04 / 我们不做什么",
-      title: ["我们反对", "伺候进程。"],
-      lede: "不用记多路复用器的快捷键，不用守着启动脚本，不会有偷偷起的第二个守护进程，也没有第二套 REST。",
+      label: "03 / 我们不做什么",
+      title: ["造出来，", "就是让你不用管。"],
+      lede: "不用记多路复用器的快捷键，不用守着启动脚本，不会冒出第二个守护进程，也没有第二套 REST。",
       items: [
         ["不需要 tmux", "Host 本身就是守护进程。连上、断开、再连上。"],
         ["一个状态根目录", "窗口共用一个 Host，Session 从来不是某个窗口的私产。"],
-        ["随便你改", "每个面板都是插件，契约只增不改。"],
+        ["只有一套插件机制", "插件就是 DSH 插件，用 hulala plugin 装进 Host 的 profile；没有第二套扩展机制。"],
       ],
     },
     meaning: {
@@ -197,7 +207,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
       </header>
 
       <section className="hero">
-        <div className="hero-copy">
+        <div className="hero-head">
           <p className="kicker"><span /> {t.hero.kicker}</p>
           <h1>
             <span className="hero-title-lead">
@@ -210,30 +220,41 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
             <em>{t.hero.titleAccent}</em>
           </h1>
           <p className="hero-subtitle">{t.hero.subtitle}</p>
-          <p className="hero-lede">{t.hero.lede}</p>
-          <WebInstallCommand locale={locale} />
-          <div className="hero-actions">
-            <a className="button static-glass" href={downloadHref}>{t.hero.primary} <span aria-hidden="true">↗</span></a>
-            <a className="plain-link" href="#practice">{t.hero.secondary} <span aria-hidden="true">↓</span></a>
-          </div>
-          <p className="availability">{t.hero.availability}</p>
         </div>
 
-        <figure className="hero-shot">
-          <img src="/screens/03-files.png" alt={t.screens.files} width={1648} height={766} />
-        </figure>
+        <div className="hero-grid">
+          <div className="hero-detail">
+            <p className="hero-lede">{t.hero.lede}</p>
+            <ul className="hero-points">
+              {t.hero.points.map((point, index) => (
+                <li key={point}><span>0{index + 1}</span>{point}</li>
+              ))}
+            </ul>
+            <WebInstallCommand locale={locale} />
+            <div className="hero-actions">
+              <a className="button static-glass" href={downloadHref}>{t.hero.primary} <span aria-hidden="true">↗</span></a>
+              <a className="plain-link" href="#practice">{t.hero.secondary} <span aria-hidden="true">↓</span></a>
+            </div>
+            <p className="availability">{t.hero.availability}</p>
+          </div>
+
+          <figure className="hero-shot">
+            <img src="/screens/01-conversation.png" alt={t.screens.hero} width={1161} height={640} />
+            <figcaption>{t.screens.hero}</figcaption>
+          </figure>
+        </div>
       </section>
 
       <section className="screens-section" id="screens" aria-label={isZh ? "Hulala 终端客户端截图" : "Hulala terminal client screenshots"}>
         <p className="section-label">{t.screens.label}</p>
         <div className="screens-pair">
           <figure>
-            <img src="/screens/01-conversation.png" alt={t.screens.conversation} width={1161} height={640} />
-            <figcaption>{t.screens.conversation}</figcaption>
-          </figure>
-          <figure>
             <img src="/screens/02-terminal.png" alt={t.screens.terminal} width={1161} height={640} />
             <figcaption>{t.screens.terminal}</figcaption>
+          </figure>
+          <figure>
+            <img src="/screens/03-files.png" alt={t.screens.files} width={1648} height={766} />
+            <figcaption>{t.screens.files}</figcaption>
           </figure>
         </div>
       </section>

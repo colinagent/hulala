@@ -7,8 +7,8 @@ type PageKind = "home" | "download";
 const metadataCopy = {
   en: {
     home: {
-      title: "Hulala — Your local personal agent, on DeepSeek Harness.",
-      description: "Your local personal agent on DeepSeek Harness: one Host daemon, many windows, Neovim and a real shell beside the conversation, the same agent in Telegram and Feishu, and `hulala ssh <host>` to a Host on another machine, pasted images included. macOS and Linux, one command.",
+      title: "Hulala — the local DeepSeek Harness agent that outlives your terminal window",
+      description: "Hulala runs DeepSeek Harness in one TUI: the agent, Neovim and a real shell, backed by a single Host daemon. Detach with Ctrl-Q and the turn keeps running. The same agent answers in Telegram and Feishu, and hulala ssh opens a window on another machine. macOS and Linux, one command.",
     },
     download: {
       title: "Install Hulala — Downloads",
@@ -17,8 +17,8 @@ const metadataCopy = {
   },
   "zh-CN": {
     home: {
-      title: "Hulala 呼啦啦｜跑在你本地的 DeepSeek Harness 个人 Agent",
-      description: "跑在你本地的 DeepSeek Harness 个人 Agent：一个 Host 守护进程、多个窗口，对话旁边是 Neovim 和真实 shell；同一个 agent 也在 Telegram 和飞书里回你，`hulala ssh <host>` 还能把窗口开到另一台机器的 Host 上，粘贴的图片直接过去。macOS 与 Linux，一行命令安装。",
+      title: "Hulala 呼啦啦｜关掉窗口，工作照样在跑的本地 Agent",
+      description: "Hulala 把 DeepSeek Harness 放进一个 TUI：Agent、Neovim 和真实 shell，背后只有一个 Host 守护进程。Ctrl-Q 断开窗口，turn 继续跑。同一个 agent 也能在 Telegram 和飞书里回你，hulala ssh 还能把窗口开到另一台机器。macOS 与 Linux，一行命令安装。",
     },
     download: {
       title: "安装 Hulala｜下载与安装说明",
