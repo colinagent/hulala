@@ -13,6 +13,16 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Added
+
+- A tool approval can grant the whole thread Full access. The approval dialog
+  now offers `f` next to allow-once and reject: it answers the pending request
+  once and switches that Session to the `danger-full-access` preset, so later
+  turns stop hitting file-write limits and stop asking for permission. It writes
+  the Host's own `/permission` state, persists with the Session, and leaves new
+  Sessions on their configured default. Questions the agent asks you are a
+  different seam and are unaffected.
+
 ### Changed
 
 - Tool calls are drawn on a card. Every step's title and body now sit on one

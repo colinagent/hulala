@@ -60,6 +60,8 @@ interface FakeBackend {
   permissions: string[]
   /** Presets the client asked the Host to store as the new-Session default. */
   permissionDefaults: string[]
+  /** Session ids each `setPermission` call named, in call order. */
+  permissionSessions: string[]
   /** How many times the Session list was fetched (the picker fetches it again). */
   listSessionsCalls(): number
   handlers: TerminalSessionHandlers | undefined
@@ -90,6 +92,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
   const followed: string[] = []
   const permissions: string[] = []
   const permissionDefaults: string[] = []
+  const permissionSessions: string[] = []
   const hostCommands: string[] = []
   let listSessionsCalls = 0
   let approval: ((request: TerminalApproval) => Promise<TerminalApprovalOutcome>) | undefined
@@ -167,7 +170,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
       const options = [preset('read-only'), preset('workspace-write'), preset('danger-full-access')]
       return { options, defaultOptions: options, defaultPreset: 'workspace-write' }
     },
-    async setPermission(_sessionId, preset) { permissions.push(preset) },
+    async setPermission(sessionId, preset) { permissions.push(preset); permissionSessions.push(sessionId) },
     async commandCatalog() {
       return [{
         name: 'compact',
@@ -215,6 +218,7 @@ function fakeBackend(sessionCwd = '/workspace'): FakeBackend {
     followed,
     permissions,
     permissionDefaults,
+    permissionSessions,
     hostCommands,
     listSessionsCalls: () => listSessionsCalls,
     get handlers() { return liveHandlers },
@@ -1431,6 +1435,46 @@ test('the /permission picker applies a preset to the Session after the full-acce
   await waitFor(() => tty.painted().includes('permission: Full access'), 'permission notice')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
+})
+
+test('the approval dialog grants full access to the Session that asked', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const pending = fake.approve({
+    toolName: 'bash',
+    reason: 'escalate sandbox to workspace-write: the repo is outside the workspace',
+  })
+  await waitFor(() => plain(tty.painted()).includes('Tool approval'), 'approval dialog')
+  expect(plain(tty.painted())).toContain('f = full access for this thread')
+  tty.input.write('f')
+  await expect(pending).resolves.toBe('allowed-once')
+  // The switch names the open Session, which is this window's thread.
+  expect(fake.permissionSessions).toEqual(['session-1234'])
+  expect(fake.permissions).toEqual(['danger-full-access'])
+  await waitFor(() => tty.painted().includes('permission: Full access · this thread stops asking'), 'full-access notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('non-TTY approval answers full access by switching the open Session', async () => {
+  const fake = fakeBackend()
+  const input = new PassThrough()
+  const output = new PassThrough()
+  let text = ''
+  output.on('data', chunk => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
+  await waitFor(() => text.includes('history answer'), 'history')
+  const pending = fake.approve({ toolName: 'bash', reason: 'escalate sandbox to workspace-write' })
+  await waitFor(() => text.includes('[approval] bash'), 'approval prompt')
+  expect(text).toContain('f = full access')
+  input.write('f\n')
+  await expect(pending).resolves.toBe('allowed-once')
+  expect(fake.permissions).toEqual(['danger-full-access'])
+  expect(fake.permissionSessions).toEqual(['session-1234'])
+  input.write('/quit\n')
+  await expect(run).resolves.toBe(0)
 })
 
 test('Ctrl-S applies the highlighted preset and stores it as the Session default', async () => {

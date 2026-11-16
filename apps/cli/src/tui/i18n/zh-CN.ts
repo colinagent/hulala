@@ -120,6 +120,8 @@ export const zhCN: MessageTable = {
 
   'approval.title': '工具审批',
   'approval.footer': '[y] 允许一次  [n] 拒绝  [Ctrl-C] 取消',
+  'approval.fullAccessHint': 'f = 本会话完全权限',
+  'approval.fullAccessDetail': '不再限制文件写入，也不再询问权限',
   'confirm.title': '编辑器',
   'confirm.body': '有未保存的文件',
   'confirm.failed': '保存失败，文件可能不可写',
@@ -294,6 +296,9 @@ export const zhCN: MessageTable = {
   'notice.createdSession': ({ id }) => `已创建会话 ${id}`,
   'notice.savedKey': ({ provider }) => `已保存 ${provider} 的 API key`,
   'notice.approval': ({ outcome }) => `审批结果 ${outcome}`,
+  'notice.approvalFullAccess': ({ preset }) => `权限：${preset} · 本会话不再询问权限`,
+  'notice.approvalFullAccessFailed': ({ reason }) => `完全权限没有生效：${reason}`,
+  'notice.approvalFullAccessUnavailable': '完全权限需要一个已打开的会话',
   'notice.connectionUnavailable': ({ reason }) => `事件连接不可用：${reason}`,
   'choice.footer': 'Enter 确认 · Esc 取消',
   'remote.stopFailed': ({ alias }) => `${alias}：旧的 Host 没停下来；请重试`,
@@ -369,7 +374,7 @@ export const zhCN: MessageTable = {
 
   'plain.summary': '[摘要]',
   'plain.approval': ({ tool }) => `[审批] ${tool}`,
-  'plain.approvalHint': '  y = 允许一次 · n = 拒绝 · c = 取消',
+  'plain.approvalHint': '  y = 允许一次 · f = 完全权限 · n = 拒绝 · c = 取消',
   'plain.session': ({ id }) => `会话 ${id}`,
   'plain.turnFailed': '回合失败',
   'plain.turnCancelled': '回合已取消',

@@ -132,6 +132,8 @@ export interface MessageTable {
 
   'approval.title': string
   'approval.footer': string
+  'approval.fullAccessHint': string
+  'approval.fullAccessDetail': string
   'confirm.title': string
   'confirm.body': string
   'confirm.failed': string
@@ -299,6 +301,9 @@ export interface MessageTable {
   'notice.createdSession': (params: { id: string }) => string
   'notice.savedKey': (params: { provider: string }) => string
   'notice.approval': (params: { outcome: string }) => string
+  'notice.approvalFullAccess': (params: { preset: string }) => string
+  'notice.approvalFullAccessFailed': (params: { reason: string }) => string
+  'notice.approvalFullAccessUnavailable': string
   'notice.connectionUnavailable': (params: { reason: string }) => string
   'choice.footer': string
   'remote.restartUnavailable': string

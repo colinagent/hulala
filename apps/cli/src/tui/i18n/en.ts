@@ -119,6 +119,8 @@ export const en: MessageTable = {
 
   'approval.title': 'Tool approval',
   'approval.footer': '[y] allow once  [n] reject  [Ctrl-C] cancel',
+  'approval.fullAccessHint': 'f = full access for this thread',
+  'approval.fullAccessDetail': 'no more file-write limits and no permission prompts',
   'confirm.title': 'Editor',
   'confirm.body': 'There are unsaved files',
   'confirm.failed': 'Saving failed; the files may not be writable',
@@ -293,6 +295,9 @@ export const en: MessageTable = {
   'notice.createdSession': ({ id }) => `created Session ${id}`,
   'notice.savedKey': ({ provider }) => `saved an API key for ${provider}`,
   'notice.approval': ({ outcome }) => `approval ${outcome}`,
+  'notice.approvalFullAccess': ({ preset }) => `permission: ${preset} · this thread stops asking`,
+  'notice.approvalFullAccessFailed': ({ reason }) => `full access was not applied: ${reason}`,
+  'notice.approvalFullAccessUnavailable': 'full access needs an open Session',
   'notice.connectionUnavailable': ({ reason }) => `event connection unavailable: ${reason}`,
   'choice.footer': 'Enter confirms · Esc cancels',
   'remote.stopFailed': ({ alias }) => `${alias}: the old Host did not stop; try again`,
@@ -368,7 +373,7 @@ export const en: MessageTable = {
 
   'plain.summary': '[summary]',
   'plain.approval': ({ tool }) => `[approval] ${tool}`,
-  'plain.approvalHint': '  y = allow once · n = reject · c = cancel',
+  'plain.approvalHint': '  y = allow once · f = full access · n = reject · c = cancel',
   'plain.session': ({ id }) => `Session ${id}`,
   'plain.turnFailed': 'turn failed',
   'plain.turnCancelled': 'turn cancelled',

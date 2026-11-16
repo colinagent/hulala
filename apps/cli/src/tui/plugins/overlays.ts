@@ -18,9 +18,9 @@
  * @module hulala-cli/tui/plugins/overlays
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { ApprovalOverlay } from '../view/overlays/approval.js'
+import { ApprovalOverlay, type ApprovalDecision } from '../view/overlays/approval.js'
 import { QuestionOverlay, type QuestionAnswer } from '../view/overlays/question.js'
-import type { TerminalApproval, TerminalApprovalOutcome, TerminalQuestion, TerminalQuestionAnswer } from '../data/remote.js'
+import type { TerminalApproval, TerminalQuestion, TerminalQuestionAnswer } from '../data/remote.js'
 import type { Component, OverlayHandle, OverlayOptions } from '@earendil-works/pi-tui'
 
 declare module '@deepseek-ai/cordis' {
@@ -53,7 +53,7 @@ export interface TuiOverlays {
   ): Promise<T>
   /** Settle every dialog an editor column owned (its process exited). */
   cancelEditorModals(): void
-  showApproval(request: TerminalApproval): Promise<TerminalApprovalOutcome>
+  showApproval(request: TerminalApproval): Promise<ApprovalDecision>
   showQuestion(question: TerminalQuestion, signal?: AbortSignal): Promise<QuestionAnswer | undefined>
   /** Ask every question in order; `undefined` when the user dismissed one. */
   handleQuestions(
@@ -120,9 +120,9 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
     })
   }
 
-  const showApproval = (request: TerminalApproval): Promise<TerminalApprovalOutcome> => {
+  const showApproval = (request: TerminalApproval): Promise<ApprovalDecision> => {
     const signal = request.signal
-    return modal<TerminalApprovalOutcome>(done => {
+    return modal<ApprovalDecision>(done => {
       if (signal !== undefined) signal.addEventListener('abort', () => done('cancelled'), { once: true })
       return new ApprovalOverlay({
         toolName: request.toolName,

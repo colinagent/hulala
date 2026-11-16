@@ -19,6 +19,7 @@ import { FOCUS_OFF, MOTION_OFF } from './terminal/modes.js'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
+  TerminalApprovalOutcome,
   TerminalBackend,
   TerminalQuestionAnswer,
   TerminalSessionEvent,
@@ -26,6 +27,7 @@ import type {
 } from './data/remote.js'
 import { textOf } from './data/viewModel.js'
 import { editorThemeFromTerminal } from '@hulala/editor-home'
+import { FULL_ACCESS_PRESET, permissionLabel } from './view/permission.js'
 import type { PtyModule } from './editor/pty.js'
 import { resolvePaths } from '../paths.js'
 import {
@@ -464,11 +466,38 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     void commands.submit(text, commands.modeFor(gesture))
   }
 
+  /**
+   * Answer the pending request once and widen this Session to Full access.
+   *
+   * The preset is the Host's own write path (`/permission`), so the switch is
+   * durable Session state rather than a grant kept by this client. A failed
+   * switch still allows the call once: the user asked for the operation, and
+   * the notice says the Session did not change.
+   * @param id - Session owning the approval request.
+   * @returns the outcome the Host accepts for the pending request.
+   */
+  const grantFullAccess = async (id: string | undefined): Promise<TerminalApprovalOutcome> => {
+    if (id === undefined) {
+      reducer.addNotice(t('notice.approvalFullAccessUnavailable'))
+      return 'allowed-once'
+    }
+    try {
+      await backend.setPermission(id, FULL_ACCESS_PRESET)
+      reducer.addNotice(t('notice.approvalFullAccess', { preset: permissionLabel(FULL_ACCESS_PRESET) }))
+    } catch (caught) {
+      reducer.addNotice(t('notice.approvalFullAccessFailed', {
+        reason: caught instanceof Error ? caught.message : String(caught),
+      }))
+    }
+    return 'allowed-once'
+  }
+
   // Global keys that pi-tui does not own; every one of them is an action in
   // `config/keybindings.json` (see `src/keymap.ts`).
   // Backend subscriptions.
   backend.onApproval(async request => {
-    const outcome = await overlays.showApproval(request)
+    const decision = await overlays.showApproval(request)
+    const outcome = decision === 'full-access' ? await grantFullAccess(session.id) : decision
     if (!lifecycle.closing) {
       reducer.addNotice(t('notice.approval', { outcome }))
       rerender()
@@ -658,6 +687,18 @@ async function runPlain(
     write(t('plain.approval', { tool: request.toolName }))
     write(t('plain.approvalHint'))
     const answer = await new Promise<string | undefined>(resolve => { rl.question('> ', line => resolve(line.trim().toLowerCase())) })
+    if (answer === 'f') {
+      if (sessionId === undefined) write(`! ${t('notice.approvalFullAccessUnavailable')}`)
+      else {
+        try {
+          await backend.setPermission(sessionId, FULL_ACCESS_PRESET)
+          write(t('notice.approvalFullAccess', { preset: permissionLabel(FULL_ACCESS_PRESET) }))
+        } catch (caught) {
+          write(`! ${t('notice.approvalFullAccessFailed', { reason: caught instanceof Error ? caught.message : String(caught) })}`)
+        }
+      }
+      return 'allowed-once'
+    }
     return answer === 'y' ? 'allowed-once' : answer === 'n' ? 'rejected' : 'cancelled'
   })
 
