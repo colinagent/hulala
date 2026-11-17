@@ -35,6 +35,7 @@ import {
   resolveLanguage,
   type ResolvedLanguage,
 } from '../language.js'
+import { isCommandLine } from './commandCatalog.js'
 import { languageProblemText, setActiveLanguage, t } from './i18n/index.js'
 import { languagePlugin } from './plugins/language.js'
 import { checkForUpdate, type UpdateInfo } from '../update/check.js'
@@ -829,7 +830,8 @@ async function runPlain(
       done.resolve(0)
       return
     }
-    if (text.startsWith('/')) {
+    // A pasted file path starts with `/` too; only a bare command word is one.
+    if (isCommandLine(text)) {
       const command = text.slice(1).split(/\s+/u)[0]?.toLowerCase()
       if (command === 'status') {
         write(`session ${sessionId ?? '-'}`)

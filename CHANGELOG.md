@@ -13,6 +13,18 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.24] - 2026-11-17
+
+### Fixed
+
+- A pasted path is a prompt, not a command. `Ctrl-V` inserts an absolute path
+  (`/tmp/hulala-pastes/…png` on a Linux Host), and because it starts with the
+  slash a command starts with, submitting it answered `unknown command
+  /tmp/hulala-pastes/…` instead of sending the image to the model. A line is a
+  command only when the word after the slash is one bare word with no separator
+  or extension; anything that looks like a path goes out as a prompt, in the
+  terminal client and in plain mode alike.
+
 ## [0.3.23] - 2026-11-17
 
 ### Changed

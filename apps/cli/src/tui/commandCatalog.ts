@@ -170,6 +170,57 @@ export function catalogEntry(name: string): CatalogEntry | undefined {
   return commandCatalog().find(command => command.name === name)
 }
 
+/** One submitted draft split into the command word and its argument. */
+export interface ParsedCommandLine {
+  /** The word after the slash, lowercased the way the command switch looks it up. */
+  readonly name: string
+  /** Everything after the command word, trimmed; empty when there is none. */
+  readonly argument: string
+}
+
+/**
+ * The shape of a command line: one bare word after the slash, then an argument.
+ *
+ * The command word may not contain a separator or a dot. That is not cosmetic:
+ * every absolute path starts with `/`, and a pasted screenshot's path
+ * (`/tmp/hulala-pastes/paste-….png`) is the most common line that does. Without
+ * this rule, submitting a paste answered "unknown command" instead of sending
+ * the file to the model. The argument is free text, newlines included.
+ */
+const COMMAND_LINE = /^\/([^\s/.]+)(?:\s+([\s\S]*))?$/u
+
+/**
+ * Split a draft that names a command.
+ * @param line - the submitted draft, before trimming.
+ * @returns the command word and argument, or undefined when the draft is a prompt.
+ */
+export function parseCommandLine(line: string): ParsedCommandLine | undefined {
+  const match = COMMAND_LINE.exec(line.trim())
+  if (match === null) return undefined
+  return {
+    name: (match[1] ?? '').toLowerCase(),
+    argument: (match[2] ?? '').trim(),
+  }
+}
+
+/**
+ * Whether one submitted line is a slash command rather than a prompt.
+ *
+ * Every absolute path starts with `/`, so a line cannot be a command merely
+ * because of that first character. Only a first word shaped like a command name
+ * is dispatched; anything that reads as a path becomes a prompt. A
+ * one-segment path (`/tmp`) still reads as a command word: a command cannot be
+ * told from it, and a path that belongs to another machine cannot be tested
+ * against this one's filesystem. Keeping the typo (`/hlep`) a command is the
+ * safer side of that ambiguity, because it still answers with the unknown-command
+ * message.
+ * @param line - the submitted draft, before trimming.
+ * @returns true when the line should be dispatched as a command.
+ */
+export function isCommandLine(line: string): boolean {
+  return parseCommandLine(line) !== undefined
+}
+
 /** The group headings the palette prints above each section. */
 export function groupLabel(group: CommandGroup): string {
   return t(`palette.group.${group}` as MessageKey)

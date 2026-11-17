@@ -61,14 +61,13 @@ a file opens it beside the tree in the same column.
   model selection, cancellation, `/connect`, `/api` and `/api/remote.mux`.
 - **Plugins are DSH plugins** — a bundle installed into the Host profile with
   `hulala plugin --profile tui add <package>`, exactly like `dsh plugin`.
-- **Answers in Telegram and Feishu** — `hulala install bot` adds the first-party
-  bot (`@colinagent/hulala-bot`) to the Host profile, so the same agent on the
-  same state root answers you from a chat window;
-  `hulala plugin --profile tui exec hulala-bot --init` writes its config.
-- **A window on another machine** — `hulala ssh <ssh-host>` opens the client
-  straight on that machine's Host, spelled like the ssh you already type: the
-  aliases come from your own `~/.ssh/config`, and Hulala is installed or updated
-  there first when it is missing or behind.
+- **Answers in Telegram and Feishu** — `hulala install bot` mounts a chat
+  conversation to a Session, so the same agent on the same state root answers
+  from your phone. See [the chat bot](#the-chat-bot).
+- **A window on another machine** — `hulala ssh <host>` opens this window on
+  that machine's Host: the aliases are your own `~/.ssh/config`, the keys are the
+  ones you already use, the clipboard is this one, and the shell and Neovim run
+  over there. See [a window on another machine](#a-window-on-another-machine).
 - **Creator mode** — the agent gains a read-only view of the Host's own Cordis
   surface and the tools to inspect it, so it can explain and extend the running
   composition.
@@ -102,6 +101,47 @@ default, and `hulala host stop` is the explicit way to end it.
   <sub><code>Ctrl-T</code>: the built-in terminal — your shell in the Session directory, with its own scrollback.</sub>
 </p>
 
+
+## A window on another machine
+
+`hulala ssh <host>` opens this window on that machine's Host, and `<host>` is an
+alias you already type: the list comes from your own `~/.ssh/config`, and the
+authentication is the ssh you already have — key, agent, `ProxyJump`,
+certificate. No password box of its own, and no port opened anywhere: the Host
+keeps binding loopback, and the client reaches it through one forwarded socket.
+
+```sh
+hulala ssh devbox        # the same command spelled: hulala remote devbox
+hulala remote            # the aliases in ~/.ssh/config
+```
+
+`/remote` switches a window that is already open, and `/remote local` comes back.
+The client does the local half, the Host does everything else, so the machine you
+sit at only needs `hulala`:
+
+- **Nothing to set up by hand on the far side** — the client probes it first, and
+  when Hulala is missing or behind it runs the same website installer there and
+  restarts that Host before attaching; when the machine is unreachable, or its
+  Host is newer than this client, it reports instead of changing anything.
+- **The shell and Neovim run there** — a pty and a real Neovim on that state
+  root, so the terminal column has the remote machine's toolchain and the editor
+  column edits the remote machine's tree. Nothing is cloned, rsynced or mounted,
+  and a second machine needs no Neovim of its own.
+- **Your clipboard still works** — `Ctrl-V` reads this clipboard; an image or a
+  copied file is written on the Host first (`$TMPDIR/hulala-pastes/`) and that
+  path is what goes into the draft, so the model opens a file that exists where
+  its tools run. Plain text is pasted as text.
+- **It still looks like this machine** — the client hands the Host this
+  terminal's colours, so the Neovim over there is painted with the theme of the
+  window you are sitting at instead of the far machine's.
+- **One Host, every machine** — Sessions, models, credentials, plugins, Cron
+  tasks and the bot belong to that state root, so a second laptop attaches to the
+  same work instead of starting its own. `Ctrl-Q` detaches, the turn keeps
+  running, and the next attach resumes it.
+- **A drop does not end the work** — the forward is rebuilt on the port it
+  already had and the token is exchanged again, so a slept laptop or a roamed
+  network reconnects this window; a Host replaced underneath it by an update is
+  re-attached as a new process.
 
 ## Keyboard
 
@@ -184,6 +224,8 @@ none answers) and opens the terminal client:
 ```sh
 hulala                              # terminal client
 hulala --resume <session-id>        # continue a saved Session
+hulala ssh <ssh-host>               # this client, on another machine's Host
+hulala remote                       # the aliases in ~/.ssh/config
 hulala update                       # install the latest release
 hulala update --check               # report without installing
 ```
@@ -242,6 +284,26 @@ Everything it may do is whatever DSH exposes — sessions, workspaces, approvals
 tools, MCP servers. The client is assembled from plugins internally, but that
 kernel is not an extension point: its seats and its rendering are private to this
 repository.
+
+### The chat bot
+
+The first-party bot is what a Host plugin can be: `@colinagent/hulala-bot`
+mounts a Telegram, Feishu or Lark conversation to a Session, so the agent that
+answers here answers from your phone — same state root, same permissions, and
+nothing new listening on the machine (Telegram is long polling, Feishu is its own
+long connection, no port and no token exchange).
+
+```sh
+hulala install bot                                   # into the Host profile
+hulala plugin --profile tui exec hulala-bot --init    # write its config
+hulala host stop && hulala host start                # restart, and it is live
+```
+
+Approvals arrive in the chat as buttons, `/cwd` and `/switch` move the
+conversation between Sessions, `/tasks` reads the Host's scheduled tasks, and
+credentials stay in the operating system's keychain. One Session per
+conversation, so a private chat never echoes into a group. It is its own GPL-3.0
+repository: [hulala-bot](https://github.com/colinagent/hulala-bot).
 
 
 ## Creator mode

@@ -2536,6 +2536,39 @@ test('/compact dispatches to the Host command the Session catalog offers', async
   await expect(tty.run).resolves.toBe(0)
 })
 
+test('a pasted absolute path is a prompt, not an unknown command', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+
+  // The exact line `Ctrl-V` leaves in the draft after storing a screenshot.
+  const shot = '/tmp/hulala-pastes/paste-20261117-222027-0d97cf22.png'
+  tty.input.write(`${shot}\r`)
+  await waitFor(() => fake.prompts.includes(shot), 'the path reached the model')
+  expect(plain(tty.painted())).not.toContain('unknown command')
+
+  // An image reference under the question is one prompt, path line included.
+  const second = '/var/folders/gy/x/T/hulala-pastes/paste-b.png'
+  tty.input.write(`看一下这个截图\n${second}\r`)
+  await waitFor(() => fake.prompts.includes(`看一下这个截图\n${second}`), 'text and path in one prompt')
+
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a bare command word the client does not know still reports itself', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+
+  tty.input.write('/nope\r')
+  await waitFor(() => plain(tty.painted()).includes('unknown command /nope'), 'the unknown-command notice')
+  expect(fake.prompts).not.toContain('/nope')
+
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
 test('/压缩 is the same command as /compact and dispatches under its registered name', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)

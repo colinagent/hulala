@@ -3,11 +3,12 @@
  * open Session.
  *
  * This is the client's whole command surface. It lives in one plugin because the
- * two halves are the same decision — a line starting with `/` is a command and
+ * two halves are the same decision — a line naming a command is one, and
  * everything else is a prompt — and because the delivery mode is a rule, not a
  * preference: `Enter` steers a running turn and starts one when idle, the queue
  * chord always asks for a follow-up. Before this, that rule was re-derived at
- * three call sites.
+ * three call sites. {@link parseCommandLine} owns the rule itself, so a pasted
+ * absolute path is a prompt rather than an unknown command.
  *
  * Drafts typed before a Session exists are kept here and replayed when one
  * opens, which is why this plugin listens to `hulala/session-opened` instead of
@@ -24,7 +25,7 @@ import { languageName, parseLanguage } from '../../language.js'
 import { KEY_ACTIONS, actionHint } from '../../keymap.js'
 import type { PaneKind } from '../pane/focus.js'
 import type { CatalogEntry } from '../commandCatalog.js'
-import { resolveHostCommand, setHostCommands } from '../commandCatalog.js'
+import { isCommandLine, parseCommandLine, resolveHostCommand, setHostCommands } from '../commandCatalog.js'
 import { t } from '../i18n/index.js'
 import { permissionLabel } from '../view/permission.js'
 import { CommandPaletteOverlay } from '../view/overlays/commandPalette.js'
@@ -260,10 +261,10 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   }
 
   const runCommand = async (line: string): Promise<void> => {
-    const match = /^\/([^\s]+)(?:\s+([\s\S]*))?$/u.exec(line.trim())
-    if (match === null) return
-    const command = match[1]?.toLowerCase() ?? ''
-    const argument = (match[2] ?? '').trim()
+    const parsed = parseCommandLine(line)
+    if (parsed === undefined) return
+    const command = parsed.name
+    const argument = parsed.argument
     switch (command) {
       case 'help':
         await overlays.modal<undefined>(done => new HelpOverlay({
@@ -528,7 +529,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     if (lifecycle.closing) return
     const text = line.trim()
     if (text === '') return
-    if (text.startsWith('/')) {
+    // A pasted file path starts with `/` and is a prompt, not a command: only a
+    // bare command word is dispatched here.
+    if (isCommandLine(text)) {
       await runCommand(text)
       return
     }

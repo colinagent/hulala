@@ -50,16 +50,15 @@ Neovim 和 ripgrep 随包自带，需要的 Node.js 也由安装器提供，先�
   `/connect`、`/api`、`/api/remote.mux`。
 - **插件就是 DSH 插件** —— `hulala plugin --profile tui add <包名>` 装进 Host 的 profile，
   没有 `node_modules`。
-- **Telegram 和飞书里也能对话** —— `hulala install bot` 把第一方 bot
-  （`@colinagent/hulala-bot`）装进 Host 的 profile，同一个 agent、同一个状态根目录也能
-  从聊天窗口里回你；配置用 `hulala plugin --profile tui exec hulala-bot --init` 写入。
+- **Telegram 和飞书里也能对话** —— `hulala install bot` 把一段聊天挂到一个 Session 上，
+  同一个 agent、同一个状态根目录也能从手机上回你。见[聊天机器人](#聊天机器人)。
 - **`Ctrl-V` 粘贴的是路径，和 pi 一样** —— 截图、Finder 里复制的文件或纯文本都按文本
   进入输入框。图片和复制来的文件先存到 Host 自己的临时目录
   （`$TMPDIR/hulala-pastes/`，由操作系统回收），所以输入框里的路径是模型真的能打开的
   那个文件——本机如此，`hulala ssh` 到远端时也一样，落在它真正运行的那台机器上。
-- **窗口可以直接开在另一台机器上** —— `hulala ssh <ssh-host>` 直接把客户端开到那台
-  机器的 Host 上，写法就是你平时用的 ssh：alias 来自你自己的 `~/.ssh/config`，那台
-  机器没装或版本落后时会先装好或更新 Hulala。
+- **窗口可以直接开在另一台机器上** —— `hulala ssh <host>` 把这个窗口开到那台机器的
+  Host 上：alias 是你自己的 `~/.ssh/config`，密钥是你已经在用的，剪贴板是这一台的，
+  而 shell 和 Neovim 在那边跑。见[窗口开到另一台机器上](#窗口开到另一台机器上)。
 - **Creator mode** —— agent 拿到 Host 自己 Cordis 面的只读视图和检查它的工具，能对着
   活着的组合回答问题、扩展它。
 
@@ -86,6 +85,37 @@ Session 都还在跑，下个窗口接着停的地方继续。`tmux`、`nohup`�
   <sub><code>Ctrl-T</code>：内置终端——会话目录里你自己的 shell，带自己的回滚历史。</sub>
 </p>
 
+
+## 窗口开到另一台机器上
+
+`hulala ssh <host>` 把这个窗口开到那台机器的 Host 上，`<host>` 就是你平时 ssh 的
+那个 alias：列表来自你自己的 `~/.ssh/config`，认证就是你已经有的 ssh——密钥、agent、
+`ProxyJump`、证书。没有它自己的密码框，也不在任何地方开端口：Host 仍然只 bind
+loopback，客户端通过一条转发出来的 socket 够到它。
+
+```sh
+hulala ssh devbox        # 同一个命令的另一种写法：hulala remote devbox
+hulala remote            # 列出 ~/.ssh/config 里的 alias
+```
+
+`/remote` 切换一个已经开着的窗口，`/remote local` 回到本机。本机只管界面那一半，
+其余全在 Host 上，所以你坐的那台机器只需要有 `hulala`：
+
+- **对面不用手动装** —— 客户端先探测；Hulala 没装或落后，就在那边跑同一个官网安装器、
+  停掉旧 Host 再 attach；机器连不上、或者那边的 Host 比本机新，就只报告，不动它。
+- **shell 和 Neovim 在那边跑** —— 那个状态根目录上的 pty 和真 Neovim，于是终端列带着
+  远端机器的工具链，编辑列改的是远端机器上的树。不 clone、不 rsync、不挂载，第二台
+  机器不需要自己装 Neovim。
+- **剪贴板照样能用** —— `Ctrl-V` 读的是本机剪贴板；图片和复制来的文件先写到 Host 上
+  （`$TMPDIR/hulala-pastes/`），插进草稿的就是那个路径，所以模型打开的是它工具所在那侧
+  真实存在的文件。纯文本还是按文本贴。
+- **配色还是这一台的** —— 客户端把自己终端的配色交给 Host，所以那边的 Neovim 用的是
+  你坐着的这个窗口的主题，而不是远端机器自己的。
+- **一个 Host，所有机器** —— Session、模型、凭据、插件、Cron 任务和 bot 都属于那个状态
+  根目录，所以第二台笔记本接的是同一份工作，而不是另起一份。`Ctrl-Q` 只是断开，turn
+  继续跑，下次 attach 接着看。
+- **断线不会结束手上的活** —— 转发在原来的端口上重建、token 重新交换，所以睡过去的
+  笔记本、换过的网络只是重连这个窗口；Host 被一次升级换掉了，就当作新进程重新 attach。
 
 ## 快捷键
 
@@ -157,6 +187,8 @@ Kitty 键盘协议的终端才送得到：Ghostty、kitty、WezTerm、iTerm2 可
 ```sh
 hulala                              # 终端客户端
 hulala --resume <session-id>        # 继续一个已有 Session
+hulala ssh <ssh-host>               # 同一个客户端，开在另一台机器的 Host 上
+hulala remote                       # 列出 ~/.ssh/config 里的 alias
 hulala update                       # 安装最新版本
 hulala update --check               # 只看不装
 ```
@@ -197,6 +229,37 @@ update            版本提示与换版
 
 因为客户端就是这些插件拼出来的，一个功能可以换掉而不碰邻居，故障也是隔离的：某个
 插件无法激活、或者它的 `render` 抛错，代价只是它自己那几行。
+
+### 插件
+
+Hulala 插件就是 DeepSeek Harness 插件：往 Host 的根 context 上加行的 bundle。它装在
+profile 里，从不装进客户端：
+
+```sh
+hulala plugin --profile tui add <包名>    # 参数原样交给 DSH 转给 pnpm
+hulala plugin --profile tui list
+```
+
+它能做的事就是 DSH 暴露的一切——Session、工作区、审批、工具、MCP server。客户端内部
+也是这些插件拼出来的，但那个 kernel 不是扩展点：它的座位和渲染是本仓私有的。
+
+### 聊天机器人
+
+第一方 bot 就是一个 Host 插件能长什么样：`@colinagent/hulala-bot` 把 Telegram、飞书
+（Lark）的一段会话挂到一个 Session 上，于是这边回你的 agent 也能从手机上回——同一个
+状态根目录、同一套权限，机器上不多开一个端口（Telegram 用长轮询，飞书用它自己的长连接，
+没有端口，也没有 token 交换）。
+
+```sh
+hulala install bot                                  # 装进 Host 的 profile
+hulala plugin --profile tui exec hulala-bot --init   # 写它的配置
+hulala host stop && hulala host start               # 重启之后就活着
+```
+
+审批在聊天里变成按钮，`/cwd`、`/switch` 在 Session 之间搬，`/tasks` 读 Host 的定时任务，
+凭据只存在操作系统的钥匙串里。一段会话一个 Session，私聊不会串到群里。它有自己的
+GPL-3.0 仓库：[hulala-bot](https://github.com/colinagent/hulala-bot)，
+[中文说明](https://github.com/colinagent/hulala-bot/blob/main/docs/README.zh-CN.md)。
 
 
 ## Creator mode
