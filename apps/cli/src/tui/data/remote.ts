@@ -265,31 +265,26 @@ export interface TerminalSessionEvent {
   data: unknown
 }
 
-/** One attached Host backend. */
-/**
- * One inline image a prompt carries.
- *
- * The bytes travel inside the prompt frame, so the Host needs no upload and no
- * second channel: a client that holds the clipboard decides what is attached.
- */
-export interface PromptImage {
-  /** Base64 payload of the whole image. */
-  readonly data: string
-  /** The format the bytes actually are; the Host rejects a mismatch. */
-  readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+/** One pasted file, before it is written on the Host's machine. */
+export interface PasteFile {
+  /** The bytes exactly as the clipboard (or the named file) holds them. */
+  readonly data: Uint8Array
+  /** Declared media type, when the clipboard states one. */
+  readonly mediaType?: string
+  /** The original file name, so the stored path stays recognisable. */
+  readonly name?: string
 }
 
 /**
- * Build one prompt's content parts: the text, then any attached images.
- * @param text - the typed message, which may be empty when images carry the turn.
- * @param images - images pasted into this draft.
+ * Build one prompt's content parts.
+ *
+ * A pasted file is not an attachment: it is a path in the text, read by the
+ * model's own tools where the file actually lives.
+ * @param text - the typed message.
  * @returns the parts the Host's prompt request carries.
  */
-export function promptContent(text: string, images: readonly PromptImage[] = []): PromptContentPart[] {
-  return [
-    { type: 'text', text },
-    ...images.map(image => ({ type: 'image' as const, mediaType: image.mediaType, data: image.data })),
-  ]
+export function promptContent(text: string): PromptContentPart[] {
+  return [{ type: 'text', text }]
 }
 
 /**
@@ -388,7 +383,20 @@ export interface HostConnection {
 }
 
 export interface TerminalBackend {
-  readonly host: { url: string; home?: string; /** Daemon instance this transport belongs to. */ instanceId?: string }
+  readonly host: {
+    url: string
+    home?: string
+    /** Daemon instance this transport belongs to. */
+    instanceId?: string
+    /**
+     * Whether this backend's process runs on the client's own machine.
+     *
+     * Absent on a backend that does not say, which a paste reads as "another
+     * machine": sending the bytes to the Host is correct either way, and only a
+     * known-local Host lets a clipboard file keep the path it already has.
+     */
+    local?: boolean
+  }
   /**
    * The transport's own view of the attachment.
    *
@@ -422,10 +430,19 @@ export interface TerminalBackend {
   createSession(workspaceId: string): Promise<string>
   follow(sessionId: string, handlers: TerminalSessionHandlers): () => void
   /**
-   * Send one message. Images ride the same request, so a pasted screenshot is
-   * attached without an upload and without a second Host call.
+   * Send one message. A pasted file travels as a path in `text`, never as bytes.
    */
-  prompt(sessionId: string, text: string, mode: TerminalPromptMode, images?: readonly PromptImage[]): Promise<void>
+  prompt(sessionId: string, text: string, mode: TerminalPromptMode): Promise<void>
+  /**
+   * Write bytes on the Host's machine and return the absolute path there.
+   *
+   * A paste is a file the model has to open where it runs, so a clipboard read
+   * on this machine is only half of it: behind `hulala ssh` the path has to name
+   * something on the far side. Absent on a backend with no write route (a fake
+   * Host in a test, an older Host), and the paste then says so instead of
+   * inserting a path nothing can open.
+   */
+  savePaste?(file: PasteFile): Promise<string>
   /** Drop one still-pending inbox occurrence; a claimed item is no longer removable. */
   removeQueued(sessionId: string, itemId: string): Promise<void>
   cancel(sessionId: string): Promise<void>
@@ -890,6 +907,7 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
       return {
         url: attachment.baseUrl,
         instanceId: attachment.record.descriptor.instanceId,
+        local: !('alias' in attachment),
         ...(hostHome === undefined ? {} : { home: hostHome }),
       }
     },
@@ -1065,12 +1083,37 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
       }
     },
 
-    async prompt(sessionId, text, mode, images) {
+    async savePaste(file) {
+      const body = JSON.stringify({
+        data: Buffer.from(file.data).toString('base64'),
+        ...(file.mediaType === undefined ? {} : { mediaType: file.mediaType }),
+        ...(file.name === undefined ? {} : { name: file.name }),
+      })
+      const response = await fetch(new URL('/api/paste', attachment.baseUrl), {
+        method: 'POST',
+        // The same cookie every other request on this origin carries; it is
+        // re-read here because a reconnect replaces it.
+        headers: { cookie, 'content-type': 'application/json' },
+        body,
+      })
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => '')).trim()
+        throw new Error(t('error.pasteRejected', {
+          status: String(response.status),
+          reason: detail === '' ? response.statusText : detail,
+        }))
+      }
+      const value = await response.json().catch(() => undefined) as { path?: unknown } | undefined
+      if (typeof value?.path !== 'string' || value.path === '') throw new Error(t('error.pasteUnnamed'))
+      return value.path
+    },
+
+    async prompt(sessionId, text, mode) {
       const request: SessionPromptRequest = {
         requestId: crypto.randomUUID() as never,
         sessionId: sessionId as never,
         mode,
-        content: promptContent(text, images),
+        content: promptContent(text),
         clientTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }
       unwrap(await ctx.remote.session.prompt(request))

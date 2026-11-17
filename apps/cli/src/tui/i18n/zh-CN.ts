@@ -71,7 +71,7 @@ export const zhCN: MessageTable = {
   'keymap.action.thinking': '循环思考等级',
   'keymap.action.dequeue': '把待发消息收回输入框',
   'keymap.action.expand': '展开或折叠所有细节行',
-  'keymap.action.pasteImage': '从剪贴板粘贴图片',
+  'keymap.action.pasteImage': '从剪贴板粘贴文件、图片或文本（插入路径）',
   'keymap.action.redraw': '重绘画面',
   'keymap.action.focusLeft': '焦点左移：会话栏 ↔ 对话 ↔ 侧栏',
   'keymap.action.focusRight': '焦点右移：会话栏 ↔ 对话 ↔ 侧栏',
@@ -278,14 +278,12 @@ export const zhCN: MessageTable = {
   'notice.cancelRequested': '已请求取消',
   'notice.renamed': ({ title }) => `已重命名为 ${title}`,
   'notice.noQueued': '没有可回收的待发消息',
-  'notice.imageAttached': ({ count, size }) => `已附加 ${count} 张图片（${size}）`,
-  'notice.imageProblem': ({ reason }) => {
-    if (reason === 'too-large') return '图片太大，无法附加（上限 10 MB）'
-    if (reason === 'empty') return '剪贴板里没有图片'
+  'notice.pasteProblem': ({ reason }) => {
+    if (reason === 'too-large') return '文件太大，无法粘贴（上限 10 MB）'
+    if (reason === 'empty') return '剪贴板里没有可粘贴的内容'
     if (reason === 'unsupported') return '剪贴板图片不是 PNG、JPEG、WebP 或 GIF'
-    return '这个平台没有读取剪贴板图片的工具'
+    return '这个平台没有读取剪贴板的工具'
   },
-  'notice.imageNoSession': '请先打开一个会话，再粘贴图片',
   'notice.restored': ({ count }) => `已恢复 ${count} 条待发消息`,
   'notice.kept': ({ count }) => `保留了 ${count} 条带附件的待发消息`,
   'notice.reasoning': ({ mode }) => `思考内容：${mode}`,
@@ -351,6 +349,9 @@ export const zhCN: MessageTable = {
   'error.providerNotConfigurable': ({ provider }) => `提供商 ${provider} 无法在此 Host 上配置`,
   'error.providerSignIn': ({ provider }) => `${provider} 在此不接受 API key；请在 Desktop 应用中登录`,
   'error.connectionTimeout': '等待 Host 事件连接超时',
+  'error.pasteRejected': ({ status, reason }) => `Host 无法保存粘贴内容（${status}：${reason}）`,
+  'error.pasteUnnamed': 'Host 保存了粘贴内容，但没有返回路径',
+  'error.pasteRouteMissing': '这个 Host 不能保存粘贴的文件，请先更新 Host',
 
   'pane.unavailable': ({ pane, reason }) => `${pane}不可用：${reason}`,
   'pane.terminal': '终端',

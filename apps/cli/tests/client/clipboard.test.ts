@@ -12,12 +12,13 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  PASTE_IMAGE_MAX_BYTES,
+  PASTE_MAX_BYTES,
   copyToClipboard,
   imageMediaTypeOf,
   isRemoteSession,
   osc52,
   readClipboardImage,
+  readClipboardPaste,
   runClipboardWriter,
   type ClipboardPorts,
   type CopyResult,
@@ -282,7 +283,7 @@ test('bytes no supported format begins with are refused', async () => {
 })
 
 test('an image past the prompt limit is refused before it is encoded', async () => {
-  const big = new Uint8Array(PASTE_IMAGE_MAX_BYTES + 1)
+  const big = new Uint8Array(PASTE_MAX_BYTES + 1)
   big.set(PNG)
   const { ports } = imageHarness({ native: big })
   expect(await readClipboardImage(ports)).toEqual({ ok: false, reason: 'too-large' })
@@ -292,4 +293,41 @@ test('webp is recognised by its RIFF wrapper, not by its first four bytes', () =
   const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])
   expect(imageMediaTypeOf(webp)).toBe('image/webp')
   expect(imageMediaTypeOf(new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x41, 0x56, 0x49, 0x20]))).toBeUndefined()
+})
+
+/** A helper that answers all three shapes, so the paste order can be pinned. */
+function pasteHarness(options: {
+  readonly files?: readonly string[] | null
+  readonly image?: Uint8Array | null
+  readonly text?: string | null
+}): ImageReadPorts {
+  return {
+    platform: 'darwin',
+    env: {},
+    async run() { return undefined },
+    native: {
+      async getFilePaths() { return options.files ?? null },
+      async getImage() { return options.image ?? null },
+      async getText() { return options.text ?? null },
+    },
+  }
+}
+
+test('a Finder copy is pasted as its own paths, not as pixels', async () => {
+  const pasted = await readClipboardPaste(pasteHarness({ files: ['/Users/me/a.png'], image: PNG, text: 'a.png' }))
+  expect(pasted).toEqual({ kind: 'files', paths: ['/Users/me/a.png'] })
+})
+
+test('a screenshot with no file on the clipboard is pasted as an image', async () => {
+  const pasted = await readClipboardPaste(pasteHarness({ files: null, image: PNG, text: 'PNG image' }))
+  expect(pasted.kind).toBe('image')
+  if (pasted.kind !== 'image') return
+  expect(pasted.image.mediaType).toBe('image/png')
+})
+
+test('text is the last resort, and nothing at all keeps the reader reason', async () => {
+  expect(await readClipboardPaste(pasteHarness({ text: 'hello' }))).toEqual({ kind: 'text', text: 'hello' })
+  expect(await readClipboardPaste(pasteHarness({}))).toEqual({ kind: 'empty', reason: 'empty' })
+  expect(await readClipboardPaste({ platform: 'linux', env: {}, run: async () => undefined }))
+    .toEqual({ kind: 'empty', reason: 'no-reader' })
 })

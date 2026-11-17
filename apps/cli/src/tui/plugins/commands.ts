@@ -15,9 +15,11 @@
  *
  * @module hulala-cli/tui/plugins/commands
  */
+import { readFile } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
-import type { PromptImage, TerminalPromptMode, TerminalSession } from '../data/remote.js'
-import { liveImageReadPorts, readClipboardImage } from '../clipboard.js'
+import type { PasteFile, TerminalPromptMode, TerminalSession } from '../data/remote.js'
+import { liveImageReadPorts, readClipboardPaste } from '../clipboard.js'
+import { draftFromClipboard } from '../paste.js'
 import { languageName, parseLanguage } from '../../language.js'
 import { KEY_ACTIONS, actionHint } from '../../keymap.js'
 import type { PaneKind } from '../pane/focus.js'
@@ -50,8 +52,8 @@ export interface TuiCommands {
    * @param mode - Host delivery mode for prompt text.
    */
   submit(line: string, mode: TerminalPromptMode): Promise<void>
-  /** Read the clipboard's image and attach it to the draft being typed. */
-  pasteImage(): Promise<void>
+  /** Read the clipboard and put it in the draft as a path or as text. */
+  paste(): Promise<void>
   /** Move every queued occurrence back into the composer. */
   dequeue(): Promise<void>
   /** `Enter` steers a running turn; the queue chord always queues. */
@@ -119,14 +121,6 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
 
   /** Drafts typed before a Session existed, kept with the mode their gesture named. */
   const pendingLines: Array<{ line: string; mode: TerminalPromptMode }> = []
-  /**
-   * Images pasted into the draft being typed.
-   *
-   * They belong to this draft, not to a Session: a paste is the user's own
-   * clipboard, which exists only in this process, so the bytes are read here and
-   * handed to the Host inside the prompt frame.
-   */
-  const pendingImages: PromptImage[] = []
   let cancelRequested = false
   /** The layout from before `Cmd-E`, while Neovim-only mode is on. */
   let beforeEditorOnly: FrameSnapshot | undefined
@@ -473,32 +467,67 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   }
 
   /**
-   * Read the image on this machine's clipboard and attach it to the draft.
+   * `Ctrl-V`: put what the clipboard holds into the draft.
    *
-   * A refusal is always spoken: a key that silently does nothing is
-   * indistinguishable from a broken keybinding.
+   * A paste is a path, the way pi does it: the model opens the file with its own
+   * tools, and the user can see and re-use what was pasted. Files the clipboard
+   * names stay where they are on this machine when the Host is this machine;
+   * anything that has to reach another machine is written into the Host's temp
+   * directory first, so the path in the draft is one the model can actually
+   * open. Text is pasted as text, and a refusal is always spoken: a key that
+   * silently does nothing is indistinguishable from a broken keybinding.
    */
-  const pasteImage = async (): Promise<void> => {
-    if (session.id === undefined) {
-      reducer.addNotice(t('notice.imageNoSession'))
+  const paste = async (): Promise<void> => {
+    const pasted = await readClipboardPaste(liveImageReadPorts())
+    const draft = await draftFromClipboard(pasted, {
+      local: backend.host.local === true,
+      save: async file => await saveOnHost(file),
+      read: async path => await readFile(path),
+    }).catch((caught: unknown) => {
+      failure(caught)
+      return undefined
+    })
+    if (draft === undefined) return
+    if (draft.kind === 'refused') {
+      reducer.addNotice(t('notice.pasteProblem', { reason: draft.reason }))
       repaint()
       return
     }
-    const result = await readClipboardImage(liveImageReadPorts())
-    if (!result.ok) {
-      reducer.addNotice(t('notice.imageProblem', { reason: result.reason }))
-      repaint()
-      return
-    }
-    pendingImages.push({ data: result.image.data, mediaType: result.image.mediaType })
-    reducer.addNotice(t('notice.imageAttached', { count: pendingImages.length, size: sizeOf(result.image.bytes) }))
+    insertAtCursor(draft.kind === 'text' ? draft.text : draft.paths.join('\n'))
+  }
+
+  /**
+   * Insert one pasted value at the cursor, spaced like a typed word.
+   *
+   * A path dropped flush against a word is not one token to anything that reads
+   * the draft later; the spaces are the same ones pi adds.
+   * @param text - the path or text to insert.
+   */
+  const insertAtCursor = (text: string): void => {
+    const cursor = editor.getCursor()
+    const line = editor.getText().split('\n')[cursor.line] ?? ''
+    const before = cursor.col > 0 ? line[cursor.col - 1] ?? '' : ''
+    const after = line[cursor.col] ?? ''
+    const leading = before !== '' && !/\s/u.test(before) ? ' ' : ''
+    const trailing = after !== '' && !/\s/u.test(after) ? ' ' : ''
+    editor.insertTextAtCursor(`${leading}${text}${trailing}`)
     repaint()
+  }
+
+  /**
+   * Write one paste on the Host and return the absolute path there.
+   * @param file - the bytes and name to store.
+   * @returns the path the Host wrote.
+   */
+  const saveOnHost = async (file: PasteFile): Promise<string> => {
+    if (backend.savePaste === undefined) throw new Error(t('error.pasteRouteMissing'))
+    return await backend.savePaste(file)
   }
 
   const submit = async (line: string, mode: TerminalPromptMode): Promise<void> => {
     if (lifecycle.closing) return
     const text = line.trim()
-    if (text === '' && pendingImages.length === 0) return
+    if (text === '') return
     if (text.startsWith('/')) {
       await runCommand(text)
       return
@@ -510,11 +539,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     reducer.setRunning(true)
     repaint()
     try {
-      // The draft's images go with this message; a failed send keeps them so the
-      // user can retry instead of re-pasting a screenshot.
-      const images = [...pendingImages]
-      await backend.prompt(session.id, line, mode, images)
-      pendingImages.length = 0
+      await backend.prompt(session.id, line, mode)
     } catch (caught) {
       reducer.setRunning(false)
       failure(caught)
@@ -588,27 +613,13 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
 
   ctx.provide('hulalaCommands', {
     submit,
-    pasteImage,
+    paste,
     dequeue,
     openPalette,
     toggleEditorOnly,
     modeFor: (gesture: 'enter' | 'accelerated') => (gesture === 'accelerated' || !reducer.busy ? 'queue' : 'steer'),
     cancel,
   })
-}
-
-/**
- * Render a byte count the way a person reads it.
- *
- * One decimal for megabytes keeps an attached screenshot legible ("1.4 MB")
- * without pretending to byte precision the user cannot act on.
- * @param bytes - decoded size of one attachment.
- * @returns a short human string.
- */
-function sizeOf(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 /** Cordis object-form plugin. */

@@ -73,9 +73,7 @@ export interface MessageTable {
   'keymap.action.dequeue': string
   'keymap.action.expand': string
   'keymap.action.pasteImage': string
-  'notice.imageAttached': (values: { count: number; size: string }) => string
-  'notice.imageProblem': (values: { reason: 'empty' | 'too-large' | 'unsupported' | 'no-reader' }) => string
-  'notice.imageNoSession': string
+  'notice.pasteProblem': (values: { reason: 'empty' | 'too-large' | 'unsupported' | 'no-reader' }) => string
   'keymap.action.redraw': string
   'keymap.action.focusLeft': string
   'keymap.action.focusRight': string
@@ -355,6 +353,9 @@ export interface MessageTable {
   'error.providerNotConfigurable': (params: { provider: string }) => string
   'error.providerSignIn': (params: { provider: string }) => string
   'error.connectionTimeout': string
+  'error.pasteRejected': (params: { status: string; reason: string }) => string
+  'error.pasteUnnamed': string
+  'error.pasteRouteMissing': string
 
   'pane.unavailable': (params: { pane: string; reason: string }) => string
   'pane.terminal': string

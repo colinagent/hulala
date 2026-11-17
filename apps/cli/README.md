@@ -177,6 +177,18 @@ multiplexer attach, an IDE daemon). The client writes the sequence and cannot
 verify it; when a local copy fails for real it says why instead of reporting a
 false `Copied!`.
 
+`Ctrl-V` is the other direction and follows pi: it puts **text** in the draft.
+Clipboard file URLs (a Finder copy) keep their own paths when the Host is this
+machine; a screenshot, and any file that has to cross to another machine, is
+written into the Host's own temp directory (`$TMPDIR/hulala-pastes/`) first and
+its path is inserted, so the model can open exactly the file that was pasted.
+A paste is ephemeral: it is never written into the state root, and the OS
+reclaims it the way it reclaims every other temp file. The route is
+`POST /api/paste` on the Host, behind the same cookie as every other request;
+what it accepts is one bounded, canonical base64 body, and the only place it
+writes is that directory. Plain text is pasted as text. Copy is unchanged: a
+selection goes to the clipboard you paste from.
+
 ## The command palette
 
 `Shift-Cmd-P` (or `/commands`) opens the palette: a searchable list of every

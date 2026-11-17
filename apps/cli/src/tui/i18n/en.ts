@@ -70,7 +70,7 @@ export const en: MessageTable = {
   'keymap.action.thinking': 'cycle the thinking level',
   'keymap.action.dequeue': 'take queued messages back into the composer',
   'keymap.action.expand': 'expand or collapse every detail row',
-  'keymap.action.pasteImage': 'paste an image from the clipboard',
+  'keymap.action.pasteImage': 'paste a file, image or text from the clipboard as a path',
   'keymap.action.redraw': 'redraw the frame',
   'keymap.action.focusLeft': 'move the keyboard left: rail ↔ conversation ↔ sidebar',
   'keymap.action.focusRight': 'move the keyboard right: rail ↔ conversation ↔ sidebar',
@@ -277,14 +277,12 @@ export const en: MessageTable = {
   'notice.cancelRequested': 'cancel requested',
   'notice.renamed': ({ title }) => `renamed to ${title}`,
   'notice.noQueued': 'no queued messages to restore',
-  'notice.imageAttached': ({ count, size }) => `attached ${count} image${count === 1 ? '' : 's'} (${size})`,
-  'notice.imageProblem': ({ reason }) => {
-    if (reason === 'too-large') return 'that image is too large to attach (10 MB limit)'
-    if (reason === 'empty') return 'no image on the clipboard'
+  'notice.pasteProblem': ({ reason }) => {
+    if (reason === 'too-large') return 'that file is too large to paste (10 MB limit)'
+    if (reason === 'empty') return 'nothing pasteable on the clipboard'
     if (reason === 'unsupported') return 'the clipboard image is not a PNG, JPEG, WebP or GIF'
-    return 'this platform has no clipboard image reader'
+    return 'this platform has no clipboard reader'
   },
-  'notice.imageNoSession': 'open a Session before pasting an image',
   'notice.restored': ({ count }) => `restored ${count} queued message${count > 1 ? 's' : ''}`,
   'notice.kept': ({ count }) => `kept ${count} queued message${count > 1 ? 's' : ''} with attachments in the queue`,
   'notice.reasoning': ({ mode }) => `reasoning ${mode}`,
@@ -350,6 +348,9 @@ export const en: MessageTable = {
   'error.providerNotConfigurable': ({ provider }) => `provider ${provider} is not configurable on this Host`,
   'error.providerSignIn': ({ provider }) => `${provider} does not accept an API key here; sign in from the Desktop app`,
   'error.connectionTimeout': 'Timed out waiting for the Host event connection',
+  'error.pasteRejected': ({ status, reason }) => `the Host could not store the paste (${status}: ${reason})`,
+  'error.pasteUnnamed': 'the Host stored the paste without naming its path',
+  'error.pasteRouteMissing': 'this Host cannot store a pasted file; update the Host',
 
   'pane.unavailable': ({ pane, reason }) => `${pane} unavailable: ${reason}`,
   'pane.terminal': 'terminal',

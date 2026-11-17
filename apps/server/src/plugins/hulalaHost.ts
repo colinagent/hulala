@@ -20,6 +20,7 @@ import { ensureHulalaPaths, type ServerConfig } from '../config.ts'
 import { apiEditorPlugin } from './apiEditor.ts'
 import { apiFilesPlugin } from './apiFiles.ts'
 import { apiGitPlugin } from './apiGit.ts'
+import { apiPastePlugin } from './apiPaste.ts'
 import { commandTasksPlugin } from './commandTasks.ts'
 
 /** Host transport facts exposed to sibling plugins and the Host bootstrap. */
@@ -114,6 +115,9 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
   // awaited: a composition without the `schedule` row simply has no command.
   ctx.plugin(commandTasksPlugin)
   await ctx.plugin(apiFilesPlugin)
+  // A pasted file is written on this machine, not on the client's: the model's
+  // tools run here, so the path in the prompt has to exist here.
+  await ctx.plugin(apiPastePlugin)
   // The editor column runs Neovim here, not in the client: one authenticated
   // socket per editor carries Neovim's own msgpack channel.
   await ctx.plugin(apiEditorPlugin)

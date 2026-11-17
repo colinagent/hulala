@@ -13,6 +13,21 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.23] - 2026-11-17
+
+### Changed
+
+- `Ctrl-V` pastes a **path**, the way pi does, instead of attaching an image to
+  the prompt. A clipboard file (a Finder copy) keeps its own path when the Host
+  is this machine; a screenshot, and anything that has to reach another machine,
+  is written into the Host's own temp directory (`$TMPDIR/hulala-pastes/`) first
+  and that path is inserted, so the model opens exactly the file that was pasted
+  — also behind `hulala ssh`, where the client's own `/var/folders/…` path names
+  nothing. A paste is ephemeral, so it never lands in the state root and the OS
+  reclaims it; plain text is pasted as text. The Host writes it on
+  `POST /api/paste`, behind the same connection cookie as every other request,
+  owner-only and bounded; the prompt frame no longer carries inline images.
+
 ## [0.3.22] - 2026-11-17
 
 ### Changed

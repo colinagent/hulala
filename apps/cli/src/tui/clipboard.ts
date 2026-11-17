@@ -237,11 +237,11 @@ export function liveClipboardPorts(write: (data: string) => void): ClipboardPort
 /**
  * Largest image a prompt will carry.
  *
- * The image travels as base64 inside one prompt frame, so four thirds of this is
- * what a slow link has to move. Past this the paste is refused with a reason
- * rather than accepted and then failed by the Host's own attachment limit.
+ * A paste crosses to the Host as base64 in one request, so four thirds of this
+ * is what a slow link has to move. Past this the paste is refused with a reason
+ * rather than accepted and then failed by the Host's own route limit.
  */
-export const PASTE_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+export const PASTE_MAX_BYTES = 10 * 1024 * 1024
 
 /** Media types the prompt protocol accepts for an inline image. */
 export type ClipboardImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
@@ -259,7 +259,7 @@ export interface ClipboardImage {
 export type PasteImageProblem =
   /** The clipboard holds no image (text, or nothing at all). */
   | 'empty'
-  /** The image is larger than {@link PASTE_IMAGE_MAX_BYTES}. */
+  /** The payload is larger than {@link PASTE_MAX_BYTES}. */
   | 'too-large'
   /** The clipboard returned bytes no supported image format begins with. */
   | 'unsupported'
@@ -278,8 +278,19 @@ export interface ImageReadPorts {
   readonly platform: NodeJS.Platform
   /** Run one reader and return its stdout; undefined when it could not run or failed. */
   readonly run: (command: string, args: readonly string[]) => Promise<Buffer | undefined>
-  /** The native helper this build ships with, which reads the OS clipboard directly. */
-  readonly native?: { readonly getImage?: () => Promise<Uint8Array | null | undefined> } | undefined
+  /**
+   * The native helper this build ships with, which reads the OS clipboard
+   * directly.
+   *
+   * Besides images it answers the two other things a paste can carry: file URLs
+   * (a Finder copy) and text. Those are optional because a clipboard helper
+   * without them is still a usable image reader.
+   */
+  readonly native?: {
+    readonly getImage?: () => Promise<Uint8Array | null | undefined>
+    readonly getFilePaths?: () => Promise<readonly string[] | null | undefined>
+    readonly getText?: () => Promise<string | null | undefined>
+  } | undefined
 }
 
 /** The reader commands to try for an image, in the order they own the clipboard. */
@@ -317,13 +328,50 @@ export function imageMediaTypeOf(bytes: Uint8Array): ClipboardImageMediaType | u
 /** Turn raw clipboard bytes into a prompt-ready image, or explain why not. */
 function imageOf(bytes: Uint8Array | undefined): PasteImageResult {
   if (bytes === undefined || bytes.length === 0) return { ok: false, reason: 'empty' }
-  if (bytes.length > PASTE_IMAGE_MAX_BYTES) return { ok: false, reason: 'too-large' }
+  if (bytes.length > PASTE_MAX_BYTES) return { ok: false, reason: 'too-large' }
   const mediaType = imageMediaTypeOf(bytes)
   if (mediaType === undefined) return { ok: false, reason: 'unsupported' }
   return {
     ok: true,
     image: { data: Buffer.from(bytes).toString('base64'), mediaType, bytes: bytes.length },
   }
+}
+
+/** What one clipboard read holds, in the order a paste consumes it. */
+export type ClipboardPaste =
+  /** The clipboard names files (a Finder copy): paste their own paths. */
+  | { readonly kind: 'files'; readonly paths: readonly string[] }
+  /** The clipboard holds pixels (a screenshot): save them and paste that path. */
+  | { readonly kind: 'image'; readonly image: ClipboardImage }
+  /** Plain text, pasted as itself. */
+  | { readonly kind: 'text'; readonly text: string }
+  /** Nothing pasteable; the reason is the image reader's. */
+  | { readonly kind: 'empty'; readonly reason: PasteImageProblem }
+
+/**
+ * Read whatever the clipboard holds, in the order a paste should use it.
+ *
+ * Files come first because a Finder copy of an image exposes both the file URL
+ * and the pixels: the user named a file, so that file's path is what they expect
+ * to see, not a copy of its bytes. Text comes last, because a screenshot's
+ * clipboard usually carries a representation that decodes to nothing useful.
+ * @param ports - the injected environment, platform, helper and command runner.
+ * @returns the files, image or text; or the reason there is none.
+ */
+export async function readClipboardPaste(ports: ImageReadPorts): Promise<ClipboardPaste> {
+  const helper = ports.native
+  const paths = helper?.getFilePaths === undefined
+    ? null
+    : await helper.getFilePaths().catch(() => null) ?? null
+  if (paths !== null && paths.length > 0) {
+    const usable = paths.filter(path => path !== '' && !/[\u0000-\u001f]/u.test(path))
+    if (usable.length > 0) return { kind: 'files', paths: usable }
+  }
+  const image = await readClipboardImage(ports)
+  if (image.ok) return { kind: 'image', image: image.image }
+  const text = helper?.getText === undefined ? undefined : await helper.getText().catch(() => undefined)
+  if (typeof text === 'string' && text !== '') return { kind: 'text', text }
+  return { kind: 'empty', reason: image.reason }
 }
 
 /**

@@ -10,6 +10,18 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 并把整个客户端交给你：引擎就是 DSH 自己的 Agent Loop，每个面板都是本仓组装的插件，
 而 Host 原样接受 DSH 插件。
 
+## 安装
+
+```sh
+curl -fsSL https://hulala.ai/install.sh | sh
+```
+
+装完在任意终端运行 `hulala`——shell 还没读到新命令时，安装器会替你启动它。
+支持 macOS（Apple 芯片与 Intel）和 Linux（x64 与 arm64），Windows 尚未实现。
+Neovim 和 ripgrep 随包自带，需要的 Node.js 也由安装器提供，先装什么都不用。
+代理、Node.js 兜底、`hulala update`、`hulala rollback`，以及 `$HULALA_HOME` 里
+到底放了什么，见[安装细节](#安装细节)。
+
 <p align="center">
   <img src="assets/screens/03-files.png" alt="编辑器列开在会话目录上：真实文件树，旁边打开着一个文件" width="900" />
   <br />
@@ -41,10 +53,13 @@ Hulala 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) �
 - **Telegram 和飞书里也能对话** —— `hulala install bot` 把第一方 bot
   （`@colinagent/hulala-bot`）装进 Host 的 profile，同一个 agent、同一个状态根目录也能
   从聊天窗口里回你；配置用 `hulala plugin --profile tui exec hulala-bot --init` 写入。
+- **`Ctrl-V` 粘贴的是路径，和 pi 一样** —— 截图、Finder 里复制的文件或纯文本都按文本
+  进入输入框。图片和复制来的文件先存到 Host 自己的临时目录
+  （`$TMPDIR/hulala-pastes/`，由操作系统回收），所以输入框里的路径是模型真的能打开的
+  那个文件——本机如此，`hulala ssh` 到远端时也一样，落在它真正运行的那台机器上。
 - **窗口可以直接开在另一台机器上** —— `hulala ssh <ssh-host>` 直接把客户端开到那台
   机器的 Host 上，写法就是你平时用的 ssh：alias 来自你自己的 `~/.ssh/config`，那台
-  机器没装或版本落后时会先装好或更新 Hulala；`Ctrl-V` 粘的图片放在 prompt 帧里一起走，
-  远端 Host 直接拿到截图，不需要上传。
+  机器没装或版本落后时会先装好或更新 Hulala。
 - **Creator mode** —— agent 拿到 Host 自己 Cordis 面的只读视图和检查它的工具，能对着
   活着的组合回答问题、扩展它。
 
@@ -200,13 +215,10 @@ hulala creator off    # 把这项能力从组合里移除
 开关是 `<状态根目录>/config/creator.json`。关掉时会从已有 profile 里删掉那些行——
 能力是消失，不是闲置。
 
-## 安装
+## 安装细节
 
-```sh
-curl -fsSL https://hulala.ai/install.sh | sh
-```
-
-然后在任意终端：
+`install.sh` 先确认这台机器该用哪个版本，校验压缩包的 SHA-256，解压到
+`$HULALA_HOME` 并链好 `hulala` 命令。之后在任意终端：
 
 ```sh
 hulala                  # 连上本机的 Host

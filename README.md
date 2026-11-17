@@ -11,6 +11,19 @@ your terminal and leaves the whole client open: the engine is DSH's own Agent
 Loop, every panel is a plugin assembled in this repository, and the Host takes
 DSH plugins unchanged.
 
+## Install
+
+```sh
+curl -fsSL https://hulala.ai/install.sh | sh
+```
+
+Then run `hulala` in any terminal — the installer starts it for you when the
+shell has not picked up the new command yet. macOS (Apple silicon and Intel) and
+Linux (x64 and arm64); Windows is not implemented. Neovim and ripgrep ship with
+the release, and so does the Node.js it needs, so there is nothing to install
+first. The [install details](#install-details) cover the Node.js fallback,
+`hulala update`, `hulala rollback` and what lands in `$HULALA_HOME`.
+
 <p align="center">
   <img src="assets/screens/03-files.png" alt="The editor column on the Session directory: the real file tree with a file open beside it" width="900" />
   <br />
@@ -39,6 +52,11 @@ a file opens it beside the tree in the same column.
   and buffers survive when the column is hidden.
 - **No tmux, no runner script** — the Host is already a daemon. Every window is
   a client that attaches to it; `Ctrl-Q` detaches and the turn keeps running.
+- **`Ctrl-V` pastes a path, like pi** — a screenshot, a Finder copy or plain text
+  goes into the draft as text. An image or a copied file is stored in the Host's
+  own temp directory first (`$TMPDIR/hulala-pastes/`, reclaimed by the OS), so
+  the path names a file the model can open — on your machine or, through
+  `hulala ssh`, on the one it actually runs on.
 - **The Harness surfaces, not a copy** — streaming output, approvals, questions,
   model selection, cancellation, `/connect`, `/api` and `/api/remote.mux`.
 - **Plugins are DSH plugins** — a bundle installed into the Host profile with
@@ -49,9 +67,8 @@ a file opens it beside the tree in the same column.
   `hulala plugin --profile tui exec hulala-bot --init` writes its config.
 - **A window on another machine** — `hulala ssh <ssh-host>` opens the client
   straight on that machine's Host, spelled like the ssh you already type: the
-  aliases come from your own `~/.ssh/config`, Hulala is installed or updated
-  there first when it is missing or behind, and a `Ctrl-V` image travels inside
-  the prompt frame, so the remote Host gets the screenshot without an upload.
+  aliases come from your own `~/.ssh/config`, and Hulala is installed or updated
+  there first when it is missing or behind.
 - **Creator mode** — the agent gains a read-only view of the Host's own Cordis
   surface and the tools to inspect it, so it can explain and extend the running
   composition.
@@ -243,13 +260,11 @@ hulala creator off    # removes the capability from the composition again
 The switch is `<state root>/config/creator.json`. Turning it off strips the rows
 from an existing profile; the capability disappears rather than idling.
 
-## Install
+## Install details
 
-```sh
-curl -fsSL https://hulala.ai/install.sh | sh
-```
-
-Then, in any terminal:
+`install.sh` resolves the latest release for this machine, checks the archive's
+SHA-256, unpacks it under `$HULALA_HOME` and links the `hulala` command. Then, in
+any terminal:
 
 ```sh
 hulala                  # attach to the Host on this machine
