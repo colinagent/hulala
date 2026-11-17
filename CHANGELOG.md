@@ -13,6 +13,54 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.22] - 2026-11-17
+
+### Changed
+
+- The debug trace dates a stall instead of describing one. `HULALA_DEBUG_CLIENT`
+  now records a tty write that takes longer than a frame (`write 3435ms 30B`),
+  how late the event loop fired (`lag`), and how long input stopped (`gap`), so a
+  machine that slept, a terminal that stopped reading and a reconnect can be
+  told apart from the log alone. A damaged mouse report is recorded as
+  `damaged`, the one line that says the byte stream itself was truncated.
+
+### Fixed
+
+- Image paste works in an installed release. `Ctrl-V` reads the clipboard
+  through the TUI library's native helper, and that helper is a separate N-API
+  module the bundle cannot inline; the release never shipped it, so on macOS —
+  where an image has no command-line reader to fall back to — every paste
+  answered "this platform has no clipboard image reader", remote or local. The
+  package now carries the prebuild at `native/<platform>/prebuilds/…`, the first
+  place the library looks relative to its bundle, and packaging fails instead of
+  quietly omitting it.
+- A mouse report that lost its introducer is dropped instead of typed. A pty's
+  input queue holds about a kilobyte, so a terminal that is not being read loses
+  the front of whatever report it was writing; when the surviving bytes were
+  `64;60;39M` none of them looked like a sequence, and they reached the composer
+  and the shell as text — `60;39M65;60;39M…` across the screen after a wake. The
+  parser now recognises the tail of a report inside a burst of reports and
+  throws it away, and the input pipeline refuses one as a last resort. A whole
+  report keeps working: that is pi-tui's pointer event, not a fragment.
+- A terminal that stopped reading can no longer starve the input side. A tty
+  write is synchronous, so a busy terminal blocked the event loop it shares with
+  stdin — and a loop that is blocked reads nothing, which is how a pty ends up
+  dropping the middle of a mouse report. Frames are queued and written from the
+  thread pool now: a frame that no longer fits is dropped whole and the window
+  repaints in full once the queue drains, the queue is flushed before a successor
+  process takes the screen, and it is flushed again before the restore sequence
+  becomes the last thing the terminal sees. Measured on a terminal that stopped
+  draining its pty for four seconds, the client read every one of the 448 reports
+  sent in that window; before, a single 30-byte write blocked the loop for 3.4 s
+  and input stopped for the whole of it.
+- A window that slept or lost its transport starts its input and its frame over.
+  A half-received sequence that outlived its stream is dropped rather than
+  drained — draining handed its bytes back as keys — and the next frame is a
+  full repaint, because a differential one keeps every cell it believes is
+  unchanged, which is exactly what a frame written over during a sleep leaves
+  wrong. A reconnect is the trigger; a wall clock that jumped is the fallback,
+  since macOS suspends the machine without stopping the process.
+
 ## [0.3.21] - 2026-11-16
 
 ### Fixed

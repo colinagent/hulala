@@ -45,3 +45,19 @@ test('real keys and Alt chords are never mistaken for reports', () => {
     expect(isStrayTerminalReport(key), key).toBe(false)
   }
 })
+
+test('a mouse report that lost its introducer is swallowed, never typed', () => {
+  // What a tty hands on after its queue dropped the front of a report. The
+  // parser drops these too; this gate is the second door, because a fragment
+  // that is not a sequence reaches pi-tui's focused component as text.
+  expect(isStrayTerminalReport('64;60;39M')).toBe(true)
+  expect(isStrayTerminalReport('60;39M')).toBe(true)
+  expect(isStrayTerminalReport('64;60;39m')).toBe(true)
+  // A whole report belongs to pi-tui's pointer dispatch, never to this gate:
+  // consuming it here would take the mouse away from the frame.
+  expect(isStrayTerminalReport('\u001b[<64;60;39M')).toBe(false)
+  // Typing that merely ends in the report's terminator is typing.
+  expect(isStrayTerminalReport('5M')).toBe(false)
+  expect(isStrayTerminalReport('2024M')).toBe(false)
+  expect(isStrayTerminalReport('60;39')).toBe(false)
+})

@@ -54,6 +54,22 @@ const CSI_REPORT = /^\u001b\[\??[\d;]*[cnR]$/u
 const WINDOW_REPORT = /^\u001b\[(?!6;)\d+(?:;\d+)*t$/u
 
 /**
+ * A mouse report that lost its introducer.
+ *
+ * The terminal writes a report in one `write`, and a pty input queue with no
+ * room takes only part of it: the rest is gone, so the next read can start at
+ * the button digits (`60;39M`) or at a coordinate group. No key press produces
+ * two coordinate groups and the report's terminator, so this is never typing —
+ * but it does not look like a sequence to the renderer either, which is how it
+ * reaches the composer and the shell in the first place.
+ *
+ * A *whole* SGR report (`ESC[<…M`) is deliberately not listed: pi-tui dispatches
+ * mouse events after these listeners, so consuming one here would take the
+ * pointer away from the frame.
+ */
+const DAMAGED_MOUSE = /^\d{1,4}(?:;\d{1,4}){1,2}[Mm]$/u
+
+/**
  * Whether one delivered piece is a terminal report that nobody claimed.
  * @param data - one complete piece from {@link InputParser}.
  * @returns true when the frame must swallow it instead of typing it.
@@ -63,4 +79,5 @@ export function isStrayTerminalReport(data: string): boolean {
     || DEVICE_ATTRIBUTES.test(data)
     || CSI_REPORT.test(data)
     || WINDOW_REPORT.test(data)
+    || DAMAGED_MOUSE.test(data)
 }

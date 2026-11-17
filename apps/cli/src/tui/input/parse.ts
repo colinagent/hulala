@@ -18,6 +18,9 @@
  *
  * - a bracketed paste, markers included;
  * - an SGR mouse report (`ESC [ < b ; x ; y M|m`), and one that lost its escape;
+ * - a report that lost more than its escape — the digit groups and terminator
+ *   with nothing in front of them, which is what a terminal's short write or a
+ *   truncated queue leaves behind;
  * - a CSI or SS3 sequence (arrows, function keys, modifiers);
  * - an OSC, DCS, APC, PM or SOS string, for a terminal's own replies;
  * - a lone escape with one more character, which is an Alt chord;
@@ -40,6 +43,40 @@ const REPORT_HEAD = /^\u001b?\[<[\d;]*$/u
 
 /** A whole cursor or function key without its escape byte: `[C`, `[3~`, `OA`. */
 const ORPHAN_SEQUENCE = /^(?:\[[\d;]*[A-Za-z~]|O[A-Z])/u
+
+/**
+ * A report that lost its introducer too: `b;x;yM` or `x;yM`.
+ *
+ * A terminal writes a report with one `write`, and a pty whose input queue is
+ * full takes only part of it: the bytes that did not fit are gone, so the next
+ * read starts inside a report instead of in front of one. Losing the introducer
+ * is the worst case, because the digits left behind are printable — typed into
+ * a composer they read `60;39M65;…`, which is exactly how this shows up.
+ *
+ * At least one `;` is required. A field without a separator (`5M`, `2024M`) is
+ * ordinary typing that happens to end in the terminator's letter, and the window
+ * this is read in is short enough that a person can produce one right after a
+ * click; two coordinate groups cannot be a key press.
+ */
+const DAMAGED_TAIL = /^\d{1,4}(?:;\d{1,4}){1,2}[Mm]/u
+
+/**
+ * A digit run that may still grow into one.
+ *
+ * The separator is required here even though the report it belongs to may have
+ * lost it: a bare digit is what a person types, and holding it would delay real
+ * text. Two groups are not a keystroke.
+ */
+const DAMAGED_TAIL_RUN = /^\d{1,4}(?:;\d{1,4}){1,2}$/u
+
+/**
+ * How long after a report the stream is still assumed to be report traffic.
+ *
+ * A damaged tail carries no timestamp of its own, so the parser needs to know
+ * whether the bytes in hand belong to a burst of reports. The anchor is the last
+ * report it delivered; that is the only moment the stream was known good.
+ */
+const DEFAULT_REPORT_RUN_MS = 1_000
 
 /**
  * The default for how long after an Escape its stripped sequence can arrive.
@@ -90,6 +127,8 @@ const MAX_HELD_PREFIX = 64
 export interface InputParserOptions {
   /** How long after a delivered Escape its stripped tail may still be rejoined. */
   readonly orphanWindowMs?: number
+  /** How long after a delivered report its stripped tail is still report traffic. */
+  readonly reportRunMs?: number
   /** Clock, injected so a test can move time without sleeping. */
   readonly now?: () => number
 }
@@ -109,15 +148,44 @@ export class InputParser {
   private escapedAt = -1
   /** Fragments dropped because their escape had already been handed on. */
   private dropped: string[] = []
+  /** When the last complete report was delivered (-1 = never). */
+  private reportAt = -1
+  /** When the last damaged tail was dropped (-1 = never). */
+  private residueAt = -1
+  /** The report-shaped fragments dropped instead of being typed. */
+  private damaged: string[] = []
+  private readonly reportRunMs: number
 
   /** The dropped fragments, for the adapter's trace; read and cleared. */
   takeDrops(): string[] {
     return this.dropped.splice(0)
   }
 
+  /** The damaged report fragments that were dropped; read and cleared. */
+  takeDamaged(): string[] {
+    return this.damaged.splice(0)
+  }
+
   constructor(options: InputParserOptions = {}) {
     this.orphanWindowMs = options.orphanWindowMs ?? DEFAULT_ORPHAN_WINDOW_MS
+    this.reportRunMs = options.reportRunMs ?? DEFAULT_REPORT_RUN_MS
     this.now = options.now ?? (() => Date.now())
+  }
+
+  /**
+   * Throw away everything held, and stop treating what follows as report traffic.
+   *
+   * The caller uses this when the terminal's state cannot be trusted any more —
+   * a machine that slept, a connection that was rebuilt. Half a sequence means
+   * nothing after an interruption like that, and handing it back as keys is the
+   * bug this parser exists to prevent, so it is dropped rather than drained.
+   */
+  reset(): void {
+    if (this.held !== '') this.damaged.push(this.held)
+    this.held = ''
+    this.escapedAt = -1
+    this.reportAt = -1
+    this.residueAt = -1
   }
 
   /** Bytes waiting for their remainder. */
@@ -137,6 +205,9 @@ export class InputParser {
     if (this.held === '') return 'none'
     if (this.held.startsWith(PASTE_START)) return 'paste'
     if (REPORT_HEAD.test(this.held)) return 'report'
+    // A digit run held after a damaged tail may still become one; it waits on
+    // the report's clock and `drain` drops it instead of typing it.
+    if (this.damagedRecently() && DAMAGED_TAIL_RUN.test(this.held)) return 'report'
     return 'sequence'
   }
 
@@ -157,6 +228,7 @@ export class InputParser {
     }
     const pieces: string[] = []
     for (;;) {
+      this.dropDamaged()
       const piece = this.take()
       if (piece === undefined) break
       pieces.push(piece)
@@ -182,6 +254,12 @@ export class InputParser {
     const held = this.held
     this.held = ''
     if (held === '') return []
+    // A damaged report is never typing, whatever clock it arrives on.
+    if (this.damagedRecently() && (DAMAGED_TAIL.test(held) || DAMAGED_TAIL_RUN.test(held))) {
+      this.damaged.push(held)
+      this.residueAt = this.now()
+      return []
+    }
     if (held === '\u001b') {
       this.escapedAt = this.now()
       return ['\u001b']
@@ -194,6 +272,48 @@ export class InputParser {
     if (held.startsWith('\u001b') && held.length > 1) return ['\u001b', held.slice(1)]
     // Anything else was a key or a chord that simply stopped here.
     return [held]
+  }
+
+  /**
+   * Drop a report that lost its introducer.
+   *
+   * `push` calls this before every piece, so a damaged tail is removed wherever
+   * it starts — including the middle of a read, which is where a truncated queue
+   * leaves it. Dropping rather than repairing is deliberate: a tail that kept
+   * only its coordinates has no button left to report, and inventing one would
+   * turn a broken stream into a gesture the user never made.
+   */
+  private dropDamaged(): void {
+    for (;;) {
+      if (!this.residue()) return
+      const match = DAMAGED_TAIL.exec(this.held)
+      if (match === null) return
+      this.damaged.push(this.cut(match[0].length))
+      const now = this.now()
+      this.residueAt = now
+      // Still report traffic: a burst that lost one introducer is likely to lose
+      // the next one too, and the window follows the damage rather than the
+      // last report so a long damaged run stays covered.
+      this.reportAt = now
+    }
+  }
+
+  /** Whether the bytes in hand belong to a burst of reports. */
+  private residue(): boolean {
+    return this.reportAt >= 0 && this.now() - this.reportAt <= this.reportRunMs
+  }
+
+  /**
+   * Whether the stream is known to be damaged right now.
+   *
+   * The difference from {@link residue} is what it licenses. Being inside a
+   * burst only says the bytes could be report traffic; having dropped one
+   * already says the stream is broken, and only then is it worth holding a digit
+   * run that might still become a report. A person typing digits right after a
+   * click keeps their characters.
+   */
+  private damagedRecently(): boolean {
+    return this.residueAt >= 0 && this.now() - this.residueAt <= this.reportRunMs
   }
 
   /**
@@ -244,15 +364,27 @@ export class InputParser {
     // recognised at once and never becomes text. The escape is restored because
     // everything above this parser reads a report as one sequence.
     const orphan = ORPHAN_REPORT.exec(this.held)
-    if (orphan !== null) return `\u001b${this.cut(orphan[0].length)}`
+    if (orphan !== null) {
+      // A report read after its introducer was split off is still a report, and
+      // a good one: it anchors the burst the damaged-tail window measures.
+      this.reportAt = this.now()
+      return `\u001b${this.cut(orphan[0].length)}`
+    }
     if (ORPHAN_HEAD.test(this.held) && this.held.length < 24) return undefined
+    // Once the stream has shown a damaged tail, a trailing digit run is more
+    // likely the next one than typing: hold it for the report's window, where
+    // `drain` drops it if the rest never comes.
+    if (this.damagedRecently() && DAMAGED_TAIL_RUN.test(this.held)) return undefined
     return this.takeText()
   }
 
   /** A piece that begins with an escape. */
   private takeEscape(): string | undefined {
     const report = REPORT.exec(this.held)
-    if (report !== null) return this.cut(report[0].length)
+    if (report !== null) {
+      this.reportAt = this.now()
+      return this.cut(report[0].length)
+    }
     const csi = CSI.exec(this.held)
     if (csi !== null) return this.cut(csi[0].length)
     if (CONTROL_STRING.test(this.held)) {

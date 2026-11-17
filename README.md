@@ -290,6 +290,7 @@ hulala-<version>-<target>/
   bin/hulala                 Node CLI and terminal client
   bin/nvim                   bundled Neovim (runtime tree under runtime/editor/)
   bin/ime                    macOS input-source helper (darwin targets only)
+  native/<platform>/prebuilds/  clipboard helper (image paste); the TUI bundle cannot inline it
   server/hulala-host.mjs     Host wrapper
   runtime/host.mjs           compiled Host
   runtime/package.json       dependency list this release resolves

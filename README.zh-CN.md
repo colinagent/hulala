@@ -240,6 +240,7 @@ hulala-<version>-<target>/
   bin/hulala                 Node CLI 与终端客户端
   bin/nvim                   内置 Neovim（runtime tree 在 runtime/editor/ 下）
   bin/ime                    macOS 输入法辅助（仅 darwin 目标）
+  native/<platform>/prebuilds/  剪贴板原生助手（图片粘贴）；TUI bundle 无法内联它
   server/hulala-host.mjs     Host wrapper
   runtime/host.mjs           编译后的 Host
   runtime/package.json       本发布解析出来的依赖清单

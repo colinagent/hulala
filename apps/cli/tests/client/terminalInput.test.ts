@@ -19,10 +19,12 @@ interface Harness {
   readonly received: string[]
   /** Feed raw bytes as one `data` event, the way a pty delivers a read. */
   send(data: string): void
+  /** Forget held bytes, the way a wake or a rebuilt transport does. */
+  reset(reason: string): void
   stop(): void
 }
 
-function harness(escapeTimeoutMs?: number, orphanWindowMs?: number): Harness {
+function harness(escapeTimeoutMs?: number, orphanWindowMs?: number, trace?: string[]): Harness {
   const input = Object.assign(new PassThrough(), {
     isTTY: true,
     setRawMode: (_mode: boolean): void => undefined,
@@ -33,13 +35,19 @@ function harness(escapeTimeoutMs?: number, orphanWindowMs?: number): Harness {
   const received: string[] = []
   const terminal = new StreamTerminal(
     { input, output } as unknown as TerminalStreams,
-    { escapeTimeoutMs: escapeTimeoutMs ?? 120, reportTimeoutMs: escapeTimeoutMs ?? 120, ...(orphanWindowMs === undefined ? {} : { orphanWindowMs }) },
+    {
+      escapeTimeoutMs: escapeTimeoutMs ?? 120,
+      reportTimeoutMs: escapeTimeoutMs ?? 120,
+      ...(orphanWindowMs === undefined ? {} : { orphanWindowMs }),
+      ...(trace === undefined ? {} : { trace: (line: string) => { trace.push(line) } }),
+    },
   )
   terminal.start(sequence => received.push(sequence), () => undefined)
   return {
     input,
     received,
     send: data => { input.write(data) },
+    reset: reason => { terminal.resetInput(reason) },
     stop: () => {
       terminal.stop()
       input.destroy()
@@ -349,5 +357,58 @@ test('a tail past the orphan window is dropped, never typed', async () => {
   h.send('[D')
   await flush()
   expect(h.received).toEqual(['\u001b'])
+  h.stop()
+})
+
+/**
+ * What a truncated tty leaves behind: a report with none of `ESC [ <` in front
+ * of it. The pty input queue holds about a kilobyte, so a terminal that is not
+ * being read loses the introducer of whatever report it was writing, and the
+ * digits that survive are printable. Typed into the composer they read
+ * `60;39M65;60;39M…`, which is the screen a user sees after a wake.
+ */
+test('a report that lost its introducer is dropped, not typed', async () => {
+  const trace: string[] = []
+  const h = harness(undefined, undefined, trace)
+  h.send('\u001b[<64;60;39M')
+  await flush()
+  h.send('65;60;39M60;39M')
+  await flush()
+  expect(h.received).toEqual(['\u001b[<64;60;39M'])
+  expect(trace.filter(line => line.startsWith('damaged '))).toEqual([
+    'damaged "65;60;39M"',
+    'damaged "60;39M"',
+  ])
+  h.stop()
+})
+
+test('typing right after a report is still typing', async () => {
+  const h = harness()
+  h.send('\u001b[<0;5;3M')
+  await flush()
+  h.send('5M')
+  await flush()
+  expect(h.received).toEqual(['\u001b[<0;5;3M', '5', 'M'])
+  h.stop()
+})
+
+test('resetInput drops half a sequence instead of handing it back as keys', async () => {
+  const trace: string[] = []
+  const h = harness(undefined, undefined, trace)
+  h.send('\u001b[<0;5;')
+  await flush()
+  expect(h.received).toEqual([])
+  h.reset('test')
+  await flush()
+  // A half report that outlived its terminal is not a keystroke: the wake path
+  // drops it, and the trace says what was dropped and why.
+  expect(h.received).toEqual([])
+  expect(trace.filter(line => line.startsWith('reset '))).toEqual([
+    'reset test dropped "\\u001b[<0;5;"',
+  ])
+  // The stream is usable afterwards.
+  h.send('\u001b[<0;5;3M')
+  await flush()
+  expect(h.received).toEqual(['\u001b[<0;5;3M'])
   h.stop()
 })

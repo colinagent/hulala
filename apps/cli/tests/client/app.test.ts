@@ -2679,6 +2679,66 @@ test('a Host that cannot create the workspace says so and keeps the window', asy
   }
 })
 
+test('a reconnect drops half a sequence instead of typing it', async () => {
+  // A window that was away — a machine that slept, an ssh forward that died —
+  // can come back holding half of a report whose stream no longer exists. The
+  // client has to throw it away rather than drain it (draining types `[<64;60;`
+  // into whatever has the keyboard), and repaint from scratch, because a
+  // differential frame keeps every cell it believes is unchanged.
+  const transport: { state: 'connected' | 'disconnected' } = { state: 'connected' }
+  const watchers = new Set<() => void>()
+  const fake = fakeBackend('/workspace', {
+    connection: {
+      state: () => transport.state,
+      subscribe: handler => {
+        watchers.add(handler)
+        return () => { watchers.delete(handler) }
+      },
+    },
+  })
+  const home = mkdtempSync(join(tmpdir(), 'hulala-recover-'))
+  const previousHome = process.env.HULALA_HOME
+  const previousDebug = process.env.HULALA_DEBUG_CLIENT
+  process.env.HULALA_HOME = home
+  process.env.HULALA_DEBUG_CLIENT = '1'
+  // The client's trace is best-effort: it does not create the directory.
+  mkdirSync(join(home, 'logs'), { recursive: true })
+  cleanups.push(() => {
+    if (previousHome === undefined) delete process.env.HULALA_HOME
+    else process.env.HULALA_HOME = previousHome
+    if (previousDebug === undefined) delete process.env.HULALA_DEBUG_CLIENT
+    else process.env.HULALA_DEBUG_CLIENT = previousDebug
+    rmSync(home, { recursive: true, force: true })
+  })
+  const trace = (): string => {
+    const file = join(home, 'logs', 'tui-debug.log')
+    return existsSync(file) ? readFileSync(file, 'utf8') : ''
+  }
+
+  const tty = startTty(fake)
+  await waitFor(() => tty.painted().includes('❯'), 'the composer')
+  await waitFor(() => fake.followed.length === 1, 'the first follow stream')
+  // Half a report is in the parser's hands when the socket dies.
+  tty.input.write('\u001b[<64;60;')
+  await new Promise(resolve => setTimeout(resolve, 40))
+  transport.state = 'disconnected'
+  fake.handlers?.onError('socket closed')
+  for (const watcher of watchers) watcher()
+  await new Promise(resolve => setTimeout(resolve, 120))
+  const beforeRecovery = tty.painted().length
+  transport.state = 'connected'
+  for (const watcher of watchers) watcher()
+  await waitFor(() => fake.followed.length === 2, 'the reattached stream')
+  await waitFor(() => trace().includes('reset reconnected'), 'the recovery trace')
+  await waitFor(() => tty.painted().length > beforeRecovery, 'the recovery frame')
+  // The fragment is named in the trace as dropped, and never became typing.
+  expect(trace()).toContain('reset reconnected dropped "\\u001b[<64;60;"')
+  expect(tty.painted()).not.toContain('[<64;60;')
+  // The recovery also rebuilds the frame: a window that was away cannot trust
+  // the cells it left behind, so the composer comes back in full afterwards.
+  expect(tty.painted().slice(beforeRecovery)).toContain('❯')
+})
+
 test('a dropped follow stream reattaches without waiting on a Host call', async () => {
   // The reopen used to read the model catalog before subscribing the stream, so a
   // single stalled RPC left the window disconnected for as long as it was open —

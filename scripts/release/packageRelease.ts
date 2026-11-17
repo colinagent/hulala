@@ -3,6 +3,7 @@
  *
  * Layout:
  *   bin/hulala                 Node ESM CLI/TUI entry
+ *   native/<platform>/...      the terminal clipboard helper the bundle cannot inline
  *   server/hulala-host.mjs     Host wrapper (the real Host lives in runtime/)
  *   runtime/host.mjs           compiled Node Host
  *   runtime/ghostty-vt.wasm    terminal engine for the two side columns
@@ -35,7 +36,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { packageFiles, verifyPackage, type PackageManifest } from '@hulala/distribution/manifest'
 import { installDependencies } from '../../apps/cli/src/distribution/dependencies.ts'
 import { bundleEditor } from './editorBundle.ts'
-import { bundleNativeTools } from './nativeTools.ts'
+import { bundleClipboardHelper, bundleNativeTools } from './nativeTools.ts'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const argument = (name: string): string | undefined => {
@@ -181,6 +182,7 @@ await bundleEditor({ staging, target, repositoryRoot })
 
 console.log('Building native helpers...')
 await bundleNativeTools({ staging, target, repositoryRoot })
+await bundleClipboardHelper({ staging, target, repositoryRoot })
 
 await assertNoPrivateContent(staging)
 

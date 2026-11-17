@@ -159,6 +159,19 @@ function debugLog(message: string): void {
 /** Lines written this process, for the size check above. */
 let debugLines = 0
 
+/** How often the wake probe reads the wall clock. */
+const WAKE_PROBE_MS = 1_000
+
+/**
+ * A wall clock that jumped this far means the machine slept.
+ *
+ * macOS suspends the whole machine, not the process, so no `SIGCONT` arrives and
+ * no timer fires: the first evidence of a wake is the gap itself. Thirty seconds
+ * is far longer than any GC pause or blocked write, and far shorter than the
+ * shortest sleep a laptop lid produces.
+ */
+const SLEEP_JUMP_MS = 30_000
+
 /** Whether this terminal can take ANSI colour at all. */
 function colorEnabled(): boolean {
   return process.env.NO_COLOR === undefined && process.env.TERM !== 'dumb'
@@ -390,6 +403,55 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   ctx.on('hulala/quit', () => { void requestShutdown() })
   ctx.on('hulala/hangup', () => { void requestShutdown({ force: true }) })
   ctx.on('hulala/update-installed', () => { void requestShutdown({ force: true }) })
+  // A frame dropped because the terminal stopped taking output leaves the screen
+  // showing a state that was never painted in full. `request(true)` resets the
+  // renderer's own copy of the screen, so the next frame is every row again —
+  // which is the only way to repair a cell the diff would skip.
+  ctx.on('hulala/output-lost', () => { render.request(true) })
+
+  /**
+   * Come back from an interruption that can invalidate the terminal's stream.
+   *
+   * A machine that slept or a transport that was rebuilt leaves two things the
+   * frame cannot see. The first is half a sequence that will never finish: it is
+   * dropped rather than drained, because draining hands it back as keys —
+   * `[<35;` typed into whatever has the keyboard. The second is a screen the
+   * terminal may have reflowed, scrolled or written over while nobody owned it;
+   * a differential repaint keeps every cell it believes is unchanged, so the
+   * frame is rebuilt from scratch instead.
+   * @param reason - what interrupted the stream, for the debug trace.
+   */
+  const recoverTerminal = (reason: string): void => {
+    terminal.resetInput(reason)
+    render.request(true)
+  }
+
+  // A rebuilt transport is the client's own signal that it was away: the Host
+  // may have been replaced, the ssh forward may have died, and either way the
+  // window has to prove its state again. The first open of a window is not a
+  // recovery, so the drop is what arms it.
+  let transportLost = false
+  ctx.on('hulala/session-disconnected', () => { transportLost = true })
+  ctx.on('hulala/session-opened', () => {
+    if (!transportLost) return
+    transportLost = false
+    recoverTerminal('reconnected')
+  })
+
+  // Sleeping leaves no signal of its own, and a terminal that was suspended with
+  // a stalled write is the one case where recovery has to happen without the
+  // Host noticing anything.
+  ctx.effect(() => {
+    let last = Date.now()
+    const timer = setInterval(() => {
+      const now = Date.now()
+      const jumped = now - last
+      last = now
+      if (jumped > SLEEP_JUMP_MS) recoverTerminal(`slept ${String(Math.round(jumped / 1_000))}s`)
+    }, WAKE_PROBE_MS)
+    timer.unref?.()
+    return () => { clearInterval(timer) }
+  }, 'hulala: wake probe')
 
   const shutdown = async (code: number): Promise<void> => {
     if (!lifecycle.beginClose()) return
@@ -409,6 +471,11 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     // is the fallback for every other exit.
     ui.stop()
     if (logoId !== undefined) terminal.write(deleteKittyImage(logoId))
+    // The frame is on the screen, not in the queue: a successor process inherits
+    // this terminal, and a frame still waiting here would be painted over it.
+    // Bounded, because a terminal that stopped reading must not hold the window
+    // open — the exit path flushes what it can and gives up.
+    await terminal.drainOutput()
     // The context owns every plugin, so disposing it is what closes the
     // transport, the ptys and the subscriptions in one place. It has to happen
     // before `process.exit`, which would otherwise cut them off mid-flight —

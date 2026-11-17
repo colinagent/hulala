@@ -30,6 +30,7 @@ import type { CaretShape } from '../pane/screenSession.js'
 import { copyToClipboard, liveClipboardPorts, type CopyProblem } from '../clipboard.js'
 import { t } from '../i18n/index.js'
 import { installTerminalGuard } from '../terminal/guard.js'
+import { createBufferedOutput, type OutputSurface } from '../terminal/writer.js'
 import { StreamTerminal, type TerminalStreams } from '../terminal.js'
 
 /** DECSCUSR code for each caret shape the client hands the terminal. */
@@ -39,6 +40,17 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The terminal device, its screen, and the active keybinding table. */
     hulalaTerminal: TuiTerminal
+  }
+  interface Events {
+    /**
+     * A frame was dropped because the terminal stopped taking output.
+     *
+     * The queue is capped so a terminal that is not reading cannot grow the
+     * process, which means the newest frame can be lost while the loop keeps
+     * reading input. What the screen shows is then a frame that was never
+     * painted in full, so the window repaints from scratch once the queue drains.
+     */
+    'hulala/output-lost'(): void
   }
 }
 
@@ -236,9 +248,34 @@ function captureConsole(debug: ((message: string) => void) | undefined): () => v
 }
 
 /** Construct the terminal, install the keybinding table, and own both. */
+/**
+ * Paint through a queue when the surface is a real terminal.
+ *
+ * A tty write is synchronous, so a terminal that stopped draining its pty blocks
+ * the event loop — and a blocked loop stops reading stdin, which is how the pty
+ * ends up dropping the middle of a mouse report. The queue moves that wait to a
+ * thread-pool write; an injected stream (a test, a pipe) never blocks that way
+ * and is painted directly.
+ * @param output - the surface the window would paint.
+ * @param onOverflow - what to call after a frame was dropped.
+ * @returns the surface to paint through.
+ */
+function paintSurface(
+  output: TerminalPluginConfig['output'],
+  onOverflow: () => void,
+): TerminalStreams['output'] & { dispose?: () => void } {
+  const fd = (output as { fd?: number }).fd
+  if (output.isTTY !== true || typeof fd !== 'number') return output as TerminalStreams['output']
+  return createBufferedOutput(output as unknown as OutputSurface & { fd: number }, { onOverflow })
+}
+
 export function apply(ctx: Context, config: TerminalPluginConfig): void {
+  const output = paintSurface(config.output, () => {
+    config.debug?.('output overflowed')
+    ctx.emit('hulala/output-lost')
+  })
   const terminal = new StreamTerminal(
-    { input: config.input, output: config.output } as TerminalStreams,
+    { input: config.input, output } as TerminalStreams,
     {
       ...(config.debug === undefined ? {} : { trace: config.debug }),
       ...(config.escapeTimeoutMs === undefined ? {} : { escapeTimeoutMs: config.escapeTimeoutMs }),
@@ -250,12 +287,15 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
   terminal.onHangup(() => { ctx.emit('hulala/hangup') })
   // The terminal is ours from here: every way out has to give it back, including
   // the ways that skip the client's own shutdown.
-  const restoreTerminal = installTerminalGuard()
+  const restoreTerminal = installTerminalGuard(() => { terminal.flushSync() })
   // Nothing else may write to the device while this plugin paints it. The guard
   // is installed first so a crash still restores the screen, and the console is
   // captured second so its lines cannot land on the frame in between.
   const restoreConsole = captureConsole(config.debug)
   ctx.effect(() => restoreConsole, 'hulala: console capture')
+  // The queue dies with the plugin: after the terminal is given back nothing may
+  // still be writing a frame to it.
+  ctx.effect(() => () => { output.dispose?.() }, 'hulala: output queue')
   // The hardware cursor is the caret a program column shows. A grid cell holds
   // one glyph, so drawing Neovim's insert-mode bar in the grid would have to
   // delete the character under it; the terminal's own cursor composites over the

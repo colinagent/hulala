@@ -168,3 +168,98 @@ test('a person typing the two characters [C is not a tail', () => {
   const parser = new InputParser()
   expect(parser.push('[C')).toEqual(['[', 'C'])
 })
+
+/**
+ * A report that lost its introducer is the shape a terminal's short write
+ * leaves behind: the pty input queue is about a kilobyte, the rest of the report
+ * is gone, and what survives is `b;x;yM` with none of `ESC [ <` in front of it.
+ * Typed into a composer it reads `60;39M65;60;39M…`, which is what the user sees
+ * after a machine wakes.
+ */
+test('a report that lost its introducer is dropped, never typed', () => {
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  // The burst arrives first; that is what says the next bytes are report traffic.
+  expect(parser.push(report(60, 39))).toEqual([report(60, 39)])
+  expect(parser.push('64;60;39M')).toEqual([])
+  expect(parser.takeDamaged()).toEqual(['64;60;39M'])
+  // Only the coordinates survived, and only one number survived twice.
+  expect(parser.push('60;39M')).toEqual([])
+  expect(parser.push('39M')).toEqual(['3', '9', 'M'])
+  expect(parser.takeDamaged()).toEqual(['60;39M'])
+})
+
+test('a whole damaged run is dropped in one read', () => {
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  parser.push(report(1, 1))
+  // The bytes a truncated burst leaves: several headless reports, then one whole.
+  expect(parser.push('60;39M65;60;39M[<66;60;39M')).toEqual([`\u001b[<66;60;39M`])
+  expect(parser.takeDamaged()).toEqual(['60;39M', '65;60;39M'])
+})
+
+test('a damaged tail in the middle of a read does not become text', () => {
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  // The same signature the trace showed: two headless reports inside a batch of
+  // whole ones, one of them missing a second field as well.
+  const stream = `${report(21, 19)}[<35;18;19M35;17;18M${report(16, 18)}`
+  expect(parser.push(stream)).toEqual([
+    report(21, 19),
+    `\u001b[<35;18;19M`,
+    report(16, 18),
+  ])
+  expect(parser.takeDamaged()).toEqual(['35;17;18M'])
+})
+
+test('a damaged tail is dropped by drain too, not handed back as keys', () => {
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  parser.push(report(4, 4))
+  expect(parser.push('64;60;39M')).toEqual([])
+  expect(parser.takeDamaged()).toEqual(['64;60;39M'])
+  // Now that the stream is known to be broken, the next tail may be held while
+  // its remainder is still in flight — and drain drops it instead of typing it.
+  parser.push('60;39')
+  expect(parser.pendingKind()).toBe('report')
+  expect(parser.drain()).toEqual([])
+  expect(parser.takeDamaged()).toEqual(['60;39'])
+})
+
+test('a digit run is typing until a damaged tail proves the stream is broken', () => {
+  // Holding `64;60` on the strength of "a report happened" would delay text a
+  // person typed right after a click; only real damage licenses the hold.
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  parser.push(report(4, 4))
+  expect(parser.push('64;60')).toEqual(['6', '4', ';', '6', '0'])
+  expect(parser.takeDamaged()).toEqual([])
+})
+
+test('the damaged window follows the last report, and closes on its own', () => {
+  let now = 0
+  const parser = new InputParser({ reportRunMs: 100, now: () => now })
+  parser.push(report(5, 5))
+  now = 99
+  expect(parser.push('64;60;39M')).toEqual([])
+  // No report for longer than the window: the bytes are ordinary typing again,
+  // because a composer can receive two coordinate groups by hand.
+  const typing = new InputParser({ reportRunMs: 100, now: () => now })
+  typing.push(report(5, 5))
+  now = 500
+  expect(typing.push('64;60;39M')).toEqual(['6', '4', ';', '6', '0', ';', '3', '9', 'M'])
+})
+
+test('a single number and the terminator are typing, not a damaged report', () => {
+  // `5M` and `2024M` are what a person writes; requiring a field separator is
+  // what keeps the window from eating them.
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  parser.push(report(6, 6))
+  expect(parser.push('5M')).toEqual(['5', 'M'])
+  expect(parser.push('2024M')).toEqual(['2', '0', '2', '4', 'M'])
+  expect(parser.takeDamaged()).toEqual([])
+})
+
+test('reset drops what was held without handing it back as keys', () => {
+  const parser = new InputParser({ reportRunMs: 1_000, now: () => 0 })
+  expect(parser.push('\u001b[<35;4')).toEqual([])
+  parser.reset()
+  expect(parser.pending()).toBe('')
+  expect(parser.takeDamaged()).toEqual(['\u001b[<35;4'])
+  expect(parser.drain()).toEqual([])
+})

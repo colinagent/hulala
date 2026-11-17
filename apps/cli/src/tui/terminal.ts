@@ -33,7 +33,11 @@ import { filterUnusedModes, POP_KEYBOARD_PROTOCOL, PUSH_DISAMBIGUATE } from './t
 import {
   DEFAULT_ESCAPE_TIMEOUT_MS,
   DEFAULT_ORPHAN_WINDOW_MS,
+  DEFAULT_REPORT_RUN_MS,
   DEFAULT_REPORT_TIMEOUT_MS,
+  LAG_INTERVAL_MS,
+  READ_GAP_MS,
+  SLOW_WRITE_MS,
 } from './terminal/timing.js'
 
 /**
@@ -47,7 +51,27 @@ const TITLE_CONTROL = /[\u0000-\u001f\u007f-\u009f]/gu
 
 export interface TerminalStreams {
   input: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void; setEncoding?: (encoding: string) => void }
-  output: NodeJS.WritableStream & { isTTY?: boolean; columns?: number; rows?: number }
+  /**
+   * Where the frame is painted, and what a queued surface offers on top of it.
+   *
+   * A real terminal is painted through `terminal/writer.ts`, whose surface also
+   * has `flushSync` and `drain`: the first is what an exit sequence calls before
+   * it becomes the last write, the second is what a hand-off waits for before a
+   * successor paints the same screen. An injected stream (a test, a pipe) has
+   * neither, and a direct write is exactly right for it.
+   */
+  output: {
+    write(data: string): void
+    isTTY?: boolean
+    columns?: number
+    rows?: number
+    /** The descriptor a buffered surface writes to; absent means paint directly. */
+    fd?: number
+    flushSync?: () => void
+    drain?: () => Promise<void>
+    on?: (event: string, listener: () => void) => void
+    removeListener?: (event: string, listener: () => void) => void
+  }
 }
 
 /** Timing knobs a test can shorten; the client always takes the defaults. */
@@ -63,6 +87,8 @@ export interface TerminalOptions {
   readonly reportTimeoutMs?: number
   /** How long after a delivered Escape its stripped tail can be rejoined. */
   readonly orphanWindowMs?: number
+  /** How long after a delivered report a damaged tail is still report traffic. */
+  readonly reportRunMs?: number
   /**
    * Every chunk as the terminal read it, and every sequence handed on.
    *
@@ -78,6 +104,7 @@ export class StreamTerminal implements Terminal {
   private readonly escapeTimeoutMs: number
   private readonly reportTimeoutMs: number
   private readonly orphanWindowMs: number
+  private readonly reportRunMs: number
   private readonly trace: ((line: string) => void) | undefined
   private inputHandler: ((data: string) => void) | undefined
   private resizeHandler: (() => void) | undefined
@@ -91,12 +118,17 @@ export class StreamTerminal implements Terminal {
   private rawData: ((chunk: string | Buffer) => void) | undefined
   private detachResize: (() => void) | undefined
   private holdTimer: ReturnType<typeof setTimeout> | undefined
+  /** Read gap and loop lag, measured only when tracing: they date a stall. */
+  private lastReadAt = 0
+  private lagTimer: ReturnType<typeof setInterval> | undefined
+  private lagAt = 0
 
   constructor(streams: TerminalStreams, options: TerminalOptions = {}) {
     this.streams = streams
     this.escapeTimeoutMs = options.escapeTimeoutMs ?? DEFAULT_ESCAPE_TIMEOUT_MS
     this.reportTimeoutMs = options.reportTimeoutMs ?? DEFAULT_REPORT_TIMEOUT_MS
     this.orphanWindowMs = options.orphanWindowMs ?? DEFAULT_ORPHAN_WINDOW_MS
+    this.reportRunMs = options.reportRunMs ?? DEFAULT_REPORT_RUN_MS
     this.trace = options.trace
   }
 
@@ -144,14 +176,21 @@ export class StreamTerminal implements Terminal {
     this.write(PUSH_DISAMBIGUATE)
 
     if (process.env.HULALA_TRACE_START !== undefined) console.error('[start] terminal starting')
-    this.parser = new InputParser({ orphanWindowMs: this.orphanWindowMs, now: () => Date.now() })
+    this.parser = new InputParser({
+      orphanWindowMs: this.orphanWindowMs,
+      reportRunMs: this.reportRunMs,
+      now: () => Date.now(),
+    })
     this.rawData = (chunk: string | Buffer): void => {
       const text = String(chunk)
       this.trace?.(`raw ${JSON.stringify(text)}`)
+      if (this.trace !== undefined) this.traceReadGap()
       for (const piece of this.parser?.push(text) ?? []) this.deliver(piece)
       // A tail whose escape was already handed on is dropped, never typed; the
       // trace keeps the evidence for a machine whose read boundaries change.
       for (const dropped of this.parser?.takeDrops() ?? []) this.trace?.(`drop ${JSON.stringify(dropped)}`)
+      // A report that lost its introducer is the other half of that evidence.
+      for (const damaged of this.parser?.takeDamaged() ?? []) this.trace?.(`damaged ${JSON.stringify(damaged)}`)
       this.armHold()
     }
     input.on('data', this.rawData)
@@ -176,6 +215,7 @@ export class StreamTerminal implements Terminal {
       process.removeListener('SIGWINCH', onSigwinch)
       if (output.removeListener !== undefined) output.removeListener('resize', onResize)
     }
+    this.startLagProbe()
   }
 
   stop(): void {
@@ -194,6 +234,7 @@ export class StreamTerminal implements Terminal {
     }
     this.endData = undefined
     this.clearHold()
+    this.stopLagProbe()
     this.parser = undefined
     this.detachResize?.()
     this.detachResize = undefined
@@ -201,6 +242,9 @@ export class StreamTerminal implements Terminal {
     // the encoding the shell expects.
     this.write(POP_KEYBOARD_PROTOCOL)
     this.write('\u001b[?2004l')
+    // A queued surface still holds those two sequences, and the shell that comes
+    // next must not paint over them.
+    this.flushSync()
     this.streams.input.setRawMode?.(this.wasRaw)
     this.inputHandler = undefined
     this.resizeHandler = undefined
@@ -210,6 +254,92 @@ export class StreamTerminal implements Terminal {
   private deliver(piece: string): void {
     this.trace?.(`piece ${JSON.stringify(piece)}`)
     this.inputHandler?.(piece)
+  }
+
+  /**
+   * Forget a half-received sequence, because the terminal cannot be trusted.
+   *
+   * A window that slept, or a connection that was rebuilt, can leave a fragment
+   * from a stream that no longer exists. Draining it would hand the fragment
+   * back as keys — `[<35;` typed into whatever has the keyboard — so it is
+   * dropped, and the frame repaints from scratch on its own schedule.
+   * @param reason - what invalidated the stream, for the trace.
+   */
+  resetInput(reason: string): void {
+    this.parser?.reset()
+    this.clearHold()
+    const dropped = this.parser?.takeDamaged() ?? []
+    if (dropped.length === 0) this.trace?.(`reset ${reason}`)
+    for (const fragment of dropped) this.trace?.(`reset ${reason} dropped ${JSON.stringify(fragment)}`)
+  }
+
+  /**
+   * Write whatever is queued, before the terminal is handed back.
+   *
+   * The guard writes the restore sequence with a synchronous call that bypasses
+   * the queue, so the queue has to be empty first or a frame would land after
+   * the screen was given back. A surface that paints directly has nothing to do.
+   */
+  flushSync(): void {
+    this.streams.output.flushSync?.()
+  }
+
+  /**
+   * Resolve once the frame has reached the terminal, or once waiting is pointless.
+   *
+   * A restart starts a process that inherits this terminal, and two writers on
+   * one screen produce neither of the two frames. The queue is drained before the
+   * successor starts; a terminal that never takes the bytes must not hold the
+   * window open, so the wait is bounded.
+   * @param deadlineMs - how long to wait for a terminal that stopped reading.
+   */
+  async drainOutput(deadlineMs = 500): Promise<void> {
+    const drain = this.streams.output.drain
+    if (drain === undefined) return
+    await Promise.race([
+      drain(),
+      new Promise<void>(resolve => { setTimeout(resolve, deadlineMs).unref?.() }),
+    ])
+  }
+
+  /**
+   * Note the gap between reads, when one is long enough to mean something.
+   *
+   * Input that stops for seconds is the one local fact that dates a stall: a
+   * frozen loop, a sleeping machine and a reconnect all look the same in the
+   * frame, and the trace needs to tell them apart.
+   */
+  private traceReadGap(): void {
+    const now = Date.now()
+    const gap = this.lastReadAt === 0 ? 0 : now - this.lastReadAt
+    this.lastReadAt = now
+    if (gap > READ_GAP_MS) this.trace?.(`gap ${String(gap)}ms`)
+  }
+
+  /**
+   * Measure the event loop's own delay while tracing.
+   *
+   * A synchronous write to a terminal that stopped reading blocks the loop, and
+   * that is the moment input stops being read — the chain that ends in a tty
+   * queue full of truncated reports. A timer that fires late is the cheapest
+   * proof of it, and it costs nothing when tracing is off.
+   */
+  private startLagProbe(): void {
+    if (this.trace === undefined) return
+    this.lagAt = Date.now()
+    this.lagTimer = setInterval(() => {
+      const now = Date.now()
+      const lag = now - this.lagAt - LAG_INTERVAL_MS
+      this.lagAt = now
+      if (lag > SLOW_WRITE_MS) this.trace?.(`lag ${String(lag)}ms`)
+    }, LAG_INTERVAL_MS)
+    this.lagTimer.unref?.()
+  }
+
+  private stopLagProbe(): void {
+    if (this.lagTimer !== undefined) clearInterval(this.lagTimer)
+    this.lagTimer = undefined
+    this.lastReadAt = 0
   }
 
   /**
@@ -244,7 +374,18 @@ export class StreamTerminal implements Terminal {
     // The only writer of terminal modes: a renderer may ask for all-motion or
     // focus reports, and neither is consumed here. Filtering on the way out is
     // what makes that a rule instead of a convention (see `terminal/modes.ts`).
-    this.streams.output.write(filterUnusedModes(data))
+    const text = filterUnusedModes(data)
+    if (this.trace === undefined) {
+      this.streams.output.write(text)
+      return
+    }
+    // A tty write is synchronous in Node, so a terminal that stopped reading
+    // blocks here. The measurement is what turns "the frame froze" into a
+    // timestamped fact.
+    const started = performance.now()
+    this.streams.output.write(text)
+    const spent = performance.now() - started
+    if (spent >= SLOW_WRITE_MS) this.trace(`write ${String(Math.round(spent))}ms ${String(text.length)}B`)
   }
 
   moveBy(lines: number): void {
