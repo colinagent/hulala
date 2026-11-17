@@ -13,6 +13,23 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.26] - 2026-11-17
+
+### Fixed
+
+- A window on another machine re-attaches by itself after the Host there restarts.
+  `hulala host restart`, an update and a reboot each make the Host bind a new
+  loopback port, while the ssh forward under an open window keeps pointing at the
+  old one — a port nobody serves, which the window used to wait out forever even
+  though the machine answered on the very ssh it already had. Recovery now asks
+  the machine where its Host listens (a read: `host status` starts and stops
+  nothing) and becomes a new process when the port moved.
+- Pasting into a window whose Host cannot be reached says so instead of printing
+  `fetch failed`: the client waits up to five seconds for a forward that is being
+  rebuilt, retries the store once, and then reports that the Host is unreachable
+  and the paste was not saved. A refusal the Host did answer still carries its
+  status and reason.
+
 ## [0.3.25] - 2026-11-17
 
 ### Changed

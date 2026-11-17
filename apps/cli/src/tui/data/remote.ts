@@ -793,6 +793,33 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     void attemptRefresh()
   })
 
+  /**
+   * Wait until the transport is carrying requests again.
+   *
+   * A window that lost its ssh forward, or a Host that restarted under it, has a
+   * transport that answers nothing for a moment: the request fails at the socket
+   * rather than at the Host. A bounded wait here is what turns that into a paste
+   * that lands instead of a raw `fetch failed` in the transcript; when nothing
+   * comes back, the message says so in words.
+   * @param timeoutMs - how long to wait for a live generation.
+   * @returns whether the transport reported connected before the deadline.
+   */
+  const waitForTransport = async (timeoutMs: number): Promise<boolean> => {
+    if (connection.state.getSnapshot() === 'connected') return true
+    return await new Promise<boolean>(resolve => {
+      const timer = setTimeout(() => {
+        unsubscribe()
+        resolve(false)
+      }, timeoutMs)
+      const unsubscribe = connection.state.subscribe(() => {
+        if (connection.state.getSnapshot() !== 'connected') return
+        clearTimeout(timer)
+        unsubscribe()
+        resolve(true)
+      })
+    })
+  }
+
   const terminalOf = (info: {
     id: string; title: string; cols: number; rows: number
     state: 'running' | 'exited' | 'failed'; exitCode: number | null; error?: string
@@ -1089,23 +1116,47 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
         ...(file.mediaType === undefined ? {} : { mediaType: file.mediaType }),
         ...(file.name === undefined ? {} : { name: file.name }),
       })
-      const response = await fetch(new URL('/api/paste', attachment.baseUrl), {
-        method: 'POST',
-        // The same cookie every other request on this origin carries; it is
-        // re-read here because a reconnect replaces it.
-        headers: { cookie, 'content-type': 'application/json' },
-        body,
-      })
-      if (!response.ok) {
-        const detail = (await response.text().catch(() => '')).trim()
-        throw new Error(t('error.pasteRejected', {
-          status: String(response.status),
-          reason: detail === '' ? response.statusText : detail,
-        }))
+      /**
+       * One POST; `undefined` when the socket failed before the Host answered.
+       *
+       * A refusal the Host did answer (too large, unauthorised) is a real error
+       * and is thrown: retrying it would fail the same way.
+       */
+      const post = async (): Promise<string | undefined> => {
+        let response: Response
+        try {
+          response = await fetch(new URL('/api/paste', attachment.baseUrl), {
+            method: 'POST',
+            // The same cookie every other request on this origin carries; it is
+            // re-read here because a reconnect replaces it.
+            headers: { cookie, 'content-type': 'application/json' },
+            body,
+          })
+        } catch {
+          return undefined
+        }
+        if (!response.ok) {
+          const detail = (await response.text().catch(() => '')).trim()
+          throw new Error(t('error.pasteRejected', {
+            status: String(response.status),
+            reason: detail === '' ? response.statusText : detail,
+          }))
+        }
+        const value = await response.json().catch(() => undefined) as { path?: unknown } | undefined
+        if (typeof value?.path !== 'string' || value.path === '') throw new Error(t('error.pasteUnnamed'))
+        return value.path
       }
-      const value = await response.json().catch(() => undefined) as { path?: unknown } | undefined
-      if (typeof value?.path !== 'string' || value.path === '') throw new Error(t('error.pasteUnnamed'))
-      return value.path
+      const first = await post()
+      if (first !== undefined) return first
+      // A forward that is being rebuilt comes back in a second or two; waiting
+      // out that window is what turns a paste dropped by a blip into one that
+      // lands. The bound stays short: the composer is blocked while it waits,
+      // and a window that lost its Host for real is recovery's business.
+      if (await waitForTransport(5_000)) {
+        const second = await post()
+        if (second !== undefined) return second
+      }
+      throw new Error(t('error.pasteUnreachable'))
     },
 
     async prompt(sessionId, text, mode) {

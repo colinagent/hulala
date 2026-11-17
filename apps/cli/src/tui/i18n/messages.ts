@@ -356,6 +356,7 @@ export interface MessageTable {
   'error.pasteRejected': (params: { status: string; reason: string }) => string
   'error.pasteUnnamed': string
   'error.pasteRouteMissing': string
+  'error.pasteUnreachable': string
 
   'pane.unavailable': (params: { pane: string; reason: string }) => string
   'pane.terminal': string

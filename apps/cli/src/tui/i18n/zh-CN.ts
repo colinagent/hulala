@@ -353,6 +353,7 @@ export const zhCN: MessageTable = {
   'error.pasteRejected': ({ status, reason }) => `Host 无法保存粘贴内容（${status}：${reason}）`,
   'error.pasteUnnamed': 'Host 保存了粘贴内容，但没有返回路径',
   'error.pasteRouteMissing': '这个 Host 不能保存粘贴的文件，请先更新 Host',
+  'error.pasteUnreachable': 'Host 连接暂时不可用，粘贴没有保存，请稍后重试',
 
   'pane.unavailable': ({ pane, reason }) => `${pane}不可用：${reason}`,
   'pane.terminal': '终端',

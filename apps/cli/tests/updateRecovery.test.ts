@@ -53,9 +53,11 @@ test('a Host serving another release is named, not fought over', () => {
 })
 
 /**
- * A window on another machine has one more fact than a local one: whether the ssh
- * forward under it is currently being rebuilt. That fact decides between healing
- * on its own and becoming a new process, so it is pinned here.
+ * A window on another machine has two more facts than a local one: whether the
+ * ssh forward under it is currently being rebuilt, and — when that forward
+ * answers nothing — where the machine itself says its Host listens. Together
+ * they decide between healing on its own and becoming a new process, so they
+ * are pinned here.
  */
 const remote: RemoteRecoveryFacts = {
   forward: 'forwarding',
@@ -63,6 +65,8 @@ const remote: RemoteRecoveryFacts = {
   mine: 'one',
   lostForMs: 2_000,
   reattachAfterMs: 20_000,
+  forwardedPort: 43_707,
+  servedPort: undefined,
 }
 
 test('a forward being rebuilt is left alone: it returns on the same port', () => {
@@ -74,6 +78,19 @@ test('a forward being rebuilt is left alone: it returns on the same port', () =>
 
 test('a machine that answers nothing is waited out, not restarted into', () => {
   expect(decideRemoteRecovery({ ...remote, live: undefined, lostForMs: 600_000 })).toBe('unreachable')
+  // The machine says its Host is up on the port this forward already points at:
+  // it is starting or busy, not replaced, and waiting is what heals it.
+  expect(decideRemoteRecovery({ ...remote, live: undefined, servedPort: 43_707 })).toBe('unreachable')
+  // A machine that cannot be asked, or a window that cannot compare ports,
+  // proves nothing either way and stays in the wait.
+  expect(decideRemoteRecovery({ ...remote, live: undefined, servedPort: undefined })).toBe('unreachable')
+  expect(decideRemoteRecovery({ ...remote, live: undefined, forwardedPort: undefined, servedPort: 41_002 })).toBe('unreachable')
+})
+
+test('a Host that restarted on another port is re-attached, not waited out', () => {
+  // `hulala host restart`, an update and a reboot all bind a fresh port; the
+  // forward keeps pointing at the dead one, so no retry above it can ever land.
+  expect(decideRemoteRecovery({ ...remote, live: undefined, servedPort: 41_002 })).toBe('reattach')
 })
 
 test('a Host that answers but is another daemon is re-attached at once', () => {

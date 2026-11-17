@@ -30,6 +30,7 @@ import { t } from '../i18n/index.js'
 import { VERSION } from '../../constants.js'
 import { inspectHost, probeForwardedHost } from '../../hostAttach.js'
 import type { Forward } from '../../remote/forward.js'
+import { liveSshRunner, probeHost, type SshRunner } from '../../remote/ssh.js'
 import { installedRelease, type InstalledRelease } from '../../distribution/installedRelease.js'
 import { resolvePaths } from '../../paths.js'
 import type { UpdateInfo } from '../../update/check.js'
@@ -109,6 +110,15 @@ export interface UpdatePluginConfig {
    * forward has had several attempts by then; tests shorten it.
    */
   readonly reattachAfterMs?: number
+  /**
+   * Runner for the one ssh read recovery needs.
+   *
+   * When the forward answers nothing, that alone cannot tell a machine that is
+   * down from a Host that restarted on a new port — the first the window must
+   * wait out, the second only a new process can attach to. Asking the machine
+   * itself is what separates them; tests inject a fake runner.
+   */
+  readonly sshRun?: SshRunner
 }
 
 /** What a window does when its event connection drops. */
@@ -180,6 +190,22 @@ export interface RemoteRecoveryFacts {
   readonly lostForMs: number
   /** How long a reachable Host may stay unattached before a new process takes over. */
   readonly reattachAfterMs: number
+  /**
+   * Port this window's forward hands to on the far machine.
+   *
+   * Absent on a window without a forward. It is what the machine's own Host
+   * record is compared against: the forward's local port never changes, so only
+   * the far port can show that the Host moved out from under it.
+   */
+  readonly forwardedPort: number | undefined
+  /**
+   * The port the far machine says its running Host listens on.
+   *
+   * Absent when the machine did not answer, has no Host, or a Host answers
+   * through the forward after all. Recovery reads it only when the forward is
+   * silent, because that silence is exactly what hides a replacement.
+   */
+  readonly servedPort: number | undefined
 }
 
 /**
@@ -199,7 +225,17 @@ export function decideRemoteRecovery(facts: RemoteRecoveryFacts): RemoteRecovery
   // The forward is gone but being rebuilt: nothing above it can succeed yet, and
   // nothing above it should give up either.
   if (facts.forward === 'reviving') return 'reviving'
-  if (facts.live === undefined) return 'unreachable'
+  if (facts.live === undefined) {
+    // Nothing answers through the forward, yet the machine says its Host is up
+    // and listening somewhere else: it restarted (an update, `host restart`, a
+    // reboot) and bound a new port, while this window keeps forwarding to the
+    // dead one. Waiting cannot fix a port nobody serves — only a new process
+    // re-reads the endpoint record and rebuilds the forward.
+    if (facts.servedPort !== undefined && facts.forwardedPort !== undefined && facts.servedPort !== facts.forwardedPort) {
+      return 'reattach'
+    }
+    return 'unreachable'
+  }
   if (facts.mine !== undefined && facts.live.instanceId !== facts.mine) return 'reattach'
   return facts.lostForMs >= facts.reattachAfterMs ? 'reattach' : 'watch'
 }
@@ -228,6 +264,8 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   const panes = ctx.hulalaPanes
   const overlays = ctx.hulalaOverlays
   const dataRoot = config.dataRoot ?? resolvePaths().data
+  /** One ssh runner for the read that separates a replacement from an outage. */
+  const run = config.sshRun ?? liveSshRunner()
 
   let available: UpdateInfo | undefined
   let announced = false
@@ -335,6 +373,23 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
   }
 
   /**
+   * Ask the machine itself where its Host listens.
+   *
+   * `hulala host status` starts and stops nothing, so it is safe to run on every
+   * look at an unanswered window: one ssh connection, and the only fact that can
+   * tell a Host that moved from a machine that is simply gone.
+   * @param alias - the ssh destination this window attached through.
+   * @returns the port a running Host declared, or undefined when none did.
+   */
+  async function servedPortOf(alias: string): Promise<number | undefined> {
+    const status = await probeHost(alias, run)
+      .catch(() => ({ state: 'unreachable', reason: 'ssh failed' } as const))
+    if (status.state !== 'running') return undefined
+    const port = Number(new URL(status.httpUrl).port)
+    return Number.isInteger(port) && port > 0 ? port : undefined
+  }
+
+  /**
    * Recovery for a window attached to another machine.
    *
    * Reads the same facts the pure decision below names, then turns them into the
@@ -344,12 +399,21 @@ export function apply(ctx: Context, config: UpdatePluginConfig): void {
    */
   async function recoverRemote(alias: string): Promise<void> {
     const live = await probeForwardedHost(ctx.backend.host.url).catch(() => undefined)
+    // A silent forwarded origin hides the one replacement this window cannot
+    // survive: the Host restarted and bound a new port, while the forward keeps
+    // pointing at the dead one. The machine itself still knows, so ask it before
+    // concluding that nothing answers.
+    const servedPort = live === undefined && config.forward !== undefined
+      ? await servedPortOf(alias)
+      : undefined
     const decision = decideRemoteRecovery({
       forward: config.forward?.state(),
       live,
       mine: ctx.backend.host.instanceId,
       lostForMs: Date.now() - (disconnectedSince ?? Date.now()),
       reattachAfterMs: config.reattachAfterMs ?? REATTACH_AFTER_MS,
+      forwardedPort: config.forward?.remotePort,
+      servedPort,
     })
     if (decision === 'reattach') {
       say(t('notice.remoteReattaching', { alias }))

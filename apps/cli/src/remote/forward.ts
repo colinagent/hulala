@@ -29,6 +29,14 @@ export type ForwardState = 'forwarding' | 'reviving'
 export interface Forward {
   /** Local port the Host is reachable on. Stable for the forward's whole life. */
   readonly port: number
+  /**
+   * Loopback port this forward hands to on the far machine.
+   *
+   * It is the port the Host bound when this window attached, and a Host that
+   * restarts elsewhere binds a different one — the fact recovery compares the
+   * machine's own answer against, because the local port never changes.
+   */
+  readonly remotePort: number
   /** Current phase, readable at any time by a panel or a recovery probe. */
   state(): ForwardState
   /**
@@ -186,6 +194,7 @@ export async function openForward(options: ForwardOptions): Promise<Forward> {
 
   return {
     port,
+    remotePort: options.remotePort,
     state: () => phase,
     onState(handler) {
       listeners.add(handler)

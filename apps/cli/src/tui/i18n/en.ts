@@ -352,6 +352,7 @@ export const en: MessageTable = {
   'error.pasteRejected': ({ status, reason }) => `the Host could not store the paste (${status}: ${reason})`,
   'error.pasteUnnamed': 'the Host stored the paste without naming its path',
   'error.pasteRouteMissing': 'this Host cannot store a pasted file; update the Host',
+  'error.pasteUnreachable': 'the Host is not reachable right now; the paste was not stored - try again',
 
   'pane.unavailable': ({ pane, reason }) => `${pane} unavailable: ${reason}`,
   'pane.terminal': 'terminal',
