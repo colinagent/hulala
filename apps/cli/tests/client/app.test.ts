@@ -1840,6 +1840,15 @@ test('/update installs the downloaded release and restarts into it', async () =>
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
+  // This process is a source checkout, not the release the developer happens to
+  // have installed: an inherited launcher root would make `/update` swap to it
+  // instead of asking for the confirmation this test is about.
+  const previousRoot = process.env.HULALA_INSTALL_ROOT
+  delete process.env.HULALA_INSTALL_ROOT
+  cleanups.push(() => {
+    if (previousRoot === undefined) delete process.env.HULALA_INSTALL_ROOT
+    else process.env.HULALA_INSTALL_ROOT = previousRoot
+  })
   let applied = 0
   let restarted: string | undefined
   const run = runTerminalClient({
@@ -1958,6 +1967,14 @@ test('/update reports a failed install and keeps the client running', async () =
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
+  // As above: the confirmation path belongs to a source checkout, not to the
+  // release installed in the developer's shell.
+  const previousRoot = process.env.HULALA_INSTALL_ROOT
+  delete process.env.HULALA_INSTALL_ROOT
+  cleanups.push(() => {
+    if (previousRoot === undefined) delete process.env.HULALA_INSTALL_ROOT
+    else process.env.HULALA_INSTALL_ROOT = previousRoot
+  })
   let restarted = false
   const run = runTerminalClient({
     backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234',

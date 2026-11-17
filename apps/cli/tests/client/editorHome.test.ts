@@ -58,10 +58,20 @@ test('the editor home lives under the Hulala state root', () => {
 })
 
 test('without a published binary the editor falls back to PATH', () => {
-  const root = stateRoot()
-  expect(resolveEditorHome(root).command).toBe('nvim')
-  publishEditor(resolveEditorHome(root), undefined)
-  expect(resolveEditorHome(root).command).toBe('nvim')
+  // An installed client exports HULALA_PACKAGE_ROOT, and `publishEditor` reads
+  // it as the default source. A source checkout under test has no package to
+  // publish, so the inherited value must not turn this into an installed run.
+  const previous = process.env.HULALA_PACKAGE_ROOT
+  delete process.env.HULALA_PACKAGE_ROOT
+  try {
+    const root = stateRoot()
+    expect(resolveEditorHome(root).command).toBe('nvim')
+    publishEditor(resolveEditorHome(root), undefined)
+    expect(resolveEditorHome(root).command).toBe('nvim')
+  } finally {
+    if (previous === undefined) delete process.env.HULALA_PACKAGE_ROOT
+    else process.env.HULALA_PACKAGE_ROOT = previous
+  }
 })
 
 test('publishing copies the binary and its data into the state root as real files', () => {
