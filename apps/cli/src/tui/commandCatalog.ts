@@ -1,12 +1,28 @@
 /**
- * The one list of things the client can be asked to do.
+ * The one list of things the client can be asked to do — and the whitelist that
+ * decides whether a submitted line is one of them.
  *
  * A command is not only something typed after `/`: the same entries feed the
- * command palette, the composer's completion menu, `/help` and the startup hints,
+ * command palette, the composer's completion menu, `/help`, the startup hints,
  * and each entry names the key action that runs it. That is why this list lives
  * in one module instead of a `switch` plus three hand-written tables — a command
  * added here appears everywhere, with whatever shortcut the user's configuration
- * gives it.
+ * gives it. It is also why the whitelist is **derived** from this table instead
+ * of being written down a second time: a name that the menus offer but the
+ * dispatcher does not know is a command that answers "unknown command", and a
+ * pasted path must never be mistaken for one.
+ *
+ * ## Adding a command
+ *
+ * 1. Append one row to {@link COMMANDS}: its name (and any aliases), the i18n
+ *    description, the palette group, and the key action when it has one.
+ * 2. Write its handler in `plugins/commands.ts`, in the map keyed by
+ *    {@link ClientCommandName}. That map covers the table exhaustively, so a row
+ *    without a handler does not compile — the whitelist, the menus, the
+ *    completion and the handler set cannot drift apart.
+ *
+ * Nothing else needs to be registered: a Host-owned word (`/compact`) comes from
+ * the Session's own catalog at runtime and joins the same whitelist.
  *
  * Descriptions are i18n keys, resolved on demand: a language switch must show up
  * in the palette and the menu without a restart.
@@ -26,6 +42,14 @@ export type CommandGroup = 'session' | 'model' | 'frame' | 'app' | 'host'
 export interface CatalogCommand {
   /** The word after the slash, without the slash. */
   readonly name: string
+  /**
+   * Other words that dispatch the same handler (`/exit` for `quit`).
+   *
+   * They are deliberately not separate palette rows and not offered as
+   * completions: one row per thing a user can do. They are still commands, so the
+   * whitelist has to know them.
+   */
+  readonly aliases?: readonly string[]
   readonly descriptionKey: MessageKey
   /** The argument placeholder, `[optional]` or `<required>`. */
   readonly argumentHint?: string
@@ -55,11 +79,12 @@ export interface CatalogEntry {
 /**
  * Every command the client owns, in palette order.
  *
- * Aliases the command switch accepts (`/exit`, `/name`, `/shell`) are deliberately
- * absent: one row per thing a user can do, and the palette's search finds it by
- * its description even when the word is forgotten.
+ * This table is the registry: the palette, the `/` menu, `/help`, the hints, the
+ * completion list, the dispatcher's handler map and the whitelist all derive
+ * from it. Aliases are the words that dispatch a row without being a row of
+ * their own; they are commands for the whitelist and nothing else.
  */
-export const COMMANDS: readonly CatalogCommand[] = [
+export const COMMANDS = [
   { name: 'help', descriptionKey: 'slash.help', group: 'app' },
   { name: 'sessions', descriptionKey: 'slash.sessions', group: 'session' },
   { name: 'new', descriptionKey: 'slash.new', group: 'session' },
@@ -68,16 +93,16 @@ export const COMMANDS: readonly CatalogCommand[] = [
   { name: 'thinking', descriptionKey: 'slash.thinking', argumentHint: '[level]', action: 'app.thinking', group: 'model' },
   { name: 'permission', descriptionKey: 'slash.permission', argumentHint: '[default] [preset]', group: 'model' },
   { name: 'login', descriptionKey: 'slash.login', argumentHint: '[provider]', group: 'model' },
-  { name: 'rename', descriptionKey: 'slash.rename', argumentHint: '<title>', group: 'session', requiresArgument: true },
+  { name: 'rename', descriptionKey: 'slash.rename', argumentHint: '<title>', aliases: ['name'], group: 'session', requiresArgument: true },
   { name: 'cancel', descriptionKey: 'slash.cancel', action: 'app.interrupt', group: 'session' },
   { name: 'status', descriptionKey: 'slash.status', group: 'session' },
   { name: 'changelog', descriptionKey: 'slash.changelog', argumentHint: '[version|all]', group: 'app' },
   { name: 'editor', descriptionKey: 'slash.editor', action: 'panel.editor', group: 'frame' },
-  { name: 'terminal', descriptionKey: 'slash.terminal', action: 'panel.terminal', group: 'frame' },
+  { name: 'terminal', descriptionKey: 'slash.terminal', action: 'panel.terminal', aliases: ['shell'], group: 'frame' },
   { name: 'nvim', descriptionKey: 'slash.nvim', action: 'panel.editorOnly', group: 'frame' },
   { name: 'rail', descriptionKey: 'slash.rail', action: 'panel.rail', group: 'frame' },
   { name: 'chat', descriptionKey: 'slash.chat', action: 'panel.chat', group: 'frame' },
-  { name: 'commands', descriptionKey: 'slash.commands', action: 'panel.commands', group: 'frame' },
+  { name: 'commands', descriptionKey: 'slash.commands', action: 'panel.commands', aliases: ['palette'], group: 'frame' },
   { name: 'keys', descriptionKey: 'slash.keys', group: 'frame' },
   { name: 'reasoning', descriptionKey: 'slash.reasoning', group: 'model' },
   { name: 'clear', descriptionKey: 'slash.clear', group: 'app' },
@@ -86,8 +111,20 @@ export const COMMANDS: readonly CatalogCommand[] = [
   { name: 'remote', descriptionKey: 'slash.remote', argumentHint: '[ssh-host|local]', group: 'app' },
   { name: 'language', descriptionKey: 'slash.language', argumentHint: '[en|zh-CN]', group: 'app' },
   { name: 'create-auto-task', descriptionKey: 'slash.createAutoTask', argumentHint: '[requirements]', group: 'app' },
-  { name: 'quit', descriptionKey: 'slash.quit', action: 'app.quit', group: 'app' },
-]
+  { name: 'quit', descriptionKey: 'slash.quit', action: 'app.quit', aliases: ['exit'], group: 'app' },
+] as const satisfies readonly CatalogCommand[]
+
+/** The name of every command this client owns, as a union of literals. */
+export type ClientCommandName = (typeof COMMANDS)[number]['name']
+
+/**
+ * The same table as plain rows.
+ *
+ * The literal tuple above is what makes {@link ClientCommandName} exhaustive; a
+ * row that omits `aliases` or `action` does not carry those keys in that tuple,
+ * so readers that ask "is it there?" go through this widened view.
+ */
+const ROWS: readonly CatalogCommand[] = COMMANDS
 
 /**
  * The Host's command rows for the open Session.
@@ -146,12 +183,12 @@ function hostEntry(command: TerminalHostCommand): CatalogEntry {
  * @returns every entry with its description and shortcut label.
  */
 export function commandCatalog(): CatalogEntry[] {
-  const own: CatalogEntry[] = COMMANDS.map(command => ({
+  const own: CatalogEntry[] = ROWS.map(command => ({
     ...command,
     description: t(command.descriptionKey),
     hint: command.action === undefined ? '' : actionHint(command.action),
   }))
-  const ours = new Set(COMMANDS.map(command => command.name))
+  const ours = new Set(ROWS.map(command => command.name))
   return [
     ...own,
     // A word the client already owns is not offered twice: the client command is
@@ -172,30 +209,26 @@ export function catalogEntry(name: string): CatalogEntry | undefined {
 
 /** One submitted draft split into the command word and its argument. */
 export interface ParsedCommandLine {
-  /** The word after the slash, lowercased the way the command switch looks it up. */
+  /** The word after the slash, lowercased the way the registry looks it up. */
   readonly name: string
   /** Everything after the command word, trimmed; empty when there is none. */
   readonly argument: string
 }
 
 /**
- * The shape of a command line: one bare word after the slash, then an argument.
+ * Split a draft that names a command: the first word after the slash, then the
+ * rest as its argument.
  *
- * The command word may not contain a separator or a dot. That is not cosmetic:
- * every absolute path starts with `/`, and a pasted screenshot's path
- * (`/tmp/hulala-pastes/paste-….png`) is the most common line that does. Without
- * this rule, submitting a paste answered "unknown command" instead of sending
- * the file to the model. The argument is free text, newlines included.
- */
-const COMMAND_LINE = /^\/([^\s/.]+)(?:\s+([\s\S]*))?$/u
-
-/**
- * Split a draft that names a command.
+ * Splitting is mechanical here; whether the word **is** a command is
+ * {@link isCommandLine}'s question, answered against the registries. Keeping the
+ * two apart is what lets an absolute path start with a slash and still be a
+ * prompt.
  * @param line - the submitted draft, before trimming.
- * @returns the command word and argument, or undefined when the draft is a prompt.
+ * @returns the command word and argument, or undefined when the draft does not
+ *   start with a slash at all.
  */
 export function parseCommandLine(line: string): ParsedCommandLine | undefined {
-  const match = COMMAND_LINE.exec(line.trim())
+  const match = /^\/(\S+)(?:\s+([\s\S]*))?$/u.exec(line.trim())
   if (match === null) return undefined
   return {
     name: (match[1] ?? '').toLowerCase(),
@@ -204,21 +237,38 @@ export function parseCommandLine(line: string): ParsedCommandLine | undefined {
 }
 
 /**
+ * The registry row one typed word names, by its own name or an alias.
+ *
+ * This is the client half of the whitelist and the single lookup the dispatcher
+ * uses, so an alias can never dispatch something the menus do not know about.
+ * @param token - the word after the slash, as typed.
+ * @returns the canonical command name, or undefined when the client does not own
+ *   the word.
+ */
+export function clientCommandName(token: string): ClientCommandName | undefined {
+  const name = token.toLowerCase()
+  const row = ROWS.find(command => command.name === name || command.aliases?.includes(name) === true)
+  return row?.name as ClientCommandName | undefined
+}
+
+/**
  * Whether one submitted line is a slash command rather than a prompt.
  *
- * Every absolute path starts with `/`, so a line cannot be a command merely
- * because of that first character. Only a first word shaped like a command name
- * is dispatched; anything that reads as a path becomes a prompt. A
- * one-segment path (`/tmp`) still reads as a command word: a command cannot be
- * told from it, and a path that belongs to another machine cannot be tested
- * against this one's filesystem. Keeping the typo (`/hlep`) a command is the
- * safer side of that ambiguity, because it still answers with the unknown-command
- * message.
+ * The rule is a **whitelist**, the way pi does it: the first word must name a
+ * command this client owns or one the open Session's Host catalog offers.
+ * Nothing is inferred from the line's shape. That is deliberate — every absolute
+ * path starts with `/`, and a pasted screenshot's path
+ * (`/tmp/hulala-pastes/paste-….png`, `/var/folders/…`) is the most common line
+ * that does; with a whitelist no path can ever be mistaken for a command, and a
+ * typo like `/hlep` goes to the model instead of being answered with an error
+ * the user did not ask for. The argument is free text, newlines included.
  * @param line - the submitted draft, before trimming.
  * @returns true when the line should be dispatched as a command.
  */
 export function isCommandLine(line: string): boolean {
-  return parseCommandLine(line) !== undefined
+  const parsed = parseCommandLine(line)
+  if (parsed === undefined) return false
+  return clientCommandName(parsed.name) !== undefined || resolveHostCommand(parsed.name) !== undefined
 }
 
 /** The group headings the palette prints above each section. */

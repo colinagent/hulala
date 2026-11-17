@@ -206,6 +206,30 @@ main[data-locale="zh"] .hero-head h1 { font-size: clamp(52px, 5.4vw, 76px); }
 .continuity-path article::before { background: var(--paper-deep); border: 1px solid var(--moss); border-radius: 50%; content: ""; height: 9px; left: -51px; position: absolute; top: 50%; transform: translateY(-50%); width: 9px; }
 .continuity-path article span { color: var(--moss); display: block; font-size: 7px; font-weight: 760; letter-spacing: .13em; margin-bottom: 10px; }.continuity-path article strong { font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-weight: 400; }.continuity-path article p { color: var(--muted); font-size: 9px; line-height: 1.5; margin: 6px 0 0; }
 
+/* Remote: the client stays where the person sits, the Host stays where the code
+   is. The command card is the one thing to type; the list is what changes once it
+   works, in the order a user notices it: nothing to install over there, the tools
+   are over there, the clipboard and the colours stay here. */
+.remote-section { background: var(--paper-light); border-top: 1px solid var(--ink); padding: 145px max(40px, calc((100vw - 1360px) / 2)); }
+.remote-section .section-heading h2 em { color: var(--moss); font-style: italic; font-weight: 400; }
+.remote-body { align-items: start; display: grid; gap: 80px; grid-template-columns: .85fr 1.15fr; }
+.remote-here { align-self: center; min-width: 0; }
+.remote-command { background: var(--paper-deep); border: 1px solid var(--ink); box-shadow: 10px 10px 0 var(--paper); }
+.remote-command-bar { align-items: center; border-bottom: 1px solid var(--ink); display: flex; gap: 7px; margin: 0; min-height: 44px; padding: 0 14px; }
+.remote-command-bar i { border: 1px solid var(--muted); border-radius: 50%; display: block; height: 7px; width: 7px; }
+.remote-command-bar span { color: var(--muted); font-size: 7px; font-weight: 760; letter-spacing: .13em; margin-left: 6px; text-transform: uppercase; }
+.remote-command code { display: block; font-size: 14px; padding: 24px 18px 10px; user-select: all; }
+.remote-command small { color: var(--muted); display: block; font-size: 10px; line-height: 1.8; padding: 0 18px 22px; }
+.remote-sides { border-top: 1px solid var(--ink); margin-top: 34px; }
+.remote-sides > div { border-bottom: 1px solid var(--line); display: grid; gap: 5px; padding: 17px 0; }
+.remote-sides span { color: var(--moss); font-size: 7px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+.remote-sides p { font-family: Georgia, "Times New Roman", serif; font-size: 15px; line-height: 1.5; margin: 0; }
+.remote-points { border-top: 1px solid var(--ink); list-style: none; margin: 0; padding: 0; }
+.remote-points li { border-bottom: 1px solid var(--line); display: grid; gap: 6px 20px; grid-template-columns: 34px 1fr; padding: 22px 0; }
+.remote-points li > span { color: var(--moss); font-size: 8px; font-weight: 760; letter-spacing: .12em; }
+.remote-points strong { font-family: Georgia, "Times New Roman", serif; font-size: 21px; font-weight: 400; letter-spacing: -.025em; line-height: 1.2; }
+.remote-points p { color: var(--muted); font-size: 11px; grid-column: 2; line-height: 1.75; margin: 0; max-width: 560px; }
+
 .workspace-section { background: var(--paper-light); padding: 145px max(40px, calc((100vw - 1360px) / 2)); }
 .workspace-heading { align-items: end; display: grid; gap: 35px; grid-template-columns: .5fr 1.25fr .65fr; margin-bottom: 70px; }
 .workspace-window { border: 1px solid var(--ink); box-shadow: 10px 10px 0 var(--paper-deep); overflow: hidden; }
@@ -257,6 +281,8 @@ main[data-locale="zh"] .document h3,
 main[data-locale="zh"] .document .document-lede,
 main[data-locale="zh"] .document blockquote,
 main[data-locale="zh"] .principle-grid h3,
+main[data-locale="zh"] .remote-points strong,
+main[data-locale="zh"] .remote-sides p,
 main[data-locale="zh"] .meaning-copy h2,
 main[data-locale="zh"] .trust-section h2,
 main[data-locale="zh"] .closing-section h2 { font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; letter-spacing: -.035em; line-height: 1.08; }
@@ -274,6 +300,7 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
   .section-heading, .workspace-heading { grid-template-columns: .45fr 1.2fr; }.section-heading > p:last-child, .workspace-heading > p:last-child { grid-column: 2; }
   .practice-row { grid-template-columns: 45px .7fr 1.3fr; }.practice-detail { display: none; }
   .continuity-section { gap: 60px; grid-template-columns: 1fr; }.continuity-copy { max-width: 650px; }
+  .remote-body { gap: 50px; grid-template-columns: 1fr; }.remote-command { max-width: 560px; }
   .workspace-body { grid-template-columns: 48px 150px minmax(390px, 1fr); }.agent-pane { display: none; }
   .meaning-section { grid-template-columns: .8fr 1.2fr; }
 }
@@ -288,6 +315,7 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
   .continuity-section { min-height: auto; padding: 95px 18px; }.continuity-copy h2 { font-size: 55px; }.continuity-path { padding-left: 42px; }.path-line { left: 10px; }.continuity-path article::before { left: -37px; }
   .workspace-section { padding: 95px 18px 110px; }.workspace-window { box-shadow: 6px 6px 0 var(--paper-deep); }.workspace-body { grid-template-columns: 42px 110px minmax(350px, 1fr); width: 570px; }.file-tree { padding-left: 7px; padding-right: 7px; }.document { padding: 45px 32px; }.document h3 { font-size: 31px; }
   .principles-section { padding: 100px 18px; }.principle-grid { grid-template-columns: 1fr; }.principle-grid article { min-height: 230px; }.principle-grid h3 { margin-top: 65px; }
+  .remote-section { padding: 100px 18px; }.remote-command { box-shadow: 6px 6px 0 var(--paper); }.remote-command code { font-size: 13px; }.remote-points strong { font-size: 19px; }
   .meaning-section { display: block; }.meaning-mark { border-bottom: 1px solid var(--ink); border-right: 0; min-height: 430px; }.meaning-copy { padding: 95px 18px; }.meaning-copy h2 { font-size: 52px; }
   .trust-section { gap: 35px; grid-template-columns: 1fr; padding: 90px 18px; }
   .closing-section { margin: 0 10px 10px; min-height: 590px; padding: 80px 18px; }.closing-section h2 { font-size: 72px; }

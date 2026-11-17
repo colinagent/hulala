@@ -18,6 +18,14 @@ import { basename } from 'node:path'
 import type { PasteFile } from './data/remote.js'
 import { PASTE_MAX_BYTES, type ClipboardPaste, type PasteImageProblem } from './clipboard.js'
 
+/** What one clipboard path is, before any of its bytes are read. */
+export interface LocalFileInfo {
+  /** Byte size on disk. */
+  readonly size: number
+  /** False for a directory, a device, a fifo: nothing pasteable as a file. */
+  readonly regular: boolean
+}
+
 /** What one paste needs from the Host, injected so a test needs no daemon. */
 export interface PasteTarget {
   /** Whether the Host's filesystem is this machine's. */
@@ -26,6 +34,15 @@ export interface PasteTarget {
   readonly save: (file: PasteFile) => Promise<string>
   /** Read one file from this machine, for a copy that has to cross. */
   readonly read: (path: string) => Promise<Uint8Array>
+  /**
+   * Stat one clipboard path.
+   *
+   * A copy that has to cross is refused on its size *before* its bytes are read:
+   * the clipboard can name a 2 GB video, and reading it to discover that it is
+   * too large would put the client's own memory on the line. Absent on a target
+   * that cannot stat, and the read's own size check is then the backstop.
+   */
+  readonly inspect?: (path: string) => Promise<LocalFileInfo | undefined>
 }
 
 /** What the draft receives: text, a list of paths, or the reason for nothing. */
@@ -56,9 +73,13 @@ export async function draftFromClipboard(pasted: ClipboardPaste, target: PasteTa
   if (target.local) return { kind: 'paths', paths: [...pasted.paths] }
   const copied: string[] = []
   for (const path of pasted.paths) {
-    const data = await target.read(path)
+    const info = await target.inspect?.(path)
+    if (info !== undefined && !info.regular) return { kind: 'refused', reason: 'not-a-file' }
     // The same ceiling a screenshot gets: the route on the far side refuses
     // anything larger, and saying so here names the file that was too big.
+    if (info !== undefined && info.size > PASTE_MAX_BYTES) return { kind: 'refused', reason: 'too-large' }
+    const data = await target.read(path)
+    // Backstop: the file can grow between the stat and the read.
     if (data.length > PASTE_MAX_BYTES) return { kind: 'refused', reason: 'too-large' }
     copied.push(await target.save({ data, name: basename(path) }))
   }

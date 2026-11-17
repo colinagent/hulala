@@ -3,12 +3,16 @@
  * open Session.
  *
  * This is the client's whole command surface. It lives in one plugin because the
- * two halves are the same decision — a line naming a command is one, and
- * everything else is a prompt — and because the delivery mode is a rule, not a
- * preference: `Enter` steers a running turn and starts one when idle, the queue
- * chord always asks for a follow-up. Before this, that rule was re-derived at
- * three call sites. {@link parseCommandLine} owns the rule itself, so a pasted
- * absolute path is a prompt rather than an unknown command.
+ * two halves are the same decision — a line whose first word is in the command
+ * registry is a command, and everything else is a prompt — and because the
+ * delivery mode is a rule, not a preference: `Enter` steers a running turn and
+ * starts one when idle, the queue chord always asks for a follow-up.
+ *
+ * The registry lives in `../commandCatalog.ts`: it is the single table behind the
+ * `/` menu, the palette, `/help`, completion, the aliases, the whitelist and the
+ * handler map below. The map is typed by the registry's name union, so adding a
+ * command without a handler does not compile, and a pasted absolute path is a
+ * prompt because it is not in the whitelist.
  *
  * Drafts typed before a Session exists are kept here and replayed when one
  * opens, which is why this plugin listens to `hulala/session-opened` instead of
@@ -16,7 +20,7 @@
  *
  * @module hulala-cli/tui/plugins/commands
  */
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PasteFile, TerminalPromptMode, TerminalSession } from '../data/remote.js'
 import { liveImageReadPorts, readClipboardPaste } from '../clipboard.js'
@@ -25,7 +29,7 @@ import { languageName, parseLanguage } from '../../language.js'
 import { KEY_ACTIONS, actionHint } from '../../keymap.js'
 import type { PaneKind } from '../pane/focus.js'
 import type { CatalogEntry } from '../commandCatalog.js'
-import { isCommandLine, parseCommandLine, resolveHostCommand, setHostCommands } from '../commandCatalog.js'
+import { clientCommandName, isCommandLine, parseCommandLine, resolveHostCommand, setHostCommands, type ClientCommandName } from '../commandCatalog.js'
 import { t } from '../i18n/index.js'
 import { permissionLabel } from '../view/permission.js'
 import { CommandPaletteOverlay } from '../view/overlays/commandPalette.js'
@@ -260,210 +264,223 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     repaint()
   }
 
+  /**
+   * The handler for every command in the catalog, keyed by its canonical name.
+   *
+   * The mapped type is the other half of the registry: a row added to `COMMANDS`
+   * without a handler here does not compile, so a command can never be offered by
+   * the menu and then answered with "unknown command". Aliases (`/exit`, `/name`,
+   * `/shell`, `/palette`) resolve to their row before this lookup, which is why
+   * they are not separate keys.
+   */
+  const handlers = {
+    help: async () => {
+      await overlays.modal<undefined>(done => new HelpOverlay({
+        color: config.color,
+        rows: () => terminal.rows,
+        onClose: () => done(undefined),
+      }), { anchor: 'center', width: 74 })
+    },
+    language: async argument => {
+      const code = argument === '' ? await language.pick() : parseLanguage(argument)
+      if (code === undefined) {
+        if (argument !== '') {
+          reducer.addError(t('error.languageUnsupported', { value: argument }))
+          repaint()
+        }
+        return
+      }
+      const failure = language.set(code)
+      if (failure !== undefined) reducer.addError(t('language.saveFailed', { reason: failure }))
+      else reducer.addNotice(t('language.changed', { language: languageName(code) }))
+      repaint()
+    },
+    quit: () => {
+      ctx.emit('hulala/quit')
+    },
+    sessions: async argument => {
+      if (argument !== '') await session.open(argument)
+      else await session.browse()
+    },
+    resume: async argument => {
+      if (argument !== '') await session.open(argument)
+      else await session.browse()
+    },
+    new: async () => {
+      await session.startNew()
+    },
+    'create-auto-task': async argument => {
+      // A scheduled task starts as an ordinary conversation turn: the seed
+      // sentence names the intent, the user appends requirements, and the
+      // agent calls schedule_create. The command never sends anything itself.
+      const seed = t('composer.autoTaskSeed')
+      const draft = editor.getText().trim()
+      const lines = draft === '' ? [] : [draft]
+      if (!draft.includes(seed)) lines.push(seed)
+      if (argument !== '') lines.push(argument)
+      editor.setText(lines.join('\n'))
+      focusOn(editor)
+      render.repaint()
+    },
+    model: async argument => {
+      await session.chooseModel(argument)
+    },
+    thinking: async argument => {
+      await session.chooseThinking(argument)
+    },
+    permission: async argument => {
+      await session.choosePermission(argument)
+    },
+    login: async argument => {
+      await session.login(argument)
+    },
+    cancel: async () => {
+      await cancel()
+    },
+    rename: async argument => {
+      if (session.id === undefined || argument === '') return
+      try {
+        await backend.rename(session.id, argument)
+        reducer.addNotice(t('notice.renamed', { title: argument }))
+      } catch (caught) {
+        failure(caught)
+        return
+      }
+      repaint()
+    },
+    status: async () => {
+      const row = (label: string, value: string): void => { reducer.addNotice(`${label.padEnd(8)}${value}`) }
+      reducer.addNotice(`hulala  v${VERSION}`)
+      if (updater.available !== undefined) reducer.addNotice(t('status.updateAvailable', { version: updater.available.latestVersion }))
+      row(t('status.label.host'), backend.host.url === '' ? '-' : backend.host.url)
+      row(t('status.label.session'), session.id ?? '-')
+      row(t('status.label.cwd'), session.cwd)
+      const route = session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`
+      row(t('status.label.model'), session.thinkingLevel === undefined ? route : `${route} • ${session.thinkingLevel}`)
+      row(t('status.label.permission'), session.permission === undefined ? '-' : permissionLabel(session.permission))
+      row(t('status.label.pane'), panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ` ${t('status.value.focus')}` : ''}`)
+      row(t('status.label.rail'), layout.railWanted ? (rail.focused ? `${t('status.value.visible')} ${t('status.value.focus')}` : t('status.value.visible')) : t('status.value.hidden'))
+      row(t('status.label.chat'), layout.conversationShown ? t('status.value.visible') : t('status.value.hidden'))
+      row(t('status.label.turn'), reducer.busy ? t('status.value.running') : t('status.value.idle'))
+      repaint()
+    },
+    clear: () => {
+      reducer.reset()
+      repaint()
+    },
+    changelog: argument => {
+      changelog.show(argument)
+    },
+    reasoning: () => {
+      const mode = view.cycleReasoning()
+      const label = mode === 'tail' ? 'reasoning.tail' : mode === 'full' ? 'reasoning.full' : 'reasoning.hidden'
+      reducer.addNotice(t('notice.reasoning', { mode: t(label) }))
+      repaint()
+    },
+    update: async () => {
+      await updater.install()
+    },
+    remote: async argument => {
+      // No argument opens the picker; `local` comes back to this machine, and an
+      // alias is the same choice the sidebar's host row offers. Read lazily: the
+      // switcher is registered after this plugin, so naming it in `inject` would
+      // make two plugins wait for each other.
+      const remote = ctx.get('hulalaRemote')
+      if (remote === undefined) {
+        reducer.addNotice(t('error.unknownCommand', { command: 'remote' }))
+        repaint()
+        return
+      }
+      if (argument === '') await remote.choose()
+      else await remote.switchTo(argument === 'local' ? undefined : argument)
+    },
+    restart: () => {
+      // The installed release may already be newer than this process (another
+      // window updated); a swap needs no network and no confirmation.
+      updater.requestRestart()
+    },
+    editor: () => {
+      panes.toggle('editor', session.cwd)
+    },
+    terminal: () => {
+      panes.toggle('terminal', session.cwd)
+    },
+    nvim: () => {
+      // The same action as `Cmd-E`, snapshot included: a command that built the
+      // view without recording what it replaced would make the next `Cmd-E`
+      // restore nothing.
+      toggleEditorOnly()
+    },
+    rail: () => {
+      rail.toggle()
+    },
+    chat: () => {
+      if (layout.conversationShown) {
+        if (!layout.railShown && layout.paneId === undefined) {
+          reducer.addNotice(t('input.keepColumn'))
+          repaint()
+          return
+        }
+        layout.setConversationVisible(false)
+        // The composer left the frame with the conversation. A column that
+        // already owns the keyboard keeps it; the composer's keyboard goes to a
+        // column still painted, or to the rail.
+        if (!panes.focused && !rail.focused) {
+          if (panes.visible !== undefined) panes.focus(panes.visible, session.cwd)
+          else rail.focus()
+        }
+      } else {
+        layout.setConversationVisible(true)
+        if (panes.focused) panes.blur()
+        else if (rail.focused) rail.blur()
+        else focusOn(editor)
+      }
+      repaint()
+    },
+    commands: async () => {
+      await openPalette()
+    },
+    keys: () => {
+      showKeys()
+    },
+  } satisfies Record<ClientCommandName, (argument: string) => Promise<void> | void>
+
+  /**
+   * Dispatch one submitted command line.
+   *
+   * The line is already known to be a command (`submit` asks
+   * {@link isCommandLine}), so this only decides *whose*: the client's registry
+   * first, then the open Session's Host catalog (`/compact` is a plugin row).
+   * A Host command is dispatched without comment — its outcome arrives as the
+   * durable `command/run`/`command/done` pair the transcript renders, exactly as
+   * the web client leaves it to the log.
+   * @param line - the command line, slash and argument included.
+   */
   const runCommand = async (line: string): Promise<void> => {
     const parsed = parseCommandLine(line)
     if (parsed === undefined) return
-    const command = parsed.name
-    const argument = parsed.argument
-    switch (command) {
-      case 'help':
-        await overlays.modal<undefined>(done => new HelpOverlay({
-          color: config.color,
-          rows: () => terminal.rows,
-          onClose: () => done(undefined),
-        }), { anchor: 'center', width: 74 })
-        return
-      case 'language': {
-        const code = argument === '' ? await language.pick() : parseLanguage(argument)
-        if (code === undefined) {
-          if (argument !== '') {
-            reducer.addError(t('error.languageUnsupported', { value: argument }))
-            repaint()
-          }
-          return
-        }
-        const failure = language.set(code)
-        if (failure !== undefined) reducer.addError(t('language.saveFailed', { reason: failure }))
-        else reducer.addNotice(t('language.changed', { language: languageName(code) }))
+    const name = clientCommandName(parsed.name)
+    if (name !== undefined) {
+      // The registry guarantees a handler for every name; the mapped type above
+      // is what keeps that true at compile time.
+      const handler = handlers[name]
+      if (handler !== undefined) await handler(parsed.argument)
+      return
+    }
+    const hosted = resolveHostCommand(parsed.name)
+    if (hosted === undefined || session.id === undefined) {
+      reducer.addError(t('error.unknownCommand', { command: parsed.name }))
+      repaint()
+      return
+    }
+    try {
+      const forwarded = parsed.argument === '' ? `/${hosted.name}` : `/${hosted.name} ${parsed.argument}`
+      if (await backend.runCommand(session.id, forwarded) === undefined) {
+        reducer.addError(t('error.unknownCommand', { command: parsed.name }))
         repaint()
-        return
       }
-      case 'quit':
-      case 'exit':
-        ctx.emit('hulala/quit')
-        return
-      case 'sessions':
-      case 'resume':
-        if (argument !== '') await session.open(argument)
-        else await session.browse()
-        return
-      case 'new':
-        await session.startNew()
-        return
-      case 'create-auto-task': {
-        // A scheduled task starts as an ordinary conversation turn: the seed
-        // sentence names the intent, the user appends requirements, and the
-        // agent calls schedule_create. The command never sends anything itself.
-        const seed = t('composer.autoTaskSeed')
-        const draft = editor.getText().trim()
-        const lines = draft === '' ? [] : [draft]
-        if (!draft.includes(seed)) lines.push(seed)
-        if (argument !== '') lines.push(argument)
-        editor.setText(lines.join('\n'))
-        focusOn(editor)
-        render.repaint()
-        return
-      }
-      case 'model':
-        await session.chooseModel(argument)
-        return
-      case 'thinking':
-        await session.chooseThinking(argument)
-        return
-      case 'permission':
-        await session.choosePermission(argument)
-        return
-      case 'login':
-        await session.login(argument)
-        return
-      case 'cancel':
-        await cancel()
-        return
-      case 'rename':
-      case 'name': {
-        if (session.id === undefined || argument === '') return
-        try {
-          await backend.rename(session.id, argument)
-          reducer.addNotice(t('notice.renamed', { title: argument }))
-        } catch (caught) {
-          failure(caught)
-          return
-        }
-        repaint()
-        return
-      }
-      case 'status': {
-        const row = (label: string, value: string): void => { reducer.addNotice(`${label.padEnd(8)}${value}`) }
-        reducer.addNotice(`hulala  v${VERSION}`)
-        if (updater.available !== undefined) reducer.addNotice(t('status.updateAvailable', { version: updater.available.latestVersion }))
-        row(t('status.label.host'), backend.host.url === '' ? '-' : backend.host.url)
-        row(t('status.label.session'), session.id ?? '-')
-        row(t('status.label.cwd'), session.cwd)
-        const route = session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`
-        row(t('status.label.model'), session.thinkingLevel === undefined ? route : `${route} • ${session.thinkingLevel}`)
-        row(t('status.label.permission'), session.permission === undefined ? '-' : permissionLabel(session.permission))
-        row(t('status.label.pane'), panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ` ${t('status.value.focus')}` : ''}`)
-        row(t('status.label.rail'), layout.railWanted ? (rail.focused ? `${t('status.value.visible')} ${t('status.value.focus')}` : t('status.value.visible')) : t('status.value.hidden'))
-        row(t('status.label.chat'), layout.conversationShown ? t('status.value.visible') : t('status.value.hidden'))
-        row(t('status.label.turn'), reducer.busy ? t('status.value.running') : t('status.value.idle'))
-        repaint()
-        return
-      }
-      case 'clear':
-        reducer.reset()
-        repaint()
-        return
-      case 'changelog':
-        changelog.show(argument)
-        return
-      case 'reasoning': {
-        const mode = view.cycleReasoning()
-        const label = mode === 'tail' ? 'reasoning.tail' : mode === 'full' ? 'reasoning.full' : 'reasoning.hidden'
-        reducer.addNotice(t('notice.reasoning', { mode: t(label) }))
-        repaint()
-        return
-      }
-      case 'update':
-        await updater.install()
-        return
-      case 'remote': {
-        // No argument opens the picker; `local` comes back to this machine, and
-        // an alias is the same choice the sidebar's host row offers.
-        // Read lazily: the switcher is registered after this plugin, so naming it
-        // in `inject` would make two plugins wait for each other.
-        const remote = ctx.get('hulalaRemote')
-        if (remote === undefined) {
-          reducer.addNotice(t('error.unknownCommand', { command: 'remote' }))
-          repaint()
-          return
-        }
-        if (argument === '') await remote.choose()
-        else await remote.switchTo(argument === 'local' ? undefined : argument)
-        return
-      }
-      case 'restart':
-        // The installed release may already be newer than this process (another
-        // window updated); a swap needs no network and no confirmation.
-        updater.requestRestart()
-        return
-      case 'editor':
-        panes.toggle('editor', session.cwd)
-        return
-      case 'terminal':
-      case 'shell':
-        panes.toggle('terminal', session.cwd)
-        return
-      case 'nvim':
-        // The same action as `Cmd-E`, snapshot included: a command that built the
-        // view without recording what it replaced would make the next `Cmd-E`
-        // restore nothing.
-        toggleEditorOnly()
-        return
-      case 'rail':
-        rail.toggle()
-        return
-      case 'chat':
-        if (layout.conversationShown) {
-          if (!layout.railShown && layout.paneId === undefined) {
-            reducer.addNotice(t('input.keepColumn'))
-            repaint()
-            return
-          }
-          layout.setConversationVisible(false)
-          // The composer left the frame with the conversation. A column that
-          // already owns the keyboard keeps it; the composer's keyboard goes to a
-          // column still painted, or to the rail.
-          if (!panes.focused && !rail.focused) {
-            if (panes.visible !== undefined) panes.focus(panes.visible, session.cwd)
-            else rail.focus()
-          }
-        } else {
-          layout.setConversationVisible(true)
-          if (panes.focused) panes.blur()
-          else if (rail.focused) rail.blur()
-          else focusOn(editor)
-        }
-        repaint()
-        return
-      case 'commands':
-      case 'palette':
-        await openPalette()
-        return
-      case 'keys':
-        showKeys()
-        return
-      default: {
-        // Not a client command: the Host's catalog may still own the word
-        // (`/compact` is a plugin row). Dispatch it and say nothing here — the
-        // outcome arrives as the durable `command/run`/`command/done` pair the
-        // transcript renders, exactly as the web client leaves it to the log.
-        const hosted = resolveHostCommand(command)
-        if (hosted === undefined || session.id === undefined) {
-          reducer.addError(t('error.unknownCommand', { command }))
-          repaint()
-          return
-        }
-        try {
-          const line = argument === '' ? `/${hosted.name}` : `/${hosted.name} ${argument}`
-          if (await backend.runCommand(session.id, line) === undefined) {
-            reducer.addError(t('error.unknownCommand', { command }))
-            repaint()
-          }
-        } catch (caught) {
-          failure(caught)
-        }
-        return
-      }
+    } catch (caught) {
+      failure(caught)
     }
   }
 
@@ -479,11 +496,16 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
    * silently does nothing is indistinguishable from a broken keybinding.
    */
   const paste = async (): Promise<void> => {
+    if (lifecycle.closing) return
     const pasted = await readClipboardPaste(liveImageReadPorts())
     const draft = await draftFromClipboard(pasted, {
       local: backend.host.local === true,
       save: async file => await saveOnHost(file),
       read: async path => await readFile(path),
+      inspect: async path => {
+        const info = await stat(path)
+        return { size: info.size, regular: info.isFile() }
+      },
     }).catch((caught: unknown) => {
       failure(caught)
       return undefined

@@ -180,7 +180,8 @@ false `Copied!`.
 `Ctrl-V` is the other direction and follows pi: it puts **text** in the draft.
 Clipboard file URLs (a Finder copy) keep their own paths when the Host is this
 machine; a screenshot, and any file that has to cross to another machine, is
-written into the Host's own temp directory (`$TMPDIR/hulala-pastes/`) first and
+written into the Host's own temp directory first (`$TMPDIR/hulala-pastes/`,
+`/tmp/hulala-pastes/` on Linux) and
 its path is inserted, so the model can open exactly the file that was pasted.
 A paste is ephemeral: it is never written into the state root, and the OS
 reclaims it the way it reclaims every other temp file. The route is
@@ -200,6 +201,22 @@ it opens from the rail, from Neovim, from the terminal column and from a frame
 whose conversation is put away — which is the point: it is how a forgotten
 shortcut (or a terminal that cannot deliver one) still gets the work done. The
 composer's `/` menu prints the same rows with the same shortcuts.
+
+### Adding a command
+
+One row in `apps/cli/src/tui/commandCatalog.ts` is the whole registration: the
+`/` menu, the palette, `/help`, the startup hints, the completion list and the
+dispatcher's whitelist all read that table. The handler goes in
+`apps/cli/src/tui/plugins/commands.ts`, in the map keyed by `ClientCommandName` —
+a row without a handler is a **compile error**, so a command cannot be offered by
+the menu and then answered with "unknown command". Aliases (`/exit`, `/name`,
+`/shell`, `/palette`) go in the row's `aliases` and dispatch the same handler
+without becoming a second palette row.
+
+A submitted line is a command only when its first word is in that registry, or in
+the open Session's Host catalog (plugin rows such as `/compact`); everything else
+is a prompt. That is the same rule pi applies, and it is why a pasted path
+(`/tmp/hulala-pastes/…png`) reaches the model instead of being read as `/tmp`.
 
 ## Custom keybindings
 

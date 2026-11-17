@@ -281,6 +281,7 @@ export const en: MessageTable = {
     if (reason === 'too-large') return 'that file is too large to paste (10 MB limit)'
     if (reason === 'empty') return 'nothing pasteable on the clipboard'
     if (reason === 'unsupported') return 'the clipboard image is not a PNG, JPEG, WebP or GIF'
+    if (reason === 'not-a-file') return 'a folder cannot be pasted; copy the file inside it'
     return 'this platform has no clipboard reader'
   },
   'notice.restored': ({ count }) => `restored ${count} queued message${count > 1 ? 's' : ''}`,

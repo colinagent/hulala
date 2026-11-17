@@ -15,7 +15,7 @@ const translations = {
       terminal: "Ctrl-T: your own shell in the Session directory, with its own scrollback.",
       files: "Ctrl-D: Neovim on the Session directory — the bundled file tree with a file open beside it.",
     },
-    nav: ["The terminal", "The screens", "What we refuse"],
+    nav: ["The terminal", "The screens", "Another machine", "What we refuse"],
     cta: "Install Hulala",
     hero: {
       kicker: "HULALA · TERMINAL CLIENT ON DEEPSEEK HARNESS",
@@ -58,8 +58,23 @@ const translations = {
         ["REATTACH", "Come back", "Resume the Session and read what finished without you."],
       ],
     },
+    remote: {
+      label: "03 / ANOTHER MACHINE",
+      title: ["The window is here.", "The work is there."],
+      lede: "The client runs where you sit; the Host runs where the code is. Nothing is cloned, mounted or copied — the same window attaches to another machine's Host.",
+      commandLabel: "One command",
+      command: "hulala ssh devbox",
+      hint: "devbox is an alias in your own ~/.ssh/config. /remote switches a window that is already open; /remote local comes back.",
+      sides: [["This machine", "the window, the clipboard, the colours"], ["That machine", "the Host, the shell, Neovim, the Sessions"]],
+      items: [
+        ["Nothing installed by hand", "The client probes the machine first, and runs the same installer when Hulala is missing or behind. An unreachable machine, or a Host newer than this client, is reported instead of changed."],
+        ["The shell and Neovim run over there", "A pty and a real Neovim on that state root, so the toolchain and the tree are the remote machine's. No copy on this side, no rsync, no mount."],
+        ["This side keeps the clipboard", "Ctrl-V reads this clipboard and the file is written on the far side first, so the path that lands in the prompt is one the model can actually open."],
+        ["It still looks like this machine", "The client hands the Host this terminal's colours, so the Neovim over there is painted with the theme of the window you are sitting at."],
+      ],
+    },
     principles: {
-      label: "03 / WHAT WE REFUSE",
+      label: "04 / WHAT WE REFUSE",
       title: ["Built to be", "left alone."],
       lede: "No multiplexer to remember, no runner script to keep alive, no second daemon hiding behind a window, no second REST layer.",
       items: [
@@ -99,7 +114,7 @@ const translations = {
       terminal: "Ctrl-T：会话目录里你自己的 shell，带独立回滚。",
       files: "Ctrl-D：在会话目录上打开 Neovim——内置文件树，旁边开着一个文件。",
     },
-    nav: ["终端", "截图", "我们不做什么"],
+    nav: ["终端", "截图", "另一台机器", "我们不做什么"],
     cta: "安装 Hulala",
     hero: {
       kicker: "HULALA · 基于 DEEPSEEK HARNESS 的终端客户端",
@@ -142,8 +157,23 @@ const translations = {
         ["REATTACH", "再回来", "续上这个 Session，读你不在时跑完的部分。"],
       ],
     },
+    remote: {
+      label: "03 / 另一台机器",
+      title: ["窗口在这台，", "活儿在另一台。"],
+      lede: "客户端跑在你坐的地方，Host 跑在代码所在的地方。不 clone、不挂载、不拷贝——只是同一个窗口接到了另一台机器的 Host 上。",
+      commandLabel: "一条命令",
+      command: "hulala ssh devbox",
+      hint: "devbox 是你自己 ~/.ssh/config 里的 alias。在已开着的窗口里用 /remote 切换，/remote local 回来。",
+      sides: [["这台机器", "窗口、剪贴板、配色"], ["那台机器", "Host、shell、Neovim、Session"]],
+      items: [
+        ["对面不用手动装", "客户端先探测；Hulala 没装或落后，就在那边跑同一个安装器。机器连不上，或者那边的 Host 比本机新，只报告，不改动。"],
+        ["shell 和 Neovim 在那边跑", "那个状态根目录上的 pty 和真 Neovim，所以工具链和代码树都是远端的。本机不拷副本、不 rsync、不挂载。"],
+        ["剪贴板留在这台", "Ctrl-V 读的是本机剪贴板，文件先写到对面，于是落进 prompt 的路径是模型真的能打开的那个。"],
+        ["配色还是这一台的", "客户端把本终端的配色交给 Host，所以那边的 Neovim 用的是你眼前这个窗口的主题。"],
+      ],
+    },
     principles: {
-      label: "03 / 我们不做什么",
+      label: "04 / 我们不做什么",
       title: ["造出来，", "就是让你不用管。"],
       lede: "不用记多路复用器的快捷键，不用守着启动脚本，不会冒出第二个守护进程，也没有第二套 REST。",
       items: [
@@ -193,7 +223,8 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         <nav aria-label={isZh ? "主要导航" : "Primary navigation"}>
           <a href="#practice">{t.nav[0]}</a>
           <a href="#screens">{t.nav[1]}</a>
-          <a href="#principles">{t.nav[2]}</a>
+          <a href="#remote">{t.nav[2]}</a>
+          <a href="#principles">{t.nav[3]}</a>
         </nav>
         <div className="header-actions">
           <GitHubLink label={t.github.label} accessibleName={t.github.headerAria} />
@@ -290,6 +321,33 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         <div className="continuity-path" aria-label={isZh ? "Host 守护进程的生命周期" : "The Host daemon lifecycle"}>
           <div className="path-line" />
           {t.continuity.stages.map(([step, title, copy]) => <article key={step}><span>{step}</span><strong>{title}</strong><p>{copy}</p></article>)}
+        </div>
+      </section>
+
+      <section className="remote-section" id="remote">
+        <div className="section-heading">
+          <p className="section-label">{t.remote.label}</p>
+          <h2>{t.remote.title[0]}<br /><em>{t.remote.title[1]}</em></h2>
+          <p>{t.remote.lede}</p>
+        </div>
+        <div className="remote-body">
+          <div className="remote-here">
+            <div className="remote-command">
+              <p className="remote-command-bar"><i /><i /><i /><span>{t.remote.commandLabel}</span></p>
+              <code>{t.remote.command}</code>
+              <small>{t.remote.hint}</small>
+            </div>
+            <div className="remote-sides">
+              {t.remote.sides.map(([name, what]) => (
+                <div key={name}><span>{name}</span><p>{what}</p></div>
+              ))}
+            </div>
+          </div>
+          <ul className="remote-points">
+            {t.remote.items.map(([title, copy], index) => (
+              <li key={title}><span>0{index + 1}</span><strong>{title}</strong><p>{copy}</p></li>
+            ))}
+          </ul>
         </div>
       </section>
 

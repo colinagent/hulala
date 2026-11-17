@@ -263,6 +263,8 @@ export type PasteImageProblem =
   | 'too-large'
   /** The clipboard returned bytes no supported image format begins with. */
   | 'unsupported'
+  /** A copied path names a directory or something else that is not a file. */
+  | 'not-a-file'
   /** This platform has no image reader the client knows. */
   | 'no-reader'
 

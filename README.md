@@ -54,9 +54,9 @@ a file opens it beside the tree in the same column.
   a client that attaches to it; `Ctrl-Q` detaches and the turn keeps running.
 - **`Ctrl-V` pastes a path, like pi** — a screenshot, a Finder copy or plain text
   goes into the draft as text. An image or a copied file is stored in the Host's
-  own temp directory first (`$TMPDIR/hulala-pastes/`, reclaimed by the OS), so
-  the path names a file the model can open — on your machine or, through
-  `hulala ssh`, on the one it actually runs on.
+  own temp directory first (`$TMPDIR/hulala-pastes/`, `/tmp/hulala-pastes/` on
+  Linux; the OS reclaims it), so the path names a file the model can open — on
+  your machine or, through `hulala ssh`, on the one it actually runs on.
 - **The Harness surfaces, not a copy** — streaming output, approvals, questions,
   model selection, cancellation, `/connect`, `/api` and `/api/remote.mux`.
 - **Plugins are DSH plugins** — a bundle installed into the Host profile with

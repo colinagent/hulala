@@ -7,7 +7,7 @@
  * A screenshot is always stored, because pixels have no path of their own.
  */
 import { expect, test } from 'bun:test'
-import { draftFromClipboard, type PasteTarget } from '../../src/tui/paste.js'
+import { draftFromClipboard, type LocalFileInfo, type PasteTarget } from '../../src/tui/paste.js'
 import type { ClipboardPaste } from '../../src/tui/clipboard.js'
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47])
@@ -15,10 +15,14 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47])
 interface Calls {
   readonly saved: { data: Uint8Array; mediaType?: string; name?: string }[]
   readonly read: string[]
+  readonly stats: string[]
 }
 
-function target(local: boolean, options: { readonly fail?: boolean } = {}): { target: PasteTarget; calls: Calls } {
-  const calls: Calls = { saved: [], read: [] }
+function target(
+  local: boolean,
+  options: { readonly fail?: boolean; readonly info?: LocalFileInfo } = {},
+): { target: PasteTarget; calls: Calls } {
+  const calls: Calls = { saved: [], read: [], stats: [] }
   return {
     calls,
     target: {
@@ -31,6 +35,10 @@ function target(local: boolean, options: { readonly fail?: boolean } = {}): { ta
       async read(path) {
         calls.read.push(path)
         return Buffer.from(`bytes of ${path}`)
+      },
+      async inspect(path) {
+        calls.stats.push(path)
+        return options.info ?? { size: 1_024, regular: true }
       },
     },
   }
@@ -88,4 +96,20 @@ test('a copied file past the paste limit is refused, not uploaded', async () => 
 test('a Host that refuses the write fails the paste instead of half-inserting it', async () => {
   const fake = target(false, { fail: true })
   await expect(draftFromClipboard(image, fake.target)).rejects.toThrow('could not store the paste')
+})
+
+test('a copied folder is refused before anything is read', async () => {
+  const fake = target(false, { info: { size: 4_096, regular: false } })
+  const pasted: ClipboardPaste = { kind: 'files', paths: ['/Users/me/Desktop'] }
+  expect(await draftFromClipboard(pasted, fake.target)).toEqual({ kind: 'refused', reason: 'not-a-file' })
+  expect(fake.calls.read).toEqual([])
+  expect(fake.calls.saved).toEqual([])
+})
+
+test('a copied file past the limit is refused from its size, never read', async () => {
+  const fake = target(false, { info: { size: 2 * 1024 * 1024 * 1024, regular: true } })
+  const pasted: ClipboardPaste = { kind: 'files', paths: ['/Users/me/video.mov'] }
+  expect(await draftFromClipboard(pasted, fake.target)).toEqual({ kind: 'refused', reason: 'too-large' })
+  expect(fake.calls.stats).toEqual(['/Users/me/video.mov'])
+  expect(fake.calls.read).toEqual([])
 })

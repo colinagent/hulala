@@ -13,6 +13,29 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.25] - 2026-11-17
+
+### Changed
+
+- A submitted line is a command only when its first word is in the client's
+  command registry, or in the open Session's Host catalog. The shape heuristic is
+  gone, so `/nope` — a typo, or any path that begins with a slash — goes to the
+  model as a prompt instead of being answered with "unknown command". The
+  registry in `apps/cli/src/tui/commandCatalog.ts` now owns the dispatcher too:
+  its rows feed the `/` menu, the palette, `/help`, the hints, the completion and
+  the whitelist, aliases are declared in the row, and the handler map in
+  `plugins/commands.ts` is keyed by the registry's name union — adding a command
+  without a handler does not compile.
+
+### Fixed
+
+- A pasted folder is refused instead of read, and a copied file is measured
+  before its bytes are: the clipboard can name a directory, a fifo, or a 2 GB
+  video, and reading it first put the client's memory (or its event loop, on a
+  fifo) on the line to discover it could not be pasted. The refusal says which
+  of the two it was, and the size is checked again after the read in case the
+  file grew.
+
 ## [0.3.24] - 2026-11-17
 
 ### Fixed

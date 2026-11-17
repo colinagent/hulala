@@ -282,6 +282,7 @@ export const zhCN: MessageTable = {
     if (reason === 'too-large') return '文件太大，无法粘贴（上限 10 MB）'
     if (reason === 'empty') return '剪贴板里没有可粘贴的内容'
     if (reason === 'unsupported') return '剪贴板图片不是 PNG、JPEG、WebP 或 GIF'
+    if (reason === 'not-a-file') return '不能粘贴文件夹，请复制里面的文件'
     return '这个平台没有读取剪贴板的工具'
   },
   'notice.restored': ({ count }) => `已恢复 ${count} 条待发消息`,

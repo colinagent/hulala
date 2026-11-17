@@ -73,7 +73,7 @@ export interface MessageTable {
   'keymap.action.dequeue': string
   'keymap.action.expand': string
   'keymap.action.pasteImage': string
-  'notice.pasteProblem': (values: { reason: 'empty' | 'too-large' | 'unsupported' | 'no-reader' }) => string
+  'notice.pasteProblem': (values: { reason: 'empty' | 'too-large' | 'unsupported' | 'no-reader' | 'not-a-file' }) => string
   'keymap.action.redraw': string
   'keymap.action.focusLeft': string
   'keymap.action.focusRight': string

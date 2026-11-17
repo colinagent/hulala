@@ -2269,12 +2269,15 @@ test('plain mode uses the saved language without asking or writing', async () =>
     let text = ''
     output.on('data', chunk => { text += String(chunk) })
     cleanups.push(() => { input.destroy(); output.destroy() })
-    const run = runTerminalClient({ backend: fakeBackend().backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
+    const fake = fakeBackend()
+    const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
     await waitFor(() => text.includes('会话 session-1234'), 'Chinese plain session line')
     expect(text).not.toContain('Choose a language')
     expect(JSON.parse(readFileSync(languageFile(state.home), 'utf8'))).toEqual({ language: 'zh-CN' })
+    // A word the registry does not know is a prompt here too, not an error.
     input.write('/nope\n')
-    await waitFor(() => text.includes('未知命令 /nope'), 'Chinese plain error')
+    await waitFor(() => fake.prompts.includes('/nope'), 'the unknown word became a prompt')
+    expect(text).not.toContain('未知命令')
     input.write('/quit\n')
     await expect(run).resolves.toBe(0)
   } finally {
@@ -2573,14 +2576,14 @@ test('a pasted absolute path is a prompt, not an unknown command', async () => {
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('a bare command word the client does not know still reports itself', async () => {
+test('a bare word the client does not know is a prompt, the way pi treats it', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
 
   tty.input.write('/nope\r')
-  await waitFor(() => plain(tty.painted()).includes('unknown command /nope'), 'the unknown-command notice')
-  expect(fake.prompts).not.toContain('/nope')
+  await waitFor(() => fake.prompts.includes('/nope'), 'the unknown word reached the model')
+  expect(plain(tty.painted())).not.toContain('unknown command')
 
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
