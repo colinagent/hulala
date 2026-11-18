@@ -2097,8 +2097,8 @@ function languageFile(home: string): string {
   return join(home, 'config', 'client.json')
 }
 
-/** The saved language, or undefined when none was written. The file also holds
- * this attachment's remembered Session, so the whole document is not pinned. */
+/** The saved language, or undefined when none was written. The file holds other
+ * preferences too (the changelog marker), so the whole document is not pinned. */
 function savedLanguage(home: string): string | undefined {
   try {
     return (JSON.parse(readFileSync(languageFile(home), 'utf8')) as { language?: string }).language
@@ -2655,53 +2655,42 @@ test('the editor column opens a directory that only exists on the remote Host', 
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('a window resumes the Session it last showed on this machine', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'hulala-remember-'))
-  const fake = fakeBackend(home)
-  // Two Sessions exist; the preference names the older one, and the rail's order
-  // would otherwise open the newest.
-  fake.setSessions([
-    { sessionId: 'session-newest', updatedAt: Date.now(), running: false, blank: false, cwd: home },
-    { sessionId: 'session-remembered', updatedAt: Date.now() - 60_000, running: false, blank: false, cwd: home },
-  ])
+test('a plain launch starts a new Session in the directory it was run from', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-fresh-session-'))
+  // A record an older client left behind, and a Session that record names: a
+  // launch must ignore both, because opening that Session would also adopt its
+  // directory as this window's instead of the one the shell is in.
   mkdirSync(join(home, 'config'), { recursive: true })
-  writeFileSync(join(home, 'config', 'client.json'), `${JSON.stringify({ lastSessionByHost: { local: 'session-remembered' } })}\n`)
+  writeFileSync(join(home, 'config', 'client.json'), `${JSON.stringify({ lastSessionByHost: { local: 'session-older' } })}\n`)
+  const fake = fakeBackend('/workspace')
+  fake.setSessions([
+    { sessionId: 'session-older', updatedAt: Date.now(), running: false, blank: false, cwd: '/somewhere/else' },
+  ])
   const previousHome = process.env.HULALA_HOME
   process.env.HULALA_HOME = home
-  // No `--resume`: this is the plain launch that should still come back to the
-  // Session this machine last showed.
   const tty = startTty(fake, 100, undefined, null)
-  try {
-    await waitFor(() => fake.followed.includes('session-remembered'), 'the remembered Session')
-    tty.input.write('/quit\r')
-    await expect(tty.run).resolves.toBe(0)
-  } finally {
+  cleanups.push(() => {
     if (previousHome === undefined) delete process.env.HULALA_HOME
     else process.env.HULALA_HOME = previousHome
     rmSync(home, { recursive: true, force: true })
-  }
+  })
+  await waitFor(() => fake.followed.length > 0, 'a Session')
+  expect(fake.followed).toEqual(['session-new'])
+  expect(fake.created).toEqual(['session-new'])
+  expect(fake.workspaces).toEqual(['/workspace'])
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
 })
 
-test('a remembered Session that is gone says so and opens another', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'hulala-remember-gone-'))
-  const fake = fakeBackend(home)
-  mkdirSync(join(home, 'config'), { recursive: true })
-  writeFileSync(join(home, 'config', 'client.json'), `${JSON.stringify({ lastSessionByHost: { local: 'session-deleted' } })}\n`)
-  const previousHome = process.env.HULALA_HOME
-  process.env.HULALA_HOME = home
-  const tty = startTty(fake, 100, undefined, null)
-  try {
-    // A different Session opens instead of a dead subscription, and the notice
-    // survives the transcript reset that `open` runs.
-    await waitFor(() => plain(tty.painted()).includes('is gone'), 'the missing-Session notice')
-    expect(fake.followed).not.toContain('session-deleted')
-    tty.input.write('/quit\r')
-    await expect(tty.run).resolves.toBe(0)
-  } finally {
-    if (previousHome === undefined) delete process.env.HULALA_HOME
-    else process.env.HULALA_HOME = previousHome
-    rmSync(home, { recursive: true, force: true })
-  }
+test('an explicit --resume of a Session that is gone says so and opens another', async () => {
+  // The id can come from another process (`/update` hands it over) or from the
+  // command line; a deleted Session must not leave a dead subscription behind.
+  const fake = fakeBackend()
+  const tty = startTty(fake, 100, undefined, 'session-deleted')
+  await waitFor(() => plain(tty.painted()).includes('is gone'), 'the missing-Session notice')
+  expect(fake.followed).not.toContain('session-deleted')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
 })
 
 test('a remote window starts its Session in the Host default workspace', async () => {

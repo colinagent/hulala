@@ -17,7 +17,6 @@
  * @module hulala-cli/tui/plugins/session
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { rememberSession } from '../../clientPreferences.js'
 import { t } from '../i18n/index.js'
 import type {
   SessionListEvent,
@@ -113,13 +112,6 @@ export interface SessionPluginConfig {
   readonly color: boolean
   /** The directory the client was started in, used until a Session says otherwise. */
   readonly cwd: string
-  /**
-   * State root whose `config/client.json` remembers this attachment's last
-   * Session. Absent in tests that do not want the write.
-   */
-  readonly dataRoot?: string
-  /** The attachment key: `local`, or the ssh destination this window used. */
-  readonly hostKey?: string
   /** Whether the Host is on another machine, where this client's paths mean nothing. */
   readonly remote?: boolean
 }
@@ -363,15 +355,6 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
 
   const open = async (next: string, directory?: string): Promise<void> => {
     if (shut) return
-    // Remembered per attachment, so switching Host and back resumes the Session
-    // that belonged to that machine instead of whichever was used last.
-    if (config.dataRoot !== undefined) {
-      try {
-        rememberSession(config.dataRoot, config.hostKey ?? 'local', next)
-      } catch {
-        // A preference that cannot be written must not stop a Session opening.
-      }
-    }
     const previous = id
     const previousCwd = cwd
     followDispose?.()

@@ -53,7 +53,6 @@ import { renderPlugin } from './plugins/render.js'
 import { sessionPlugin } from './plugins/session.js'
 import { titlePlugin } from './plugins/title.js'
 import { updatePlugin } from './plugins/update.js'
-import { hostKeyOf, lastSessionFor } from '../clientPreferences.js'
 import type { Forward } from '../remote/forward.js'
 import { remotePlugin } from './plugins/remote.js'
 import { railPlugin } from './plugins/rail.js'
@@ -294,10 +293,6 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(sessionPlugin, {
       color: colorEnabled(),
       cwd: options.cwd,
-      // Only a process that owns a state root may remember a Session in it: a
-      // test harness, a piped run and `/update`'s child all share this code, and
-      // a fake Session id must never reach the developer's own `client.json`.
-      ...(production ? { dataRoot, hostKey: hostKeyOf(options.remote) } : {}),
       ...(options.remote === undefined ? {} : { remote: true }),
     })
     // Immediately after the Session: the window label is derived from it, and a
@@ -502,7 +497,10 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
         : updater.nextRemote === null ? undefined : updater.nextRemote
       const restart = options.restartClient
         ?? (exitProcess ? (resume: string | undefined) => restartClient(dataRoot, resume, destination) : undefined)
-      if (restart !== undefined) await restart(session.id)
+      // A Session belongs to its Host: on a switch the id names a conversation
+      // the destination has never had, so the successor starts a new one there.
+      // A plain `/update` restart is the same attachment and keeps the Session.
+      if (restart !== undefined) await restart(updater.nextRemote === undefined ? session.id : undefined)
     }
     if (exitProcess) {
       // Explicit exit, like pi's interactive mode: the Host connection or a
@@ -656,19 +654,17 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     }
   }
 
-  // An explicit `--resume` wins (it comes from a restart that knows the Session);
-  // otherwise this attachment resumes what it last showed, and bootstrap falls
-  // back to the newest Session when that one is gone.
-  // Reading is safe for every run; only writing a preference is gated below, so
-  // a plain launch — including a test harness — resumes what this attachment
-  // last showed.
-  const remembered = options.resume ?? lastSessionFor(dataRoot, hostKeyOf(options.remote))
+  // Only an explicit `--resume` continues a Session: it comes from the command
+  // line or from a restart that knows which one this window was showing. A plain
+  // launch always starts a new Session in the directory it was run from — one
+  // directory, one fresh conversation — and `/sessions` or `/resume` is how a
+  // previous one is reopened.
   // A Host that cannot create a Workspace (a path that only exists on this
   // machine, a directory that vanished) is a message, not a reason to close the
   // window: the frame stays usable and `/new` retries.
   let initial: string | undefined
   try {
-    initial = await session.bootstrap(remembered, options.cwd)
+    initial = await session.bootstrap(options.resume, options.cwd)
   } catch (error) {
     reducer.addNotice(t('notice.sessionUnavailable', {
       reason: error instanceof Error ? error.message : String(error),

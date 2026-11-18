@@ -13,6 +13,16 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- `hulala` starts a new Session in the directory it was run from. A window no
+  longer reopens the Session it showed last time, which is also why its working
+  directory used to be that Session's Workspace instead of the shell's cwd.
+  `--resume <id>`, `/resume` and `/sessions` still open an earlier Session, and a
+  `/update` restart keeps the one on screen; switching Host with `/remote` starts
+  a new Session on the destination instead of handing it an id that belongs to
+  the machine the window came from.
+
 ## [0.3.27] - 2026-11-18
 
 ### Fixed
