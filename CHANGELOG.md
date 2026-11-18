@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.29] - 2026-11-18
+
 ### Changed
 
 - A Bash row prints its command after `$`, the way a terminal does, instead of
@@ -50,7 +52,6 @@ that version has no section. Releases before 0.2.30 are not recorded.
   were filled one column short of the blank padding rows above and below them, so
   the page showed through in a step the eye caught. Every row of the block is now
   filled to the column's width, with the text still budgeted one cell narrower.
-
 - A conversation no longer keeps fragments of an older frame in the corner of the
   window — the write queue could discard a frame (a stalled terminal, a refused
   descriptor, or frames composed for a window that changed size while they were
