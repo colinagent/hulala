@@ -79,21 +79,21 @@ test('the pointer and a fold still move the frame', () => {
       durationMs: 120,
     },
   ])
-  // The card opens with a blank row of its own surface, so the title is row 1.
+  // The title is the row's first line; the card under it holds the body.
   const at = (type: TuiMouseEvent['type'], button: TuiMouseEvent['button'] = 'none'): TuiMouseEvent => ({
-    type, button, x: 3, y: 1, screenX: 3, screenY: 1, width: 60, height: 10, shift: false, alt: false, ctrl: false,
+    type, button, x: 3, y: 0, screenX: 3, screenY: 0, width: 60, height: 10, shift: false, alt: false, ctrl: false,
   })
-  expect(transcript.render(60)[1]).toContain('  >_ Bash · List files')
+  expect(transcript.render(60)[0]).toContain('  >_ Bash · List files')
 
   // Hover reveals the disclosure glyph on the row under the pointer…
   expect(transcript.handleMouse(at('move'))).toEqual({ handled: true, render: true })
-  expect(transcript.render(60)[1]).toContain('▸ >_ Bash')
+  expect(transcript.render(60)[0]).toContain('▸ >_ Bash')
 
   // …and a click unfolds that one row, so the cached frame has to follow. The
   // press itself stays free for the alternate screen's drag selection.
   expect(transcript.handleMouse(at('press', 'left'))).toBeUndefined()
   expect(transcript.handleMouse(at('click', 'left'))).toEqual({ handled: true, render: true })
-  expect(transcript.render(60)[1]).toContain('▾ >_ Bash')
+  expect(transcript.render(60)[0]).toContain('▾ >_ Bash')
 })
 
 test('a user prompt keeps its wrapped panel until the width changes', () => {

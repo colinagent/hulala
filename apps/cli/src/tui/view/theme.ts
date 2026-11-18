@@ -7,13 +7,15 @@
  * selection state and are therefore allowed: an archived user message, which is
  * message content drawn like Claude Code's transcript rows; the status band,
  * which is the frame's own bottom row rather than any column's content; and a
- * tool card, which is a *surface* a call's body is printed on. A card carries
- * every state in the same ink, so a block never says "this one failed" — its
- * marker and its `exit 5` capsule do.
+ * tool card, which is a *surface* a call's body is printed on. A card leans the
+ * way its call went, by a tint thin enough to be felt rather than read: the ink
+ * a card carries is one set for every tone, and the marker and the `exit 5`
+ * capsule stay the loudest thing on the row.
  *
  * @module hulala-cli/tui/view/theme
  */
-import type { EditorTheme, MarkdownTheme, SelectListTheme } from '@earendil-works/pi-tui'
+import { colorToOkhsl, okhslColor, parseColor } from '@earendil-works/pi-tui'
+import type { EditorTheme, MarkdownTheme, SelectListTheme, TerminalColors } from '@earendil-works/pi-tui'
 import { HIGHLIGHT_INK } from '@hulala/editor-home'
 
 export interface ThemeSet {
@@ -60,25 +62,238 @@ const BAND_TEXT = [0xa8, 0xad, 0xb7] as const
 /**
  * Tool card: the surface every tool call and step body sits on.
  *
- * One colour for every state, not a traffic light. pi tints its cards green on
- * success and red on failure, which turns a conversation into a signal board and
- * gives the page a green cast; here the card is a quiet slab a step above the
- * page and below the status band, and *state* stays ink: the leading marker, the
- * `exit 5` capsule, the duration. A reader scanning for a failed command looks
- * for the red word, not a red room.
+ * The card is tinted by the call's own state, the way pi's tool boxes are — a
+ * settled success leans green, a failure leans red, a running or stopped call
+ * leans sand — but only as far as a suggestion. pi paints those boxes at half
+ * saturation in dark, which turns a column of steps into a row of coloured
+ * blocks; here the tint is a tenth of that, on a surface a fraction lighter, so
+ * the state is *felt* before it is read and the text stays what the eye lands on.
  *
- * The foregrounds are fixed values rather than the terminal's, for the same
- * reason the user-panel chip fixes its own: a card is a surface with one contrast
- * ratio, so it cannot inherit a palette chosen for the page.
+ * "A step above the page" cannot be a fixed value: a slab dark enough for a
+ * near-black terminal sits *below* the page on Nord or One Dark, and the card
+ * disappears into it. The surfaces are therefore placed from the background the
+ * terminal reports (OSC 11) — see {@link setTerminalPage} — in OKHSL, the
+ * perceptual space the palette is written in: the page's lightness plus one small
+ * step, in the tint's own hue. A terminal that reports no page is given the
+ * client's footer slate as one, and a light page — where a dark chip is what
+ * contrasts — gets surfaces derived the same way from it, so no card anywhere is
+ * a hand-picked literal.
  */
-const CARD_BG = [0x2b, 0x30, 0x38] as const
-const CARD_TEXT = [0xe6, 0xe8, 0xea] as const
-const CARD_MUTED = [0xa3, 0xaa, 0xb4] as const
+/** Diff additions and removals, drawn on the surface. */
 const CARD_OK = [0x9f, 0xc0, 0x9a] as const
 const CARD_ERROR = [0xe0, 0x79, 0x6a] as const
-/** Stopped and signalled rows reuse the current-location sand, the one warm ink. */
-const CARD_WARN = [0xd8, 0xaa, 0x78] as const
-const CARD_ACCENT = [0x79, 0xb8, 0xc8] as const
+
+/** An sRGB triple, 0-255 per channel. */
+type Rgb = readonly [number, number, number]
+
+/** The tones a card is drawn in: the call's state, as a tint on the surface. */
+export type CardTone = 'neutral' | 'ok' | 'error' | 'warn'
+
+/** The three inks one card draws its surface and its neutral text with. */
+interface CardSurface {
+  readonly background: Rgb
+  readonly text: Rgb
+  readonly body: Rgb
+}
+
+/** One surface per tone. */
+type CardSurfaces = Readonly<Record<CardTone, CardSurface>>
+
+/**
+ * How far above the page a card sits, in OKHSL lightness.
+ *
+ * OKHSL is where the palette is defined and where pi places its own surfaces: a
+ * step of lightness looks the same size on any page, so one number carries every
+ * theme. This is the smallest step that still reads as a slab once the tint is on
+ * it — the card is meant to be found, not to compete with the column above it.
+ */
+const CARD_STEP = 0.09
+/**
+ * Ceiling for a card's OKHSL lightness, and the line between a page the card is
+ * placed on and a page it cannot sit above.
+ *
+ * Past this the slab stops being a surface and starts competing with the text, so
+ * a light page gets the fixed chip instead.
+ */
+const CARD_MAX_LIGHTNESS = 0.34
+/**
+ * Hue and saturation of each tone.
+ *
+ * The neutrals take the client's own highlight sand, so a running or stopped call
+ * sits in the palette the rest of the client already uses; the two verdicts take
+ * pi's hues for success and failure, carried at a fifth of pi's saturation. The
+ * same lightness applies to all four, so a column of cards is one weight and only
+ * the cast changes.
+ */
+const CARD_TINTS: Readonly<Record<CardTone, { hue: number; saturation: number }>> = {
+  neutral: { hue: colorToOkhsl(parseColor(HIGHLIGHT_INK)).h, saturation: 0.05 },
+  ok: { hue: 158, saturation: 0.07 },
+  error: { hue: 19, saturation: 0.09 },
+  warn: { hue: 40, saturation: 0.08 },
+}
+/**
+ * The page assumed when the terminal reports none: the client's own footer slate.
+ *
+ * It is a colour the frame already draws, at the foot of every column, so a card
+ * derived from it belongs to the same palette as the band above it.
+ */
+const ASSUMED_PAGE: Rgb = BAND_BG
+/** The text ink for that assumed page: the highlight sand lifted toward white. */
+const ASSUMED_TEXT: Rgb = mixRgb(HIGHLIGHT_RGB, [0xff, 0xff, 0xff], 0.6)
+/** Contrast a card's body ink has to clear against the card surface. */
+const CARD_BODY_CONTRAST = 4.5
+/** Contrast a card's accent inks must clear: the `+`/`-` rows and the exit capsule. */
+const CARD_ACCENT_CONTRAST = 3.5
+
+/**
+ * The cards for a page the terminal did not describe, or a page too bright to sit
+ * under: derived from the client's own slate, so they are the same family as the
+ * frame's band rather than literals of their own.
+ */
+const FIXED_CARDS: CardSurfaces = cardsOn(ASSUMED_PAGE, ASSUMED_TEXT)
+
+/**
+ * Relative luminance of an sRGB triple, per WCAG 2.1.
+ * @param rgb - the colour.
+ * @returns luminance in 0-1.
+ */
+function luminance([r, g, b]: Rgb): number {
+  const channel = (value: number): number => {
+    const s = value / 255
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+/**
+ * Contrast ratio between two inks.
+ * @param a - one colour.
+ * @param b - the other.
+ * @returns the ratio, 1-21.
+ */
+function contrast(a: Rgb, b: Rgb): number {
+  const [light, dark] = luminance(a) >= luminance(b) ? [a, b] : [b, a]
+  return (luminance(light) + 0.05) / (luminance(dark) + 0.05)
+}
+
+/**
+ * Blend two inks.
+ * @param base - the colour to start from.
+ * @param toward - the colour to approach.
+ * @param ratio - share of `toward`, 0-1.
+ * @returns the blend.
+ */
+function mixRgb(base: Rgb, toward: Rgb, ratio: number): Rgb {
+  const part = (index: 0 | 1 | 2): number => Math.round(base[index] + (toward[index] - base[index]) * ratio)
+  return [part(0), part(1), part(2)]
+}
+
+/**
+ * Read a reported colour as a triple.
+ * @param color - one of the terminal's own colours.
+ * @returns the same colour as an sRGB triple.
+ */
+function toRgb(color: { r: number; g: number; b: number }): Rgb {
+  return [color.r, color.g, color.b]
+}
+
+/**
+ * Whether two inks are the same triple.
+ * @param a - one colour.
+ * @param b - the other.
+ * @returns true when every channel matches.
+ */
+function sameRgb(a: Rgb, b: Rgb): boolean {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2]
+}
+
+/**
+ * Present a triple as the colour type pi-tui's conversions take.
+ * @param rgb - the colour.
+ * @returns the same colour as an sRGB value.
+ */
+function rgbColorOf([r, g, b]: Rgb): { kind: 'rgb'; r: number; g: number; b: number } {
+  return { kind: 'rgb', r, g, b }
+}
+
+/**
+ * The four card surfaces for one page.
+ *
+ * Each is the page's lightness, one step up, in its tone's hue at that tone's
+ * thin saturation — the rule pi's palette follows for its surfaces, carried
+ * lighter and much paler. The body ink is measured against the brightest of the
+ * four, so every tone reads at the same contrast.
+ * @param page - the page's background.
+ * @param text - the text ink to measure the body against.
+ * @returns the surfaces, one per tone.
+ */
+function cardsOn(page: Rgb, text: Rgb): CardSurfaces {
+  const lightness = Math.min(CARD_MAX_LIGHTNESS, colorToOkhsl(rgbColorOf(page)).l + CARD_STEP)
+  const surfaces = {} as Record<CardTone, Rgb>
+  for (const tone of Object.keys(CARD_TINTS) as CardTone[]) {
+    const tint = CARD_TINTS[tone]
+    surfaces[tone] = toRgb(okhslColor(tint.hue, tint.saturation, lightness))
+  }
+  const brightest = Object.values(surfaces).reduce((a, b) => luminance(a) >= luminance(b) ? a : b)
+  const body = bodyInk(brightest, text)
+  const cards = {} as Record<CardTone, CardSurface>
+  for (const tone of Object.keys(surfaces) as CardTone[]) cards[tone] = { background: surfaces[tone], text, body }
+  return cards
+}
+
+/**
+ * The card for a page the terminal reported.
+ * @param page - the page's background and text ink.
+ * @returns the surface to draw on, or the fixed chip when the page is light.
+ */
+function placeCards(page: { background: Rgb; foreground: Rgb } | undefined): CardSurfaces {
+  // A page already at the ceiling has no room for a step above it: the fixed
+  // chip (and a light page) is what contrasts there.
+  if (page === undefined || colorToOkhsl(rgbColorOf(page.background)).l >= CARD_MAX_LIGHTNESS) return FIXED_CARDS
+  return cardsOn(page.background, page.foreground)
+}
+
+/**
+ * The quietest body ink that is still readable on a card.
+ *
+ * The card's body text is a step back from the page's own text ink, so a
+ * command's output does not shout over the conversation. On a lifted surface the
+ * fixed muted ink would sink below 4.5:1, so the step is measured instead of
+ * guessed: the first blend of the surface toward the text ink that clears the
+ * contrast floor wins.
+ * @param surface - the card's background.
+ * @param text - the card's title ink.
+ * @returns the body ink.
+ */
+function bodyInk(surface: Rgb, text: Rgb): Rgb {
+  for (let step = 40; step < 100; step += 2) {
+    const ink = mixRgb(surface, text, step / 100)
+    if (contrast(ink, surface) >= CARD_BODY_CONTRAST) return ink
+  }
+  return text
+}
+
+/**
+ * Lift an accent until it clears a floor against the card.
+ *
+ * The accents are a fixed hue per family, picked against the fixed slab. On a
+ * surface lifted for a brighter page the reds and cyans lose contrast first, so
+ * each one is mixed toward white — the smallest lift that keeps its hue readable
+ * — rather than replaced by a second palette.
+ * @param ink - the accent's own colour.
+ * @param surface - the card's background.
+ * @param floor - the contrast ratio the accent has to clear.
+ * @returns the accent to draw.
+ */
+function readable(ink: Rgb, surface: Rgb, floor: number): Rgb {
+  if (contrast(ink, surface) >= floor) return ink
+  const white: Rgb = [255, 255, 255]
+  for (let step = 2; step <= 100; step += 2) {
+    const lifted = mixRgb(ink, white, step / 100)
+    if (contrast(lifted, surface) >= floor) return lifted
+  }
+  return white
+}
 
 /**
  * Column divider ink: one step fainter than the composer's rules.
@@ -208,17 +423,51 @@ export function faintLines(lines: readonly string[], color: boolean): string[] {
 /**
  * Styles rebuilt per frame by every row that draws is a per-frame cost with no
  * content: the same closures, the same escape sequences, once per row. One set
- * per terminal capability is all a window ever needs.
+ * per terminal capability is all a window ever needs — and one more after the
+ * terminal reports its page, hence the revision in the key.
  */
 const stylesByCapability = new Map<string, ReturnType<typeof createStyles>>()
 
+/** The cards' place against the page; `FIXED_CARDS` until the terminal reports one. */
+let cardSurfaces: CardSurfaces = FIXED_CARDS
+/** Bumped whenever the page changes, so the style cache rebuilds once. */
+let surfaceRevision = 0
+
 /**
- * The style set for a terminal, built once per colour capability.
+ * Place the cards against the page the terminal actually paints.
+ *
+ * A card is a surface, so "a step above the page" has to be measured from the
+ * page — a fixed slab is below the page on a theme whose background is lighter
+ * than it, and then a whole conversation of cards reads as one dark gap. The
+ * client already asks the terminal for its default background and foreground
+ * (OSC 11/10) so the editor column can match it; the cards are placed from the
+ * same answer, one step of OKHSL lightness above that page and a thin tint per
+ * tone, with the body ink measured against the result so no card costs the text
+ * its contrast.
+ *
+ * A light page keeps the fixed chip: there "above the page" points the other
+ * way, the chip already contrasts, and its inks are the ones tuned for it. A
+ * terminal that does not answer keeps it too.
+ * @param colors - what the terminal reported, or undefined when it stayed quiet.
+ */
+export function setTerminalPage(colors: TerminalColors | undefined): void {
+  const reported = colors?.background === undefined || colors?.foreground === undefined
+    ? undefined
+    : { background: toRgb(colors.background), foreground: toRgb(colors.foreground) }
+  const next = placeCards(reported)
+  if (sameRgb(cardSurfaces.neutral.background, next.neutral.background) && sameRgb(cardSurfaces.neutral.text, next.neutral.text)) return
+  cardSurfaces = next
+  surfaceRevision += 1
+  stylesByCapability.clear()
+}
+
+/**
+ * The style set for a terminal, built once per colour capability and page.
  * @param color - whether colour output is enabled at all.
  * @returns the shared style set.
  */
 function buildStyles(color: boolean): ReturnType<typeof createStyles> {
-  const key = color ? (supportsTrueColor() ? 'color-24bit' : 'color-256') : 'plain'
+  const key = `${color ? (supportsTrueColor() ? 'color-24bit' : 'color-256') : 'plain'}/${surfaceRevision}`
   const existing = stylesByCapability.get(key)
   if (existing !== undefined) return existing
   const styles = createStyles(color)
@@ -239,18 +488,16 @@ function createStyles(color: boolean): {
   warn: (text: string) => string
   ok: (text: string) => string
   /**
-   * The tool-card surface: fill the line to the frame width before applying it.
+   * The tool-card surface for one tone: fill the line to the frame width first.
    *
    * It carries its own foreground, and re-opens both after every nested reset,
    * so the slab stays continuous under coloured text.
    */
-  card: (text: string) => string
+  card: (tone: CardTone, text: string) => string
   /** Body, arguments and counts on a card. */
   cardMuted: (text: string) => string
   cardOk: (text: string) => string
   cardError: (text: string) => string
-  cardWarn: (text: string) => string
-  cardAccent: (text: string) => string
   /** Colour one syntax token of a card body, by the name its tokenizer gave it. */
   cardSyntax: (type: string, text: string) => string
   bold: (text: string) => string
@@ -265,7 +512,7 @@ function createStyles(color: boolean): {
 } {
   if (!color) {
     const identity = (text: string): string => text
-    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, card: identity, cardMuted: identity, cardOk: identity, cardError: identity, cardWarn: identity, cardAccent: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity, violet: identity, syntax: (_type: string, text: string) => text, cardSyntax: (_type: string, text: string) => text }
+    return { dim: identity, accent: identity, highlight: identity, brand: identity, band: identity, separator: identity, userPanel: identity, userArrow: identity, error: identity, warn: identity, ok: identity, card: (_tone: CardTone, text: string) => text, cardMuted: identity, cardOk: identity, cardError: identity, bold: identity, italic: identity, strike: identity, underline: identity, code: identity, violet: identity, syntax: (_type: string, text: string) => text, cardSyntax: (_type: string, text: string) => text }
   }
   // A panel carries its own background and foreground. Inner styles reset both,
   // so re-open the panel after every nested reset to keep the row continuous to
@@ -284,12 +531,11 @@ function createStyles(color: boolean): {
     error: wrap('\u001b[31m', RESET),
     warn: wrap('\u001b[33m', RESET),
     ok: wrap('\u001b[32m', RESET),
-    card: panel(`${bgOpen(CARD_BG)}${fgOpen(CARD_TEXT)}`),
-    cardMuted: wrap(fgOpen(CARD_MUTED), RESET),
-    cardOk: wrap(fgOpen(CARD_OK), RESET),
-    cardError: wrap(fgOpen(CARD_ERROR), RESET),
-    cardWarn: wrap(fgOpen(CARD_WARN), RESET),
-    cardAccent: wrap(fgOpen(CARD_ACCENT), RESET),
+    card: (tone: CardTone, text: string): string =>
+      panel(`${bgOpen(cardSurfaces[tone].background)}${fgOpen(cardSurfaces[tone].text)}`)(text),
+    cardMuted: wrap(fgOpen(cardSurfaces.neutral.body), RESET),
+    cardOk: wrap(fgOpen(readable(CARD_OK, cardSurfaces.neutral.background, CARD_ACCENT_CONTRAST)), RESET),
+    cardError: wrap(fgOpen(readable(CARD_ERROR, cardSurfaces.neutral.background, CARD_ACCENT_CONTRAST)), RESET),
     bold: wrap('\u001b[1m', RESET),
     italic: wrap('\u001b[3m', RESET),
     strike: wrap('\u001b[9m', RESET),

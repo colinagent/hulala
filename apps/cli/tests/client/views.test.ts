@@ -313,14 +313,14 @@ test('a folded shell row keeps the end of its output under the title', () => {
   ])
   const lines = bare(transcript.render(120))
   expect(lines).toEqual([
-    '',
     '  >_ Bash · List working directory contents  0.1s',
-    '  ❯ ls -la && cat package.json',
+    '',
+    '  $ ls -la && cat package.json',
     '    total 1328',
     '    drwxr-xr-x@ 23 colin staff',
     '',
   ])
-  expect(lines[1]).not.toContain('{')
+  expect(lines[0]).not.toContain('{')
 })
 
 test('a multi-line command preview is one row with no raw control bytes', () => {
@@ -342,14 +342,14 @@ test('a multi-line command preview is one row with no raw control bytes', () => 
     },
   ])
   const lines = bare(transcript.render(80))
-  expect(lines[2]).toBe("  ❯ python3 - <<'PY'…")
+  expect(lines[2]).toBe("  $ python3 - <<'PY'…")
   for (const line of lines) expect(line).not.toMatch(/[\r\x00-\x08\x0b-\x1f\x7f]/u)
   expect(visibleWidth(lines[2] ?? '')).toBeLessThanOrEqual(80)
   // The expanded card shows the same one-line command; a reader opens the body
   // for the rest, so no state may hand raw LF to the frame either.
   transcript.toggleExpandAll()
   const expanded = bare(transcript.render(80))
-  expect(expanded[2]).toBe("  ❯ python3 - <<'PY'…")
+  expect(expanded[2]).toBe("  $ python3 - <<'PY'…")
   for (const line of expanded) expect(line).not.toMatch(/[\r\x00-\x08\x0b-\x1f\x7f]/u)
 })
 
@@ -360,9 +360,9 @@ test('a folded shell row keeps its last lines and counts the ones above', () => 
     { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'build', description: 'Build' }), result: `${output}\n[exit code: 0]`, status: 'ok', time: 0 },
   ])
   expect(bare(transcript.render(80))).toEqual([
-    '',
     '  >_ Bash · Build',
-    '  ❯ build',
+    '',
+    '  $ build',
     '    … 4 lines above',
     '    line 5',
     '    line 6',
@@ -389,8 +389,8 @@ test('expanding a tool call shows the command, the output, and the hidden count'
   ])
   transcript.toggleExpandAll()
   const lines = bare(transcript.render(80))
-  expect(lines[1]).toBe('▾ >_ Bash · List files  0.1s')
-  expect(lines[2]).toBe('  ❯ ls -la')
+  expect(lines[0]).toBe('▾ >_ Bash · List files  0.1s')
+  expect(lines[2]).toBe('  $ ls -la')
   expect(lines[3]).toBe('    line 1')
   expect(lines.at(-2)).toBe('    … +6 lines')
 })
@@ -410,8 +410,8 @@ test('an edit row draws its change without a click and counts it in the title', 
     },
   ])
   expect(bare(transcript.render(80))).toEqual([
-    '',
     '  ✎  Edit · src/app.ts  +1 -1',
+    '',
     '    src/app.ts',
     '      a',
     '    - b',
@@ -437,7 +437,7 @@ test('a long change folds to five rows with the rest counted', () => {
     },
   ])
   const folded = bare(transcript.render(80))
-  expect(folded[1]).toBe('  ✎  Write · big.ts  +20 -0')
+  expect(folded[0]).toBe('  ✎  Write · big.ts  +20 -0')
   expect(folded).toHaveLength(9)
   expect(folded[2]).toBe('    big.ts')
   expect(folded[3]).toBe('    + line 1')
@@ -458,7 +458,7 @@ test('a search row previews the head of its result and counts the rest', () => {
     { kind: 'tool', name: 'grep', args: JSON.stringify({ pattern: 'match' }), result, status: 'ok', time: 0 },
   ])
   const lines = bare(transcript.render(80))
-  expect(lines[1]).toBe('  ⌕  Grep · match')
+  expect(lines[0]).toBe('  ⌕  Grep · match')
   expect(lines.slice(2, 8)).toEqual([
     '    match 1',
     '    match 2',
@@ -482,9 +482,9 @@ test('a read row keeps its window in the title and its body closed', () => {
       time: 0,
     },
   ])
-  expect(bare(transcript.render(80))).toEqual(['', '  ▤  Read · a.ts (10-14)', ''])
+  expect(bare(transcript.render(80))).toEqual(['  ▤  Read · a.ts (10-14)'])
   transcript.toggleExpandAll()
-  expect(bare(transcript.render(80))).toEqual(['', '▾ ▤  Read · a.ts (10-14)', '    const x = 1', ''])
+  expect(bare(transcript.render(80))).toEqual(['▾ ▤  Read · a.ts (10-14)', '', '    const x = 1', ''])
 })
 
 test('a read row highlights its output as the file it read', () => {
@@ -541,7 +541,7 @@ test('a failed call keeps its summary and shows the exit capsule', () => {
       time: 0,
     },
   ])
-  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Run tests  exit 2')
+  expect(bare(transcript.render(80))[0]).toBe('  >_ Bash · Run tests  exit 2')
 })
 
 test('a stopped call reads as stopped', () => {
@@ -549,7 +549,7 @@ test('a stopped call reads as stopped', () => {
   transcript.setItems([
     { kind: 'tool', name: 'edit', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: '', status: 'stopped', time: 0 },
   ])
-  expect(bare(transcript.render(80))[1]).toBe('  ✎  Edit · Stopped')
+  expect(bare(transcript.render(80))[0]).toBe('  ✎  Edit · Stopped')
 })
 
 test('reasoning shows the end of the thought while streaming', () => {
@@ -617,7 +617,7 @@ test('an expanded call leaves no blank line behind the exit marker', () => {
     },
   ])
   transcript.toggleExpandAll()
-  expect(bare(transcript.render(80))).toEqual(['', '▾ >_ Bash · Show the directory', '  ❯ pwd', '    /work/hulala', ''])
+  expect(bare(transcript.render(80))).toEqual(['▾ >_ Bash · Show the directory', '', '  $ pwd', '    /work/hulala', ''])
 })
 
 function clickEvent(y: number, type: 'press' | 'click' = 'click'): Parameters<Transcript['handleMouse']>[0] {
@@ -643,28 +643,26 @@ test('a click on a row header folds and unfolds that row alone', () => {
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'code', status: 'ok', time: 0 },
   ])
   expect(bare(transcript.render(80))).toEqual([
-    '',
     '  >_ Bash · Show the directory',
-    '  ❯ pwd',
+    '',
+    '  $ pwd',
     '    /work/hulala',
     '',
     '', // the page row between two cards
-    '',
     '  ▤  Read · a.ts',
-    '',
   ])
 
   // The press is left to the alternate screen's own text selection, so a drag
-  // that starts on a row header selects text instead of folding it. A card
-  // opens with a blank row of its own surface, so the header is one row down.
-  expect(transcript.handleMouse(clickEvent(1, 'press'))).toBeUndefined()
-  expect(transcript.handleMouse(clickEvent(1))).toEqual({ handled: true, render: true })
+  // that starts on a row header selects text instead of folding it. A card's
+  // title is its first row; the surface below it is the body.
+  expect(transcript.handleMouse(clickEvent(0, 'press'))).toBeUndefined()
+  expect(transcript.handleMouse(clickEvent(0))).toEqual({ handled: true, render: true })
   const opened = bare(transcript.render(80))
-  expect(opened[1]).toBe('▾ >_ Bash · Show the directory')
-  expect(opened.at(-2)).toBe('  ▤  Read · a.ts')
+  expect(opened[0]).toBe('▾ >_ Bash · Show the directory')
+  expect(opened.at(-1)).toBe('  ▤  Read · a.ts')
 
-  transcript.handleMouse(clickEvent(1))
-  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Show the directory')
+  transcript.handleMouse(clickEvent(0))
+  expect(bare(transcript.render(80))[0]).toBe('  >_ Bash · Show the directory')
 })
 
 test('the row body is not a click target, so its text stays selectable', () => {
@@ -688,10 +686,10 @@ test('a drag that starts on a row header stays available to text selection', () 
   transcript.render(80)
   // Nothing claims the gesture, so the alternate screen keeps drawing its own
   // selection across the header line instead of folding the row.
-  expect(transcript.handleMouse(clickEvent(1, 'press'))).toBeUndefined()
-  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'drag', x: 12 })).toBeUndefined()
-  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'release', button: 'left' })).toBeUndefined()
-  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Show the directory')
+  expect(transcript.handleMouse(clickEvent(0, 'press'))).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'drag', x: 12 })).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'release', button: 'left' })).toBeUndefined()
+  expect(bare(transcript.render(80))[0]).toBe('  >_ Bash · Show the directory')
 })
 
 test('a click anywhere on a thought unfolds it', () => {
@@ -730,16 +728,16 @@ test('hover marks the row the pointer is on without moving the text', () => {
     { kind: 'tool', name: 'read', args: JSON.stringify({ file_path: '/work/hulala/a.ts' }), result: 'x', status: 'ok', time: 0 },
   ])
   const flat = transcript.render(80)
-  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'move', button: 'none' }))
+  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'move', button: 'none' }))
     .toEqual({ handled: true, render: true })
   const hovered = transcript.render(80)
-  expect(bare(hovered)[1]).toBe('▸ >_ Bash · Show the directory')
+  expect(bare(hovered)[0]).toBe('▸ >_ Bash · Show the directory')
   expect(hovered[2]).toBe(flat[2])
-  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'move', button: 'none' })).toBeUndefined()
+  expect(transcript.handleMouse({ ...clickEvent(0, 'press'), type: 'move', button: 'none' })).toBeUndefined()
   // Off the title line and onto the body: no row under the pointer any more.
-  expect(transcript.handleMouse({ ...clickEvent(2, 'press'), type: 'move', button: 'none' }))
+  expect(transcript.handleMouse({ ...clickEvent(1, 'press'), type: 'move', button: 'none' }))
     .toEqual({ handled: true, render: true })
-  expect(bare(transcript.render(80))[1]).toBe('  >_ Bash · Show the directory')
+  expect(bare(transcript.render(80))[0]).toBe('  >_ Bash · Show the directory')
 })
 
 test('Ctrl-O opens every body, the thought included, and a click closes one again', () => {
@@ -750,34 +748,32 @@ test('Ctrl-O opens every body, the thought included, and a click closes one agai
     { kind: 'reasoning', text: 'A thought', streaming: false, time: 0 },
   ])
   expect(bare(transcript.render(80))).toEqual([
-    '',
     '  >_ Bash · Show the directory',
-    '  ❯ pwd',
+    '',
+    '  $ pwd',
     '    /work/hulala',
     '',
     '',
-    '',
     '  ▤  Read · a.ts',
-    '',
     '  ✳  Think',
     '    A thought',
   ])
 
   transcript.toggleExpandAll()
   const opened = bare(transcript.render(80))
-  expect(opened[1]).toBe('▾ >_ Bash · Show the directory')
-  expect(opened[7]).toBe('▾ ▤  Read · a.ts')
+  expect(opened[0]).toBe('▾ >_ Bash · Show the directory')
+  expect(opened[6]).toBe('▾ ▤  Read · a.ts')
   expect(opened[8]).toBe('    x')
   expect(opened[10]).toBe('▾ ✳  Think')
   // Markdown pads each rendered line to the width, as it always has.
   expect(opened[11]?.trimEnd()).toBe('    A thought')
 
-  transcript.handleMouse(clickEvent(1))
+  transcript.handleMouse(clickEvent(0))
   const lines = bare(transcript.render(80))
-  expect(lines[1]).toBe('  >_ Bash · Show the directory')
-  expect(lines[2]).toBe('  ❯ pwd')
+  expect(lines[0]).toBe('  >_ Bash · Show the directory')
+  expect(lines[2]).toBe('  $ pwd')
   expect(lines[3]).toBe('    /work/hulala')
-  expect(lines[7]).toBe('▾ ▤  Read · a.ts')
+  expect(lines[6]).toBe('▾ ▤  Read · a.ts')
 })
 
 test('every step row starts its title in the same column', () => {
@@ -864,4 +860,24 @@ test('a faded panel keeps every ink it was drawn with, only quieter', () => {
   expect(visibleWidth(row ?? '')).toBe('cyan and plain'.length)
   // Without colour output the rows pass through untouched.
   expect(faintLines(['plain'], false)).toEqual(['plain'])
+})
+
+test('a prompt is a padded panel, and two prompts do not fuse into one slab', () => {
+  // The panel's vertical padding is its own fill (pi's user message is a
+  // `Markdown` with `paddingY: 1` on a background), so a one-line prompt is
+  // three rows of surface, not one line between two page rows.
+  const surface = (row: string): 'panel' | 'page' =>
+    /\u001b\[48;[25];/u.test(row) ? 'panel' : 'page'
+  const transcript = new Transcript(true, () => ({ cwd: '/work/hulala' }))
+  transcript.setItems([
+    { kind: 'user', text: 'first prompt', time: 0 },
+    { kind: 'user', text: 'a queued follow-up', time: 1 },
+  ])
+  // A page row separates the two chips: their padding rows are the same colour
+  // on both sides, so back to back they would read as one six-row block.
+  expect(transcript.render(24).map(surface)).toEqual([
+    'panel', 'panel', 'panel',
+    'page',
+    'panel', 'panel', 'panel',
+  ])
 })

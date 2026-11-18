@@ -1,16 +1,18 @@
 /**
  * Tool-call card.
  *
- * One card per call: a title line (icon, name, summary), then a *preview* of its
- * body — a text body keeps its first lines, a shell body its last ones, a
- * mutation row its applied `-`/`+` change. The derivation itself lives in
- * `data/toolRow.ts` and `data/diffRow.ts`; this component only draws it and
- * applies the line budgets.
+ * One step, two surfaces: a title line on the page (icon, name, summary), then a
+ * card holding a *preview* of the body — a text body keeps its first lines, a
+ * shell body its last ones, a mutation row its applied `-`/`+` change. The
+ * derivation itself lives in `data/toolRow.ts` and `data/diffRow.ts`; this
+ * component only draws it and applies the line budgets.
  *
- * The card is the surface, not the status: every state gets the same slab and
- * the same ink, and a reader finds a failure by the red marker and the `exit 5`
- * capsule rather than by a red room. That is why `view/theme` owns one
- * `card` fill instead of one per lifecycle state.
+ * The title sits on the page because it is the row's own name: it is read at a
+ * glance while scrolling and lines up with a thought's title on the row above it.
+ * The surface below it is the body, tinted by the call's own state — a green cast
+ * once it lands, red if it failed, sand while it runs or after it was stopped —
+ * but only by a suggestion, so the marker and the `exit 5` capsule remain the
+ * loudest thing on the row. A call with nothing worth showing is the title alone.
  *
  * A body that fits its budget is shown whole; a longer one is folded to the
  * budget with a counted hint line, and the reader opens the rest with a click
@@ -27,7 +29,7 @@ import { activeLanguage, t } from '../i18n/index.js'
 import { colourLines, languageForPath } from './codeHighlight.js'
 import { headPreview, tailPreview } from './preview.js'
 import { iconBox } from './rowGlyph.js'
-import { buildStyles } from './theme.js'
+import { buildStyles, type CardTone } from './theme.js'
 
 /**
  * Family leading glyphs, chosen to match the web client's icon per family:
@@ -54,21 +56,45 @@ const DIFF_PREVIEW_LINES = 5
 /** Indent of every wrapped continuation and body line. */
 const INDENT = '  '
 /**
+ * The prompt a shell row prints before its command.
+ *
+ * It is a dollar sign, not the composer's `❯`: a command under a card is what a
+ * terminal shows, and the reader should not mistake it for a prompt they can
+ * type into.
+ */
+const COMMAND_PROMPT = '$ '
+/**
  * Card columns kept clear on the right.
  *
- * There is no matching left inset: the row's own gutter already holds two empty
- * columns at the card's edge, and adding one more would push every tool title one
- * column right of a thought's title on the row above it.
+ * The surface itself runs to the column's edge; this is the text budget inside
+ * it, so a line that measures one cell wider on the terminal than on our side
+ * wraps in the page's margin instead of breaking the slab. There is no matching
+ * left inset: the row's own gutter already holds two empty columns at the card's
+ * edge, and adding one more would push every tool title one column right of a
+ * thought's title on the row above it.
  */
 const CARD_RIGHT_PAD = 1
-/**
- * Card rows above the title line.
- *
- * The card opens with a blank row of its own surface, so the line a click has
- * to hit is the title: one below the item's first row.
- */
-export const TOOL_CARD_HEADER = 1
 type ToolItem = Extract<TranscriptItem, { kind: 'tool' }>
+
+/**
+ * The tint a call's body wears.
+ *
+ * The card leans the way the call went — green once it has landed, red if it
+ * failed, sand while it runs or after it was stopped — but only a suggestion: the
+ * saturation is a tenth of pi's tool boxes, so a column of steps is still one
+ * quiet surface with a cast, not a traffic light.
+ * @param state - the call's state.
+ * @returns the tone to draw the body's surface in.
+ */
+function toneOf(state: ToolStatus): CardTone {
+  switch (state) {
+    case 'ok': return 'ok'
+    case 'error': return 'error'
+    case 'stopped': return 'warn'
+    case 'preparing':
+    case 'running': return 'neutral'
+  }
+}
 
 /**
  * Fold a command to the one terminal line the card has for it.
@@ -153,84 +179,89 @@ export class ToolRowView implements Component {
 
   private draw(width: number, row: ToolRow, expanded: boolean, gutter: string): string[] {
     const s = buildStyles(this.color)
-    // Everything inside the card wraps into the surface, not the frame.
+    // The title is a row on the page; the surface holds the body under it. The
+    // title may use the whole column, the body keeps one cell clear on the right.
     const content = Math.max(1, width - CARD_RIGHT_PAD)
-    const inner = Math.max(1, content - visibleWidth(gutter))
-    const marker = row.state === 'error' ? s.cardError
-      : row.state === 'stopped' ? s.cardWarn
-        : row.state === 'running' ? s.cardAccent
-          : s.cardMuted
-    const tone = row.state === 'error' ? s.cardError : row.state === 'stopped' ? s.cardWarn : s.cardMuted
-    // A settled call always says how long it took: in a card the duration is one
-    // more reading on the title line, not a reason to open the body.
+    const inner = Math.max(1, width - visibleWidth(gutter))
+    // Page inks live on the page: the title is read at a glance while scrolling,
+    // so a settled call keeps the terminal's own text ink and only a failure, a
+    // stop or a live turn recolours it. Muted ink is for what a call printed.
+    const ink: (text: string) => string = text => text
+    const marker = row.state === 'error' ? s.error
+      : row.state === 'stopped' ? s.warn
+        : row.state === 'running' ? s.accent
+          : ink
+    // A settled call always says how long it took: the duration is one more
+    // reading on the title line, not a reason to open the body.
     const duration = this.item.durationMs === undefined
       ? ''
-      : `  ${s.cardMuted(this.seconds(this.item.durationMs))}`
+      : `  ${marker(this.seconds(this.item.durationMs))}`
     const exit = row.exit === undefined ? ''
-      : row.exit.signal !== undefined ? `  ${s.cardError(t('tool.signal', { signal: row.exit.signal }))}`
-        : `  ${s.cardError(t('tool.exit', { code: String(row.exit.code ?? '?') }))}`
+      : row.exit.signal !== undefined ? `  ${s.error(t('tool.signal', { signal: row.exit.signal }))}`
+        : `  ${s.error(t('tool.exit', { code: String(row.exit.code ?? '?') }))}`
     const stat = row.diff === undefined ? '' : this.stat(row.diff.stats)
 
     let line = `${gutter}${marker(iconBox(ICONS[row.variant]))} ${row.title}`
     if (row.summary !== '') {
       const tail = visibleWidth(exit) + visibleWidth(duration) + visibleWidth(stat)
       const room = Math.max(1, inner - visibleWidth(line) - tail - 3)
-      line += ` · ${tone(truncateToWidth(row.summary, room, '…'))}`
+      line += ` ${s.dim('·')} ${marker(truncateToWidth(row.summary, room, '…'))}`
     }
     line = `${line}${stat}${exit}${duration}`
 
-    const lines = [line]
+    const body: string[] = []
     // A mutation's change is what the reader came for, so it is drawn in both
     // states; the arguments it replaced said nothing about the file.
     if (row.diff !== undefined) {
-      lines.push(...this.diffBody(row.diff, content, expanded))
-      return this.card(lines, width)
+      body.push(...this.diffBody(row.diff, content, expanded))
+    } else if (!expanded) {
+      body.push(...this.preview(row, content))
+    } else {
+      // A file row's own text is code: the language comes from the path the call
+      // named, and a path with no language on the list keeps the muted body ink.
+      const fileLanguage = row.variant === 'read' ? languageForPath(row.filePath) : undefined
+      if (row.command !== undefined) {
+        const command = commandPreview(row.command!, Math.max(1, inner - INDENT.length - 2))
+        body.push(`${INDENT}${s.cardMuted(`${COMMAND_PROMPT}${command}`)}`)
+      } else if (row.body !== undefined) {
+        body.push(...this.block(t('tool.in'), row.body, content, text => s.cardMuted(text)))
+      }
+      if (row.output !== undefined) {
+        const label = row.command === undefined && row.body !== undefined ? t('tool.out') : undefined
+        const language = row.variant === 'read' ? fileLanguage : undefined
+        body.push(...this.block(label, row.output, content, text => s.cardMuted(text), language))
+      }
     }
-    if (!expanded) {
-      lines.push(...this.preview(row, content))
-      return this.card(lines, width)
-    }
-
-    // A file row's own text is code: the language comes from the path the call
-    // named, and a path with no language on the list keeps the muted body ink.
-    const fileLanguage = row.variant === 'read' ? languageForPath(row.filePath) : undefined
-    if (row.command !== undefined) {
-      const command = commandPreview(row.command!, Math.max(1, inner - INDENT.length - 2))
-      lines.push(`${INDENT}${s.cardMuted(`❯ ${command}`)}`)
-    } else if (row.body !== undefined) {
-      lines.push(...this.block(t('tool.in'), row.body, content, text => s.cardMuted(text)))
-    }
-    if (row.output !== undefined) {
-      const label = row.command === undefined && row.body !== undefined ? t('tool.out') : undefined
-      const language = row.variant === 'read' ? fileLanguage : undefined
-      lines.push(...this.block(label, row.output, content, text => s.cardMuted(text), language))
-    }
-    return this.card(lines, width)
+    // A call that printed nothing worth showing is a title and no card: an empty
+    // slab would be a grey line claiming a body exists.
+    return body.length === 0 ? [line] : [line, ...this.card(body, width, toneOf(row.state))]
   }
 
   /**
-   * Wrap the drawn rows in the card: the surface inset on both sides, and a
-   * blank row of the same surface above and below.
+   * The body's surface: one continuous slab, padded with a blank row of its own
+   * fill above and below.
    *
-   * The padding rows are what keep two calls in a row from fusing into one
-   * slab, and they are drawn *inside* the card (pi's `Box` does the same) so the
-   * block keeps one continuous edge.
+   * The padding rows are what keep the text off the slab's edge, and they are
+   * drawn *inside* it (pi's `Box` does the same) so the block keeps one edge. A
+   * row is filled to the column's full width and its text budgeted one cell
+   * narrower, because a fill that stops a cell short of a blank row above it is
+   * the notch the eye catches at the right edge.
    */
-  private card(lines: string[], width: number): string[] {
+  private card(lines: string[], width: number, tone: CardTone): string[] {
     const s = buildStyles(this.color)
     const fill = (line: string): string => {
       const body = truncateToWidth(line, Math.max(1, width - CARD_RIGHT_PAD), '…')
-      const pad = ' '.repeat(Math.max(0, width - visibleWidth(body) - CARD_RIGHT_PAD))
-      return s.card(`${body}${pad}`)
+      const pad = ' '.repeat(Math.max(0, width - visibleWidth(body)))
+      return s.card(tone, `${body}${pad}`)
     }
-    const blank = s.card(' '.repeat(Math.max(0, width)))
+    const blank = s.card(tone, ' '.repeat(Math.max(0, width)))
     return [blank, ...lines.map(fill), blank]
   }
 
-  /** `+3 -1`, in the change's own inks. */
+  /** `+3 -1`, in the change's own inks — on the page, beside the title. */
   private stat(stats: DiffStats): string {
     const s = buildStyles(this.color)
-    return `  ${s.cardOk(`+${stats.added}`)} ${s.cardError(`-${stats.removed}`)}`
+    return `  ${s.ok(`+${stats.added}`)} ${s.error(`-${stats.removed}`)}`
   }
 
   /**
@@ -255,7 +286,7 @@ export class ToolRowView implements Component {
     const showsCommand = row.command !== undefined && !row.summaryIsCommand
     if (showsCommand) {
       const command = commandPreview(row.command!, Math.max(1, text - 2))
-      lines.push(`${INDENT}${s.cardMuted(`❯ ${command}`)}`)
+      lines.push(`${INDENT}${s.cardMuted(`${COMMAND_PROMPT}${command}`)}`)
     }
     // A read shows its header only (the window is in the summary), unless it
     // failed: then the error text is the one thing worth previewing.

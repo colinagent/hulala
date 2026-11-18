@@ -7,13 +7,16 @@ const RESET = '\u001b[0m'
 /** Drop ANSI styling so the visible glyphs can be asserted. */
 const strip = (line: string): string => line.replace(/\u001b\[[0-9;]*m/gu, '')
 
-test('draws the prompt as a padded panel row with the arrow inside it', () => {
-  const lines = new UserMessage('who are you', true).render(40).map(strip)
-  // Blank row above, the panel row, blank row below.
-  expect(lines).toHaveLength(3)
-  expect(lines[0]).toBe(' '.repeat(40))
-  expect(lines[1]).toBe(' ❯ who are you' + ' '.repeat(40 - visibleWidth(' ❯ who are you')))
-  expect(lines[2]).toBe(' '.repeat(40))
+test('draws the prompt as a padded panel with the arrow inside it', () => {
+  const lines = new UserMessage('who are you', true).render(40)
+  const plain = lines.map(strip)
+  // A panel row above, the prompt's row, a panel row below: the padding is the
+  // chip's own fill, so the block is three rows of surface and not one.
+  expect(plain).toHaveLength(3)
+  expect(plain[0]).toBe(' '.repeat(40))
+  expect(plain[1]).toBe(' ❯ who are you' + ' '.repeat(40 - visibleWidth(' ❯ who are you')))
+  expect(plain[2]).toBe(' '.repeat(40))
+  expect(lines.every(line => line.startsWith('\u001b[') && line.endsWith(RESET))).toBe(true)
 })
 
 test('the panel background covers every wrapped line to the terminal edge', () => {

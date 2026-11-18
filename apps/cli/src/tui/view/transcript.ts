@@ -47,7 +47,7 @@ import { RunningRow } from './runningRow.js'
 import { mermaidMarkdown } from './mermaid.js'
 import { codeHighlighter } from './codeHighlight.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
-import { ToolRowView, TOOL_CARD_HEADER } from './toolRow.js'
+import { ToolRowView } from './toolRow.js'
 import { UserMessage } from './userMessage.js'
 import { brandBannerLines } from './brandBanner.js'
 
@@ -192,8 +192,9 @@ export class Transcript implements Component {
       // Two cards carry the same surface, so back to back they would fuse into
       // one slab with a seam of text in it. A page-background row is what keeps
       // consecutive calls apart — the cards' own padding cannot, being the same
-      // colour on both sides of it.
-      if (item.kind === 'tool' && this.items[index + 1]?.kind === 'tool') lines.push('')
+      // colour on both sides of it. Two prompts queued into one turn are the
+      // same case: their panels would read as one block of four padding rows.
+      if ((item.kind === 'tool' || item.kind === 'user') && this.items[index + 1]?.kind === item.kind) lines.push('')
     }
     if (running !== undefined) for (const line of running.split('\n')) lines.push(line)
     this.assembled = { width, parts, running, lines }
@@ -205,11 +206,11 @@ export class Transcript implements Component {
    * is a target, so the body text underneath stays available for selection.
    */
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    // A tool row answers on its title line — the card opens with a blank row of
-    // its own surface above it — and a thought answers on any of its rows,
-    // because the folded block has no separate header to aim at.
+    // A tool row answers on its title line, which is its first row — the card
+    // below it is the body — and a thought answers on any of its rows, because
+    // the folded block has no separate header to aim at.
     const row = this.ranges.find(range => range.end > range.start && (
-      event.y === range.start + (range.item.kind === 'tool' ? TOOL_CARD_HEADER : 0)
+      event.y === range.start
       || (range.item.kind === 'reasoning' && event.y > range.start && event.y < range.end)
     ))
     const target = row !== undefined && (

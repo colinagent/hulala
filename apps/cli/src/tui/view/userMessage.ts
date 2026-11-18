@@ -8,6 +8,12 @@
  * muted `❯` arrow, and continuation lines indent under the message text so a
  * wrapped prompt still reads as one block.
  *
+ * The block is padded vertically with two *panel* rows, not page rows — pi's
+ * user message is a `Markdown` with `paddingY: 1` and a background, and the tool
+ * card here draws its own fill above and below for the same reason. A one-row
+ * chip with page-coloured gaps reads as a highlighted line rather than as the
+ * operator's own turn.
+ *
  * The panel and text colours both come from `buildStyles`, which pins a fixed
  * foreground so the block stays legible on light and dark terminals. With
  * colour disabled (`NO_COLOR`) this degrades to plain text.
@@ -39,9 +45,10 @@ export class UserMessage implements Component {
     if (this.cached !== undefined && this.cached.width === width) return this.cached.lines
     const contentWidth = Math.max(1, width - PREFIX_WIDTH - RIGHT_PADDING)
     const lines = wrapTextWithAnsi(this.text.replace(/\t/gu, '   '), contentWidth)
-    // Bracket the panel with a blank row so the block reads as its own turn
-    // instead of running into the assistant text above and below it.
-    const blank = ' '.repeat(Math.max(0, width))
+    // Bracket the panel with a blank row of its own fill, so the block reads as
+    // its own turn instead of running into the transcript around it, and the
+    // prompt is not squeezed against the chip's edge.
+    const blank = this.styles.userPanel(' '.repeat(Math.max(0, width)))
     const rendered = [blank, ...lines.map((line, index) => this.panelLine(line, index === 0, width)), blank]
     this.cached = { width, lines: rendered }
     return rendered

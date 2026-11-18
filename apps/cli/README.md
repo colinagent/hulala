@@ -120,11 +120,12 @@ keyboard between the rail, the conversation and a column is `Ctrl-[` / `Ctrl-]`.
 
 ## Reading the conversation
 
-A step row is not a title with everything hidden. Each row shows a preview of
-what it did, folded to a line budget that a short body never reaches:
+A step row is a title on the page and, under it, a card holding a preview of
+what it did — folded to a line budget that a short body never reaches. A call
+with nothing to preview is the title alone. In detail:
 
 - a command row prints the command it ran under the title
-  (`❯ bun test tests`) and keeps the **start** of its output — six body rows in
+  (`$ bun test tests`) and keeps the **start** of its output — six body rows in
   total, with a count of the rest. A command with no description already reads as
   the title, so it is not printed twice;
 - a search or generic row keeps the **start** of its result (six lines, with a

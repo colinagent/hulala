@@ -57,6 +57,7 @@ import type { Forward } from '../remote/forward.js'
 import { remotePlugin } from './plugins/remote.js'
 import { railPlugin } from './plugins/rail.js'
 import { brandBannerImageId } from './view/brandBanner.js'
+import { setTerminalPage } from './view/theme.js'
 import { inputPlugin } from './plugins/input.js'
 import { lifecyclePlugin } from './plugins/lifecycle.js'
 import { commandsPlugin } from './plugins/commands.js'
@@ -641,10 +642,12 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
 
   // The editor's colours follow the terminal, so the split has no seam: ask the
   // terminal for its palette and fall back to the built-in one if it stays quiet.
+  // The same answer places the tool card a step above the page it is drawn on.
   void ui.queryTerminalColors({ timeoutMs: 300 })
     .then((colors) => {
       nvim.setTheme(editorThemeFromTerminal(colors))
-      // The dim cursor follows the resolved foreground/background.
+      setTerminalPage(colors)
+      // The dim cursor and the card surface follow the resolved palette.
       if (!lifecycle.closing) render.request()
     })
     .catch(() => undefined)

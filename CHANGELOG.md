@@ -13,7 +13,43 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- A Bash row prints its command after `$`, the way a terminal does, instead of
+  after the composer's `❯`. The turn arrow stays the one marker a reader can type
+  into; a command under a tool card is output, not a prompt.
+- The tool card is now tinted by the call's own state, the way pi's tool boxes
+  are, and placed against the terminal instead of on a fixed slab. The client
+  already asks the terminal for its default colours (OSC 10/11) to paint the
+  editor column; the cards are placed from the same answer in OKHSL — the
+  perceptual space the palette is written in — as one step of lightness above the
+  page, in the tone's own hue: green once a call lands, red if it failed, sand
+  while it runs or after it was stopped. The tint is a tenth of pi's saturation
+  and the step is smaller, so a column of steps is one quiet surface with a cast
+  rather than a traffic light. Body and accent inks are measured against the
+  resulting surface, and a terminal that reports no page — or a light one — gets
+  surfaces derived the same way from the frame's footer slate, so no card is a
+  hand-picked literal.
+- A step row's title now sits on the page instead of inside the card: the icon,
+  the name, the description and the duration are a line of their own, and the
+  surface below holds only the body. A title printed on the surface made every
+  row start with a slab, and a call with nothing to show became an empty one; a
+  call with no body to draw is now its title alone. The title also keeps the
+  terminal's own text ink instead of the body's muted one — it is read at a
+  glance while scrolling — and only a failure, a stop or a live turn recolours
+  it.
+- The archived user prompt is a padded panel instead of a one-row chip: a blank
+  row of the panel's own fill sits above and below the text, the way pi's user
+  message is a `Markdown` with `paddingY: 1` on a background, and the tool card
+  here already pads its surface. A single filled row read as a highlighted line
+  squeezed between two page rows rather than as the operator's own turn.
+
 ### Fixed
+
+- A tool card's surface no longer leaves a notch at its right edge: the body rows
+  were filled one column short of the blank padding rows above and below them, so
+  the page showed through in a step the eye caught. Every row of the block is now
+  filled to the column's width, with the text still budgeted one cell narrower.
 
 - A conversation no longer keeps fragments of an older frame in the corner of the
   window — the write queue could discard a frame (a stalled terminal, a refused
