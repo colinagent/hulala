@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.28] - 2026-11-18
+
 ### Changed
 
 - `hulala` starts a new Session in the directory it was run from. A window no
