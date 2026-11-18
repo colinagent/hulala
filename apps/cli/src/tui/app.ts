@@ -39,7 +39,7 @@ import { isCommandLine } from './commandCatalog.js'
 import { languageProblemText, setActiveLanguage, t } from './i18n/index.js'
 import { languagePlugin } from './plugins/language.js'
 import { checkForUpdate, type UpdateInfo } from '../update/check.js'
-import { collect, spawnHandoff } from '../spawn.js'
+import { collect, handoffInvocation, spawnHandoff } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
@@ -210,12 +210,17 @@ async function restartClient(dataRoot: string, resume: string | undefined, remot
     ...(resume === undefined ? [] : ['--resume', resume]),
     ...(remote === undefined ? [] : ['--remote', remote]),
   ]
-  const installed = (process.env.HULALA_INSTALL_ROOT ?? '').trim() !== ''
-  const entry = installed ? join(dataRoot, 'bin', 'hulala') : process.argv[1]
-  if (entry === undefined || entry === '') return
+  const invocation = handoffInvocation({
+    installed: (process.env.HULALA_INSTALL_ROOT ?? '').trim() !== '',
+    dataRoot,
+    entry: process.argv[1],
+    execPath: process.execPath,
+    tail,
+  })
+  if (invocation === undefined) return
   // A failed spawn resolves instead of throwing: restarting is a convenience,
   // and the user can always run their own entry again.
-  await spawnHandoff(process.execPath, [entry, ...tail])
+  await spawnHandoff(invocation.command, invocation.args)
 }
 
 function stringAt(value: unknown, ...path: readonly string[]): string | undefined {

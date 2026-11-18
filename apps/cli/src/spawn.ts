@@ -10,6 +10,7 @@
  * @module hulala-cli/spawn
  */
 import { spawn } from 'node:child_process'
+import { join } from 'node:path'
 
 /** One finished child process, with everything it wrote. */
 export interface CollectedProcess {
@@ -68,6 +69,31 @@ export function spawnDetached(
   })
   child.unref()
   return { pid: child.pid }
+}
+
+/**
+ * The process that becomes this window after a restart.
+ *
+ * The two installations hand over differently, and getting it wrong is silent
+ * until it is fatal: an installed release must start its `sh` launcher, because
+ * that script is what picks the runtime Node and reads `active.json`; running it
+ * through the current interpreter hands a shell script to Node, which dies on
+ * line 2 and takes the window with it. A source checkout must not touch that
+ * launcher — it belongs to the release installed beside the checkout — so it
+ * re-runs the entry it is already running, on the interpreter it already uses.
+ * @param options - installation kind, state root, this process's entry and tail.
+ * @returns the command and arguments, or undefined when there is nothing to run.
+ */
+export function handoffInvocation(options: {
+  readonly installed: boolean
+  readonly dataRoot: string
+  readonly entry: string | undefined
+  readonly execPath: string
+  readonly tail: readonly string[]
+}): { readonly command: string; readonly args: readonly string[] } | undefined {
+  if (options.installed) return { command: join(options.dataRoot, 'bin', 'hulala'), args: [...options.tail] }
+  if (options.entry === undefined || options.entry === '') return undefined
+  return { command: options.execPath, args: [options.entry, ...options.tail] }
 }
 
 /**

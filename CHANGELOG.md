@@ -13,6 +13,19 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.27] - 2026-11-18
+
+### Fixed
+
+- A window that hands the terminal to a new client process survives the handoff in
+  an installed release. `/restart`, a `/remote` switch, an update and remote
+  recovery all re-run the launcher, and the installed entry in the state root is
+  a POSIX shell script that picks the runtime Node — it was being started with
+  the current interpreter, so the successor died on its second line with
+  `SyntaxError: Invalid or unexpected token` and the window vanished instead of
+  reopening. An installed release now executes its launcher; a source checkout
+  still re-runs its own entry on its own interpreter.
+
 ## [0.3.26] - 2026-11-17
 
 ### Fixed
