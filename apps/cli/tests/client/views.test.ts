@@ -34,7 +34,25 @@ test('StatusBar never carries the version', () => {
   const line = bar.render(80)[0] ?? ''
   expect(line).not.toContain('hulala v')
   expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
-  expect(visibleWidth(line)).toBe(80)
+  expect(visibleWidth(line)).toBe(79)
+})
+
+test('StatusBar never writes the terminal\'s last cell', () => {
+  // The band is the frame's bottom row, so it is the one row whose overflow
+  // would scroll the screen instead of spilling into a row that is about to be
+  // erased. One cell is held back: a terminal that counts an ambiguous-width
+  // `…` or `—` as two columns can then only cost that cell, never a shift.
+  for (const width of [8, 9, 12, 24, 40, 60, 80, 100, 200]) {
+    const bar = new StatusBar(() => ({
+      model: { provider: 'deepseek-official', model: 'deepseek-flash' },
+      thinkingLevel: 'max',
+      metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
+      disconnected: false,
+      update: '0.1.9',
+    }), false, () => NO_HINT)
+    const line = bar.render(width)[0] ?? ''
+    expect(visibleWidth(line)).toBe(Math.max(1, width - 1))
+  }
 })
 
 test('StatusBar names the thinking level next to the model', () => {
@@ -46,7 +64,7 @@ test('StatusBar names the thinking level next to the model', () => {
   }), false, () => NO_HINT)
   const line = bar.render(100)[0] ?? ''
   expect(line.trimEnd().endsWith('deepseek-official/deepseek-flash • max')).toBe(true)
-  expect(visibleWidth(line)).toBe(100)
+  expect(visibleWidth(line)).toBe(99)
 })
 
 test('StatusBar keeps the level visible when the row is too narrow for it', () => {
@@ -61,7 +79,7 @@ test('StatusBar keeps the level visible when the row is too narrow for it', () =
   expect(line.trimEnd().endsWith('• high')).toBe(true)
   expect(line).toContain('…')
   // …and neither the reading nor the model runs past the band.
-  expect(visibleWidth(line)).toBe(24)
+  expect(visibleWidth(line)).toBe(23)
 })
 
 test('StatusBar centres the readings between the hint and the model', () => {
@@ -78,7 +96,7 @@ test('StatusBar centres the readings between the hint and the model', () => {
   expect(Math.abs(at + '80 tok/s · 480 tok'.length / 2 - 50)).toBeLessThan(4)
   expect(line).not.toContain('~/')
   expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
-  expect(visibleWidth(line)).toBe(100)
+  expect(visibleWidth(line)).toBe(99)
 })
 
 test('StatusBar puts the rotating hint in the left slot', () => {
@@ -100,7 +118,7 @@ test('StatusBar paints the whole row as one band', () => {
   // A background of its own is the whole point: the footer needs no rule.
   expect(line).toContain('\u001b[48;')
   expect(line).toContain('\u001b[38;')
-  expect(visibleWidth(line)).toBe(60)
+  expect(visibleWidth(line)).toBe(59)
   expect(line).toContain('deepseek/chat')
 })
 
@@ -114,7 +132,7 @@ test('StatusBar keeps the update hint after a reading arrives', () => {
   const line = bar.render(80)[0] ?? ''
   expect(line).toContain('update 0.1.9')
   expect(line.trimEnd().endsWith('deepseek/chat')).toBe(true)
-  expect(visibleWidth(line)).toBe(80)
+  expect(visibleWidth(line)).toBe(79)
 })
 
 test('StatusBar shows the context percentage over the window', () => {
@@ -303,6 +321,36 @@ test('a folded shell row keeps the end of its output under the title', () => {
     '',
   ])
   expect(lines[1]).not.toContain('{')
+})
+
+test('a multi-line command preview is one row with no raw control bytes', () => {
+  // A heredoc used to be truncated by visible width, which counts LF as zero
+  // columns but keeps the byte: the frame row then moved the cursor down and
+  // the diff never repainted what landed there. Fold it at the source instead.
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  transcript.setItems([
+    {
+      kind: 'tool',
+      name: 'bash',
+      args: JSON.stringify({
+        command: "python3 - <<'PY'\nfor k,v in m.items():\n    print(k, v)\nPY",
+        description: 'Check the fee math',
+      }),
+      result: 'ok\n[exit code: 0]',
+      status: 'ok',
+      time: 0,
+    },
+  ])
+  const lines = bare(transcript.render(80))
+  expect(lines[2]).toBe("  ❯ python3 - <<'PY'…")
+  for (const line of lines) expect(line).not.toMatch(/[\r\x00-\x08\x0b-\x1f\x7f]/u)
+  expect(visibleWidth(lines[2] ?? '')).toBeLessThanOrEqual(80)
+  // The expanded card shows the same one-line command; a reader opens the body
+  // for the rest, so no state may hand raw LF to the frame either.
+  transcript.toggleExpandAll()
+  const expanded = bare(transcript.render(80))
+  expect(expanded[2]).toBe("  ❯ python3 - <<'PY'…")
+  for (const line of expanded) expect(line).not.toMatch(/[\r\x00-\x08\x0b-\x1f\x7f]/u)
 })
 
 test('a folded shell row keeps its last lines and counts the ones above', () => {
@@ -757,20 +805,29 @@ test('every step row starts its title in the same column', () => {
 })
 
 test('an unfocused cursor is a ghost of the background, not a half-visible block', () => {
-  // Dark background, light foreground: the unfocused block must sit much closer
-  // to the background than to the foreground, or it reads as a live cursor.
-  const sgr = faintCursorSgr(true, '#1e1e1e', '#d8d8d8')
-  const match = /\u001b\[48;2;(\d+);(\d+);(\d+)m/u.exec(sgr)
-  expect(match).not.toBeNull()
-  const [r, g, b] = [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])]
-  const bg = 0x1e
-  const fg = 0xd8
-  const midpoint = (bg + fg) / 2
-  expect(r).toBeLessThan(midpoint) // significantly darker than the 50% blend
-  expect(r).toBeGreaterThan(bg) // still above the background, so it is findable
-  expect(Math.abs(r - bg)).toBeLessThan(Math.abs(fg - r))
-  expect([g, b]).toEqual([r, r])
-  expect(faintCursorSgr(false, '#1e1e1e', '#d8d8d8')).toBe('')
+  // The assertion reads the truecolor SGR. Pin the capability the helper
+  // consults, or a shell without COLORTERM gets the 256-colour form instead.
+  const colorterm = process.env.COLORTERM
+  process.env.COLORTERM = 'truecolor'
+  try {
+    // Dark background, light foreground: the unfocused block must sit much closer
+    // to the background than to the foreground, or it reads as a live cursor.
+    const sgr = faintCursorSgr(true, '#1e1e1e', '#d8d8d8')
+    const match = /\u001b\[48;2;(\d+);(\d+);(\d+)m/u.exec(sgr)
+    expect(match).not.toBeNull()
+    const [r, g, b] = [Number(match?.[1]), Number(match?.[2]), Number(match?.[3])]
+    const bg = 0x1e
+    const fg = 0xd8
+    const midpoint = (bg + fg) / 2
+    expect(r).toBeLessThan(midpoint) // significantly darker than the 50% blend
+    expect(r).toBeGreaterThan(bg) // still above the background, so it is findable
+    expect(Math.abs(r - bg)).toBeLessThan(Math.abs(fg - r))
+    expect([g, b]).toEqual([r, r])
+    expect(faintCursorSgr(false, '#1e1e1e', '#d8d8d8')).toBe('')
+  } finally {
+    if (colorterm === undefined) delete process.env.COLORTERM
+    else process.env.COLORTERM = colorterm
+  }
 })
 
 test('a fade wrapper draws its leaf quieter without taking the keyboard', () => {

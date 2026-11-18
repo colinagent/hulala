@@ -70,6 +70,24 @@ const CARD_RIGHT_PAD = 1
 export const TOOL_CARD_HEADER = 1
 type ToolItem = Extract<TranscriptItem, { kind: 'tool' }>
 
+/**
+ * Fold a command to the one terminal line the card has for it.
+ *
+ * `truncateToWidth` measures a newline as zero columns but keeps the byte, so a
+ * heredoc or a `python3 - <<'PY'` script handed to it whole would carry raw LF
+ * into the frame: the terminal moves down a row, the differential renderer still
+ * believes it painted one unchanged row, and the text that landed below stays
+ * on screen as a ghost. Show the first source line with a continuation mark
+ * instead. `createBufferedOutput` also strips bare controls from frames; this
+ * keeps the row readable rather than concatenating the script's lines.
+ */
+function commandPreview(command: string, width: number): string {
+  const breakAt = command.search(/[\r\n]/u)
+  if (breakAt < 0) return truncateToWidth(command, width, '…')
+  const head = truncateToWidth(command.slice(0, breakAt), Math.max(1, width - 1), '')
+  return `${head}…`
+}
+
 export class ToolRowView implements Component {
   /** The derived row, rebuilt only when an input the derivation reads changed. */
   private cachedRow: {
@@ -177,7 +195,7 @@ export class ToolRowView implements Component {
     // named, and a path with no language on the list keeps the muted body ink.
     const fileLanguage = row.variant === 'read' ? languageForPath(row.filePath) : undefined
     if (row.command !== undefined) {
-      const command = truncateToWidth(row.command, Math.max(1, inner - INDENT.length - 2), '…')
+      const command = commandPreview(row.command!, Math.max(1, inner - INDENT.length - 2))
       lines.push(`${INDENT}${s.cardMuted(`❯ ${command}`)}`)
     } else if (row.body !== undefined) {
       lines.push(...this.block(t('tool.in'), row.body, content, text => s.cardMuted(text)))
@@ -236,7 +254,7 @@ export class ToolRowView implements Component {
     const lines: string[] = []
     const showsCommand = row.command !== undefined && !row.summaryIsCommand
     if (showsCommand) {
-      const command = truncateToWidth(row.command!, Math.max(1, text - 2), '…')
+      const command = commandPreview(row.command!, Math.max(1, text - 2))
       lines.push(`${INDENT}${s.cardMuted(`❯ ${command}`)}`)
     }
     // A read shows its header only (the window is in the summary), unless it

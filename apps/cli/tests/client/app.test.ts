@@ -727,6 +727,26 @@ test('the rail shows the open directory, its Sessions and a background turn spin
   await expect(run).resolves.toBe(0)
 })
 
+test('Ctrl-L throws the renderer\'s copy of the screen away and paints every row', async () => {
+  const fake = fakeBackend()
+  const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: (_mode: boolean): void => undefined, setEncoding: (): void => undefined })
+  const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100, rows: 24 })
+  let text = ''
+  output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
+  cleanups.push(() => { input.destroy(); output.destroy() })
+  const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
+  const clears = (): number => (text.match(/\u001b\[2J/gu) ?? []).length
+  await waitFor(() => plain(text).includes('history answer'), 'transcript')
+  const before = clears()
+  // `Ctrl-L` is the user's own repair: the frame is rebuilt from an empty model,
+  // which is the clear plus every row. A differential repaint would keep every
+  // cell the renderer believes is unchanged — the cells a lost frame left wrong.
+  input.write('\u000c')
+  await waitFor(() => clears() > before, 'full repaint')
+  input.write('/quit\r')
+  await expect(run).resolves.toBe(0)
+})
+
 test('a Session the rail started blank takes its title from the journal', async () => {
   const fake = fakeBackend()
   // A Session created by `+ new session` carries the blank flag until the Host lists

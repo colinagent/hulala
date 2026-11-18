@@ -378,7 +378,7 @@ export function apply(ctx: Context, config: LayoutPluginConfig): void {
     }
     if (split?.transcriptScroll !== undefined) transcriptScroll = split.transcriptScroll
     for (const listener of listeners) listener()
-    render.request(true)
+    render.reconcile('layout')
   }
 
   const register = (seat: SeatId, entry: SeatEntry | ColumnSeatEntry | undefined): (() => void) => {

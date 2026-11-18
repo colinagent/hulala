@@ -91,7 +91,7 @@ export function apply(ctx: Context, config: LanguagePluginConfig): void {
     problem = undefined
     setActiveLanguage(code)
     for (const listener of listeners) listener()
-    render.request(true)
+    render.reconcile('language')
     return failure
   }
 

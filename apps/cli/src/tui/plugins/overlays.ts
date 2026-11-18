@@ -106,6 +106,10 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
         // The keyboard is back on whatever the overlay covered: say what that
         // surface reads, so a dialog over the composer gives English back.
         refreshIme()
+        // Rows the dialog covered are painted again from the frame under it, not
+        // from the dialog: the model held the composited screen, so every row it
+        // touched is repainted rather than diffed against a layer that is gone.
+        render.reconcile('overlay')
         resolve(value)
       }
       const cancelWith = (): void => { if (cancel !== undefined) finish(cancel.value) }
@@ -143,7 +147,7 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
   ctx.effect(() => () => {
     for (const cancel of [...editorModals]) cancel()
     editorModals.clear()
-    render.request(true)
+    render.reconcile('overlay')
   }, 'hulala: settle editor dialogs')
 
   ctx.provide('hulalaOverlays', {

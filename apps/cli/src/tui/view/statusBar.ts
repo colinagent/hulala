@@ -57,9 +57,16 @@ export class StatusBar implements Component {
     // The band's edges are visible, so its text keeps one cell of surface on
     // either side. Below eight columns there is no room for a gutter.
     const gutter = width >= 8 ? 1 : 0
-    const usable = Math.max(1, width - gutter * 2)
+    // The band is the frame's bottom row, so it stops one cell short of the
+    // terminal's last column. A row that reaches the final cell leaves the
+    // cursor in "wrap pending"; if this terminal counts a cell wider than
+    // `visibleWidth` did (an ambiguous-width `…`, `—`, `•`, a CJK glyph), that
+    // one extra glyph wraps — and a wrap on the last row scrolls the whole
+    // screen, which no model on this side can observe afterwards. Losing a cell
+    // of padding is cheaper than a one-row shift nobody can repair.
+    const usable = Math.max(1, width - 1 - gutter)
     const band = (text: string): string[] => [
-      styles.band(`${' '.repeat(gutter)}${padEnd(text, usable)}${' '.repeat(gutter)}`),
+      styles.band(`${' '.repeat(gutter)}${padEnd(text, usable)}`),
     ]
 
     if (state.disconnected) return band(t('status.disconnected', { restart: '/restart' }))

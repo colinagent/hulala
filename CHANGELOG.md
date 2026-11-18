@@ -13,6 +13,32 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- A conversation no longer keeps fragments of an older frame in the corner of the
+  window — the write queue could discard a frame (a stalled terminal, a refused
+  descriptor, or frames composed for a window that changed size while they were
+  queued) without telling the renderer, which then kept diffing every later frame
+  against a screen the terminal never received. Every discard now reports its
+  reason, and the renderer throws its copy of the screen away: the next frame is a
+  clear plus every row. A frame composed for a grid the window no longer has is
+  refused instead of applied, because its absolute rows can wrap and, on the last
+  row, scroll the whole screen. `Ctrl-L` remains the manual repair.
+- The status band stops one cell short of the terminal's right edge. It is the
+  frame's bottom row, so a row that overflows it scrolls the screen; a terminal
+  that counts an ambiguous-width `…` or `—` as two cells can now only cost that
+  one padding cell.
+- A multi-line Bash command no longer leaves the newest transcript text sitting
+  in the composer's blank rows. A folded tool card truncated the whole command
+  into one row, and `truncateToWidth` counts a newline as zero columns but keeps
+  the byte: the terminal moved down into the rows below, while the differential
+  renderer still believed those rows were unchanged and never repainted them.
+  The card now shows the command's first source line with a continuation mark,
+  and every frame has bare control characters removed at the output queue while
+  keeping CSI/OSC/DCS sequences intact. Under `HULALA_DEBUG_CLIENT=1` a removal
+  is logged as `frame control row=N 0x..=count`, and every log line names its
+  `pid`.
+
 ## [0.3.28] - 2026-11-18
 
 ### Changed

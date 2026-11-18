@@ -150,7 +150,10 @@ function debugLog(message: string): void {
         // the file does not exist yet, or cannot be restarted
       }
     }
-    appendFileSync(file, `${new Date().toISOString()} ${message}\n`)
+    // A handoff leaves the parent alive while the successor owns the terminal,
+    // so every line names its writer: two pids in one trace is a different bug
+    // from one pid whose frame went wrong.
+    appendFileSync(file, `${new Date().toISOString()} pid=${String(process.pid)} ${message}\n`)
   } catch {
     // logging is best effort
   }
@@ -267,7 +270,7 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
       ...(options.escapeTimeoutMs === undefined ? {} : { escapeTimeoutMs: options.escapeTimeoutMs }),
       ...(options.copySelection === undefined ? {} : { copySelection: options.copySelection }),
     })
-    await ctx.plugin(renderPlugin)
+    await ctx.plugin(renderPlugin, { debug: debugLog })
     // Before anything that reads a chord or prints one: the composer's menu, the
     // input pipeline, `/keys` and the startup hints all read the active keymap.
     await ctx.plugin(keymapPlugin, { dataRoot })
@@ -404,11 +407,11 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   ctx.on('hulala/quit', () => { void requestShutdown() })
   ctx.on('hulala/hangup', () => { void requestShutdown({ force: true }) })
   ctx.on('hulala/update-installed', () => { void requestShutdown({ force: true }) })
-  // A frame dropped because the terminal stopped taking output leaves the screen
-  // showing a state that was never painted in full. `request(true)` resets the
-  // renderer's own copy of the screen, so the next frame is every row again —
-  // which is the only way to repair a cell the diff would skip.
-  ctx.on('hulala/output-lost', () => { render.request(true) })
+  // A frame the queue discarded leaves the renderer counting content the terminal
+  // never received. `reconcile` throws that copy away, so the next frame is every
+  // row — the only way to repair a cell the diff would otherwise skip. The reason
+  // travels with it (`cap`, `error`, `geometry`) into the debug trace.
+  ctx.on('hulala/output-lost', reason => { render.reconcile(reason) })
 
   /**
    * Come back from an interruption that can invalidate the terminal's stream.
@@ -421,10 +424,11 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
    * a differential repaint keeps every cell it believes is unchanged, so the
    * frame is rebuilt from scratch instead.
    * @param reason - what interrupted the stream, for the debug trace.
+   * @param why - the reconcile reason: a rebuilt transport or a suspended machine.
    */
-  const recoverTerminal = (reason: string): void => {
+  const recoverTerminal = (reason: string, why: 'reconnect' | 'wake'): void => {
     terminal.resetInput(reason)
-    render.request(true)
+    render.reconcile(why)
   }
 
   // A rebuilt transport is the client's own signal that it was away: the Host
@@ -436,7 +440,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   ctx.on('hulala/session-opened', () => {
     if (!transportLost) return
     transportLost = false
-    recoverTerminal('reconnected')
+    recoverTerminal('reconnected', 'reconnect')
   })
 
   // Sleeping leaves no signal of its own, and a terminal that was suspended with
@@ -448,7 +452,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
       const now = Date.now()
       const jumped = now - last
       last = now
-      if (jumped > SLEEP_JUMP_MS) recoverTerminal(`slept ${String(Math.round(jumped / 1_000))}s`)
+      if (jumped > SLEEP_JUMP_MS) recoverTerminal(`slept ${String(Math.round(jumped / 1_000))}s`, 'wake')
     }, WAKE_PROBE_MS)
     timer.unref?.()
     return () => { clearInterval(timer) }

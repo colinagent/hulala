@@ -85,7 +85,7 @@ export function apply(ctx: Context, config: ComposerPluginConfig): void {
         slot.restore()
         setPaging(true)
         focusOn(editor)
-        render.request(true)
+        render.reconcile('slot')
         resolve(value)
       }
       const built = build(finish)
@@ -95,7 +95,7 @@ export function apply(ctx: Context, config: ComposerPluginConfig): void {
       // PageUp/PageDown while it is up.
       setPaging(false)
       focusOn(built)
-      render.request(true)
+      render.reconcile('slot')
     })
   }
 

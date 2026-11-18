@@ -101,15 +101,92 @@ test('a full terminal is retried, not dropped', async () => {
   writer.dispose()
 })
 
-test('a queue past its cap drops whole messages and says so once it drains', async () => {
+test('a queue past its cap drops whole messages and says so at once', async () => {
   const sink = recordingSink()
-  let overflows = 0
-  const writer = createBufferedWriter(sink, { capBytes: 16, onOverflow: () => { overflows += 1 } })
+  const lost: string[] = []
+  const writer = createBufferedWriter(sink, { capBytes: 16, onLost: reason => lost.push(reason) })
   writer.write('x'.repeat(10))
   writer.write('y'.repeat(10)) // over the cap: dropped whole
   await writer.drain()
   expect(sink.text()).toBe('x'.repeat(10))
-  expect(overflows).toBe(1)
+  // Reported while the terminal is still not reading, not once it drains: the
+  // renderer has to throw its copy of the screen away either way, and waiting
+  // only delays the repair.
+  expect(lost).toEqual(['cap'])
+  expect(writer.stats().lost.cap).toBe(1)
+})
+
+test('a refused descriptor loses the frame and says so', async () => {
+  let attempts = 0
+  const sink: WriterSink = {
+    write: (_chunk, done) => {
+      attempts += 1
+      const error = Object.assign(new Error('EIO'), { code: 'EIO' }) as NodeJS.ErrnoException
+      setTimeout(() => { done(error, 0) }, 0)
+    },
+    writeSync: () => 0,
+  }
+  const lost: string[] = []
+  const writer = createBufferedWriter(sink, { onLost: reason => lost.push(reason) })
+  // Both are in the queue when the descriptor refuses: the one being written and
+  // the one behind it. Nothing owns the surface any more, so both are lost.
+  writer.write('frame one')
+  writer.write('frame two')
+  await new Promise(resolve => setTimeout(resolve, 20))
+  // One report per distinct reason however many messages went with it: the
+  // repair is one full repaint, not one per dropped frame.
+  expect(lost).toEqual(['error'])
+  expect(writer.stats().lost.error).toBe(2)
+  expect(writer.pendingBytes()).toBe(0)
+  expect(attempts).toBe(1)
+  writer.dispose()
+})
+
+test('a sink that takes nothing does not spin the loop', async () => {
+  let attempts = 0
+  const sink: WriterSink = {
+    write: (_chunk, done) => { attempts += 1; done(null, 0) },
+    writeSync: () => 0,
+  }
+  const writer = createBufferedWriter(sink)
+  writer.write('a frame')
+  await new Promise(resolve => setTimeout(resolve, 30))
+  // Two milliseconds apart, not thousands of turns of the loop: a descriptor
+  // with no room must cost waiting, never CPU.
+  expect(attempts).toBeLessThan(20)
+  expect(writer.pendingBytes()).toBeGreaterThan(0)
+  writer.dispose()
+})
+
+test('a frame composed for another grid is never written', async () => {
+  const sink = recordingSink()
+  const lost: string[] = []
+  let size = { columns: 80, rows: 24 }
+  const writer = createBufferedWriter(sink, { onLost: reason => lost.push(reason), size: () => size })
+  // The first frame starts writing, so the second one is still queued when the
+  // window changes size: its absolute rows and columns no longer address this
+  // grid, and applying it could wrap a row (and scroll the screen).
+  writer.write('frame one', { columns: 80, rows: 24 })
+  writer.write('frame two', { columns: 80, rows: 24 })
+  size = { columns: 70, rows: 20 }
+  await writer.drain()
+  expect(sink.text()).toBe('frame one')
+  expect(lost).toEqual(['geometry'])
+  expect(writer.stats()).toEqual({ composed: 2, committed: 1, lost: { cap: 0, error: 0, geometry: 1 } })
+})
+
+test('a control write is not tied to the grid', async () => {
+  const sink = recordingSink()
+  const lost: string[] = []
+  let size = { columns: 80, rows: 24 }
+  const writer = createBufferedWriter(sink, { onLost: reason => lost.push(reason), size: () => size })
+  writer.write('frame', { columns: 80, rows: 24 })
+  writer.write('\u001b]0;title\u0007') // no geometry: a title, not a frame
+  size = { columns: 70, rows: 20 }
+  await writer.drain()
+  expect(sink.text()).toBe('frame\u001b]0;title\u0007')
+  expect(lost).toEqual([])
+  expect(writer.stats().committed).toBe(1)
 })
 
 test('a flush writes what is queued, in order, and abandons the message in flight', async () => {

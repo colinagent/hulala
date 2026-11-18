@@ -397,7 +397,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return { consume: true }
     }
     if (matchesAction('app.redraw', data)) {
-      render.request(true)
+      render.reconcile('manual')
       return { consume: true }
     }
     // The clipboard is reachable only from this process: read it here and paste

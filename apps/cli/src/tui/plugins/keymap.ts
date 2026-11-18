@@ -74,7 +74,7 @@ export function apply(ctx: Context, config: KeymapPluginConfig): void {
   const reload = (): readonly KeymapProblem[] => {
     applied = resolveKeymap(config.dataRoot)
     setActiveKeymap(applied)
-    render.request(true)
+    render.reconcile('keymap')
     return applied.problems
   }
 
