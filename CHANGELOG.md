@@ -13,6 +13,36 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- The Host boots through DeepSeek Harness's own profile boot instead of a copy of
+  it kept in this repository. Every launch step DSH owns is now the upstream one:
+  the layered launch environment (`process.env`, the invoking directory's `.env`,
+  `$DSH_HOME/.env`), the `engines.dsh` bundle gate with its skip report,
+  plugin-package interception, fail-loud, bounded shutdown, and the readiness
+  commit. DSH's profile boot patches Node's own module loaders through a native
+  addon, so the Host process is Node everywhere, including `bun run host` and the
+  Boot tests.
+- The Host profile is DSH's own `web` template — `@deepseek-ai/dsh-base` plus
+  `@deepseek-ai/dsh-web-app` — and this repository's profile patch holds four
+  id-level overrides and no re-declared row. Rows that were hand-copied here are
+  gone (the Web carrier keeps its own compression and trusted-host settings, the
+  upload row keeps DSH's id, agent presets come from the bundle), upstream rows
+  this Host used to leave out now mount (`job-controller`, `workspace-changes`,
+  the Remote event source, the browser UI behind the launch token), and the
+  agent preset list is DSH's own: `standard`, `ptc`, `minimal`, `cordis`.
+- The Host carrier's bind address is the Web invocation flag DSH already parses,
+  so `--host`/`--port` reach `web-startup` instead of a row of ours.
+
+### Fixed
+
+- Host requests that leave the machine honour `http_proxy`, `https_proxy`,
+  `all_proxy` and `no_proxy` again, including values supplied by
+  `$DSH_HOME/.env`. DSH's boot installs its outbound proxy policy as the
+  process-wide dispatcher before the first plugin mounts; the boot this
+  repository carried never did, so web fetch, providers and MCP over HTTP all
+  connected directly while `curl` on the same machine went through the proxy.
+
 ## [0.3.29] - 2026-11-18
 
 ### Changed

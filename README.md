@@ -95,6 +95,18 @@ going, and the next window resumes where the work actually is. `tmux`, `nohup`
 and a bare `&` exist to fake exactly this; here it is what the program does by
 default, and `hulala host stop` is the explicit way to end it.
 
+The Host *is* DeepSeek Harness: it boots DSH's own `web` profile —
+`@deepseek-ai/dsh-base` plus `@deepseek-ai/dsh-web-app` — through DSH's own profile
+boot, and this repository's profile patch is four row overrides. Nothing about the
+composition is copied here, so upstream's carrier settings and every row a DSH
+release adds arrive with it; the Host also serves DSH's browser UI on its loopback
+URL behind the launch token, which the terminal client never uses.
+
+That boot reads the layered launch environment, so an `http_proxy`/`https_proxy`
+exported where the Host starts — or written into `~/.hulala/harness/.env` — also
+covers the agent's own web fetches, provider calls and MCP over HTTP, not just the
+`curl` you run yourself.
+
 <p align="center">
   <img src="assets/screens/02-terminal.png" alt="The built-in terminal column: a shell in the Session directory" width="900" />
   <br />
@@ -412,7 +424,10 @@ from `apps/cli/native/ime.c` on the first start of a source checkout.
 ## Run from source
 
 Use Bun 1.4.2 and Node.js 24+. The Host runs on Node because DeepSeek Harness
-boots through Node's internal module loader.
+boots through Node's internal module loader: `apps/server` builds with Bun into
+`dist/hulala-desktop-server.mjs`, and that entry is started by `node` — which is
+what the client's detached launch and `apps/server`'s own `start`/`dev` scripts
+do.
 
 ```sh
 git clone https://github.com/colinagent/hulala.git
@@ -455,7 +470,7 @@ present in the installed file.
 apps/cli        terminal client, plugin host, program lifecycle
 apps/server     Hulala Host daemon shell (DSH webServer + connection)
 apps/website    public website and download metadata
-packages/runtime     DSH composition (one native Agent Loop)
+packages/runtime     DSH profile boot plus this repository's profile overrides
 packages/host-client discovery, detached startup, shared client contract
 packages/desktop-contracts  the Host/client wire contract and state-root paths
 packages/distribution  install, update and rollback

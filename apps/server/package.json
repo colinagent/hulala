@@ -8,8 +8,8 @@
     "hulala-desktop-server": "./src/main.ts"
   },
   "scripts": {
-    "dev": "bun --watch src/main.ts",
-    "start": "bun src/main.ts",
+    "dev": "bun run build && node dist/hulala-desktop-server.mjs",
+    "start": "bun run build && node dist/hulala-desktop-server.mjs",
     "build": "bun scripts/build-server.ts",
     "build:bundles": "bun scripts/build-bundles.ts",
     "check:bundle": "bun scripts/check-binary-bundle.ts",

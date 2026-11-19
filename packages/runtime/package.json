@@ -19,11 +19,8 @@
       "default": "./src/creator.ts"
     }
   },
-  "bin": {
-    "hulala-runtime": "./lib/cli.js"
-  },
   "scripts": {
-    "build": "bun build src/index.ts src/cli.ts src/creator.ts --target=bun --outdir=lib && bun build src/in-process.ts --target=bun --packages external --outdir=lib",
+    "build": "bun build src/index.ts src/creator.ts --target=bun --outdir=lib && bun build src/in-process.ts --target=node --packages external --outdir=lib",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

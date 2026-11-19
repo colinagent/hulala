@@ -3,9 +3,9 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HOST_DAEMON_PROTOCOL } from '@hulala/desktop-contracts'
-import { createDesktopHost, type DesktopHostHandle } from '../src/host.ts'
+import { bootHostInNode, type NodeHost } from './support/nodeHost.ts'
 
-const hosts: DesktopHostHandle[] = []
+const hosts: NodeHost[] = []
 const roots: string[] = []
 
 afterEach(async () => {
@@ -21,14 +21,7 @@ test('publishes the DSH transport and keeps only the Host assembly surface', asy
   const root = await mkdtemp(join(tmpdir(), 'hulala-host-'))
   roots.push(root)
   const workspaceRoot = join(root, 'workspaces')
-  const host = await createDesktopHost({
-    host: '127.0.0.1',
-    port: 0,
-    hulalaRoot: root,
-    workspaceRoot,
-    version: 'test',
-    daemon: false,
-  })
+  const host = await bootHostInNode({ hulalaRoot: root, workspaceRoot })
   hosts.push(host)
 
   const healthResponse = await fetch(`${host.descriptor.httpUrl}/health`)
@@ -38,7 +31,7 @@ test('publishes the DSH transport and keeps only the Host assembly surface', asy
     name: 'hulala-desktop-server',
     protocol: HOST_DAEMON_PROTOCOL,
     instanceId: host.descriptor.instanceId,
-    pid: process.pid,
+    pid: host.pid,
     runtime: { state: 'running' },
   })
 
@@ -86,14 +79,7 @@ test('publishes the DSH transport and keeps only the Host assembly surface', asy
 test('the Host descriptor points at the DSH mux instead of a private event route', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-host-transport-'))
   roots.push(root)
-  const host = await createDesktopHost({
-    host: '127.0.0.1',
-    port: 0,
-    hulalaRoot: root,
-    workspaceRoot: join(root, 'workspaces'),
-    version: 'test',
-    daemon: false,
-  })
+  const host = await bootHostInNode({ hulalaRoot: root, workspaceRoot: join(root, 'workspaces') })
   hosts.push(host)
   expect(host.descriptor.eventsUrl).toBe(`${host.descriptor.httpUrl.replace(/^http/u, 'ws')}/api/remote.mux`)
   expect(host.descriptor.token.length).toBeGreaterThanOrEqual(32)

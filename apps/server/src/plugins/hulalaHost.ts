@@ -1,17 +1,17 @@
 /**
  * Hulala Host assembly.
  *
- * The public Runtime already composes the DeepSeek Harness engine. This plugin
- * adds only what the Harness does not own: the daemon's readiness route, the
- * two product gap plugins, and the endpoint facts every client needs to attach.
- * HTTP, WebSocket, `/connect`, `/api` and authentication belong to
- * `dsh-host-webserver` + `dsh-client-connection`; no second REST layer is
- * mounted here.
+ * The public Runtime already composes the DeepSeek Harness engine — it boots
+ * DSH's own `web` profile bundles, so `api-remotes`, the Web carrier and its
+ * Remote surfaces are the upstream rows. This plugin adds only what the Harness
+ * does not own: the daemon's readiness route, the product gap plugins, and the
+ * endpoint facts every client needs to attach. HTTP, WebSocket, `/connect`,
+ * `/api` and authentication belong to `dsh-host-webserver` +
+ * `dsh-client-connection`; no second REST layer is mounted here.
  *
  * @module hulala-server/host-plugin
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { apply as apiRemotes } from '@deepseek-ai/dsh-api-remotes'
 import { apply as connectionPlugin } from '@deepseek-ai/dsh-client-connection'
 import { WebServer, isLoopbackHost } from '@deepseek-ai/dsh-host-webserver'
 import { HOST_DAEMON_PROTOCOL, type ConnectionDescriptor } from '@hulala/desktop-contracts'
@@ -109,7 +109,6 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
     'hulala-host: readiness route',
   )
 
-  await ctx.plugin({ apply: apiRemotes, inject: ['typertGateway'] })
   // `/tasks` reads the Host schedule service directly: listing is a human
   // command, not a model turn, and the client only renders the text. Not
   // awaited: a composition without the `schedule` row simply has no command.
