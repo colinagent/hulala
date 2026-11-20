@@ -13,13 +13,17 @@ import type {
   HostEditor,
   SessionListEvent,
   TerminalApproval,
+  TerminalApprovalDecision,
   TerminalApprovalOutcome,
   TerminalBackend,
   TerminalInbox,
   TerminalModelCatalog,
+  TerminalPendingQuestion,
   TerminalPromptMode,
   TerminalQuestion,
   TerminalQuestionAnswer,
+  TerminalQuestionDecision,
+  TerminalQuestionRequest,
   TerminalSession,
   TerminalSessionHandlers,
 } from '../../src/tui/data/remote.js'
@@ -67,16 +71,28 @@ interface FakeBackend {
   /** How many times the Session list was fetched (the picker fetches it again). */
   listSessionsCalls(): number
   handlers: TerminalSessionHandlers | undefined
-  approve(request: TerminalApproval): Promise<TerminalApprovalOutcome>
-  ask(questions: readonly TerminalQuestion[]): Promise<{ answers: TerminalQuestionAnswer[] } | undefined>
+  approve(request: TerminalApproval): Promise<TerminalApprovalDecision>
+  ask(request: TerminalQuestionRequest): Promise<TerminalQuestionDecision>
   /** Publish both pending lists the way the Host's `inbox` projection does. */
   inbox(inbox: TerminalInbox): void
+  /** Publish the `userQuestions` projection the way the Host's control stream does. */
+  questions(pending: readonly TerminalPendingQuestion[]): void
   /** Publish the `permissions` projection the way the Host's control stream does. */
   permission(preset: string): void
   /** Publish one Host Session-list event. */
   listEvent(event: SessionListEvent): void
   /** Sessions the fake Host hands out from `listSessions`. */
   setSessions(sessions: TerminalSession[]): void
+  /** Foreground waits a question card claimed, in call order. */
+  waits(): readonly { sessionId: string; callId: string }[]
+  /** Claims the client released. */
+  disposed(): number
+  /** Remaining window the next attach reports, in milliseconds. */
+  setWaitRemaining(remainingMs: number): void
+  /** Late answers the client submitted through `userQuestions.answer`. */
+  answers(): readonly { sessionId: string; callId: string; answers: readonly TerminalQuestionAnswer[] }[]
+  /** What `answerQuestion` should report; a queued reply rejects with `REPLY_QUEUED`. */
+  setAnswerResult(result: boolean | 'queued'): void
 }
 
 /** What a test may replace in the fake Host without rebuilding it. */
@@ -109,10 +125,19 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
   const permissionSessions: string[] = []
   const hostCommands: string[] = []
   let listSessionsCalls = 0
-  let approval: ((request: TerminalApproval) => Promise<TerminalApprovalOutcome>) | undefined
-  let question: ((questions: readonly TerminalQuestion[], signal?: AbortSignal) => Promise<{ answers: TerminalQuestionAnswer[] } | undefined>) | undefined
+  let approval: ((request: TerminalApproval) => Promise<TerminalApprovalDecision>) | undefined
+  let question: ((request: TerminalQuestionRequest) => Promise<TerminalQuestionDecision>) | undefined
   let liveHandlers: TerminalSessionHandlers | undefined
   let sessionList: ((event: SessionListEvent) => void) | undefined
+  /** Foreground waits a question card claimed, in call order. */
+  const waits: { sessionId: string; callId: string }[] = []
+  /** Claims the client let go of; every card that showed must release its own. */
+  let disposed = 0
+  let waitRemainingMs = 60_000
+  /** Late answers steered through `userQuestions.answer`, in call order. */
+  const answers: { sessionId: string; callId: string; answers: readonly TerminalQuestionAnswer[] }[] = []
+  /** `false` = no longer continued; `'queued'` = a reply is already in the inbox. */
+  let answerResult: boolean | 'queued' = true
   let hostSessions: TerminalSession[] = []
   let workspaceFailure: string | undefined
   const backend: TerminalBackend = {
@@ -213,6 +238,29 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
     async rename() {},
     onApproval(handler) { approval = handler; return () => { approval = undefined } },
     onQuestion(handler) { question = handler; return () => { question = undefined } },
+    async answerQuestion(sessionId, callId, answer) {
+      answers.push({ sessionId, callId, answers: answer })
+      if (answerResult === 'queued') {
+        const error = new Error('REPLY_QUEUED') as Error & { code: string }
+        error.code = 'REPLY_QUEUED'
+        throw error
+      }
+      return answerResult
+    },
+    attachQuestionWait(sessionId, callId, signal) {
+      waits.push({ sessionId, callId })
+      return {
+        // One Host-computed frame, then silence: the claim is held until the
+        // client closes it, which is the contract `askTimed` gives a client.
+        frames: (async function* () {
+          yield { remainingMs: waitRemainingMs }
+          await new Promise<void>(settle => {
+            signal.addEventListener('abort', () => { settle() }, { once: true })
+          })
+        })(),
+        dispose() { disposed += 1 },
+      }
+    },
     onSessionStatus() { return () => undefined },
     onSessionError() { return () => undefined },
     onSessionList(handler) { sessionList = handler; return () => { sessionList = undefined } },
@@ -242,13 +290,17 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
       if (approval === undefined) throw new Error('approval handler is not subscribed')
       return approval(request)
     },
-    ask: questions => {
+    ask: request => {
       if (question === undefined) throw new Error('question handler is not subscribed')
-      return question(questions)
+      return question(request)
     },
     inbox: inbox => {
       if (liveHandlers === undefined) throw new Error('follow handler is not subscribed')
       liveHandlers.onInbox?.(inbox)
+    },
+    questions: pending => {
+      if (liveHandlers === undefined) throw new Error('follow handler is not subscribed')
+      liveHandlers.onUserQuestions?.(pending)
     },
     permission: preset => {
       if (liveHandlers === undefined) throw new Error('follow handler is not subscribed')
@@ -259,6 +311,11 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
       sessionList(event)
     },
     setSessions: sessions => { hostSessions = [...sessions] },
+    waits: () => [...waits],
+    disposed: () => disposed,
+    setWaitRemaining: remainingMs => { waitRemainingMs = remainingMs },
+    answers: () => [...answers],
+    setAnswerResult: result => { answerResult = result },
   }
 }
 
@@ -1491,6 +1548,260 @@ test('the approval dialog grants full access to the Session that asked', async (
   expect(fake.permissionSessions).toEqual(['session-1234'])
   expect(fake.permissions).toEqual(['danger-full-access'])
   await waitFor(() => tty.painted().includes('permission: Full access · this thread stops asking'), 'full-access notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a question for a Session this window never opened is handed to the next answerer', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  // Answering this here would take the question away from the channel mounted
+  // to that Session — the misrouting the pending-interaction model removes.
+  await expect(fake.ask({
+    sessionId: 'session-other',
+    questions: [{ id: 'q1', question: 'Which database?', options: [{ label: 'Postgres' }] }],
+  })).resolves.toBe('delegate')
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  expect(plain(tty.painted())).not.toContain('Which database?')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('an approval for a Session this window never opened is handed to the next answerer', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  await expect(fake.approve({
+    sessionId: 'session-other',
+    toolName: 'bash',
+    reason: 'rm -rf /tmp/x',
+  })).resolves.toBe('delegate')
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  expect(plain(tty.painted())).not.toContain('Tool approval')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a plan-review question outranks a plain one queued behind it', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const approval = fake.approve({ toolName: 'bash', reason: 'rm -rf /tmp/x' })
+  await waitFor(() => plain(tty.painted()).includes('Tool approval'), 'approval dialog')
+  // Both questions arrive while the approval card owns the seat, so neither has
+  // been presented: precedence decides which one takes it next.
+  const plainQuestion = fake.ask({
+    sessionId: 'session-1234',
+    questions: [{ id: 'q1', question: 'Which database?', options: [{ label: 'Postgres' }] }],
+  })
+  const reviewed = fake.ask({
+    sessionId: 'session-1234',
+    questions: [{
+      id: 'p1',
+      question: 'Run this plan?',
+      detail: '1. migrate\n2. restart',
+      options: [{ label: 'Approve' }, { label: 'Revise' }],
+      intent: { kind: 'plan-review', approve: 'Approve' },
+    }],
+  })
+  tty.input.write('y') // allow once
+  await expect(approval).resolves.toBe('allowed-once')
+  await waitFor(() => plain(tty.painted()).includes('Run this plan?'), 'plan-review card')
+  expect(plain(tty.painted())).not.toContain('Which database?')
+  tty.input.write('\r')
+  await expect(reviewed).resolves.toEqual({ answers: [{ id: 'p1', selected: ['Approve'] }] })
+  // The plain question keeps its place in the queue and takes the seat after it.
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'plain question')
+  tty.input.write('\r')
+  await expect(plainQuestion).resolves.toEqual({ answers: [{ id: 'q1', selected: ['Postgres'] }] })
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('Alt-D hands a question to another client and leaves a notice behind', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const pending = fake.ask({
+    sessionId: 'session-1234',
+    questions: [{ id: 'q1', question: 'Which database?', options: [{ label: 'Postgres' }] }],
+  })
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'question card')
+  tty.input.write('\u001bd') // Alt-D
+  await expect(pending).resolves.toBe('delegate')
+  // A silent hand-off is the failure this state machine exists to remove.
+  await waitFor(() => plain(tty.painted()).includes('handed to another client'), 'delegation notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a timed question claims the wait, parks on Esc and reopens on Alt-G', async () => {
+  const fake = fakeBackend()
+  fake.setWaitRemaining(30_000)
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const pending = fake.ask({
+    sessionId: 'session-1234',
+    wait: { callId: 'call-1', timed: true },
+    questions: [{ id: 'q1', question: 'Which database?', options: [{ label: 'Postgres' }] }],
+  })
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'question card')
+  // The client must hold the Host's foreground wait before it starts counting.
+  expect(fake.waits()).toEqual([{ sessionId: 'session-1234', callId: 'call-1' }])
+  await waitFor(() => plain(tty.painted()).includes('30s left'), 'countdown')
+  tty.input.write('\u001b') // Esc parks a timed card
+  await waitFor(() => plain(tty.painted()).includes('question parked'), 'park notice')
+  await waitFor(() => plain(tty.painted()).includes('1 parked'), 'footer count')
+  tty.input.write('\u001bg') // Alt-G brings it back
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'reopened card')
+  // The input tokenizer holds an escape sequence for `escapeTimeoutMs`; typing
+  // into the chord it just parsed is a test artefact, not a user gesture.
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(fake.waits()).toHaveLength(1) // reopening must not claim the wait twice
+  tty.input.write('\r')
+  await expect(pending).resolves.toEqual({ answers: [{ id: 'q1', selected: ['Postgres'] }] })
+  // Answering releases the claim, so the Host's own timer is not left stopped.
+  await waitFor(() => fake.disposed() > 0, 'claim released')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a Computer-Use approval intent renders as a permission card', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const pending = fake.ask({
+    sessionId: 'session-1234',
+    questions: [{
+      id: 'q1',
+      question: 'Allow the camera?',
+      detail: 'example.com asks for the camera',
+      options: [{ label: 'Allow' }, { label: 'Reject' }, { label: 'Always' }],
+      intent: {
+        kind: 'approval',
+        approve: 'Allow',
+        reject: 'Reject',
+        always: 'Always',
+        subject: { name: 'example.com' },
+      },
+    }],
+  })
+  await waitFor(() => plain(tty.painted()).includes('Approval needed'), 'permission card')
+  const card = plain(tty.painted())
+  // The subject is who asks; the caller's question is the heading.
+  expect(card).toContain('example.com')
+  expect(card).toContain('Allow the camera?')
+  // Fixed actions are marked, and there is no free-text row on this card.
+  expect(card).toContain('✓ Allow')
+  expect(card).toContain('✕ Reject')
+  expect(card).toContain('∞ Always')
+  expect(card).not.toContain('Other (type your answer)')
+  tty.input.write('\r')
+  await expect(pending).resolves.toEqual({ answers: [{ id: 'q1', selected: ['Allow'] }] })
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+/** One `continued` row of the `userQuestions` projection, as the Host writes it. */
+const continuedRow = (callId = 'call-1'): TerminalPendingQuestion => ({
+  callId,
+  state: 'continued',
+  questions: [{ id: 'q1', question: 'Which database?', options: [{ label: 'Postgres' }, { label: 'SQLite' }] }],
+})
+
+test('a continued question is parked, revealed with Alt-G and answered through the projection', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.questions([continuedRow()])
+  // The durable card is parked on arrival: the window already had its chance
+  // to answer this call, or never saw it, and must not lose the keyboard to it.
+  await waitFor(() => plain(tty.painted()).includes('1 parked'), 'parked card')
+  expect(plain(tty.painted())).not.toContain('Which database?')
+  tty.input.write('\u001bg') // Alt-G
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'late-answer card')
+  expect(plain(tty.painted())).toContain('Waiting for an answer')
+  tty.input.write('\r') // Enter confirms the highlighted option
+  await waitFor(() => fake.answers().length === 1, 'late answer')
+  // A late answer is a Remote call, not the waterfall's resolve: the turn has
+  // moved on and the reply is steered in as a user message.
+  expect(fake.answers()[0]).toEqual({
+    sessionId: 'session-1234',
+    callId: 'call-1',
+    answers: [{ id: 'q1', selected: ['Postgres'] }],
+  })
+  await waitFor(() => plain(tty.painted()).includes('answer sent'), 'reply notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a queued user-question-reply withdraws the continued card', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.questions([continuedRow()])
+  await waitFor(() => plain(tty.painted()).includes('1 parked'), 'parked card')
+  const mark = tty.painted().length
+  // `inbox` and `userQuestions` are two projections of one reconcile. A reply
+  // already queued for this call id hides the row even while it is still listed.
+  fake.inbox({ steering: [], followUp: [], replies: ['call-1'] })
+  await waitFor(() => tty.painted().length > mark, 'reconcile repaint')
+  expect(plain(tty.painted().slice(mark))).not.toContain('1 parked')
+  tty.input.write('\u001bg') // Alt-G has nothing left to reopen
+  await new Promise(resolve => setTimeout(resolve, 50))
+  expect(plain(tty.painted().slice(mark))).not.toContain('Which database?')
+  expect(fake.answers()).toHaveLength(0)
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('withdrawing a continued row closes its open card and frees the interaction seat', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.questions([continuedRow()])
+  await waitFor(() => plain(tty.painted()).includes('1 parked'), 'parked card')
+  tty.input.write('\u001bg')
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'card on screen')
+  const mark = tty.painted().length
+  // Another client answered the call, so the row disappears. Aborting the
+  // card's closer is what resolves the overlay instead of leaving `presenting`
+  // true forever — the high-severity finding this covers.
+  fake.questions([])
+  await waitFor(() => tty.painted().length > mark, 'withdraw repaint')
+  const approval = fake.approve({ toolName: 'bash', reason: 'rm -rf /tmp/x' })
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('Tool approval'), 'seat freed')
+  tty.input.write('y') // allow once
+  await expect(approval).resolves.toBe('allowed-once')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('one timed call keeps one card across the waterfall and the projection', async () => {
+  const fake = fakeBackend()
+  fake.setWaitRemaining(30_000)
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const pending = fake.ask({
+    sessionId: 'session-1234',
+    wait: { callId: 'call-1', timed: true },
+    questions: [{ id: 'q1', question: 'Which database?', options: [{ label: 'Postgres' }] }],
+  })
+  await waitFor(() => plain(tty.painted()).includes('Which database?'), 'foreground card')
+  // DSH keys a question card by (Session, tool call): the waterfall and the
+  // durable projection are two states of the *same* card, not two cards.
+  const mark = tty.painted().length
+  fake.questions([continuedRow()])
+  await waitFor(() => tty.painted().length > mark, 'projection repaint')
+  expect(fake.waits()).toHaveLength(1)
+  expect(plain(tty.painted().slice(mark))).not.toContain('1 parked')
+  tty.input.write('\r')
+  await expect(pending).resolves.toEqual({ answers: [{ id: 'q1', selected: ['Postgres'] }] })
+  // Once the waterfall settles, the snapshot is replayed and the durable half
+  // of the call materializes as a parked card under the same key.
+  await waitFor(() => plain(tty.painted()).includes('1 parked'), 'durable card')
+  expect(fake.waits()).toHaveLength(1) // no second claim
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

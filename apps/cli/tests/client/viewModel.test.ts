@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { ViewModelReducer, textOf, usageOf } from '../../src/tui/data/viewModel.js'
+import { ViewModelReducer, textOf } from '../../src/tui/data/viewModel.js'
 
 function event(type: string, data: unknown, seq = 1): Parameters<ViewModelReducer['applyEvent']>[0] {
   return { type, seq, time: 0, data }
@@ -24,7 +24,6 @@ test('streaming deltas append to one assistant item and finalize on message', ()
   expect(reducer.streaming).toBe(false)
   reducer.applyEvent(event('assistant/message', { message: { content: [] }, usage: { inputTokens: 10, outputTokens: 5 } }))
   expect(reducer.items[reducer.items.length - 1]).toMatchObject({ kind: 'assistant', streaming: false })
-  expect(reducer.metrics.inputTokens).toBe(10)
 })
 
 test('tool call and result merge into one card', () => {
@@ -51,6 +50,20 @@ test('records context pressure from the projection', () => {
   expect(reducer.metrics.contextLimit).toBe(128_000)
 })
 
+test('takes speed and the token total from the Host projections', () => {
+  const reducer = new ViewModelReducer()
+  // A session call reports usage; the readings stay blank because only the Host's
+  // whole-log projections may fill them.
+  reducer.applyEvent(event('assistant/message', {
+    message: { content: [] },
+    usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 300 },
+  }))
+  expect(reducer.metrics).toEqual({})
+  reducer.setSessionStats({ decodeMs: 1_000, decodeTokens: 400 })
+  reducer.setTokenUsage({ uncachedInputTokens: 10, cacheReadTokens: 300, cacheWriteTokens: 0, outputTokens: 5 })
+  expect(reducer.metrics).toEqual({ decodeTokens: 400, decodeMs: 1_000, totalTokens: 315 })
+})
+
 test('repeated identical notices collapse into the one already shown', () => {
   const reducer = new ViewModelReducer()
   reducer.addNotice('thinking level: low')
@@ -69,10 +82,9 @@ test('turn end errors and unknown events are handled safely', () => {
   expect(reducer.items).toHaveLength(1)
 })
 
-test('textOf joins text blocks and usageOf reads usage', () => {
+test('textOf joins text blocks', () => {
   expect(textOf([{ type: 'text', text: 'a' }, { type: 'image' }, { type: 'text', text: 'b' }])).toBe('a\nb')
-  expect(usageOf({ usage: { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3 } })).toEqual({ inputTokens: 1, outputTokens: 2, cacheReadTokens: 3 })
-  expect(usageOf({})).toBeUndefined()
+  expect(textOf({})).toBe('')
 })
 
 test('reasoning deltas stream into one block that the answer seals', () => {

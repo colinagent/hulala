@@ -28,7 +28,7 @@ function bare(lines: string[]): string[] {
 test('StatusBar never carries the version', () => {
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek', model: 'chat' },
-    metrics: { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, decodeMs: 0 },
+    metrics: emptyMetrics(),
     disconnected: false,
   }), false, () => NO_HINT)
   const line = bar.render(80)[0] ?? ''
@@ -46,7 +46,7 @@ test('StatusBar never writes the terminal\'s last cell', () => {
     const bar = new StatusBar(() => ({
       model: { provider: 'deepseek-official', model: 'deepseek-flash' },
       thinkingLevel: 'max',
-      metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
+      metrics: { decodeTokens: 80, decodeMs: 1000, totalTokens: 480 },
       disconnected: false,
       update: '0.1.9',
     }), false, () => NO_HINT)
@@ -71,7 +71,7 @@ test('StatusBar keeps the level visible when the row is too narrow for it', () =
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek-official', model: 'deepseek-flash' },
     thinkingLevel: 'high',
-    metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
+    metrics: { decodeTokens: 80, decodeMs: 1000, totalTokens: 480 },
     disconnected: false,
   }), false, () => NO_HINT)
   const line = bar.render(24)[0] ?? ''
@@ -85,7 +85,7 @@ test('StatusBar keeps the level visible when the row is too narrow for it', () =
 test('StatusBar centres the readings between the hint and the model', () => {
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek', model: 'chat' },
-    metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
+    metrics: { decodeTokens: 80, decodeMs: 1000, totalTokens: 480 },
     disconnected: false,
   }), false, () => NO_HINT)
   const line = bar.render(100)[0] ?? ''
@@ -125,7 +125,7 @@ test('StatusBar paints the whole row as one band', () => {
 test('StatusBar keeps the update hint after a reading arrives', () => {
   const bar = new StatusBar(() => ({
     model: { provider: 'deepseek', model: 'chat' },
-    metrics: { inputTokens: 100, cacheReadTokens: 300, outputTokens: 80, decodeMs: 1000 },
+    metrics: { decodeTokens: 80, decodeMs: 1000, totalTokens: 480 },
     disconnected: false,
     update: '0.1.9',
   }), false)
@@ -137,7 +137,7 @@ test('StatusBar keeps the update hint after a reading arrives', () => {
 
 test('StatusBar shows the context percentage over the window', () => {
   const bar = new StatusBar(() => ({
-    metrics: { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, decodeMs: 0, contextTokens: 142_000, contextLimit: 1_000_000 },
+    metrics: { contextTokens: 142_000, contextLimit: 1_000_000 },
     disconnected: false,
   }), false)
   const line = bar.render(80)[0] ?? ''

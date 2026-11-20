@@ -8,6 +8,9 @@
  * the band separates the footer from the columns without drawing a line at all.
  * The readings: context occupancy
  * (`14.2%/1.0M`), decode speed (`269 tok/s`) and session tokens (`118M tok`).
+ * All three are the Host's own figures — `contextPressure`, `sessionStats` and
+ * `tokenUsage` — so this band can be compared with DSH's stats table without a
+ * second opinion about what a step's output tokens were timed against.
  * Nothing stands in for them: an empty band until the first provider report is
  * honest, and the version is not something the footer has to carry. The working
  * directory is the rail's header, not the band's.
@@ -22,6 +25,7 @@
 import type { Component } from '@earendil-works/pi-tui'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { formatTokens, tokensPerSecond } from '../data/viewModel.js'
+import { actionHint } from '../../keymap.js'
 import type { TerminalMetrics } from '../data/remote.js'
 import { buildStyles } from './theme.js'
 import { padEnd, shortenFromStart, truncateLeftText } from './pathText.js'
@@ -39,6 +43,10 @@ export interface StatusState {
   disconnected: boolean
   /** Newer release found by the background check, shown as a persistent hint. */
   update?: string
+  /** Pending approvals and questions waiting in Sessions this window is not showing. */
+  pendingInteractions?: number
+  /** Pending questions of the open Session that the user put away. */
+  parkedInteractions?: number
 }
 
 export class StatusBar implements Component {
@@ -100,8 +108,17 @@ export class StatusBar implements Component {
       modelStart - gap - readingsWidth,
     ))
 
-    // The hint owns whatever is left of the readings, and never overlaps them.
-    const hint = hintLine(this.hint())
+    // A parked interaction outranks the rotating usage hint: it is the one
+    // thing the user has to act on before a blocked turn can continue.
+    // A parked card is the more local fact — it is in the Session on screen, and
+    // one chord reopens it — so it outranks a count that needs a Session switch.
+    const parked = state.parkedInteractions ?? 0
+    const waiting = state.pendingInteractions ?? 0
+    const hint = parked > 0
+      ? t('status.parkedInteractions', { n: parked, key: actionHint('app.interactions') })
+      : waiting > 0
+        ? t('status.pendingInteractions', { n: waiting })
+        : hintLine(this.hint())
     const hintBudget = Math.max(0, Math.min(centreStart - 1, modelStart - 1))
     const hintText = hintBudget >= 6 ? truncateLeftText(hint, hintBudget) : ''
 
@@ -127,7 +144,7 @@ export class StatusBar implements Component {
     }
     const speed = tokensPerSecond(state.metrics)
     if (speed !== undefined) parts.push(`${Math.round(speed)} tok/s`)
-    const total = state.metrics.inputTokens + state.metrics.cacheReadTokens + state.metrics.outputTokens
+    const total = state.metrics.totalTokens ?? 0
     if (total > 0) parts.push(`${formatTokens(total)} tok`)
     const line = parts.join(' · ')
     if (state.update === undefined) return line

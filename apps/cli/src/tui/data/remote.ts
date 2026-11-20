@@ -29,8 +29,8 @@ import type { TerminalFrame, TerminalInput } from '@deepseek-ai/dsh-api-terminal
 import WorkspaceFilesRemote from '@deepseek-ai/dsh-api-workspace-files/remote'
 import type { WorkspaceDirectoryListing, WorkspaceFileStat, WorkspaceFileText } from '@deepseek-ai/dsh-api-workspace-files/types'
 import type {} from '@deepseek-ai/dsh-user-approval/types'
-import type {} from '@deepseek-ai/dsh-user-questions/types'
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions'
+import UserQuestionsRemote from '@deepseek-ai/dsh-user-questions/remote'
 import { exchangeConnection, type HostAttachment } from '../../hostAttach.js'
 import { webSocketClass } from './websocket.js'
 import { createEditorChannel, type EditorChannel } from './editorChannel.js'
@@ -38,6 +38,22 @@ import { t } from '../i18n/index.js'
 
 /** Host settings namespace that owns `defaultPreset` for new Sessions. */
 const PERMISSION_SETTINGS_NS = 'permission'
+
+/**
+ * Session identity carried by a scoped Client Context.
+ *
+ * DSH's `createScope` writes the same kind of tag plus a listener filter, but
+ * that lives in the web-only `./client` bundle (`window.__ModuleLoader__`),
+ * which a Node terminal cannot import. `registerClient('agent')` only requires
+ * `resolve(id)` to return the Context representing that id, so the terminal
+ * mints the equivalent Context with Cordis primitives directly.
+ */
+const kAgentSession = Symbol('hulala.client.agentSession')
+
+/** Read the Session identity carried by an Agent Context. */
+function agentSessionOf(candidate: Context): string | undefined {
+  return (candidate as Context & { [kAgentSession]?: string })[kAgentSession]
+}
 
 /** One non-subagent Session as presented by the Host. */
 export interface TerminalSession {
@@ -67,14 +83,30 @@ export type SessionListEvent =
   | { kind: 'status'; sessionId: string; running: boolean }
   | { kind: 'activity'; sessionId: string; updatedAt: number }
 
-/** Session-wide token and speed totals. */
-export interface TerminalMetrics {
-  inputTokens: number
+/** Prompt-side and output buckets DSH folds over the whole log (`tokenUsage`). */
+export interface TerminalTokenUsage {
+  uncachedInputTokens: number
   cacheReadTokens: number
+  cacheWriteTokens: number
   outputTokens: number
+}
+
+/** Decode timing DSH folds over the whole log (`sessionStats`). */
+export interface TerminalSessionStats {
   decodeMs: number
+  decodeTokens: number
+}
+
+/** Session-wide readings, all from the Host's own projections. */
+export interface TerminalMetrics {
+  /** Context occupancy of the next request (`contextPressure`). */
   contextTokens?: number
   contextLimit?: number
+  /** Provider output tokens and their decode wall time (`sessionStats`). */
+  decodeTokens?: number
+  decodeMs?: number
+  /** Prompt and output tokens over the whole log (`tokenUsage`). */
+  totalTokens?: number
 }
 
 /** One selectable model route. */
@@ -179,15 +211,67 @@ export interface TerminalApproval {
   toolName: string
   reason?: string
   signal?: AbortSignal
+  /**
+   * The Session whose Agent asked. DSH forwards the scoped waterfall with
+   * `agentId` (the Session id) and rebuilds `request.agent` as that Session's
+   * Client Context, so an answer can always be attributed to its owner.
+   */
+  sessionId?: string
 }
 
 /** One approval decision accepted by the Host. */
 export type TerminalApprovalOutcome = 'allowed-once' | 'rejected' | 'cancelled'
 
+/**
+ * What this client's answerer may return.
+ *
+ * `delegate` is not a Host outcome: it tells the adapter to call the
+ * waterfall's `next()` so the next answerer (a mounted bot channel, another
+ * client) can decide. Returning DSH's `'unavailable'` instead would fail the
+ * tool call closed and end the chain here.
+ */
+export type TerminalApprovalDecision = TerminalApprovalOutcome | 'delegate'
+
 /** One question option. */
 export interface TerminalQuestionOption {
   label: string
   description?: string
+}
+
+/** A localized sentence a caller wrote for its own card; `en` is the fallback. */
+export type TerminalDisplayText = Readonly<Record<string, string>> & { readonly en: string }
+
+/**
+ * Caller-declared presentation intent.
+ *
+ * The tag changes *presentation only*: the answer is still the selected option
+ * labels, so a terminal that does not know a tag renders the generic list and
+ * loses nothing. Two tags matter here:
+ *
+ * - `plan-review` outranks an ordinary question in DSH's shared
+ *   pending-interaction registry (precedence 2 over 1);
+ * - `approval` is a blocking permission decision with fixed actions and no
+ *   free-text answer — a Computer-Use agent asking through
+ *   `user-questions/request` instead of the classic approval seam. DSH gives it
+ *   precedence 1, so it outranks that seam, and `approve`/`reject`/`always`
+ *   name the option labels whose meaning the card may draw.
+ */
+export interface TerminalQuestionIntent {
+  readonly kind: string
+  /** Label that approves the decision (`approval`). */
+  readonly approve?: string
+  /** Label that refuses it (`approval`). */
+  readonly reject?: string
+  /** Label that grants it for good (`approval`), when the caller offers one. */
+  readonly always?: string
+  /** What the decision is about; its icon is a URL the card may load. */
+  readonly subject?: { readonly name: string; readonly icon?: string }
+  /** Localized card copy the caller owns; fixed wording stays ours. */
+  readonly display?: {
+    readonly question?: TerminalDisplayText
+    readonly detail?: TerminalDisplayText
+    readonly approve?: TerminalDisplayText
+  }
 }
 
 /** One pending question. */
@@ -198,6 +282,8 @@ export interface TerminalQuestion {
   header?: string
   options?: readonly TerminalQuestionOption[]
   multiSelect?: boolean
+  /** Optional presentation intent; absent asks for the generic option list. */
+  intent?: TerminalQuestionIntent
 }
 
 /** One structured answer. */
@@ -205,6 +291,75 @@ export interface TerminalQuestionAnswer {
   id: string
   selected: string[]
   custom?: string
+}
+
+/**
+ * One `user-questions/request`, bound to the Session whose turn is waiting.
+ *
+ * Like `approval/request` this is an Agent-scoped waterfall. The forwarded
+ * frame carries `agentId`; the Gateway rebuilds `request.agent` through our
+ * `registerClient('agent')` adapter, so the owning Session is recoverable and
+ * an unrelated request can be handed down with `next()`.
+ */
+export interface TerminalQuestionRequest {
+  readonly sessionId?: string
+  readonly questions: readonly TerminalQuestion[]
+  readonly signal?: AbortSignal
+  /**
+   * Present on a *timed* call: `askTimed` gives the request a foreground wait
+   * keyed by the tool call, and the Host stops its own timer while a client
+   * holds the claim. The client therefore owes two things — attach before
+   * starting its countdown, and reject with `ASK_TIMED_OUT` when it ends.
+   */
+  readonly wait?: { readonly callId: string; readonly timed?: boolean }
+}
+
+/**
+ * One client's claim on a timed question's foreground wait.
+ *
+ * The first frame carries the Host-computed remaining duration; the stream then
+ * stays open until the wait ends (the question settled or the turn aborted).
+ * Disposing it hands the wait back to the Host's own timer, which is what a
+ * window that can no longer show the card must do.
+ */
+export interface QuestionWaitClaim {
+  readonly frames: AsyncIterable<{ remainingMs: number }>
+  dispose(): void
+}
+
+/** Rejection codes the Host restores into a `UserQuestionError`. */
+export type TerminalQuestionRejection = 'ASK_CANCELLED' | 'ASK_ABORTED' | 'ASK_TIMED_OUT'
+
+/**
+ * What this client's question answerer may return.
+ *
+ * Questions have no `unavailable` outcome (unlike approvals): a user dismissal
+ * or an abort is a *rejection* with a coded `UserQuestionError`, while `next()`
+ * is only for delegation. See `dsh-user-questions` / `ui-user-questions`.
+ */
+export type TerminalQuestionDecision =
+  | { answers: TerminalQuestionAnswer[] }
+  | { rejected: TerminalQuestionRejection }
+  | 'delegate'
+
+/**
+ * Build a wire-preserved `UserQuestionError`.
+ *
+ * `projectRemoteEventRejection` keeps only `name`, `message` and `code`, and
+ * the Host's `restoreUserQuestionError` rebuilds a `UserQuestionError` from
+ * exactly those fields. Newer DSH wraps a non-coded answerer failure as
+ * `PROVIDER_ERROR`, so a coded error keeps cancellation stable across versions.
+ */
+function questionRejection(code: TerminalQuestionRejection): Error {
+  const message = code === 'ASK_ABORTED'
+    ? 'ask_user_question was aborted before the user answered'
+    : code === 'ASK_TIMED_OUT'
+      ? 'ask_user_question timed out before the user answered'
+      : 'the user cancelled ask_user_question'
+  const error = new Error(message) as Error & { code: string }
+  error.name = 'UserQuestionError'
+  error.code = code
+  return error
 }
 
 /** One session-content search hit. */
@@ -238,6 +393,27 @@ export interface TerminalInbox {
   readonly steering: readonly TerminalPendingMessage[]
   /** `next-turn`: follow-up turns queued behind the running one. */
   readonly followUp: readonly TerminalPendingMessage[]
+  /**
+   * Tool-call ids whose `user-question-reply` is already queued. DSH's Web
+   * client skips `continued` rows with a queued reply, so a client that just
+   * submitted an answer does not rebuild the card before the row closes.
+   * Present only when the projection actually listed one.
+   */
+  readonly replies?: readonly string[]
+}
+
+/**
+ * One timed `ask_user_question` call the Host still lists as answerable.
+ *
+ * The projection is the durable half of the timed protocol: a call whose
+ * foreground wait ended without an answer stays here as `continued` and can be
+ * answered later, from any client. A call made under the blocking legacy tool
+ * never appears — that one only lives in its waterfall.
+ */
+export interface TerminalPendingQuestion {
+  readonly callId: string
+  readonly questions: readonly TerminalQuestion[]
+  readonly state: 'open' | 'continued'
 }
 
 /** Live markers delivered while a Session is open. */
@@ -250,9 +426,18 @@ export interface TerminalSessionHandlers {
   onError(message: string): void
   onRunning(running: boolean): void
   /** Context occupancy from the `contextPressure` projection (snapshot baseline). */
-  onContextPressure?(pressure: { projectedTokens?: number; contextWindow?: number }): void
+  onContextPressure?(pressure: { usedTokens?: number; contextWindow?: number }): void
+  /** Decode timing from the `sessionStats` projection (snapshot and control stream). */
+  onSessionStats?(stats: TerminalSessionStats): void
+  /** Whole-log token buckets from the `tokenUsage` projection (snapshot and control stream). */
+  onTokenUsage?(usage: TerminalTokenUsage): void
   /** Both durable pending lists from the `inbox` projection (snapshot and control stream). */
   onInbox?(inbox: TerminalInbox): void
+  /**
+   * Timed questions still answerable in this Session, from the `userQuestions`
+   * projection (snapshot and control stream).
+   */
+  onUserQuestions?(pending: readonly TerminalPendingQuestion[]): void
   /** Effective permission preset from the `permissions` projection. */
   onPermission?(preset: string): void
 }
@@ -485,8 +670,26 @@ export interface TerminalBackend {
    */
   login(providerId: string, apiKey: string): Promise<void>
   rename(sessionId: string, title: string): Promise<void>
-  onApproval(handler: (request: TerminalApproval) => Promise<TerminalApprovalOutcome>): () => void
-  onQuestion(handler: (questions: readonly TerminalQuestion[], signal?: AbortSignal) => Promise<{ answers: TerminalQuestionAnswer[] } | undefined>): () => void
+  onApproval(handler: (request: TerminalApproval) => Promise<TerminalApprovalDecision>): () => void
+  onQuestion(handler: (request: TerminalQuestionRequest) => Promise<TerminalQuestionDecision>): () => void
+  /**
+   * Claim one timed question's foreground wait, so the countdown is ours.
+   *
+   * DSH stops its own timer while a client holds the claim, which is why the
+   * claim and the local deadline have to be one thing: a card that counted down
+   * without attaching would be counting down a race it does not own. Absent on
+   * a backend whose Host serves no `userQuestions` Remote (the fake Host in a
+   * test), and the card then simply has no countdown.
+   */
+  attachQuestionWait?(sessionId: string, callId: string, signal: AbortSignal): QuestionWaitClaim
+  /**
+   * Answer one *continued* question — a timed call that ended unanswered.
+   *
+   * The reply is steered into the agent as a `user-question-reply` message and
+   * closes the question in the projection; `false` means the call is no longer
+   * answerable (another client answered it, or the Session moved on).
+   */
+  answerQuestion?(sessionId: string, callId: string, answer: readonly TerminalQuestionAnswer[]): Promise<boolean>
   onSessionStatus(handler: (sessionId: string, running: boolean) => void): () => void
   onSessionError(handler: (sessionId: string, message: string) => void): () => void
   /**
@@ -517,15 +720,44 @@ function permissionOf(values: unknown): string | undefined {
     : undefined
 }
 
-/** Read the `contextPressure` projection out of a projection value block. */
-function pressureOf(values: unknown): { projectedTokens?: number; contextWindow?: number } | undefined {
+/**
+ * Read the `contextPressure` projection out of a projection value block.
+ *
+ * Occupancy prefers `projectedTokens` — the sample plus the surface's movement
+ * since — and falls back to the raw prompt-side `pressureTokens`, the same pair
+ * DSH's context meter resolves.
+ */
+function pressureOf(values: unknown): { usedTokens?: number; contextWindow?: number } | undefined {
   if (values === null || typeof values !== 'object') return undefined
-  const pressure = (values as { contextPressure?: { projectedTokens?: number; contextWindow?: number } }).contextPressure
+  const pressure = (values as {
+    contextPressure?: { projectedTokens?: number; pressureTokens?: number; contextWindow?: number }
+  }).contextPressure
   if (pressure === null || typeof pressure !== 'object') return undefined
+  const used = pressure.projectedTokens ?? pressure.pressureTokens
   return {
-    ...(typeof pressure.projectedTokens === 'number' ? { projectedTokens: pressure.projectedTokens } : {}),
+    ...(typeof used === 'number' ? { usedTokens: used } : {}),
     ...(typeof pressure.contextWindow === 'number' ? { contextWindow: pressure.contextWindow } : {}),
   }
+}
+
+/** Read the `sessionStats` projection's decode timing out of a value block. */
+function sessionStatsOf(values: unknown): TerminalSessionStats | undefined {
+  if (values === null || typeof values !== 'object') return undefined
+  const stats = (values as { sessionStats?: { decodeMs?: unknown; decodeTokens?: unknown } }).sessionStats
+  if (stats === null || typeof stats !== 'object') return undefined
+  if (typeof stats.decodeMs !== 'number' || typeof stats.decodeTokens !== 'number') return undefined
+  return { decodeMs: stats.decodeMs, decodeTokens: stats.decodeTokens }
+}
+
+/** Read the `tokenUsage` projection's whole-log buckets out of a value block. */
+function tokenUsageOf(values: unknown): TerminalTokenUsage | undefined {
+  if (values === null || typeof values !== 'object') return undefined
+  const usage = (values as { tokenUsage?: Record<string, unknown> }).tokenUsage
+  if (usage === null || typeof usage !== 'object') return undefined
+  const { uncachedInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens } = usage
+  if (typeof uncachedInputTokens !== 'number' || typeof cacheReadTokens !== 'number'
+    || typeof cacheWriteTokens !== 'number' || typeof outputTokens !== 'number') return undefined
+  return { uncachedInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens }
 }
 
 /** Join a pending occurrence's text blocks; `undefined` when any block is not text. */
@@ -601,23 +833,138 @@ function acceptsApiKey(entry: LlmConfigurableProvider, named: string | undefined
 export function inboxOf(value: unknown): TerminalInbox {
   const empty: TerminalInbox = { steering: [], followUp: [] }
   if (value === null || typeof value !== 'object') return empty
+  const replies = new Set<string>()
   const narrow = (list: unknown): TerminalPendingMessage[] => {
     if (!Array.isArray(list)) return []
     const items: TerminalPendingMessage[] = []
     for (const entry of list) {
       if (entry === null || typeof entry !== 'object') continue
       const record = entry as { id?: unknown; source?: unknown; content?: unknown }
-      if (typeof record.id !== 'string') continue
       const source = record.source
       if (source === null || typeof source !== 'object') continue
-      if ((source as { kind?: unknown }).kind !== 'user') continue
+      const kind = (source as { kind?: unknown }).kind
+      // A late answer waits in the same inbox as a prompt. It is not a prompt
+      // the composer restores, but its call id is what stops a `continued`
+      // question from being shown twice (DSH Web's `publishContinuedQuestions`).
+      if (kind === 'user-question-reply') {
+        const callId = (source as { callId?: unknown }).callId
+        if (typeof callId === 'string' && callId !== '') replies.add(callId)
+        continue
+      }
+      if (kind !== 'user') continue
+      if (typeof record.id !== 'string') continue
       const text = pendingTextOf(record.content)
       items.push({ id: record.id, ...(text === undefined ? {} : { text }) })
     }
     return items
   }
   const inbox = value as { 'next-step'?: unknown; 'next-turn'?: unknown }
-  return { steering: narrow(inbox['next-step']), followUp: narrow(inbox['next-turn']) }
+  return {
+    steering: narrow(inbox['next-step']),
+    followUp: narrow(inbox['next-turn']),
+    ...(replies.size === 0 ? {} : { replies: [...replies] }),
+  }
+}
+
+/** A question as the Host writes it, before this client narrows it. */
+interface WireQuestion {
+  readonly id: string
+  readonly question: string
+  readonly detail?: string
+  readonly header?: string
+  readonly options?: readonly { readonly label: string; readonly description?: string }[]
+  readonly multiSelect?: boolean
+  readonly intent?: {
+    readonly kind: string
+    readonly approve?: string
+    readonly reject?: string
+    readonly always?: string
+    readonly subject?: { readonly name: string; readonly icon?: string }
+    readonly display?: {
+      readonly question?: TerminalDisplayText
+      readonly detail?: TerminalDisplayText
+      readonly approve?: TerminalDisplayText
+    }
+  }
+}
+
+/**
+ * Narrow one Host question to the card's shape.
+ *
+ * Both carriers — the forwarded waterfall and the `userQuestions` projection —
+ * spell a question the same way, so one narrowing serves the card and the
+ * transcript. `intent` is copied field by field rather than spread: the intent
+ * is caller-authored data, and a terminal that forwards an unknown field would
+ * be inventing protocol it does not implement.
+ */
+function questionOf(question: WireQuestion): TerminalQuestion {
+  const intent = question.intent
+  return {
+    id: question.id,
+    question: question.question,
+    ...(question.detail === undefined ? {} : { detail: question.detail }),
+    ...(question.header === undefined ? {} : { header: question.header }),
+    ...(question.options === undefined ? {} : {
+      options: question.options.map(option => ({
+        label: option.label,
+        ...(option.description === undefined ? {} : { description: option.description }),
+      })),
+    }),
+    ...(question.multiSelect === undefined ? {} : { multiSelect: question.multiSelect }),
+    ...(intent === undefined ? {} : {
+      intent: {
+        kind: intent.kind,
+        ...(intent.approve === undefined ? {} : { approve: intent.approve }),
+        ...(intent.reject === undefined ? {} : { reject: intent.reject }),
+        ...(intent.always === undefined ? {} : { always: intent.always }),
+        ...(intent.subject === undefined ? {} : {
+          subject: {
+            name: intent.subject.name,
+            ...(intent.subject.icon === undefined ? {} : { icon: intent.subject.icon }),
+          },
+        }),
+        ...(intent.display === undefined ? {} : {
+          display: {
+            ...(intent.display.question === undefined ? {} : { question: intent.display.question }),
+            ...(intent.display.detail === undefined ? {} : { detail: intent.display.detail }),
+            ...(intent.display.approve === undefined ? {} : { approve: intent.display.approve }),
+          },
+        }),
+      },
+    }),
+  }
+}
+
+/**
+ * Narrow the `userQuestions` projection to the timed calls still answerable.
+ *
+ * Only a call made under the timed schema is listed, so an empty result is also
+ * how the terminal learns that a blocking question it just answered is gone.
+ * @param value - the `userQuestions` projection value, if the Session has one.
+ * @returns the pending calls in ask order; empty when nothing is answerable.
+ */
+export function pendingQuestionsOf(value: unknown): TerminalPendingQuestion[] {
+  if (value === null || typeof value !== 'object') return []
+  const active = (value as { active?: unknown }).active
+  if (!Array.isArray(active)) return []
+  const pending: TerminalPendingQuestion[] = []
+  for (const row of active) {
+    if (row === null || typeof row !== 'object') continue
+    const record = row as { callId?: unknown; questions?: unknown; state?: unknown }
+    if (typeof record.callId !== 'string' || record.callId === '') continue
+    if (!Array.isArray(record.questions) || record.questions.length === 0) continue
+    const questions = record.questions.filter((question): question is WireQuestion =>
+      question !== null && typeof question === 'object'
+      && typeof (question as { id?: unknown }).id === 'string'
+      && typeof (question as { question?: unknown }).question === 'string')
+    if (questions.length !== record.questions.length) continue
+    pending.push({
+      callId: record.callId,
+      questions: questions.map(questionOf),
+      state: record.state === 'continued' ? 'continued' : 'open',
+    })
+  }
+  return pending
 }
 
 /** Narrow one summary to the terminal's non-subagent row. */
@@ -724,9 +1071,126 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   await ctx.remote.$mount(SettingsRemote)
   await ctx.remote.$mount(CommandsRemote)
   await ctx.remote.$mount(PermissionPresetsRemote)
+  // Timed questions: the claim stream and the late answer are both Remote
+  // methods of this service, so the terminal mounts it the same way the Web
+  // client's assembly does.
+  await ctx.remote.$mount(UserQuestionsRemote)
+  /**
+   * A forwarded scoped waterfall carries `agentId` (the Session id) and the
+   * Gateway rebuilds `request.agent` from whatever this adapter resolves.
+   * Returning the root context for every id flattens that identity: every
+   * Session's approval lands on one untagged context, the Session that asked
+   * cannot be recovered, and an unrelated request cannot be attributed for
+   * `next()` delegation. Mint one borrowed per-Session Context instead — the
+   * same contract the official browser answerer relies on.
+   */
+  const agentScopes = new Map<string, Context>()
+  const scopeFor = (sessionId: string): Context => {
+    let scoped = agentScopes.get(sessionId)
+    if (scoped === undefined) {
+      scoped = ctx.extend({
+        [kAgentSession]: sessionId,
+        [Context.filter](listener: Context) {
+          const tag = agentSessionOf(listener)
+          return tag === undefined || tag === sessionId
+        },
+      })
+      agentScopes.set(sessionId, scoped)
+    }
+    return scoped
+  }
   ctx.typert.contexts.registerClient('agent', {
-    identity: () => undefined,
-    resolve: () => ctx,
+    // `identity` projects a scoped Context back to the wire's branded
+    // SessionId. The terminal never issues an @RemoteScope('agent') call, but
+    // keeping the reverse half of the adapter intact avoids a Context silently
+    // losing its identity on any future scoped RPC.
+    identity: candidate => agentSessionOf(candidate) as never,
+    resolve: sessionId => scopeFor(String(sessionId)),
+  })
+  /**
+   * Both scoped waterfalls are answered by listeners installed here, not when
+   * the UI boots. The transport can open `$events` before the overlays plugin
+   * finishes loading, and a waterfall that arrives with no listener is answered
+   * `next()` by the Gateway — silently delegating the request to the next Host
+   * answerer. Buffer until the window installs its handler instead.
+   */
+  interface Buffered<T, D> {
+    answer(request: T): Promise<D>
+    install(handler: (request: T) => Promise<D>): () => void
+  }
+  const bufferedAnswer = <T extends { signal?: AbortSignal }, D>(onAbort: D): Buffered<T, D> => {
+    let handler: ((request: T) => Promise<D>) | undefined
+    const waiting: { request: T; settle: (decision: D) => void }[] = []
+    return {
+      answer(request) {
+        if (handler !== undefined) return handler(request)
+        return new Promise<D>(settle => {
+          const item = { request, settle }
+          waiting.push(item)
+          request.signal?.addEventListener('abort', () => {
+            const index = waiting.indexOf(item)
+            if (index === -1) return
+            waiting.splice(index, 1)
+            settle(onAbort)
+          }, { once: true })
+        })
+      },
+      install(next) {
+        handler = next
+        for (const item of waiting.splice(0)) {
+          void Promise.resolve()
+            .then(() => next(item.request))
+            .then(item.settle, () => item.settle(onAbort))
+        }
+        return () => { if (handler === next) handler = undefined }
+      },
+    }
+  }
+  const approvals = bufferedAnswer<TerminalApproval, TerminalApprovalDecision>('cancelled')
+  const questions = bufferedAnswer<TerminalQuestionRequest, TerminalQuestionDecision>({ rejected: 'ASK_ABORTED' })
+
+  /** Recover the Session whose Agent asked, from the rebuilt Client Context. */
+  const ownerOf = (request: object): string | undefined => {
+    const agent = (request as { agent?: Context }).agent
+    return agent === undefined ? undefined : agentSessionOf(agent)
+  }
+
+  ctx.remote.$on('approval/request', async (request, next) => {
+    const sessionId = ownerOf(request)
+    const approval: TerminalApproval = {
+      toolName: request.toolName,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(request.reason === undefined ? {} : { reason: request.reason }),
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
+    }
+    const decision = await approvals.answer(approval)
+    // `next()` keeps the scoped waterfall alive for the next answerer; a
+    // fail-closed outcome here would reject the tool call instead of handing
+    // it to the channel mounted to this Session.
+    return decision === 'delegate' ? await next() : decision
+  })
+
+  ctx.remote.$on('user-questions/request', async (request, next) => {
+    const sessionId = ownerOf(request)
+    const pending: TerminalQuestionRequest = {
+      questions: request.questions.map(questionOf),
+      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
+      // The wait is what makes the countdown ours: without it the Host keeps
+      // its own timer and the card would be counting down a race it lost.
+      ...(request.wait === undefined ? {} : {
+        wait: {
+          callId: String(request.wait.callId),
+          ...(request.wait.timed === undefined ? {} : { timed: request.wait.timed }),
+        },
+      }),
+    }
+    const decision = await questions.answer(pending)
+    if (decision === 'delegate') return await next()
+    // A dismissal is a coded rejection, never `next()`: delegating a cancel
+    // would hand a dead request to another answerer instead of ending the turn.
+    if ('rejected' in decision) throw questionRejection(decision.rejected)
+    return { answers: decision.answers } satisfies AskUserQuestionAnswer
   })
   const connection = ctx.get('connection') as ConnectionHandle
   const home = (): string | undefined => ctx.remote.$host.home
@@ -1027,9 +1491,16 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
             if (frame.type === 'snapshot') {
               const pressure = pressureOf(frame.projections.values)
               if (pressure !== undefined) handlers.onContextPressure?.(pressure)
+              const stats = sessionStatsOf(frame.projections.values)
+              if (stats !== undefined) handlers.onSessionStats?.(stats)
+              const usage = tokenUsageOf(frame.projections.values)
+              if (usage !== undefined) handlers.onTokenUsage?.(usage)
               const permission = permissionOf(frame.projections.values)
               if (permission !== undefined) handlers.onPermission?.(permission)
               handlers.onInbox?.(inboxOf((frame.projections.values as { inbox?: unknown }).inbox))
+              handlers.onUserQuestions?.(pendingQuestionsOf(
+                (frame.projections.values as { userQuestions?: unknown }).userQuestions,
+              ))
               for (const record of frame.records) emit(record.event)
               lastSeq = Math.max(lastSeq, frame.cursor)
               if (frame.assistantStream !== undefined) {
@@ -1079,17 +1550,32 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
               const block = frame.value.projections[sessionId as never]
               const pressure = pressureOf(block?.values)
               if (pressure !== undefined) handlers.onContextPressure?.(pressure)
+              const stats = sessionStatsOf(block?.values)
+              if (stats !== undefined) handlers.onSessionStats?.(stats)
+              const usage = tokenUsageOf(block?.values)
+              if (usage !== undefined) handlers.onTokenUsage?.(usage)
               const permission = permissionOf(block?.values)
               if (permission !== undefined) handlers.onPermission?.(permission)
               handlers.onInbox?.(inboxOf((block?.values as { inbox?: unknown } | undefined)?.inbox))
+              handlers.onUserQuestions?.(pendingQuestionsOf(
+                (block?.values as { userQuestions?: unknown } | undefined)?.userQuestions,
+              ))
             } else if (frame.type === 'projection' && frame.sessionId === sessionId) {
               // One update carries every key the committed event changed.
               for (const change of frame.changes) {
                 if (change.key === 'contextPressure') {
                   const pressure = pressureOf({ contextPressure: change.val })
                   if (pressure !== undefined) handlers.onContextPressure?.(pressure)
+                } else if (change.key === 'sessionStats') {
+                  const stats = sessionStatsOf({ sessionStats: change.val })
+                  if (stats !== undefined) handlers.onSessionStats?.(stats)
+                } else if (change.key === 'tokenUsage') {
+                  const usage = tokenUsageOf({ tokenUsage: change.val })
+                  if (usage !== undefined) handlers.onTokenUsage?.(usage)
                 } else if (change.key === 'inbox') {
                   handlers.onInbox?.(inboxOf(change.val))
+                } else if (change.key === 'userQuestions') {
+                  handlers.onUserQuestions?.(pendingQuestionsOf(change.val))
                 } else if (change.key === 'permissions') {
                   const permission = permissionOf({ permissions: change.val })
                   if (permission !== undefined) handlers.onPermission?.(permission)
@@ -1308,35 +1794,33 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     },
 
     onApproval(handler) {
-      return ctx.remote.$on('approval/request', async (request) => {
-        const approval: TerminalApproval = {
-          toolName: request.toolName,
-          ...(request.reason === undefined ? {} : { reason: request.reason }),
-          ...(request.signal === undefined ? {} : { signal: request.signal }),
-        }
-        return await handler(approval) as TerminalApprovalOutcome
-      })
+      return approvals.install(handler)
     },
 
     onQuestion(handler) {
-      return ctx.remote.$on('user-questions/request', async (request, next) => {
-        const questions: TerminalQuestion[] = request.questions.map(question => ({
-          id: question.id,
-          question: question.question,
-          ...(question.detail === undefined ? {} : { detail: question.detail }),
-          ...(question.header === undefined ? {} : { header: question.header }),
-          ...(question.options === undefined ? {} : {
-            options: question.options.map(option => ({
-              label: option.label,
-              ...(option.description === undefined ? {} : { description: option.description }),
-            })),
-          }),
-          ...(question.multiSelect === undefined ? {} : { multiSelect: question.multiSelect }),
-        }))
-        const answer = await handler(questions, request.signal)
-        if (answer === undefined) return await next()
-        return { answers: answer.answers } satisfies AskUserQuestionAnswer
-      })
+      return questions.install(handler)
+    },
+
+    attachQuestionWait(sessionId, callId, signal) {
+      const stream = ctx.remote.userQuestions.attachWait(sessionId as never, callId as never, signal)
+      return {
+        frames: stream,
+        // Disposing the stream is what releases the Host's claim: it then
+        // resumes its own deadline timer, so a window that stops showing the
+        // card never leaves the question claimed by nobody.
+        dispose: () => { stream.dispose() },
+      }
+    },
+
+    async answerQuestion(sessionId, callId, answer) {
+      const batch: AskUserQuestionAnswer = {
+        answers: answer.map(item => ({
+          id: item.id,
+          selected: [...item.selected],
+          ...(item.custom === undefined ? {} : { custom: item.custom }),
+        })),
+      }
+      return unwrap(await ctx.remote.userQuestions.answer(sessionId as never, callId as never, batch))
     },
 
     onSessionStatus(handler) {
@@ -1377,6 +1861,7 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
       closed = true
       stopPeerWatch()
       stopRefresh()
+      agentScopes.clear()
       // The kernel owns a context it supplied; only a self-made one goes with
       // this backend.
       if (ownsContext) await ctx.fiber.dispose()

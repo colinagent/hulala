@@ -22,6 +22,7 @@ import type {
   SessionListEvent,
   TerminalModel,
   TerminalModelCatalog,
+  TerminalPendingQuestion,
   TerminalPermissionCatalog,
   TerminalProvider,
   TerminalSession,
@@ -264,6 +265,31 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     reconnectTimer.unref?.()
   }
 
+  /**
+   * The two projections DSH Web reconciles together. A snapshot publishes
+   * `inbox` just before `userQuestions`, and a queued late reply can arrive
+   * without a `userQuestions` change at all, so both feeds are coalesced into
+   * one reconcile carrying the latest pair. Without the coalescing the first
+   * half of every snapshot would withdraw every continued card, and without
+   * the `inbox` feed a queued reply would rebuild a card that can be
+   * submitted twice.
+   */
+  let projected: readonly TerminalPendingQuestion[] = []
+  let replies: readonly string[] = []
+  let questionsSeen = false
+  let publishScheduled = false
+  const publishQuestions = (): void => {
+    if (publishScheduled) return
+    publishScheduled = true
+    queueMicrotask(() => {
+      publishScheduled = false
+      // Until the questions projection has been read at least once, an inbox
+      // frame says nothing about which calls are still answerable.
+      if (id === undefined || !questionsSeen || shut) return
+      ctx.emit('hulala/questions', id, projected, replies)
+    })
+  }
+
   const handlers: TerminalSessionHandlers = {
     onEvent: event => {
       // A stream that delivers proves itself: the next failure starts its
@@ -340,12 +366,32 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       repaint()
     },
     onContextPressure: pressure => {
-      reducer.setContextPressure(pressure.projectedTokens, pressure.contextWindow)
+      reducer.setContextPressure(pressure.usedTokens, pressure.contextWindow)
+      repaint()
+    },
+    onSessionStats: stats => {
+      reducer.setSessionStats(stats)
+      repaint()
+    },
+    onTokenUsage: usage => {
+      reducer.setTokenUsage(usage)
       repaint()
     },
     onInbox: inbox => {
       reducer.setInbox(inbox)
+      // A queued late answer is not a pending prompt, but it is exactly what
+      // tells the questions UI that a `continued` card must disappear.
+      replies = inbox.replies ?? []
+      publishQuestions()
       repaint()
+    },
+    // Timed questions outlive their waterfall: the projection is the only place
+    // that says which ones a client may still answer, so it is forwarded with
+    // the inbox's queued replies instead of living in the transcript's state.
+    onUserQuestions: pending => {
+      projected = pending
+      questionsSeen = true
+      publishQuestions()
     },
     onPermission: preset => {
       permission = preset
@@ -361,6 +407,11 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     followDispose = undefined
     id = next
     reducer.reset()
+    // The new follow stream delivers a fresh snapshot; projections of the
+    // previous Session must not be reconciled against its id.
+    projected = []
+    replies = []
+    questionsSeen = false
 
     const summary = sessions.find(session => session.sessionId === next)
     cwd = summary?.cwd ?? directory ?? config.cwd
@@ -503,6 +554,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       color: config.color,
       onSearch: query => backend.searchSessions(query),
       onResolve: done,
+      pendingInteractions: ctx.get('hulalaInteractions')?.pendingSessions,
     }))
   }
 

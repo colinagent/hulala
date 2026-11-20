@@ -19,7 +19,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { ApprovalOverlay, type ApprovalDecision } from '../view/overlays/approval.js'
-import { QuestionOverlay, type QuestionAnswer } from '../view/overlays/question.js'
+import { QuestionOverlay, type QuestionResult } from '../view/overlays/question.js'
 import type { TerminalApproval, TerminalQuestion, TerminalQuestionAnswer } from '../data/remote.js'
 import type { Component, OverlayHandle, OverlayOptions } from '@earendil-works/pi-tui'
 
@@ -28,6 +28,31 @@ declare module '@deepseek-ai/cordis' {
     /** Modal overlays, the composer-slot panels, and their keyboard hold. */
     hulalaOverlays: TuiOverlays
   }
+}
+
+/** How a stack of question cards ended. */
+export type QuestionPresentation =
+  /** Every question of the request was answered, in order. */
+  | { kind: 'answered'; answers: TerminalQuestionAnswer[] }
+  /** The user dismissed a blocking card, or the request aborted under it. */
+  | { kind: 'cancelled' }
+  /** A timed card's window closed; the Host keeps the call answerable. */
+  | { kind: 'timed-out' }
+  /** The user put a timed card away; it is still pending. */
+  | { kind: 'parked' }
+  /** The user handed the request to another answerer. */
+  | { kind: 'delegate' }
+
+/** What a question presentation knows about the request behind it. */
+export interface QuestionPresentationOptions {
+  /** Cancellation lifetime of the pending request. */
+  readonly signal?: AbortSignal
+  /** Wall-clock deadline of a timed call, when the Host gave one. */
+  readonly deadline?: number
+  /** `Esc` parks the card instead of cancelling it. */
+  readonly parkable?: boolean
+  /** The card reopens a call whose foreground window already closed. */
+  readonly continued?: boolean
 }
 
 /** What the rest of the client may do with overlays. */
@@ -54,12 +79,22 @@ export interface TuiOverlays {
   /** Settle every dialog an editor column owned (its process exited). */
   cancelEditorModals(): void
   showApproval(request: TerminalApproval): Promise<ApprovalDecision>
-  showQuestion(question: TerminalQuestion, signal?: AbortSignal): Promise<QuestionAnswer | undefined>
-  /** Ask every question in order; `undefined` when the user dismissed one. */
+  /** One question card, for the caller that drives a request itself. */
+  showQuestion(
+    question: TerminalQuestion,
+    options?: QuestionPresentationOptions,
+  ): Promise<QuestionResult>
+  /**
+   * Ask every question in order.
+   *
+   * A dump of the first card ends the whole presentation: the caller has either
+   * parked it, timed it out, or handed the request on, and asking the next
+   * question of a request nobody is showing would be answering on their behalf.
+   */
   handleQuestions(
     questions: readonly TerminalQuestion[],
-    signal?: AbortSignal,
-  ): Promise<{ answers: TerminalQuestionAnswer[] } | undefined>
+    options?: QuestionPresentationOptions,
+  ): Promise<QuestionPresentation>
   /** The conflict dialog autosave raises when a buffer and the disk diverged. */
 }
 
@@ -137,10 +172,40 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
     }, { anchor: 'bottom-center', width: 64 })
   }
 
-  const showQuestion = (question: TerminalQuestion, signal?: AbortSignal): Promise<QuestionAnswer | undefined> => {
-    return modal<QuestionAnswer | undefined>(done => {
-      if (signal !== undefined) signal.addEventListener('abort', () => done(undefined), { once: true })
-      return new QuestionOverlay({ question, color: config.color, onAnswer: done })
+  const showQuestion = (
+    question: TerminalQuestion,
+    options: QuestionPresentationOptions = {},
+  ): Promise<QuestionResult> => {
+    const signal = options.signal
+    return modal<QuestionResult>(done => {
+      /** One settle path: every way out has to stop the timer and the clock. */
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let ticker: ReturnType<typeof setInterval> | undefined
+      const finish = (result: QuestionResult): void => {
+        if (timer !== undefined) clearTimeout(timer)
+        if (ticker !== undefined) clearInterval(ticker)
+        timer = undefined
+        ticker = undefined
+        done(result)
+      }
+      if (signal !== undefined) signal.addEventListener('abort', () => finish({ kind: 'cancel' }), { once: true })
+      if (options.deadline !== undefined) {
+        // The time left is the Host's own reading, so the card closes when the
+        // Host's deadline says it does — not a second after a local guess.
+        const remaining = options.deadline - Date.now()
+        if (remaining <= 0) queueMicrotask(() => finish({ kind: 'timeout' }))
+        else timer = setTimeout(() => finish({ kind: 'timeout' }), remaining)
+        ticker = setInterval(() => render.repaint(), 1_000)
+        ticker.unref?.()
+      }
+      return new QuestionOverlay({
+        question,
+        color: config.color,
+        ...(options.deadline === undefined ? {} : { deadline: options.deadline }),
+        ...(options.parkable === undefined ? {} : { parkable: options.parkable }),
+        ...(options.continued === undefined ? {} : { continued: options.continued }),
+        onResult: finish,
+      })
     }, { anchor: 'center', width: 72 })
   }
 
@@ -157,14 +222,20 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
     cancelEditorModals: () => { for (const cancel of [...editorModals]) cancel() },
     showApproval,
     showQuestion,
-    handleQuestions: async (questions, signal) => {
+    handleQuestions: async (questions, options = {}) => {
       const answers: TerminalQuestionAnswer[] = []
       for (const question of questions) {
-        const answer = await showQuestion(question, signal)
-        if (answer === undefined) return undefined
-        answers.push({ id: question.id, ...answer })
+        const result = await showQuestion(question, options)
+        if (result.kind === 'answer') {
+          answers.push({ id: question.id, ...result.answer })
+          continue
+        }
+        if (result.kind === 'cancel') return { kind: 'cancelled' }
+        if (result.kind === 'timeout') return { kind: 'timed-out' }
+        if (result.kind === 'park') return { kind: 'parked' }
+        return { kind: 'delegate' }
       }
-      return { answers }
+      return { kind: 'answered', answers }
     },
   })
 }

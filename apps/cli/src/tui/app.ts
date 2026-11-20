@@ -19,7 +19,6 @@ import { FOCUS_OFF, MOTION_OFF } from './terminal/modes.js'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
-  TerminalApprovalOutcome,
   TerminalBackend,
   TerminalQuestionAnswer,
   TerminalSessionEvent,
@@ -65,6 +64,7 @@ import { changelogPlugin } from './plugins/changelog.js'
 import { viewPlugin } from './plugins/view.js'
 import { terminalPlugin } from './plugins/terminal.js'
 import { viewModelPlugin } from './plugins/viewModel.js'
+import { interactionsPlugin } from './plugins/interactions.js'
 
 export interface RunTerminalOptions {
   backend: TerminalBackend
@@ -303,6 +303,11 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     // tab that names its directory from the first frame is what identifies the
     // window among shells and other Sessions.
     await ctx.plugin(titlePlugin)
+    // Approvals and user questions are Session state, not window callbacks:
+    // install the shared pending-interaction queue before the rail and footer
+    // that render it, and long before the first frame. `runInteractive` arms it
+    // once the terminal can paint a dialog.
+    await ctx.plugin(interactionsPlugin, { backend: options.backend })
     await ctx.plugin(railPlugin, { color: colorEnabled(), isClosing: () => ctx.hulalaLifecycle.closing })
     // After the three panels it arbitrates. A click reaches it only once the
     // frame is on screen, so it reads the panels' services lazily.
@@ -557,45 +562,13 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
     void commands.submit(text, commands.modeFor(gesture))
   }
 
-  /**
-   * Answer the pending request once and widen this Session to Full access.
-   *
-   * The preset is the Host's own write path (`/permission`), so the switch is
-   * durable Session state rather than a grant kept by this client. A failed
-   * switch still allows the call once: the user asked for the operation, and
-   * the notice says the Session did not change.
-   * @param id - Session owning the approval request.
-   * @returns the outcome the Host accepts for the pending request.
-   */
-  const grantFullAccess = async (id: string | undefined): Promise<TerminalApprovalOutcome> => {
-    if (id === undefined) {
-      reducer.addNotice(t('notice.approvalFullAccessUnavailable'))
-      return 'allowed-once'
-    }
-    try {
-      await backend.setPermission(id, FULL_ACCESS_PRESET)
-      reducer.addNotice(t('notice.approvalFullAccess', { preset: permissionLabel(FULL_ACCESS_PRESET) }))
-    } catch (caught) {
-      reducer.addNotice(t('notice.approvalFullAccessFailed', {
-        reason: caught instanceof Error ? caught.message : String(caught),
-      }))
-    }
-    return 'allowed-once'
-  }
-
   // Global keys that pi-tui does not own; every one of them is an action in
   // `config/keybindings.json` (see `src/keymap.ts`).
-  // Backend subscriptions.
-  backend.onApproval(async request => {
-    const decision = await overlays.showApproval(request)
-    const outcome = decision === 'full-access' ? await grantFullAccess(session.id) : decision
-    if (!lifecycle.closing) {
-      reducer.addNotice(t('notice.approval', { outcome }))
-      rerender()
-    }
-    return outcome
-  })
-  backend.onQuestion(async (questions, signal) => await overlays.handleQuestions(questions, signal))
+  // Both scoped waterfalls (approvals and user questions) are subscribed by the
+  // pending-interactions plugin: installed with the plugins, not here, so a
+  // request that lands during boot is parked instead of being answered
+  // `next()` by the Gateway. This window only tells the queue when it is safe
+  // to put a dialog on the frame.
   // The first frame is the three-column layout: the rail is on by default, so
   // the initial plain build above only holds the slot until this point.
   rebuildLayout()
@@ -621,6 +594,7 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // but with bare motion off that is a smaller loss than the garbage is.
   terminal.write(FOCUS_OFF)
   ui.start()
+  ctx.hulalaInteractions.arm()
   // The language picker (when the language is unset) is a first-frame surface:
   // emitting after `start()` keeps attach and Session boot off its path.
   setImmediate(() => { if (!lifecycle.closing) ctx.emit('hulala/first-frame') })
@@ -775,14 +749,26 @@ async function runPlain(
   }
 
   backend.onApproval(async request => {
+    // A line-based client has no rail to switch Sessions with, so it answers
+    // whatever the Host asks — but it must still name the owner: granting Full
+    // access to the window's Session for a background request would widen the
+    // wrong thread.
+    const owner = request.sessionId ?? sessionId
+    if (request.sessionId !== undefined && request.sessionId !== sessionId) {
+      write(t('plain.approvalOtherSession', { session: request.sessionId }))
+    }
     write(t('plain.approval', { tool: request.toolName }))
     write(t('plain.approvalHint'))
     const answer = await new Promise<string | undefined>(resolve => { rl.question('> ', line => resolve(line.trim().toLowerCase())) })
+    if (answer === 'd') {
+      write(t('notice.approvalDelegated', { tool: request.toolName, session: request.sessionId ?? t('notice.approvalThisSession') }))
+      return 'delegate'
+    }
     if (answer === 'f') {
-      if (sessionId === undefined) write(`! ${t('notice.approvalFullAccessUnavailable')}`)
+      if (owner === undefined) write(`! ${t('notice.approvalFullAccessUnavailable')}`)
       else {
         try {
-          await backend.setPermission(sessionId, FULL_ACCESS_PRESET)
+          await backend.setPermission(owner, FULL_ACCESS_PRESET)
           write(t('notice.approvalFullAccess', { preset: permissionLabel(FULL_ACCESS_PRESET) }))
         } catch (caught) {
           write(`! ${t('notice.approvalFullAccessFailed', { reason: caught instanceof Error ? caught.message : String(caught) })}`)
@@ -793,29 +779,58 @@ async function runPlain(
     return answer === 'y' ? 'allowed-once' : answer === 'n' ? 'rejected' : 'cancelled'
   })
 
-  backend.onQuestion(async questions => {
+  // A line-based client has no rail to switch Sessions with, so it answers
+  // questions as they arrive. The scoped owner is still available on the
+  // request for callers that need it; this path just has no queue to park in.
+  /**
+   * Read one answer line, resolving `undefined` when the input closes instead
+   * of leaving `rl.question` pending forever.
+   */
+  const readAnswer = (prompt: string): Promise<string | undefined> => new Promise(resolve => {
+    let settled = false
+    const finish = (value: string | undefined): void => {
+      if (settled) return
+      settled = true
+      rl.off('close', onClose)
+      resolve(value)
+    }
+    const onClose = (): void => finish(undefined)
+    rl.once('close', onClose)
+    rl.question(prompt, line => finish(line.trim()))
+  })
+
+  backend.onQuestion(async request => {
     const answers: TerminalQuestionAnswer[] = []
-    for (const question of questions) {
+    for (const question of request.questions) {
       const options = question.options ?? []
       if (options.length > 0) {
         write(question.question)
         options.forEach((option, index) => write(`  ${index + 1}. ${option.label}`))
         write(t('plain.questionPrompt'))
-        const line = (await new Promise<string | undefined>(resolve => rl.question('> ', resolve)))?.trim() ?? ''
+      }
+      // DSH's Web composer will not submit an unanswered question: it asks
+      // again or takes an explicit skip. A line client has no skip button, so
+      // an empty line re-prompts instead of encoding `selected: []`, which the
+      // answer schema accepts but the caller never asked for. EOF dismisses.
+      let line: string | undefined
+      do {
+        line = await readAnswer(options.length > 0 ? '> ' : `${question.question} > `)
+        if (line === undefined) return { rejected: 'ASK_CANCELLED' }
+        if (line === '') write(t('plain.questionRequired'))
+      } while (line === '')
+      if (options.length > 0) {
         const index = Number(line)
         const selected = Number.isInteger(index) && index >= 1 && index <= options.length
           ? [options[index - 1]!.label]
           : []
-        // Anything that is not a row number is the typed answer, so a listed
-        // question never answers itself with an empty selection.
+        // Anything that is not a row number is the typed answer.
         answers.push({
           id: question.id,
           selected,
-          ...(selected.length === 0 && line !== '' ? { custom: line } : {}),
+          ...(selected.length === 0 ? { custom: line } : {}),
         })
       } else {
-        const line = await new Promise<string | undefined>(resolve => rl.question(`${question.question} > `, resolve))
-        answers.push({ id: question.id, selected: [], ...(line === undefined ? {} : { custom: line }) })
+        answers.push({ id: question.id, selected: [], custom: line })
       }
     }
     return { answers }

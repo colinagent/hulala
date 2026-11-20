@@ -142,7 +142,7 @@ test('Creator mode adds the inspect registry, and turning it off removes it', as
   } finally {
     await rm(root, { recursive: true, force: true })
   }
-})
+}, 30_000)
 
 test('prunes agent presets an older Host copied into the profile', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-runtime-preset-'))

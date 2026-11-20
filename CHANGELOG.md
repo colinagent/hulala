@@ -13,6 +13,28 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.30] - 2026-11-20
+
+### Added
+
+- A timed `ask_user_question` is answered on the terminal's own clock. The call
+  arrives with a foreground wait keyed by its tool call, and DSH suspends its own
+  timer while a client holds the claim, so the card claims it, reads the
+  Host-computed window, counts it down in the footer and rejects with
+  `ASK_TIMED_OUT` when it ends — which is what turns the call into a question the
+  Session still lists instead of a tool call that hangs. Releasing the claim at
+  the deadline hands the wait back, so a card nobody is looking at cannot stop the
+  Host from timing out either.
+- A timed call whose window closed stays answerable. The Session's `userQuestions`
+  projection is mirrored into cards marked in the rail, the picker and the
+  footer; answering one goes through `userQuestions.answer` and arrives in the
+  agent as a new turn, so an answer given an hour later still reaches the model
+  that asked.
+- `Alt-G` puts away the question the open Session is waiting on and brings it
+  back, and the footer/rail/status bar count what is waiting in other Sessions.
+  A parked timed card keeps its claim and its deadline, so putting it away is not
+  the same as letting the window close.
+
 ### Changed
 
 - The Host boots through DeepSeek Harness's own profile boot instead of a copy of
@@ -33,6 +55,29 @@ that version has no section. Releases before 0.2.30 are not recorded.
   agent preset list is DSH's own: `standard`, `ptc`, `minimal`, `cordis`.
 - The Host carrier's bind address is the Web invocation flag DSH already parses,
   so `--host`/`--port` reach `web-startup` instead of a row of ours.
+- DeepSeek Harness moves from `0.2.2-rc.1` to `0.2.2-rc.5` in every manifest and
+  the lockfile. Two upstream changes are absorbed rather than patched around: the
+  subagent test now reads `agent.session.header.origin`, because `agents.roots()`
+  is gone, and a terminal/editor description carries `origin` and `control` as
+  required fields. The `dsh-subprocess-local` patch is regenerated against rc.5 —
+  Bun's runner delimiter moved into a different build chunk, and a patch keyed on
+  the old version is ignored in silence. The bundled `@colinagent/dsh-mcp` plugin
+  moves to `0.1.1` so its own peer and `engines.dsh` ranges name rc.5 too.
+- Approvals and questions are pending interactions owned by the Session that
+  raised them, not dialogs that take the keyboard when they arrive. Both share
+  one queue per Session with a per-kind precedence (approval 0, question 1,
+  plan-review 2), one interaction on screen at a time, and a hand-off
+  (`Alt-D`, `d` on the approval card) that passes the request to the next
+  answerer on DSH's waterfall and leaves a notice in the transcript. A request
+  from a Session this window never opened is handed on immediately instead of
+  being answered here, which is what stopped a turn started in another window —
+  or over SSH — from asking its permission question inside this one.
+- A Computer-Use agent's approval arrives as a question with an `approval`
+  intent, and is drawn as one: the subject on its own line, the caller's own
+  localized question as the heading, the detail dimmed, and the three actions the
+  caller named marked `✓`, `✕` and `∞`, with no free-text row. It outranks the
+  classic approval seam because DSH gives it precedence 1, and the answer is the
+  same option list either way.
 
 ### Fixed
 
@@ -42,6 +87,30 @@ that version has no section. Releases before 0.2.30 are not recorded.
   process-wide dispatcher before the first plugin mounts; the boot this
   repository carried never did, so web fetch, providers and MCP over HTTP all
   connected directly while `curl` on the same machine went through the proxy.
+
+- The footer's speed reading is the Host's own decode figure again. The client
+  timed its deltas from the first *text* chunk, while DSH counts a step's output
+  tokens from its first chunk of any kind and stops at the assembled message — so
+  a reasoning-only step (most tool steps) contributed tokens with no time, and a
+  session that actually decodes at 177 tok/s showed 3808. The Host now composes
+  DSH's `session-stats` projection and the footer renders `sessionStats.decodeTokens
+  ÷ decodeMs`, the same number as DSH's own stats table. Context occupancy and
+  the session token total come from the `contextPressure` and `tokenUsage`
+  projections for the same reason: one fold owns each figure, in the Host.
+- The file tree's own prompt — `a` for a new file or directory, `c` for
+  "Copy to" — is a floating window beside the picker rather than part of its
+  layout, so closing the tree with `Space`+`e` left the box on screen while it
+  still held the keyboard, and the next keys were typed into it. The prompt now
+  belongs to the tree: closing the tree closes it, whichever key or click did.
+- A late-answer card now closes when another client answers the call, and a reply
+  already queued in the Host inbox no longer reopens it. The `userQuestions` and
+  `inbox` projections are reconciled together, and the foreground wait and the
+  durable card share DSH's `question:<session>:<call>` identity, so one tool call
+  never produces two cards — or a card whose overlay outlives its row and blocks
+  every later interaction.
+- Plain (non-TTY) mode no longer submits an empty answer to a question. It asks
+  again for a choice or a line of text, and rejects with `ASK_CANCELLED` when the
+  input ends instead of answering with an empty selection.
 
 ## [0.3.29] - 2026-11-18
 

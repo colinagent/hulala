@@ -173,6 +173,30 @@ test('a running Session shows its spinner in the marker column', () => {
   expect(lines[4]?.startsWith('⠋')).toBe(true)
 })
 
+test('a pending interaction outranks the spinner in the marker column', () => {
+  const test = harness({
+    sessions: [session({ sessionId: 'session-idle', title: 'waiting', running: true })],
+    pendingInteractions: new Set(['session-idle']),
+  })
+  const lines = test.rail.render(20).map(strip)
+  expect(lines[4]?.startsWith('!')).toBe(true)
+})
+
+test('a pending interaction raises the page watermark like a running Session', () => {
+  const sessions = Array.from({ length: 45 }, (_, index) => session({
+    sessionId: `session-${index}`,
+    title: `title ${index}`,
+    updatedAt: NOW - index * 1_000,
+  }))
+  const lists = railLists(state({
+    sessions,
+    currentId: 'session-0',
+    pendingInteractions: new Set(['session-34']),
+  }))
+  expect(lists.current).toHaveLength(35)
+  expect(lists.current.at(-1)?.sessionId).toBe('session-34')
+})
+
 test('the open Session is marked by its title colour, never by a glyph', () => {
   const rail = new SessionRail({
     state: () => state(),

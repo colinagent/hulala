@@ -58,14 +58,20 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   // Pending inbox rows sit between the transcript and the composer, where pi
   // puts its queued-message block; empty lists render no lines at all.
   const pending = new PendingMessages(config.color)
-  const statusBar = new StatusBar(() => ({
-    ...(session.model === undefined ? {} : { model: session.model }),
-    ...(session.thinkingLevel === undefined ? {} : { thinkingLevel: session.thinkingLevel }),
-    ...(session.permission === undefined ? {} : { permission: session.permission }),
-    metrics: reducer.metrics,
-    disconnected: session.disconnected,
-    ...(updater.available === undefined ? {} : { update: updater.available.latestVersion }),
-  }), config.color)
+  const statusBar = new StatusBar(() => {
+    const waiting = ctx.get('hulalaInteractions')?.waiting ?? 0
+    const parked = ctx.get('hulalaInteractions')?.parked ?? 0
+    return {
+      ...(session.model === undefined ? {} : { model: session.model }),
+      ...(session.thinkingLevel === undefined ? {} : { thinkingLevel: session.thinkingLevel }),
+      ...(session.permission === undefined ? {} : { permission: session.permission }),
+      metrics: reducer.metrics,
+      disconnected: session.disconnected,
+      ...(waiting > 0 ? { pendingInteractions: waiting } : {}),
+      ...(parked > 0 ? { parkedInteractions: parked } : {}),
+      ...(updater.available === undefined ? {} : { update: updater.available.latestVersion }),
+    }
+  }, config.color)
 
   // The band's usage hint rotates on its own; while the client is idle this is
   // the only reason the frame repaints.

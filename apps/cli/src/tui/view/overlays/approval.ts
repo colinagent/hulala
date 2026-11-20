@@ -22,8 +22,10 @@ import type { ImePolicy } from '../../pane/focus.js'
  *
  * The first three are Host outcomes; `full-access` is answered as
  * `allowed-once` after the caller switches the Session's permission preset.
+ * `delegate` hands the request to the next answerer on the waterfall — the
+ * channel mounted to this Session, or another client — without rejecting it.
  */
-export type ApprovalDecision = TerminalApprovalOutcome | 'full-access'
+export type ApprovalDecision = TerminalApprovalOutcome | 'full-access' | 'delegate'
 
 export interface ApprovalOverlayOptions {
   toolName: string
@@ -52,6 +54,7 @@ export class ApprovalOverlay implements Component {
     }
     body.push(s.dim(t('approval.fullAccessHint')))
     body.push(s.dim(t('approval.fullAccessDetail')))
+    body.push(s.dim(t('approval.delegateHint')))
     const footer = [s.accent(t('approval.footer'))]
     return panel(panelWidth, t('approval.title'), body, footer)
   }
@@ -71,6 +74,10 @@ export class ApprovalOverlay implements Component {
     }
     if (matchesKey(data, 'n')) {
       this.options.onDecide('rejected')
+      return
+    }
+    if (matchesKey(data, 'd')) {
+      this.options.onDecide('delegate')
       return
     }
     // Escape is intentionally ignored: the user must choose.

@@ -1,16 +1,29 @@
 import { expect, test } from 'bun:test'
 import { visibleWidth } from '@earendil-works/pi-tui'
 import type { TerminalQuestion } from '../../src/tui/data/remote.js'
-import { QuestionOverlay, type QuestionAnswer } from '../../src/tui/view/overlays/question.js'
+import { QuestionOverlay, type QuestionAnswer, type QuestionResult } from '../../src/tui/view/overlays/question.js'
 
 const strip = (lines: readonly string[]): string[] => lines.map(line => line
   .replace(/\u001b\[[0-9;]*m/gu, '')
   .replace(/\u001b_pi:[^\u0007]*\u0007/gu, ''))
 
-function overlay(question: TerminalQuestion): { view: QuestionOverlay; answers: Array<QuestionAnswer | undefined> } {
+/** Answers a card produced, with a dismissal recorded as `undefined`. */
+function overlay(
+  question: TerminalQuestion,
+  options: { parkable?: boolean; deadline?: number; continued?: boolean } = {},
+): { view: QuestionOverlay; answers: Array<QuestionAnswer | undefined>; results: QuestionResult[] } {
   const answers: Array<QuestionAnswer | undefined> = []
-  const view = new QuestionOverlay({ question, color: false, onAnswer: answer => answers.push(answer) })
-  return { view, answers }
+  const results: QuestionResult[] = []
+  const view = new QuestionOverlay({
+    question,
+    color: false,
+    ...options,
+    onResult: (result) => {
+      results.push(result)
+      answers.push(result.kind === 'answer' ? result.answer : undefined)
+    },
+  })
+  return { view, answers, results }
 }
 
 function text(view: QuestionOverlay, width = 72): string {

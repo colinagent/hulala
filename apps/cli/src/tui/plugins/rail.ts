@@ -119,6 +119,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
       // Rows between the header and the `all` row, minus the `+ new session` row.
       pageRows: pageRows(),
       now: Date.now(),
+      pendingInteractions: ctx.get('hulalaInteractions')?.pendingSessions,
     }),
     rows: () => Math.max(4, terminal.rows - 1),
     color: config.color,

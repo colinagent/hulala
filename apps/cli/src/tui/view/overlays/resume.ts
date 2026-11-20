@@ -24,6 +24,8 @@ export interface ResumeOverlayOptions {
   color: boolean
   onSearch(query: string): Promise<{ items: TerminalSearchItem[]; hasMore: boolean }>
   onResolve(result: ResumeResult): void
+  /** Sessions with a parked approval, marked in the picker. */
+  pendingInteractions?: ReadonlySet<string> | undefined
 }
 
 function stamp(timestamp: number): string {
@@ -91,8 +93,9 @@ export class ResumeOverlay implements Component {
     } else {
       rows.slice(0, 12).forEach((session, index) => {
         const marker = index === this.cursor ? '›' : ' '
+        const pending = this.options.pendingInteractions?.has(session.sessionId) === true ? t('resume.pending') : ''
         const running = session.running === true ? t('resume.running') : ''
-        const line = `${marker} ${stamp(session.updatedAt)}  ${shortId(session.sessionId)}  ${truncateToWidth(session.cwd ?? '', Math.max(4, inner - 40))}${running}`
+        const line = `${marker} ${stamp(session.updatedAt)}  ${shortId(session.sessionId)}${pending}  ${truncateToWidth(session.cwd ?? '', Math.max(4, inner - 40 - pending.length))}${running}`
         body.push(index === this.cursor ? s.accent(line) : line)
       })
     }

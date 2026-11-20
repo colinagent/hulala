@@ -83,6 +83,7 @@ export interface MessageTable {
   'keymap.action.editor': string
   'keymap.action.editorOnly': string
   'keymap.action.commands': string
+  'keymap.action.interactions': string
   'keymap.action.dividerLeft': string
   'keymap.action.dividerRight': string
   'keymap.title': string
@@ -133,6 +134,7 @@ export interface MessageTable {
   'approval.footer': string
   'approval.fullAccessHint': string
   'approval.fullAccessDetail': string
+  'approval.delegateHint': string
   'confirm.title': string
   'confirm.body': string
   'confirm.failed': string
@@ -154,6 +156,14 @@ export interface MessageTable {
   'question.footer.custom': string
   'question.footer.multi': string
   'question.footer.single': string
+  'question.footer.timed': string
+  'question.approvalTitle': string
+  'question.countdown': (params: { n: number }) => string
+  'question.parked': (params: { key: string }) => string
+  'question.expired': string
+  'question.continuedTitle': string
+  'question.answerQueued': string
+  'question.gone': string
 
   'resume.title': string
   'resume.currentFolder': string
@@ -161,6 +171,7 @@ export interface MessageTable {
   'resume.noContent': string
   'resume.noSession': string
   'resume.running': string
+  'resume.pending': string
   'resume.more': string
   'resume.footer': string
 
@@ -203,6 +214,8 @@ export interface MessageTable {
 
   'status.disconnected': (params: { restart: string }) => string
   'status.update': (params: { version: string }) => string
+  'status.pendingInteractions': (params: { n: number }) => string
+  'status.parkedInteractions': (params: { n: number; key: string }) => string
   'status.updateAvailable': (params: { version: string }) => string
   'status.label.host': string
   'status.label.session': string
@@ -303,6 +316,10 @@ export interface MessageTable {
   'notice.approvalFullAccess': (params: { preset: string }) => string
   'notice.approvalFullAccessFailed': (params: { reason: string }) => string
   'notice.approvalFullAccessUnavailable': string
+  'notice.approvalDelegated': (params: { tool: string; session: string }) => string
+  'notice.questionDelegated': (params: { session: string }) => string
+  'notice.questionAnswerFailed': (params: { reason: string }) => string
+  'notice.approvalThisSession': string
   'notice.connectionUnavailable': (params: { reason: string }) => string
   'choice.footer': string
   'remote.restartUnavailable': string
@@ -388,12 +405,14 @@ export interface MessageTable {
   'plain.summary': string
   'plain.approval': (params: { tool: string }) => string
   'plain.approvalHint': string
+  'plain.approvalOtherSession': (params: { session: string }) => string
   'plain.session': (params: { id: string }) => string
   'plain.turnFailed': string
   'plain.turnCancelled': string
   'plain.sessionError': string
   'plain.unknownCommand': (params: { command: string }) => string
   'plain.questionPrompt': string
+  'plain.questionRequired': string
 
   'reasoning.tail': string
   'reasoning.full': string

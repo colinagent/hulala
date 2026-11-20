@@ -152,6 +152,8 @@ export interface RailState {
   /** Session rows the rail can show at once, below the `+ new session` row. */
   readonly pageRows: number
   readonly now: number
+  /** Sessions with a pending approval, marked with `!` and kept on the page. */
+  readonly pendingInteractions?: ReadonlySet<string> | undefined
 }
 
 /** The two sections: this directory, and the rest of the Host. */
@@ -168,22 +170,27 @@ export interface RailLists {
 /**
  * The first page of one section.
  *
- * Base limit plus the Web's automatic raise: a running Session, or the open one,
- * that sits past the limit pulls it out far enough to include itself, up to
- * `RAIL_SESSION_LIMIT_MAX`. Revealing the section lifts the limit entirely.
+ * Base limit plus the Web's automatic raise: a running Session, the open one,
+ * or one with a pending approval that sits past the limit pulls it out far
+ * enough to include itself, up to `RAIL_SESSION_LIMIT_MAX`. The Web raises the
+ * watermark for `pendingInteraction` the same way, so a waiting approval is
+ * never hidden behind `More`. Revealing the section lifts the limit entirely.
  * @param ordered - the section after blank filtering, filtering and ordering.
  * @param state - the rail state driving the fold.
  * @returns the rows to paint before the `More` row.
  */
 function firstPage(
   ordered: readonly TerminalSession[],
-  state: Pick<RailState, 'revealed' | 'currentId' | 'pageRows'>,
+  state: Pick<RailState, 'revealed' | 'currentId' | 'pageRows' | 'pendingInteractions'>,
 ): readonly TerminalSession[] {
   if (state.revealed) return ordered
   // The window's own capacity first: `More` then follows the page by one line.
   let limit = Math.min(RAIL_SESSION_LIMIT, Math.max(1, state.pageRows))
+  const needsAttention = (session: TerminalSession): boolean => session.running
+    || session.sessionId === state.currentId
+    || (state.pendingInteractions?.has(session.sessionId) ?? false)
   const lastAttention = ordered.reduce(
-    (last, session, index) => session.running || session.sessionId === state.currentId ? index : last,
+    (last, session, index) => needsAttention(session) ? index : last,
     -1,
   )
   if (lastAttention >= limit) limit = Math.min(RAIL_SESSION_LIMIT_MAX, lastAttention + 1)
@@ -532,10 +539,12 @@ export class SessionRail implements Component {
     }
     const session = row.session
     const current = session.sessionId === state.currentId
-    // The first column is the running indicator only. The open Session is marked
-    // by its title colour, never by a glyph: a persistent marker would compete
-    // with the row under the keyboard and with the tree chevrons.
-    const glyph = session.running ? spinnerFrame(state.now) : ' '
+    // The first column is the running indicator — except when a Session has an
+    // approval waiting, which outranks a spinner: the user can act on it, and
+    // a hidden `!` would leave a blocked tool call with no visible owner. The
+    // open Session is marked by its title colour, never by a glyph.
+    const pending = state.pendingInteractions?.has(session.sessionId) ?? false
+    const glyph = pending ? '!' : session.running ? spinnerFrame(state.now) : ' '
     const time = relativeTimeLabel(session.updatedAt, state.now)
     const timeWidth = visibleWidth(time)
     const titleWidth = Math.max(1, width - 2 - timeWidth - 1)
@@ -543,7 +552,7 @@ export class SessionRail implements Component {
     const gap = Math.max(0, width - 2 - visibleWidth(title) - timeWidth - 1)
     const plain = `${glyph} ${title}${' '.repeat(gap)} ${time}`
     if (selected) return selectedRow(plain, styles, caret)
-    const head = session.running ? styles.accent(glyph) : glyph
+    const head = pending || session.running ? styles.accent(glyph) : glyph
     const label = current ? styles.highlight(title) : title
     return `${head} ${label}${' '.repeat(gap)} ${styles.dim(time)}`
   }

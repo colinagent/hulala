@@ -1,6 +1,6 @@
---- a/lib/runner-launch-B2zsQ1Dz.js
-+++ b/lib/runner-launch-B2zsQ1Dz.js
-@@ -1311,7 +1311,8 @@
+--- a/lib/runner-launch-CKTiL8M8.js
++++ b/lib/runner-launch-CKTiL8M8.js
+@@ -1338,7 +1338,8 @@
  	if ("pkg" in process) return [process.execPath];
  	/* v8 ignore next -- built-artifact smoke imports the emitted JavaScript runner entry;
  	* source-unit coverage cannot change import.meta.url. */
@@ -10,7 +10,7 @@
  	return [
  		process.execPath,
  		"--import",
-@@ -1327,7 +1328,7 @@
+@@ -1354,7 +1355,7 @@
  function runnerInvocationAvailable(invocation = spawnRunnerInvocation()) {
  	try {
  		if (isAbsolute(invocation[0])) accessSync(invocation[0], constants.X_OK);
@@ -19,7 +19,7 @@
  		if (entry !== void 0 && entry !== invocation[0] && isAbsolute(entry)) accessSync(entry, constants.R_OK);
  		return true;
  	} catch {
-@@ -1341,7 +1342,7 @@
+@@ -1368,7 +1369,7 @@
  * @returns environment for the runner before target state is restored.
  */
  function runnerEnvironment(selection, invocation) {

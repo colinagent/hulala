@@ -104,7 +104,7 @@ test('a snapshot clears the screen, and output follows it verbatim', async () =>
     type: 'snapshot',
     sequence: 0,
     screen: 'prompt $ ',
-    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'running', exitCode: null },
+    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'running', exitCode: null, origin: 'user', control: 'user' },
     writable: true,
   })
   emit(recorded, { type: 'output', sequence: 1, data: 'echo hi\r\n' })
@@ -163,12 +163,12 @@ test('a state frame that is no longer running reports one exit', async () => {
   const frames = recorded.frames.length
   emit(recorded, {
     type: 'state',
-    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'exited', exitCode: 0 },
+    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'exited', exitCode: 0, origin: 'user', control: 'user' },
     writable: false,
   })
   emit(recorded, {
     type: 'state',
-    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'exited', exitCode: 0 },
+    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'exited', exitCode: 0, origin: 'user', control: 'user' },
     writable: false,
   })
   expect(exits).toEqual([0])
@@ -248,7 +248,7 @@ test('a screen model that can take a checkpoint is offered its own size', async 
     type: 'snapshot',
     sequence: 0,
     screen: 'wide 你好',
-    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 40, rows: 12, state: 'running', exitCode: null },
+    info: { id: recorded.created[0]!.id as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 40, rows: 12, state: 'running', exitCode: null, origin: 'user', control: 'user' },
     writable: true,
   })
 
@@ -280,7 +280,7 @@ test('a lost attachment re-attaches to the same terminal and replays the screen'
     type: 'snapshot',
     sequence: 0,
     screen: 'restored $ ',
-    info: { id: identity as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'running', exitCode: null },
+    info: { id: identity as never, title: 'shell', shell: { path: '/bin/zsh', name: 'zsh', args: [] }, cwd: '/work', cols: 80, rows: 24, state: 'running', exitCode: null, origin: 'user', control: 'user' },
     writable: true,
   })
   expect(received.at(-1)).toBe('\u001b[0m\u001b[H\u001b[2Jrestored $ ')

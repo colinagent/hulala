@@ -255,6 +255,14 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return { consume: true }
     }
 
+    // Reopen (or put away) the question this Session is waiting on. It answers
+    // from the composer and the rail, but not from a focused column: `Ctrl-G`
+    // belongs to Neovim there, and a card is not worth stealing it.
+    if (matchesAction('app.interactions', data)) {
+      if (ctx.get('hulalaInteractions')?.toggle() === true) return { consume: true }
+      return undefined
+    }
+
     // The rail owns the keyboard while it has focus. Only keys belonging to the
     // whole client are taken here; everything else falls through to
     // `SessionRail.handleInput` (filter typing, `n`, `r`, arrows).

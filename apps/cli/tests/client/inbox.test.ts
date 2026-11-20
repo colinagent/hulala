@@ -34,3 +34,33 @@ test('keeps non-text occurrences but leaves injected context out', () => {
     followUp: [],
   })
 })
+
+test('a queued user-question-reply is reported by call id, not as a pending prompt', () => {
+  // DSH Web reconciles `userQuestions` against the inbox and skips a
+  // `continued` row whose reply is already queued. Without the call ids the
+  // terminal would reopen a card the user has just submitted.
+  expect(inboxOf({
+    'next-step': [
+      { id: 'r1', source: { kind: 'user-question-reply', callId: 'call-1' }, content: [{ type: 'text', text: 'Postgres' }] },
+      { id: 's1', source: { kind: 'user' }, content: [{ type: 'text', text: 'also this' }] },
+    ],
+    'next-turn': [
+      { id: 'r2', source: { kind: 'user-question-reply', callId: 'call-2' }, content: [{ type: 'text', text: 'SQLite' }] },
+      { id: 'r3', source: { kind: 'user-question-reply' }, content: [] },
+      // One call answered twice (two clients submitted before the row closed):
+      // the set is what keeps the reconcile idempotent.
+      { id: 'r4', source: { kind: 'user-question-reply', callId: 'call-1' }, content: [] },
+    ],
+  })).toEqual({
+    steering: [{ id: 's1', text: 'also this' }],
+    followUp: [],
+    replies: ['call-1', 'call-2'],
+  })
+})
+
+test('an inbox with no queued reply omits the reply list', () => {
+  expect(inboxOf({
+    'next-step': [{ id: 's1', source: { kind: 'user' }, content: [{ type: 'text', text: 'go on' }] }],
+    'next-turn': [],
+  })).toEqual({ steering: [{ id: 's1', text: 'go on' }], followUp: [] })
+})

@@ -2,9 +2,9 @@
  * View model: durable events → transcript items + metrics.
  *
  * Pure, terminal-free, and unit-testable. The reducer owns the transcript
- * items, the running/busy flag, the turn start time, and the token/speed
- * accumulator; the app owns the Session identity, cwd, model, and connection
- * state.
+ * items, the running/busy flag, the turn start time, and the readings the Host's
+ * projections publish; the app owns the Session identity, cwd, model, and
+ * connection state.
  *
  * Items keep the raw, still-uninterpreted record — a tool call holds its
  * argument JSON and flattened result text, a reasoning block holds its text —
@@ -14,7 +14,14 @@
  *
  * @module hulala-cli/tui/data/viewModel
  */
-import type { TerminalInbox, TerminalMetrics, TerminalPendingMessage, TerminalSessionEvent } from './remote.js'
+import type {
+  TerminalInbox,
+  TerminalMetrics,
+  TerminalPendingMessage,
+  TerminalSessionEvent,
+  TerminalSessionStats,
+  TerminalTokenUsage,
+} from './remote.js'
 
 /** Lifecycle of one tool call, matching the web client's row states. */
 export type ToolStatus = 'preparing' | 'running' | 'ok' | 'error' | 'stopped'
@@ -71,13 +78,6 @@ export interface PendingState {
   readonly steering: readonly TerminalPendingMessage[]
   /** `next-turn`: follow-up turns queued behind the running one. */
   readonly followUp: readonly TerminalPendingMessage[]
-}
-
-/** Token buckets DSH reports on one settled step. */
-export interface StepUsage {
-  inputTokens: number
-  outputTokens: number
-  cacheReadTokens?: number | undefined
 }
 
 /** Join the text blocks of one message or tool result. */
@@ -144,37 +144,12 @@ export function toolStatusOf(input: { isError?: boolean; errorCode?: string; met
 }
 
 export function emptyMetrics(): TerminalMetrics {
-  return { inputTokens: 0, cacheReadTokens: 0, outputTokens: 0, decodeMs: 0 }
+  return {}
 }
 
-export function usageOf(data: unknown): StepUsage | undefined {
-  if (data === null || typeof data !== 'object') return undefined
-  const usage = (data as { usage?: unknown }).usage
-  if (usage === null || typeof usage !== 'object') return undefined
-  const record = usage as Record<string, unknown>
-  const input = record.inputTokens
-  const output = record.outputTokens
-  if (typeof input !== 'number' || typeof output !== 'number') return undefined
-  const cache = record.cacheReadTokens
-  return {
-    inputTokens: input,
-    outputTokens: output,
-    ...(typeof cache === 'number' ? { cacheReadTokens: cache } : {}),
-  }
-}
-
-export function addUsage(metrics: TerminalMetrics, usage: StepUsage): TerminalMetrics {
-  return {
-    ...metrics,
-    inputTokens: metrics.inputTokens + usage.inputTokens,
-    cacheReadTokens: metrics.cacheReadTokens + (usage.cacheReadTokens ?? 0),
-    outputTokens: metrics.outputTokens + usage.outputTokens,
-  }
-}
-
-export function addDecode(metrics: TerminalMetrics, milliseconds: number): TerminalMetrics {
-  if (!(milliseconds > 0)) return metrics
-  return { ...metrics, decodeMs: metrics.decodeMs + milliseconds }
+/** Whole-session tokens: prompt-side buckets plus output, exactly DSH's stats total. */
+export function usageTotal(usage: TerminalTokenUsage): number {
+  return usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens + usage.outputTokens
 }
 
 /** Compact token count matching pi's footer: 950, 1.2k, 12k, 118k, 1.0M, 118M. */
@@ -186,27 +161,18 @@ export function formatTokens(count: number): string {
   return `${Math.round(count / 1000000)}M`
 }
 
-export function cacheHitPercent(metrics: TerminalMetrics): number | undefined {
-  const promptSide = metrics.inputTokens + metrics.cacheReadTokens
-  if (promptSide <= 0 || metrics.cacheReadTokens <= 0) return undefined
-  return Math.round((metrics.cacheReadTokens / promptSide) * 100)
-}
-
+/**
+ * Provider output speed over decode-timed steps, the figure DSH's stats table reports.
+ *
+ * Both operands must come from the Host: a client that times the deltas it
+ * happens to receive counts a step's provider output against only the part of
+ * its generation it could see.
+ */
 export function tokensPerSecond(metrics: TerminalMetrics): number | undefined {
-  if (metrics.decodeMs <= 0 || metrics.outputTokens <= 0) return undefined
-  return (metrics.outputTokens / metrics.decodeMs) * 1_000
-}
-
-/** Compose the readings joined by separators, or an empty string. */
-export function metricsText(metrics: TerminalMetrics): string {
-  const readings: string[] = []
-  const speed = tokensPerSecond(metrics)
-  if (speed !== undefined) readings.push(`${speed.toFixed(1)} tok/s`)
-  const cache = cacheHitPercent(metrics)
-  if (cache !== undefined) readings.push(`${cache}% cache`)
-  const total = metrics.inputTokens + metrics.cacheReadTokens + metrics.outputTokens
-  if (total > 0) readings.push(`${formatTokens(total)} tokens`)
-  return readings.join(' · ')
+  const tokens = metrics.decodeTokens
+  const milliseconds = metrics.decodeMs
+  if (tokens === undefined || milliseconds === undefined || tokens <= 0 || milliseconds <= 0) return undefined
+  return (tokens / milliseconds) * 1_000
 }
 
 interface ToolTracking {
@@ -243,7 +209,6 @@ export class ViewModelReducer {
   turnStartedAt: number | undefined
   /** Both durable pending lists, mirrored from the `inbox` projection. */
   pending: PendingState = { steering: [], followUp: [] }
-  private decodeStartedAt = 0
   /** Index of the first item the live attempt streamed; -1 outside an attempt. */
   private attemptStart = -1
   private readonly toolCalls = new Map<string, ToolTracking>()
@@ -264,7 +229,6 @@ export class ViewModelReducer {
     this.steps = 0
     this.turnStartedAt = undefined
     this.pending = { steering: [], followUp: [] }
-    this.decodeStartedAt = 0
     this.attemptStart = -1
     this.toolCalls.clear()
     this.commands.clear()
@@ -278,6 +242,16 @@ export class ViewModelReducer {
       ...(tokens === undefined ? {} : { contextTokens: tokens }),
       ...(limit === undefined ? {} : { contextLimit: limit }),
     }
+  }
+
+  /** Record decode timing from the Host's `sessionStats` projection. */
+  setSessionStats(stats: TerminalSessionStats): void {
+    this.metrics = { ...this.metrics, decodeTokens: stats.decodeTokens, decodeMs: stats.decodeMs }
+  }
+
+  /** Record the whole-log token total from the Host's `tokenUsage` projection. */
+  setTokenUsage(usage: TerminalTokenUsage): void {
+    this.metrics = { ...this.metrics, totalTokens: usageTotal(usage) }
   }
 
   /** Replace both pending lists from the Host's `inbox` projection. */
@@ -315,7 +289,6 @@ export class ViewModelReducer {
 
   applyDelta(text: string): void {
     if (text === '') return
-    if (this.decodeStartedAt === 0) this.decodeStartedAt = Date.now()
     const last = this.items[this.items.length - 1]
     if (last === undefined || last.kind !== 'assistant' || !last.streaming) {
       this.sealStreaming()
@@ -327,10 +300,6 @@ export class ViewModelReducer {
   }
 
   endStream(): void {
-    if (this.decodeStartedAt !== 0) {
-      this.metrics = addDecode(this.metrics, Date.now() - this.decodeStartedAt)
-      this.decodeStartedAt = 0
-    }
     this.sealStreaming()
   }
 
@@ -360,8 +329,6 @@ export class ViewModelReducer {
         return
       }
       case 'assistant/message': {
-        const usage = usageOf(event.data)
-        if (usage !== undefined) this.metrics = addUsage(this.metrics, usage)
         const content = (event.data as { message?: { content?: unknown } }).message?.content
         this.settleAttempt(content, event.time)
         return
@@ -470,14 +437,6 @@ export class ViewModelReducer {
         if (text.trim() !== '') this.items.push({ kind: 'summary', text, time: event.time })
         return
       }
-      case 'request/context': {
-        // The model route advertises its context window once a request binds it.
-        const contextWindow = (event.data as { contextWindow?: unknown }).contextWindow
-        if (typeof contextWindow === 'number' && contextWindow > 0) {
-          this.metrics = { ...this.metrics, contextLimit: contextWindow }
-        }
-        return
-      }
       case 'step/end': {
         this.attemptStart = -1
         this.steps += 1
@@ -529,7 +488,7 @@ export class ViewModelReducer {
     this.pending = { steering: keep(this.pending.steering), followUp: keep(this.pending.followUp) }
   }
 
-  /** Close whichever item is currently streaming without ending decode timing. */
+  /** Close whichever item is currently streaming. */
   private sealStreaming(): void {
     const last = this.items[this.items.length - 1]
     if (last === undefined) return

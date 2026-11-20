@@ -809,6 +809,41 @@ local function explorer(opts)
   end
 end
 
+-- The tree's own prompt -- \`a\` for a new entry, \`c\` for "Copy to" -- is a
+-- floating window of its own, not part of the picker's layout, so the layout
+-- closing leaves it on screen while it still holds the keyboard: \`Space\`+\`e\`
+-- puts the tree away, and the box stays, and the next keypress goes into it.
+-- The prompt belongs to the tree's panel, so it goes whenever the tree does,
+-- whichever key or click closed it.
+if snacks_ready then
+  ---@param win integer
+  local function tree_prompt(win)
+    if win == 0 or not vim.api.nvim_win_is_valid(win) then return false end
+    return vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "snacks_input"
+  end
+
+  local function close_tree_prompt()
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if tree_prompt(win) then pcall(vim.api.nvim_win_close, win, true) end
+    end
+  end
+
+  local function tree_open()
+    local ok, pickers = pcall(Snacks.picker.get, { source = "explorer" })
+    return ok and pickers ~= nil and #pickers > 0
+  end
+
+  -- The tree's windows and the picker that owns them go away together, so the
+  -- question "is the tree still open" is only answerable after the close.
+  vim.api.nvim_create_autocmd("WinClosed", {
+    callback = function()
+      vim.schedule(function()
+        if not tree_open() then close_tree_prompt() end
+      end)
+    end,
+  })
+end
+
 vim.keymap.set("n", "<leader>e", function() explorer({ cwd = vim.fn.getcwd() }) end, { desc = "File tree" })
 vim.keymap.set("n", "<leader>E", function() explorer() end, { desc = "File tree (current)" })
 if snacks_ready then
