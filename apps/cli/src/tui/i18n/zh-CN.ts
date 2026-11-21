@@ -244,7 +244,6 @@ export const zhCN: MessageTable = {
   'pending.editHint': '↳ alt+up 回收全部待发消息',
 
   'rail.search': '搜索',
-  'rail.hostLocal': ({ host }) => `${host} · 本机`,
   'rail.newRow': '+ 新会话',
   'rail.newLabel': '新会话',
   'rail.more': ({ hidden }) => `↓ 更多 · ${hidden}`,

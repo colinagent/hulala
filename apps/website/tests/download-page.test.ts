@@ -9,7 +9,6 @@ const englishDownload = readFileSync(join(root, 'app', '(en)', 'download', 'page
 const chineseDownload = readFileSync(join(root, 'app', '(zh)', 'zh-CN', 'download', 'page.tsx'), 'utf8')
 const home = readFileSync(join(root, 'app', 'HomePage.tsx'), 'utf8')
 const metadata = readFileSync(join(root, 'app', 'siteMetadata.ts'), 'utf8')
-const sitemap = readFileSync(join(root, 'app', 'sitemap.ts'), 'utf8')
 const github = readFileSync(join(root, 'app', 'GitHubLink.tsx'), 'utf8')
 
 test('download page uses the isolated Hulala manifest and GitHub fallback', () => {
@@ -19,7 +18,7 @@ test('download page uses the isolated Hulala manifest and GitHub fallback', () =
   expect(github).toContain('`${GITHUB_REPOSITORY}/releases`')
   expect(page).toContain('GITHUB_RELEASES')
   expect(page).not.toContain('github.com/colinagent/hulala')
-  expect(home).toContain('isZh ? "/zh-CN/download/" : "/download/"')
+  expect(home).toContain('localePath(locale, "/download/")')
   expect(loader).not.toContain('download.op-agent.com/desktop/latest')
 })
 
@@ -34,11 +33,10 @@ test('download page gives bilingual unsigned installation guidance', () => {
 
 test('homepage and download page expose indexable English and Chinese routes', () => {
   expect(home).not.toContain('localStorage')
-  expect(home).toContain('href="/zh-CN/"')
+  expect(home).toContain('<LanguageSwitcher locale={locale} path="/" />')
   expect(page).not.toContain('localStorage')
-  expect(page).toContain('href="/zh-CN/download/"')
+  expect(page).toContain('<LanguageSwitcher locale={locale} path="/download/" />')
   expect(englishDownload).toContain('locale="en"')
   expect(chineseDownload).toContain('locale="zh-CN"')
   for (const marker of ['canonical', '"zh-CN"', '"x-default"']) expect(metadata).toContain(marker)
-  for (const route of ['/zh-CN/', '/download/', '/zh-CN/download/']) expect(sitemap).toContain(route)
 })

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import type { SiteLocale } from "./HomePage";
+import { blogCopy } from "./blog/copy";
+import type { SiteLocale } from "./i18n";
+import { blogPath, localePath } from "./i18n";
 
 type PageKind = "home" | "download";
 
@@ -28,8 +30,7 @@ const metadataCopy = {
 } as const;
 
 const localizedPath = (locale: SiteLocale, page: PageKind): string => {
-  if (locale === "zh-CN") return page === "home" ? "/zh-CN/" : "/zh-CN/download/";
-  return page === "home" ? "/" : "/download/";
+  return localePath(locale, page === "home" ? "/" : "/download/");
 };
 
 const requestOrigin = async (): Promise<string> => {
@@ -76,5 +77,79 @@ export async function buildSiteMetadata(locale: SiteLocale, page: PageKind): Pro
       description: copy.description,
       images: [socialImage],
     },
+  };
+}
+/** What a blog page's metadata needs: the index, or one post's own facts. */
+export type BlogMetadataInput =
+  | { readonly kind: "index" }
+  | {
+      readonly kind: "post";
+      readonly slug: string;
+      readonly title: string;
+      readonly description: string;
+      readonly date: string;
+      readonly version: string;
+    };
+
+/**
+ * Metadata for the blog index and for one post.
+ *
+ * A post's canonical URL is its slug in the language being read, and the
+ * alternate points at the same slug in the other language — the two files are
+ * one page in two languages, not two unrelated articles. An article also carries
+ * its publication date, because the index is a reverse-chronological list and a
+ * reader should be able to tell when a release was written about.
+ * @param locale - the language of the page being rendered.
+ * @param input - which page, and for a post its title, description and date.
+ * @returns the page metadata, matching the copy the page itself renders.
+ */
+export async function buildBlogMetadata(locale: SiteLocale, input: BlogMetadataInput): Promise<Metadata> {
+  const origin = await requestOrigin();
+  const copy = blogCopy[locale];
+  const canonicalPath = input.kind === "index" ? blogPath(locale) : blogPath(locale, input.slug);
+  const canonical = new URL(canonicalPath, origin).toString();
+  const englishUrl = new URL(input.kind === "index" ? blogPath("en") : blogPath("en", input.slug), origin).toString();
+  const chineseUrl = new URL(input.kind === "index" ? blogPath("zh-CN") : blogPath("zh-CN", input.slug), origin).toString();
+  const socialImage = new URL("/og.png", origin).toString();
+  const title = input.kind === "index" ? copy.metaTitle : `${input.title} — Hulala`;
+  const description = input.kind === "index" ? copy.metaDescription : input.description;
+  const shared = {
+    siteName: "Hulala",
+    locale: locale === "zh-CN" ? "zh_CN" : "en_US",
+    alternateLocale: [locale === "zh-CN" ? "en_US" : "zh_CN"],
+  };
+
+  return {
+    title,
+    description,
+    icons: { icon: "/logo.svg?v=flywheel-brand-1" },
+    alternates: {
+      canonical,
+      languages: { en: englishUrl, "zh-CN": chineseUrl, "x-default": englishUrl },
+    },
+    openGraph:
+      input.kind === "index"
+        ? {
+            type: "website",
+            url: canonical,
+            ...shared,
+            title,
+            description,
+            images: [{ url: socialImage, width: 1734, height: 907, alt: title }],
+          }
+        : {
+            type: "article",
+            url: canonical,
+            ...shared,
+            title,
+            description,
+            publishedTime: input.date,
+            modifiedTime: input.date,
+            section: "Release",
+            // The release the post is about, not a tag system: one post, one tag.
+            tags: [`v${input.version}`],
+            images: [{ url: socialImage, width: 1734, height: 907, alt: title }],
+          },
+    twitter: { card: "summary_large_image", title, description, images: [socialImage] },
   };
 }

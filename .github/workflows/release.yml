@@ -43,6 +43,11 @@ jobs:
       # version whose changelog section already exists.
       - name: Check the changelog section for this tag
         run: bun scripts/release/changelog.ts check --version "${GITHUB_REF_NAME#hulala-v}"
+      # The blog is part of the release: a tag whose post does not exist in both
+      # languages fails here, before four platform builds, instead of publishing a
+      # release whose explanation appears later or never.
+      - name: Check the blog post for this tag
+        run: bun scripts/release/blog.ts --version "${GITHUB_REF_NAME#hulala-v}"
       - name: Package Hulala
         run: bun scripts/release/packageRelease.ts --target ${{ matrix.target }} --output dist/release
       - uses: actions/upload-artifact@v4

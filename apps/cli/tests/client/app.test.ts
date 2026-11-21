@@ -416,13 +416,23 @@ test('TTY mode puts the Session directory on the window title', async () => {
   let text = ''
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
-  // Started in `/launch`; the Session the Host lists works in `/workspace`.
-  const run = runTerminalClient({ backend: fake.backend, cwd: '/launch', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
-  await waitFor(() => text.includes('\u001b]0;Hulala - workspace\u0007'), 'window title')
-  // The Host names the Session after its first turn; the name joins the title
-  // behind the directory and cannot end the OSC sequence early.
+  // Started in `/launch`; the Session the Host lists works in `/workspace`. The
+  // machine is injected: a remote tab names it, and it must not depend on whoever
+  // runs this suite.
+  const run = runTerminalClient({
+    backend: fake.backend,
+    cwd: '/launch',
+    input,
+    output,
+    resume: 'session-1234',
+    machine: { user: 'root', host: 'dev' },
+    escapeTimeoutMs: 20,
+  })
+  await waitFor(() => text.includes('\u001b]0;root@dev:workspace - Hulala\u0007'), 'window title')
+  // The Host names the Session after its first turn; the name hangs off the
+  // product name and cannot end the OSC sequence early.
   fake.handlers?.onEvent({ type: 'session/title', seq: 4, time: Date.now(), data: { title: 'Fix the composer\u0007' } })
-  await waitFor(() => text.includes('\u001b]0;Hulala - workspace - Fix the composer \u0007'), 'named window title')
+  await waitFor(() => text.includes('\u001b]0;root@dev:workspace - Hulala:Fix the composer \u0007'), 'named window title')
   input.write('/quit\r')
   await expect(run).resolves.toBe(0)
 })
@@ -2087,6 +2097,10 @@ function startPtyTty(
     escapeTimeoutMs: 20,
     ...(options.pty === undefined ? {} : { pty: options.pty }),
     ...(options.remote === undefined ? {} : { remote: options.remote }),
+    // A remote tab names a machine; fixing it here keeps the suite from shelling
+    // out to ssh for a title it never asserts. A local window names none, which
+    // is the default and needs no injection.
+    ...(options.remote === undefined ? {} : { machine: { user: 'root', host: options.remote } }),
   })
   cleanups.push(async () => {
     // Leave even when an assertion threw: a dirty editor needs the dialog's

@@ -382,9 +382,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     },
     remote: async argument => {
       // No argument opens the picker; `local` comes back to this machine, and an
-      // alias is the same choice the sidebar's host row offers. Read lazily: the
-      // switcher is registered after this plugin, so naming it in `inject` would
-      // make two plugins wait for each other.
+      // alias is one of the machines the picker lists. Read lazily: the switcher
+      // is registered after this plugin, so naming it in `inject` would make two
+      // plugins wait for each other.
       const remote = ctx.get('hulalaRemote')
       if (remote === undefined) {
         reducer.addNotice(t('error.unknownCommand', { command: 'remote' }))

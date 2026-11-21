@@ -1,5 +1,6 @@
 import type { DesktopReleaseAsset, DesktopReleaseManifest } from "@hulala/desktop-contracts/release-manifest";
-import type { SiteLocale } from "../HomePage";
+import LanguageSwitcher from "../LanguageSwitcher";
+import { localePath, type SiteLocale } from "../i18n";
 import GitHubLink, { GITHUB_RELEASES } from "../GitHubLink";
 import WebInstallCommand from "../WebInstallCommand";
 
@@ -99,12 +100,12 @@ function Notice({ title, body, steps, note, links }: { title: string; body: stri
 export default function DownloadPageClient({ release, locale }: { release: DesktopReleaseManifest | null; locale: SiteLocale }) {
   const isZh = locale === "zh-CN";
   const t = isZh ? copy.zh : copy.en;
-  const homeHref = isZh ? "/zh-CN/" : "/";
+  const homeHref = localePath(locale, "/");
   return (
     <main className="download-page" data-locale={isZh ? "zh" : "en"}>
       <header className="site-header download-header">
         <a className="brand" href={homeHref}><img src="/logo-mark.svg" alt=""/><span>Hulala</span></a>
-        <div className="header-actions"><GitHubLink label="GitHub" accessibleName={isZh ? "在 GitHub 上打开 Hulala 仓库" : "Open the Hulala repository on GitHub"} /><nav className="language-switcher static-glass" aria-label={isZh ? "语言" : "Language"}><a className={!isZh ? "active" : ""} aria-current={!isZh ? "page" : undefined} href="/download/" hrefLang="en" lang="en">EN</a><span/><a className={isZh ? "active" : ""} aria-current={isZh ? "page" : undefined} href="/zh-CN/download/" hrefLang="zh-CN" lang="zh-CN">中文</a></nav></div>
+        <div className="header-actions"><GitHubLink label="GitHub" accessibleName={isZh ? "在 GitHub 上打开 Hulala 仓库" : "Open the Hulala repository on GitHub"} /><LanguageSwitcher locale={locale} path="/download/" /></div>
       </header>
       <WebInstallCommand locale={locale} />
       <section className="download-hero"><p className="section-label">{t.eyebrow}</p><h1>{t.title}</h1><p>{t.intro}</p>{release ? <div className="release-meta"><span>{t.version} {release.version}</span><span>{t.published} {new Date(release.publishedAt).toLocaleDateString(isZh ? "zh-CN" : "en-US")}</span></div> : null}</section>

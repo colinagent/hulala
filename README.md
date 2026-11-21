@@ -470,6 +470,7 @@ present in the installed file.
 apps/cli        terminal client, plugin host, program lifecycle
 apps/server     Hulala Host daemon shell (DSH webServer + connection)
 apps/website    public website and download metadata
+blog            one release post per version, in English and Chinese
 packages/runtime     DSH profile boot plus this repository's profile overrides
 packages/host-client discovery, detached startup, shared client contract
 packages/desktop-contracts  the Host/client wire contract and state-root paths

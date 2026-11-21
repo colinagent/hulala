@@ -4,6 +4,7 @@ import { createServer } from 'node:net'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { createRequire } from 'node:module'
 import { spawn } from 'node:child_process'
+import { loadPosts } from '../app/blog/posts'
 import { runOrThrow } from '../../../scripts/lib/process'
 
 const website = resolve(import.meta.dirname, '..')
@@ -37,12 +38,19 @@ try {
     await sleep(100)
   }
   if (!ready) throw new Error('Website rendering server did not become ready')
-  for (const route of ['/', '/download/', '/zh-CN/', '/zh-CN/download/', '/robots.txt', '/sitemap.xml']) {
+  // The blog is data, not a fixed route list: every release post is one page per
+  // language, and a post the site did not pre-render would 404 on the deployed
+  // static assets. The same loader the pages use decides which routes exist.
+  const blogRoutes = (await loadPosts()).flatMap((post) => [`/blog/${post.slug}/`, `/zh-CN/blog/${post.slug}/`])
+  const routes = ['/', '/download/', '/zh-CN/', '/zh-CN/download/', '/blog/', '/zh-CN/blog/', ...blogRoutes, '/robots.txt', '/sitemap.xml']
+  for (const route of routes) {
     const response = await fetch(`http://127.0.0.1:${port}${route}`, { headers: { host: 'hulala.ai', 'x-forwarded-proto': 'https' } })
     const content = await response.text()
     if (!response.ok || content.includes(`127.0.0.1:${port}`)) throw new Error('Invalid rendered route: ' + route)
-    if (route.endsWith('/') && (!content.includes('https://hulala.ai/install.sh') || !content.includes('Hulala'))) throw new Error('Missing terminal installation instructions')
+    const isBlog = route === '/blog/' || route === '/zh-CN/blog/' || blogRoutes.includes(route)
+    if (route.endsWith('/') && !isBlog && (!content.includes('https://hulala.ai/install.sh') || !content.includes('Hulala'))) throw new Error('Missing terminal installation instructions')
     if (route.includes('/download/') && !content.includes('https://downloads.hulala.ai/hulala/desktop/')) throw new Error('Desktop download metadata was unavailable or still points to the old storage')
+    if (isBlog && (!content.includes('data-blog-page=') || !content.includes('class="site-header"'))) throw new Error('Blog route rendered without its page shell: ' + route)
     const path = route.endsWith('/') ? join(output, route, 'index.html') : join(output, route)
     await mkdir(resolve(path, '..'), { recursive: true })
     await writeFile(path, content)

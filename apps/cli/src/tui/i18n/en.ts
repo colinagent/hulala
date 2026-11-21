@@ -243,7 +243,6 @@ export const en: MessageTable = {
   'pending.editHint': '↳ alt+up to edit all queued messages',
 
   'rail.search': 'search',
-  'rail.hostLocal': ({ host }) => `${host} · local`,
   'rail.newRow': '+ new session',
   'rail.newLabel': 'new session',
   'rail.more': ({ hidden }) => `↓ More · ${hidden}`,

@@ -108,10 +108,10 @@ img { display: block; }
   position: absolute;
   z-index: -1;
 }
-.language-switcher { align-items: center; border-radius: 999px; display: inline-flex; min-height: 46px; padding: 0 13px; }
-.language-switcher a, .language-switcher button { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 650; padding: 7px 6px; transition: color .15s ease; }
-.language-switcher a:hover, .language-switcher a:focus-visible, .language-switcher a.active, .language-switcher button:hover, .language-switcher button:focus-visible, .language-switcher button.active { color: var(--ink); }
-.language-switcher > span { background: var(--line); height: 12px; margin: 0 3px; width: 1px; }
+/* One link, one click: the control names the language it leads to, and the page
+   itself is the current language, so there is no second, dead target to press. */
+.language-switcher { align-items: center; border-radius: 999px; color: var(--ink); display: inline-flex; flex: 0 0 auto; font-size: 12px; font-weight: 650; justify-content: center; min-height: 46px; padding: 0 12px; transition: color .15s ease; white-space: nowrap; }
+.language-switcher:hover, .language-switcher:focus-visible { color: var(--clay); }
 
 .kicker, .section-label {
   color: var(--muted);
@@ -306,7 +306,7 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
 }
 
 @media (max-width: 720px) {
-  .site-header { grid-template-columns: 1fr auto; height: 74px; padding: 0 18px; }.header-actions { gap: 6px; }.button-small { font-size: 11px; gap: 9px; min-height: 40px; padding: 0 10px; }.github-link { gap: 0; padding: 0 11px; }.github-link span { display: none; }.language-switcher { min-height: 40px; padding: 0 7px; }.language-switcher a, .language-switcher button { font-size: 10px; padding-left: 3px; padding-right: 3px; }
+  .site-header { grid-template-columns: 1fr auto; height: 74px; padding: 0 18px; }.header-actions { gap: 6px; }.button-small { font-size: 11px; gap: 9px; min-height: 40px; padding: 0 10px; }.github-link { gap: 0; padding: 0 11px; }.github-link span { display: none; }.language-switcher { font-size: 10px; min-height: 40px; padding: 0 9px; }
   .hero { padding: 52px 18px 76px; }.hero-head h1 { font-size: 46px; margin: 22px 0 20px; }.hero-subtitle { font-size: 21px; }.hero-lede { font-size: 13px; }.hero-grid { gap: 32px; margin-top: 32px; }.hero-actions { align-items: flex-start; flex-direction: column; gap: 18px; }.field-note { margin-top: 65px; }.field-note-head { grid-template-columns: 1fr auto; }.field-note-head > span:nth-child(2) { display: none; }.field-note-body { grid-template-columns: 35px 1fr; min-height: 480px; }.year-index { font-size: 5px; }.year-index i { height: 27px; }.note-page { padding: 43px 24px 25px; }.note-page h2 { font-size: 39px; }.practice-log { grid-template-columns: 1fr; }.practice-log > div { border-bottom: 1px solid var(--line); border-right: 0; padding: 10px 0 !important; }.practice-log > div:last-child { border-bottom: 0; }.note-footer > span:last-child { display: none; }
   main[data-locale="en"] .hero-head h1 { font-size: 38px; }
   main[data-locale="zh"] .hero-head h1 { font-size: 44px; }
@@ -362,3 +362,76 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
   .hero-grid { gap: 34px; grid-template-columns: 1fr; }
   .hero-shot { order: -1; }
 }
+
+/* The blog: prose, not a product surface. A release post is read once, by
+   someone deciding whether the update is worth installing, so the index is a
+   reverse-chronological list of value sentences and a post is a single narrow
+   column. Only the header, the footer and the install button are borrowed from
+   the product pages; the body has its own rhythm. */
+.blog-hero { border-bottom: 1px solid var(--ink); margin: 0 auto; max-width: 1440px; padding: 105px 40px 80px; }
+.blog-hero h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(54px, 6.5vw, 96px); font-weight: 400; letter-spacing: -.06em; line-height: .94; margin: 34px 0; }
+.blog-hero h1 em { color: var(--moss); font-weight: 400; }
+.blog-hero > p:last-child { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 0; max-width: 760px; }
+.blog-list { margin: 0 auto; max-width: 1120px; padding: 30px 40px 120px; }
+.blog-row { border-bottom: 1px solid var(--line); display: grid; gap: 40px; grid-template-columns: 190px minmax(0, 1fr); padding: 44px 0; transition: border-color .15s ease; }
+.blog-row:hover { border-color: var(--ink); }
+.blog-row-meta { color: var(--muted); display: flex; flex-direction: column; font-size: 10px; gap: 9px; letter-spacing: .06em; padding-top: 9px; text-transform: uppercase; }
+.blog-row-meta span { color: var(--moss); }
+.blog-row-body h2 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.04em; line-height: 1.15; margin: 0 0 14px; transition: color .15s ease; }
+.blog-row:hover h2, .blog-row:focus-visible h2 { color: var(--moss); }
+.blog-row-body p { color: var(--muted); font-size: 13px; line-height: 1.75; margin: 0 0 18px; max-width: 660px; }
+.blog-read { border-bottom: 1px solid currentColor; color: var(--moss); font-size: 10px; letter-spacing: .08em; padding-bottom: 5px; text-transform: uppercase; }
+.blog-empty { color: var(--muted); font-size: 14px; line-height: 1.8; max-width: 640px; }
+.blog-post { margin: 0 auto; max-width: 840px; padding: 100px 40px 90px; }
+.blog-post-meta { color: var(--moss); letter-spacing: .12em; }
+.blog-post h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(42px, 5.4vw, 66px); font-weight: 400; letter-spacing: -.055em; line-height: 1.02; margin: 30px 0 26px; }
+.blog-lede { color: var(--muted); font-family: Georgia, "Times New Roman", serif; font-size: clamp(19px, 1.6vw, 22px); line-height: 1.6; margin: 0 0 54px; }
+.blog-prose { border-top: 1px solid var(--ink); padding-top: 44px; }
+.blog-prose h2 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(26px, 2.6vw, 34px); font-weight: 400; letter-spacing: -.04em; line-height: 1.2; margin: 56px 0 18px; }
+.blog-prose h2:first-child { margin-top: 0; }
+.blog-prose h3 { font-size: 18px; font-weight: 650; letter-spacing: -.01em; margin: 38px 0 14px; }
+.blog-prose p, .blog-prose li { font-size: 14.5px; line-height: 1.85; }
+.blog-prose p { margin: 0 0 22px; }
+.blog-prose ul, .blog-prose ol { margin: 0 0 24px; padding-left: 22px; }
+.blog-prose li { margin: 0 0 10px; }
+.blog-prose code { background: var(--paper-deep); border: 1px solid var(--line); border-radius: 4px; font-size: .88em; padding: 1px 5px; }
+.blog-prose pre { background: var(--moss-dark); border-radius: 10px; color: var(--paper-light); margin: 0 0 26px; overflow-x: auto; padding: 18px 20px; }
+.blog-prose pre code { background: none; border: 0; color: inherit; font-size: 12.5px; line-height: 1.7; padding: 0; }
+.blog-prose blockquote { border-left: 2px solid var(--moss); margin: 0 0 26px; padding: 4px 0 4px 20px; }
+.blog-prose blockquote p { color: var(--moss); font-family: Georgia, "Times New Roman", serif; font-style: italic; margin: 0 0 10px; }
+.blog-prose a { border-bottom: 1px solid currentColor; color: var(--moss); }
+.blog-prose hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
+.blog-post-footer { align-items: center; border-top: 1px solid var(--line); display: flex; gap: 24px; justify-content: space-between; margin-top: 70px; padding-top: 30px; }
+.blog-post-footer > a:first-child { color: var(--muted); font-size: 11px; letter-spacing: .06em; }
+main[data-locale="zh"] .blog-hero h1,
+main[data-locale="zh"] .blog-row-body h2,
+main[data-locale="zh"] .blog-post h1,
+main[data-locale="zh"] .blog-lede,
+main[data-locale="zh"] .blog-prose h2,
+main[data-locale="zh"] .blog-prose blockquote p { font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; letter-spacing: -.02em; }
+main[data-locale="zh"] .blog-post h1 { font-size: clamp(34px, 4.2vw, 54px); line-height: 1.18; }
+main[data-locale="zh"] .blog-prose p, main[data-locale="zh"] .blog-prose li { font-size: 15.5px; line-height: 1.9; }
+@media (max-width: 720px) {
+  .blog-hero { padding: 70px 18px 60px; }.blog-hero h1 { font-size: 44px; }
+  .blog-list { padding: 10px 18px 90px; }.blog-row { gap: 14px; grid-template-columns: 1fr; padding: 34px 0; }
+  .blog-row-meta { flex-direction: row; gap: 18px; padding-top: 0; }
+  .blog-post { padding: 64px 18px 70px; }.blog-post h1 { font-size: 38px; }.blog-lede { margin-bottom: 40px; }
+  .blog-prose { padding-top: 34px; }.blog-prose p, .blog-prose li { font-size: 15.5px; }
+  .blog-post-footer { align-items: flex-start; flex-direction: column-reverse; margin-top: 54px; }
+}
+
+/* A post's breadcrumb is the same trail the JSON-LD describes, so the structured
+   data and the page never disagree about where the reader is. */
+.blog-breadcrumb { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: 10px; gap: 8px; letter-spacing: .06em; margin: 0 0 26px; text-transform: uppercase; }
+.blog-breadcrumb a { transition: color .15s ease; }
+.blog-breadcrumb a:hover, .blog-breadcrumb a:focus-visible { color: var(--ink); }
+.blog-breadcrumb span[aria-current] { color: var(--ink); letter-spacing: normal; text-transform: none; }
+/* Earlier releases, at the foot of a post: where a reader goes next. */
+.blog-more { border-top: 1px solid var(--line); margin: 0 auto; max-width: 840px; padding: 34px 40px 90px; }
+.blog-more ul { border-top: 1px solid var(--ink); list-style: none; margin: 18px 0 0; padding: 0; }
+.blog-more li { border-bottom: 1px solid var(--line); }
+.blog-more a { align-items: baseline; display: flex; gap: 18px; font-family: Georgia, "Times New Roman", serif; font-size: 19px; letter-spacing: -.02em; padding: 18px 0; transition: color .15s ease; }
+.blog-more a > span { color: var(--moss); font-family: Inter, ui-sans-serif, sans-serif; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.blog-more a:hover, .blog-more a:focus-visible { color: var(--moss); }
+main[data-locale="zh"] .blog-more a { font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; }
+@media (max-width: 720px) { .blog-more { padding: 28px 18px 70px; }.blog-more a { gap: 12px; font-size: 17px; } }

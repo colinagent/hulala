@@ -1,10 +1,10 @@
 import GitHubLink, { GITHUB_REPOSITORY } from "./GitHubLink";
+import LanguageSwitcher from "./LanguageSwitcher";
 import WebInstallCommand from "./WebInstallCommand";
+import { localePath, type SiteLocale } from "./i18n";
 
 const WEBSITE_LOGO_SRC = "/logo-mark.svg?v=flywheel-brand-2";
 const WEBSITE_LOGO_MARK_SRC = "/logo-mark.svg?v=flywheel-brand-1";
-
-export type SiteLocale = "en" | "zh-CN";
 
 const translations = {
   en: {
@@ -17,6 +17,7 @@ const translations = {
     },
     nav: ["The terminal", "The screens", "Another machine", "What we refuse"],
     cta: "Install Hulala",
+    blog: "Blog",
     hero: {
       kicker: "HULALA · TERMINAL CLIENT ON DEEPSEEK HARNESS",
       titleLead: "Close the window.",
@@ -116,6 +117,7 @@ const translations = {
     },
     nav: ["终端", "截图", "另一台机器", "我们不做什么"],
     cta: "安装 Hulala",
+    blog: "博客",
     hero: {
       kicker: "HULALA · 基于 DEEPSEEK HARNESS 的终端客户端",
       titleLead: "关掉窗口，",
@@ -210,8 +212,8 @@ const translations = {
 export default function HomePage({ locale }: { locale: SiteLocale }) {
   const isZh = locale === "zh-CN";
   const t = isZh ? translations.zh : translations.en;
-  const homeHref = isZh ? "/zh-CN/" : "/";
-  const downloadHref = isZh ? "/zh-CN/download/" : "/download/";
+  const homeHref = localePath(locale, "/");
+  const downloadHref = localePath(locale, "/download/");
 
   return (
     <main id="top" data-locale={isZh ? "zh" : "en"}>
@@ -225,14 +227,11 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
           <a href="#screens">{t.nav[1]}</a>
           <a href="#remote">{t.nav[2]}</a>
           <a href="#principles">{t.nav[3]}</a>
+          <a href={localePath(locale, "/blog/")}>{t.blog}</a>
         </nav>
         <div className="header-actions">
           <GitHubLink label={t.github.label} accessibleName={t.github.headerAria} />
-          <nav className="language-switcher static-glass" aria-label={isZh ? "语言" : "Language"}>
-            <a className={!isZh ? "active" : ""} aria-current={!isZh ? "page" : undefined} href="/" hrefLang="en" lang="en">EN</a>
-            <span />
-            <a className={isZh ? "active" : ""} aria-current={isZh ? "page" : undefined} href="/zh-CN/" hrefLang="zh-CN" lang="zh-CN">中文</a>
-          </nav>
+          <LanguageSwitcher locale={locale} path="/" />
           <a className="button static-glass button-small" href={downloadHref}>{t.cta} <span aria-hidden="true">↗</span></a>
         </div>
       </header>
@@ -372,7 +371,7 @@ export default function HomePage({ locale }: { locale: SiteLocale }) {
         <a className="closing-github" href={GITHUB_REPOSITORY} rel="noreferrer" target="_blank">{t.closing.github} <span aria-hidden="true">↗</span></a>
       </section>
 
-      <footer><a className="brand" href={homeHref} aria-label="Hulala home"><img src={WEBSITE_LOGO_SRC} alt="" /><span>Hulala</span></a><p>{t.footerSlogan}</p><div><span>Terminal · macOS & Linux</span><a href={GITHUB_REPOSITORY} rel="noreferrer" target="_blank">{t.github.footer}</a><span>hello@hulala.ai</span></div></footer>
+      <footer><a className="brand" href={homeHref} aria-label="Hulala home"><img src={WEBSITE_LOGO_SRC} alt="" /><span>Hulala</span></a><p>{t.footerSlogan}</p><div><span>Terminal · macOS & Linux</span><a href={localePath(locale, "/blog/")}>{t.blog}</a><a href={GITHUB_REPOSITORY} rel="noreferrer" target="_blank">{t.github.footer}</a><span>hello@hulala.ai</span></div></footer>
     </main>
   );
 }

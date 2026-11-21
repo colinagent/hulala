@@ -29,6 +29,7 @@ import { editorThemeFromTerminal } from '@hulala/editor-home'
 import { FULL_ACCESS_PRESET, permissionLabel } from './view/permission.js'
 import type { PtyModule } from './editor/pty.js'
 import { resolvePaths } from '../paths.js'
+import type { MachineIdentity } from '../machine.js'
 import {
   guessLanguage,
   resolveLanguage,
@@ -105,6 +106,14 @@ export interface RunTerminalOptions {
    * to the same machine; losing it would silently drop the window back to local.
    */
   remote?: string
+  /**
+   * The machine the window title names, when a test needs it fixed.
+   *
+   * The running client reads the account and the machine name from this process
+   * or from the ssh configuration it attached through; a title assertion must not
+   * depend on the machine running the test.
+   */
+  machine?: MachineIdentity
   /**
    * The forward carrying a remote attachment, when there is one.
    *
@@ -302,7 +311,10 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     // Immediately after the Session: the window label is derived from it, and a
     // tab that names its directory from the first frame is what identifies the
     // window among shells and other Sessions.
-    await ctx.plugin(titlePlugin)
+    await ctx.plugin(titlePlugin, {
+      ...(options.remote === undefined ? {} : { remote: options.remote }),
+      ...(options.machine === undefined ? {} : { machine: options.machine }),
+    })
     // Approvals and user questions are Session state, not window callbacks:
     // install the shared pending-interaction queue before the rail and footer
     // that render it, and long before the first frame. `runInteractive` arms it

@@ -21,6 +21,10 @@ test('website has one static recipe and never dynamically samples the background
   expect(styles).not.toContain('.static-glass-dark');
   expect(home).not.toContain('static-glass-dark');
   expect(`${styles}\n${home}\n${download}`).not.toMatch(/backdrop-filter|filter:\s*blur/);
-  expect(home.match(/static-glass/g)?.length).toBe(4);
-  expect(download.match(/static-glass/g)?.length).toBe(3);
+  // The header's language control and repository pill are components now, so
+  // the page sources carry only the install buttons' glass.
+  expect(home.match(/static-glass/g)?.length).toBe(3);
+  expect(download.match(/static-glass/g)?.length).toBe(2);
+  expect(home).toContain('<LanguageSwitcher locale={locale} path="/" />');
+  expect(download).toContain('<LanguageSwitcher locale={locale} path="/download/" />');
 });

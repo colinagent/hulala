@@ -227,8 +227,6 @@ export function railLists(state: RailState): RailLists {
 
 /** One keyboard-reachable row; the `all` fold is addressed after these. */
 export type RailRow =
-  /** Which machine this window is attached to; the switcher's other entry point. */
-  | { readonly kind: 'host' }
   | { readonly kind: 'new' }
   | { readonly kind: 'session'; readonly session: TerminalSession }
   | { readonly kind: 'more'; readonly hidden: number; readonly revealed: boolean }
@@ -242,10 +240,6 @@ export interface SessionRailOptions {
   readonly focused?: () => boolean
   readonly onOpen: (sessionId: string) => void
   readonly onNew: () => void
-  /** The host row was taken: open the machine picker. */
-  readonly onHost: () => void
-  /** The machine to name on the host row: an ssh alias, or the local label. */
-  readonly hostLabel: () => { readonly label: string; readonly remote: boolean }
   readonly onQuery: (query: string) => void
   readonly onAllExpanded: (expanded: boolean) => void
   /** The `More` row was taken (`true`) or the expanded section folded back. */
@@ -378,10 +372,10 @@ export class SessionRail implements Component {
     const state = this.options.state()
     const rows = this.rowsOf(state)
     const height = Math.max(5, this.options.rows())
-    // The host row is fixed above the scroll, so the scrolling region loses one
-    // row and never hides which machine this window is looking at.
-    const listArea = Math.max(1, height - 4)
-    this.clampWindow(Math.max(0, rows.length - 1), listArea)
+    // The directory, the filter box and the trailing `all` fold are outside the
+    // scroll, so the list keeps whatever is left of the column.
+    const listArea = Math.max(1, height - 3)
+    this.clampWindow(rows.length, listArea)
 
     const lines: string[] = []
     lines.push(padEnd(styles.dim(fitPath(state.cwd, width)), width))
@@ -390,15 +384,11 @@ export class SessionRail implements Component {
     // The list owns the cursor only while the filter box does not; the filter's
     // own caret is emitted by `filterLine`.
     const showCaret = focused && !this.searching
-    const host = rows[0]
-    if (host !== undefined) {
-      lines.push(this.rowLine(host, styles, width, state, focused && this.cursor === 0, showCaret))
-    }
     for (let index = 0; index < listArea; index += 1) {
-      const row = rows[this.offset + index + 1]
+      const row = rows[this.offset + index]
       lines.push(row === undefined
         ? ' '.repeat(Math.max(0, width))
-        : this.rowLine(row, styles, width, state, focused && this.offset + index + 1 === this.cursor, showCaret))
+        : this.rowLine(row, styles, width, state, focused && this.offset + index === this.cursor, showCaret))
     }
     lines.push(this.allLine(state, styles, width, focused && this.cursor === rows.length, showCaret))
     const fitted = lines.slice(0, height)
@@ -419,7 +409,6 @@ export class SessionRail implements Component {
       ? total > RAIL_SESSION_LIMIT ? [{ kind: 'more', hidden: 0, revealed: true }] : []
       : hidden > 0 ? [{ kind: 'more', hidden, revealed: false }] : []
     return [
-      { kind: 'host' },
       { kind: 'new' },
       ...current.map(session => ({ kind: 'session', session }) as const),
       ...page,
@@ -431,7 +420,7 @@ export class SessionRail implements Component {
     this.options.onQuery(query)
     // The `new` row heads the list, so a filtered cursor starts on the first
     // Session instead of on an action that would ignore the query.
-    this.cursor = Math.min(2, Math.max(0, this.rowsOf().length - 1))
+    this.cursor = Math.min(1, Math.max(0, this.rowsOf().length - 1))
     this.offset = 0
   }
 
@@ -443,12 +432,6 @@ export class SessionRail implements Component {
     const row = rows[this.cursor]
     if (row === undefined) {
       this.fold(!this.options.state().allExpanded)
-      return
-    }
-    if (row.kind === 'host') {
-      // The picker takes the keyboard itself, so a filter in progress closes.
-      this.searching = false
-      this.options.onHost()
       return
     }
     if (row.kind === 'new') {
@@ -520,15 +503,6 @@ export class SessionRail implements Component {
     selected: boolean,
     caret: boolean,
   ): string {
-    if (row.kind === 'host') {
-      const { label, remote } = this.options.hostLabel()
-      // The current machine is the row's whole point, so the name is the ink:
-      // highlight when the rail owns the keyboard, dim otherwise. Never a fill.
-      const name = remote ? label : t('rail.hostLocal', { host: label })
-      const text = `${name} ⌄`
-      if (selected && caret) return selectedRow(padEnd(text, width), styles, caret)
-      return padEnd(remote ? styles.highlight(text) : styles.dim(text), width)
-    }
     if (row.kind === 'new') {
       const label = t('rail.newRow')
       return selected ? selectedRow(padEnd(label, width), styles, caret) : padEnd(label, width)

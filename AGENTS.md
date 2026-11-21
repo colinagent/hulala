@@ -126,6 +126,23 @@
 - The release bundle inlines the file at build time; never copy changelog text
   into the client, the workflow or the website by hand.
 
+## Release Blog
+
+- `blog/<version>/` holds the release post in both languages, `en.md` and
+  `zh-CN.md`; the website renders them at `/blog/<slug>/` and
+  `/zh-CN/blog/<slug>/` and lists them in both index pages. The frontmatter and
+  the allowed Markdown subset are documented in `blog/README.md`.
+- A post explains what the release is worth to the person using it, why it is
+  built this way and what it is for. It states that in the reader's situation and
+  is specific: the command, the version, the exact behaviour. It is not the
+  changelog in longer sentences, it makes no claim the release cannot
+  demonstrate, and its Chinese is written in Chinese, not translated from the
+  English.
+- `bun run check:blog` (part of `bun run check`) validates every post's structure
+  and bilingual parity; `bun run check:blog --version <version>` is the release
+  gate and the tag's CI step. Never hand-edit generated HTML, and never add a
+  second home for post content.
+
 ## Out Of Current Scope
 
 Do not add Loop Cloud, accounts, organizations, multi-tenancy, hosted Agent

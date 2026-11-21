@@ -254,7 +254,6 @@ export interface MessageTable {
   'pending.editHint': string
 
   'rail.search': string
-  'rail.hostLocal': (values: { host: string }) => string
   'rail.newRow': string
   'rail.newLabel': string
   'rail.more': (params: { hidden: number }) => string

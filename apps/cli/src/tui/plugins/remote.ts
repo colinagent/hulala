@@ -1,11 +1,13 @@
 /**
- * `/remote` and the sidebar's host row: which machine this window is attached to.
+ * `/remote`: which machine this window is attached to.
  *
- * The list is the user's own ssh config, not an inventory Hulala invents: every
- * alias they already use for work is a machine they can pick, with whatever keys,
- * jumps and certificates that entry carries. A switch always ends in a new client
- * process, because the transport cannot be re-pointed at another origin — the
- * window becomes a new one that attaches to the chosen Host.
+ * The machine a window is attached to is named in its terminal tab; this plugin
+ * is how it is changed. The list is the user's own ssh config, not an inventory
+ * Hulala invents: every alias they already use for work is a machine they can
+ * pick, with whatever keys, jumps and certificates that entry carries. A switch
+ * always ends in a new client process, because the transport cannot be
+ * re-pointed at another origin — the window becomes a new one that attaches to
+ * the chosen Host.
  *
  * @module hulala-cli/tui/plugins/remote
  */

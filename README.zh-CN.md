@@ -381,6 +381,7 @@ bun 会静默忽略补丁，产物里装的是没打补丁的上游文件。这�
 apps/cli       终端客户端、插件宿主、程序生命周期
 apps/server    Hulala Host 守护进程壳（DSH webServer + connection）
 apps/website   官网和下载元数据
+blog           每个版本一篇发版文章，中英各一份
 packages/runtime             DSH 组合（一个原生 Agent Loop）
 packages/host-client         发现、detached 启动、共享客户端契约
 packages/desktop-contracts   Host/client 线协议与状态根目录路径

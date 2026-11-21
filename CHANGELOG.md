@@ -13,8 +13,20 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.31] - 2026-11-21
+
+### Added
+
+- A release blog on the website: `/blog/` and `/zh-CN/blog/` carry one post per
+  release in both languages, linked from the header, the footer and
+  `/sitemap.xml`, with the first post for this version.
+
 ### Changed
 
+- The website's language switch is one link instead of two. It names the language
+  you would arrive at, remembers the choice, and the root follows the browser's
+  language on a first visit; a URL that already names its language, or a shared
+  deep link, is always served as addressed.
 - An archived prompt is drawn on the terminal's own palette instead of a fixed
   chip. Its band is now the editor's level-2 heading tint — the reported page
   moved a tenth of the way towards the palette's yellow — with the page's text
@@ -22,6 +34,24 @@ that version has no section. Releases before 0.2.30 are not recorded.
   a `##` heading in the editor column are one palette, and a light or unusual
   terminal theme no longer gets a dark slab in the middle of its transcript. A
   terminal that reports no page keeps the fixed chip.
+- The terminal tab says where the Session works and, on a remote Host, which
+  machine: `pi - Hulala:Fix the composer` locally and
+  `root@dev:pi - Hulala:Fix the composer` when attached to `dev`. The machine
+  prefixes the directory the way scp writes a remote path, and the Session's
+  name now hangs off the product name instead of restarting the title with a
+  third ` - ` segment — so a truncated tab keeps the machine and the directory,
+  and a local tab no longer has to carry this machine's own account and
+  hostname. A remote window names the ssh alias it attached through and the
+  account that alias resolves to (read from `ssh -G`, without opening a
+  connection); a Host that resolves no account leaves `dev:pi` rather than
+  `@dev:pi`.
+
+### Removed
+
+- The Session rail's host row. The machine a window is attached to is named in
+  the terminal tab instead, which gives the rail back the row the fixed header
+  held for it; `/remote` and `hulala remote <ssh>` are still how a window
+  switches machines.
 
 ## [0.3.30] - 2026-11-20
 
