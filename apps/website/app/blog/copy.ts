@@ -12,12 +12,9 @@ import type { BlogLocale } from './posts'
 
 export const blogCopy = {
   en: {
-    label: 'BLOG',
-    title: ['What changed,', 'and what it is for.'],
-    metaTitle: 'Hulala blog — what changed, and what it is for',
-    lede: 'One post per release: what this version is worth to the person using it, why it was built this way, and what it is for. The changelog lists the changes; this is where we explain them.',
-    metaDescription:
-      'One post per release: what this version is worth to the person using it, why it was built this way, and what it is for.',
+    heading: 'Blog',
+    metaTitle: 'Hulala blog',
+    metaDescription: 'Release posts for Hulala, newest first.',
     listAria: 'Release posts, newest first',
     empty: 'The first release post is being written. The changelog is up to date in the meantime.',
     read: 'Read the post',
@@ -37,11 +34,9 @@ export const blogCopy = {
     footer: 'Terminal · macOS & Linux',
   },
   'zh-CN': {
-    label: '博客',
-    title: ['这次改了什么，', '又是为了什么。'],
-    metaTitle: 'Hulala 博客｜每次发布，改了什么、为什么、有什么用',
-    lede: '每次发布一篇：这个版本对用它的人有什么价值，为什么这样设计，它是拿来做什么的。CHANGELOG 负责列出改动，这里负责把改动讲清楚。',
-    metaDescription: '每次发布一篇：这个版本对用它的人有什么价值，为什么这样设计，它是拿来做什么的。',
+    heading: '博客',
+    metaTitle: 'Hulala 博客',
+    metaDescription: 'Hulala 的发布文章，最新的在前。',
     listAria: '发布文章，最新的在前',
     empty: '第一篇发版文章正在写。这段时间可以先看 CHANGELOG。',
     read: '读这篇',

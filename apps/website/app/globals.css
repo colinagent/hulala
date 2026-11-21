@@ -368,10 +368,8 @@ footer { align-items: center; color: var(--muted); display: grid; font-size: 9px
    reverse-chronological list of value sentences and a post is a single narrow
    column. Only the header, the footer and the install button are borrowed from
    the product pages; the body has its own rhythm. */
-.blog-hero { border-bottom: 1px solid var(--ink); margin: 0 auto; max-width: 1440px; padding: 105px 40px 80px; }
-.blog-hero h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(54px, 6.5vw, 96px); font-weight: 400; letter-spacing: -.06em; line-height: .94; margin: 34px 0; }
-.blog-hero h1 em { color: var(--moss); font-weight: 400; }
-.blog-hero > p:last-child { color: var(--muted); font-size: 14px; line-height: 1.8; margin: 0; max-width: 760px; }
+.blog-hero { border-bottom: 1px solid var(--ink); margin: 0 auto; max-width: 1440px; padding: 105px 40px 64px; }
+.blog-hero h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(54px, 6.5vw, 96px); font-weight: 400; letter-spacing: -.06em; line-height: .94; margin: 0; }
 .blog-list { margin: 0 auto; max-width: 1120px; padding: 30px 40px 120px; }
 .blog-row { border-bottom: 1px solid var(--line); display: grid; gap: 40px; grid-template-columns: 190px minmax(0, 1fr); padding: 44px 0; transition: border-color .15s ease; }
 .blog-row:hover { border-color: var(--ink); }

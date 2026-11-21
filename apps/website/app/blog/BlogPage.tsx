@@ -101,13 +101,7 @@ export async function BlogIndexPage({ locale }: { locale: BlogLocale }) {
     <main id="top" data-locale={locale === 'zh-CN' ? 'zh' : 'en'} data-blog-page="index">
       <BlogHeader locale={locale} />
       <section className="blog-hero">
-        <p className="section-label">{t.label}</p>
-        <h1>
-          {t.title[0]}
-          <br />
-          <em>{t.title[1]}</em>
-        </h1>
-        <p>{t.lede}</p>
+        <h1>{t.heading}</h1>
       </section>
       <section className="blog-list" aria-label={t.listAria}>
         {posts.length === 0 ? <p className="blog-empty">{t.empty}</p> : null}
