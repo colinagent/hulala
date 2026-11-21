@@ -169,7 +169,7 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
         color: config.color,
         onDecide: done,
       })
-    }, { anchor: 'bottom-center', width: 64 })
+    }, { anchor: 'bottom-center', width: 72 })
   }
 
   const showQuestion = (

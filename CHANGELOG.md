@@ -5,16 +5,36 @@ Every Hulala release is recorded here, and the GitHub Release notes for
 the terminal client and its embedded Host ship together.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-New entries go under `## [Unreleased]
+New entries go under `## [Unreleased]`, in one of `### Added`, `### Changed`,
+`### Fixed`, `### Removed`, and they are written in English. A released section
+is immutable. `bun run changelog:cut` turns the unreleased entries into the
+section for the version in `package.json`; `bun run changelog:check` fails when
+that version has no section. Releases before 0.2.30 are not recorded.
+
+## [Unreleased]
 
 ### Changed
 
+- The approval card's choices include the Session-wide grant in its footer:
+  `[f] whole Session` / `[f] 本会话完全权限`. It was already a key (`f`), but
+  only a dim body line named it, so the one option that stops every later turn
+  from asking was easy to miss. Choosing it still switches the Session to Full
+  access through the Host's own `/permission` write path.
 - An archived prompt is drawn on the editor's level-1 heading band instead of the
   level-2 tint, so the prompt in the transcript and the `#` heading in the editor
   column are the same colour on every terminal: the page moved 12% of the way
   towards the palette's red warmed halfway to its yellow. A terminal that reports
   no page now gets that same derivation on the editor's fallback theme, instead
   of a separate fixed chip.
+
+### Fixed
+
+- An approval answer is no longer lost when the transport drops between the
+  choice and its delivery. DSH keeps the pending waterfall and replays it on the
+  next generation; the client now remembers the tool call's decision and answers
+  that replay with the same choice instead of asking again, and says so in the
+  transcript. A card whose delivery dies also says it will return, rather than
+  vanishing and leaving the turn apparently stuck.
 
 ## [0.3.31] - 2026-11-21
 

@@ -121,8 +121,8 @@ export const zhCN: MessageTable = {
   'help.key.mouse': '鼠标点击行首 ▸ 展开/折叠该行',
 
   'approval.title': '工具审批',
-  'approval.footer': '[y] 允许一次  [n] 拒绝  [Ctrl-C] 取消',
-  'approval.fullAccessHint': 'f = 本会话完全权限',
+  'approval.footer': '[y] 允许一次  [f] 本会话完全权限  [n] 拒绝  [Ctrl-C] 取消',
+  'approval.fullAccessHint': 'f = 本会话后续所有轮次都不再询问',
   'approval.fullAccessDetail': '不再限制文件写入，也不再询问权限',
   'approval.delegateHint': 'd = 转交给其他客户端',
   'confirm.title': '编辑器',
@@ -312,6 +312,8 @@ export const zhCN: MessageTable = {
   'notice.approvalFullAccessFailed': ({ reason }) => `完全权限没有生效：${reason}`,
   'notice.approvalFullAccessUnavailable': '完全权限需要一个已打开的会话',
   'notice.approvalDelegated': ({ tool, session }) => `会话 ${session} 的 ${tool} 审批已转交其他客户端`,
+  'notice.approvalLost': '连接断开；重连后会再次显示这个审批',
+  'notice.approvalRetried': '连接断开过，已按刚才的选择重新提交审批',
   'notice.questionDelegated': ({ session }) => `会话 ${session} 的提问已转交其他客户端`,
   'notice.questionAnswerFailed': ({ reason }) => `补答没有发送成功：${reason}`,
   'notice.approvalThisSession': '当前会话',
@@ -400,7 +402,7 @@ export const zhCN: MessageTable = {
 
   'plain.summary': '[摘要]',
   'plain.approval': ({ tool }) => `[审批] ${tool}`,
-  'plain.approvalHint': '  y = 允许一次 · f = 完全权限 · n = 拒绝 · d = 转交 · c = 取消',
+  'plain.approvalHint': '  y = 允许一次 · f = 本会话完全权限 · n = 拒绝 · d = 转交 · c = 取消',
   'plain.approvalOtherSession': ({ session }) => `[审批] 来自会话 ${session}；在此处作答`,
   'plain.session': ({ id }) => `会话 ${id}`,
   'plain.turnFailed': '回合失败',

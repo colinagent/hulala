@@ -316,6 +316,8 @@ export interface MessageTable {
   'notice.approvalFullAccessFailed': (params: { reason: string }) => string
   'notice.approvalFullAccessUnavailable': string
   'notice.approvalDelegated': (params: { tool: string; session: string }) => string
+  'notice.approvalLost': string
+  'notice.approvalRetried': string
   'notice.questionDelegated': (params: { session: string }) => string
   'notice.questionAnswerFailed': (params: { reason: string }) => string
   'notice.approvalThisSession': string

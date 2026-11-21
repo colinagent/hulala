@@ -1551,13 +1551,67 @@ test('the approval dialog grants full access to the Session that asked', async (
     reason: 'escalate sandbox to workspace-write: the repo is outside the workspace',
   })
   await waitFor(() => plain(tty.painted()).includes('Tool approval'), 'approval dialog')
-  expect(plain(tty.painted())).toContain('f = full access for this thread')
+  // The Session-wide grant is an option in the footer, not a dim aside: a user
+  // reading the choices must see it without knowing the hidden key.
+  expect(plain(tty.painted())).toContain('[f] whole Session')
+  expect(plain(tty.painted())).toContain('f = every later turn in this Session stops asking')
   tty.input.write('f')
   await expect(pending).resolves.toBe('allowed-once')
   // The switch names the open Session, which is this window's thread.
   expect(fake.permissionSessions).toEqual(['session-1234'])
   expect(fake.permissions).toEqual(['danger-full-access'])
   await waitFor(() => tty.painted().includes('permission: Full access · this thread stops asking'), 'full-access notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('a replayed approval is answered with the choice the user already made', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const first = fake.approve({
+    sessionId: 'session-1234',
+    callId: 'call-1',
+    toolName: 'bash',
+    reason: 'rm -rf /tmp/x',
+  })
+  await waitFor(() => plain(tty.painted()).includes('Tool approval'), 'approval dialog')
+  tty.input.write('y')
+  await expect(first).resolves.toBe('allowed-once')
+  await waitFor(() => plain(tty.painted()).includes('approval allowed-once'), 'first outcome')
+  // The transport died before the result reached the Host, so the Host replays
+  // the same pending waterfall on the next generation. The client must answer
+  // that replay with the choice it already took instead of asking again.
+  const replayMark = tty.painted().length
+  const replayed = fake.approve({
+    sessionId: 'session-1234',
+    callId: 'call-1',
+    toolName: 'bash',
+    reason: 'rm -rf /tmp/x',
+  })
+  await expect(replayed).resolves.toBe('allowed-once')
+  await waitFor(() => plain(tty.painted()).includes('your answer was re-sent after reconnecting'), 'replay notice')
+  expect(plain(tty.painted().slice(replayMark))).not.toContain('Tool approval')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('an approval whose delivery is lost says it will come back', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const lost = new AbortController()
+  const pending = fake.approve({
+    sessionId: 'session-1234',
+    callId: 'call-2',
+    toolName: 'bash',
+    reason: 'rm -rf /tmp/x',
+    signal: lost.signal,
+  })
+  await waitFor(() => plain(tty.painted()).includes('Tool approval'), 'approval dialog')
+  lost.abort()
+  await expect(pending).resolves.toBe('cancelled')
+  await waitFor(() => plain(tty.painted()).includes('this approval will return'), 'lost notice')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

@@ -237,6 +237,17 @@ export function apply(ctx: Context, config: InteractionsPluginConfig): void {
   }>()
   /** Notices to replay into a Session's transcript when it is opened again. */
   const notices = new Map<string, string[]>()
+  /**
+   * Decisions the user already made for an approval whose delivery was lost.
+   *
+   * The answer lives on one event-stream generation. A transport drop between
+   * the choice and that delivery leaves the Host's waterfall pending, and the
+   * Host replays it on the next generation; without this memory the client would
+   * ask a second time, and a user who waits on the dead window sees a turn that
+   * never resumes. The tool call id is the Host's own identity for the pending
+   * approval, so the replayed delivery can be answered with the same choice.
+   */
+  const rememberedApprovals = new Map<string, { choice: TerminalApprovalDecision | 'full-access'; at: number }>()
   /** Sessions this window has opened, and therefore owns the answer for. */
   const claimed = new Set<string>()
   let currentId: string | undefined = session.id
@@ -403,7 +414,48 @@ export function apply(ctx: Context, config: InteractionsPluginConfig): void {
     return 'allowed-once'
   }
 
-  /** Finish one presented request and let the next elected one take the seat. */
+  /**
+   * Stable identity of an approval across a replayed delivery.
+   *
+   * A tool call id is unique inside its Session, so pairing it with the Session
+   * keeps a replay from matching another thread's call. An approval without one
+   * stays unremembered: there is nothing durable to match on.
+   */
+  const approvalKeyOf = (request: TerminalApproval): string | undefined =>
+    request.callId === undefined || request.callId === ''
+      ? undefined
+      : `${request.sessionId ?? ''}:${request.callId}`
+
+  /** How long a lost answer stays worth replaying, in milliseconds. */
+  const REMEMBERED_APPROVAL_MS = 10 * 60_000
+
+  /** Keep one decision for a delivery the transport may have dropped. */
+  const rememberApproval = (request: TerminalApproval, choice: TerminalApprovalDecision | 'full-access'): void => {
+    const key = approvalKeyOf(request)
+    if (key === undefined) return
+    const now = Date.now()
+    for (const [candidate, entry] of rememberedApprovals) {
+      if (now - entry.at > REMEMBERED_APPROVAL_MS) rememberedApprovals.delete(candidate)
+    }
+    rememberedApprovals.set(key, { choice, at: now })
+  }
+
+  /** The decision to apply to a replayed approval, if it is still fresh. */
+  const rememberedApproval = (request: TerminalApproval): TerminalApprovalDecision | 'full-access' | undefined => {
+    const key = approvalKeyOf(request)
+    if (key === undefined) return undefined
+    const entry = rememberedApprovals.get(key)
+    if (entry === undefined) return undefined
+    if (Date.now() - entry.at > REMEMBERED_APPROVAL_MS) {
+      rememberedApprovals.delete(key)
+      return undefined
+    }
+    return entry.choice
+  }
+
+  /**
+   * Finish one presented request and let the next elected one take the seat.
+   */
   const finish = (pending: Pending, decision: TerminalApprovalDecision | TerminalQuestionDecision): void => {
     // The timeout path can settle a card the modal is still closing; the second
     // arrival must not rewrite the transcript a second time.
@@ -430,15 +482,31 @@ export function apply(ctx: Context, config: InteractionsPluginConfig): void {
   const presentApproval = async (pending: PendingApproval): Promise<void> => {
     const request = pending.request
     let decision: TerminalApprovalDecision
-    try {
-      const chosen = await overlays.showApproval(request)
+    const replayed = rememberedApproval(request)
+    if (replayed !== undefined) {
+      // The Host replayed an approval this client already answered; the previous
+      // generation died before the result reached it. Apply the same choice to
+      // the new delivery instead of making the user answer twice.
+      decision = replayed === 'full-access'
+        ? await grantFullAccess(request.sessionId ?? currentId)
+        : replayed
+      record(pending.owner, t('notice.approvalRetried'))
+    } else {
+      let chosen: TerminalApprovalDecision | 'full-access'
+      try {
+        chosen = await overlays.showApproval(request)
+      } catch {
+        // A dialog that cannot be built (the frame is going away) must not leave
+        // the Host's waterfall hanging.
+        chosen = 'delegate'
+      }
+      // Remember the choice before the Session-wide switch: the switch is a
+      // second Host call that can itself lose the connection, and a replay must
+      // still remember what the user asked for.
+      if (chosen !== 'delegate') rememberApproval(request, chosen)
       decision = chosen === 'full-access'
         ? await grantFullAccess(request.sessionId ?? currentId)
         : chosen
-    } catch {
-      // A dialog that cannot be built (the frame is going away) must not leave
-      // the Host's waterfall hanging.
-      decision = 'delegate'
     }
     finish(pending, decision)
   }
@@ -706,6 +774,10 @@ export function apply(ctx: Context, config: InteractionsPluginConfig): void {
     pending.signal?.addEventListener('abort', () => {
       if (pending.settled) return
       drop(pending)
+      // The delivery is what died, not the user's intent. The Host replays the
+      // pending waterfall on the next generation, so say what is coming back
+      // instead of leaving the card vanished in silence.
+      if (pending.kind === 'approval' && !closing()) record(pending.owner, t('notice.approvalLost'))
       settle(pending, cancelled(pending))
       pump()
     }, { once: true })

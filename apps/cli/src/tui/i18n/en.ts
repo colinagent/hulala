@@ -120,8 +120,8 @@ export const en: MessageTable = {
   'help.key.mouse': 'Click the ▸ at the start of a row to expand/collapse it',
 
   'approval.title': 'Tool approval',
-  'approval.footer': '[y] allow once  [n] reject  [Ctrl-C] cancel',
-  'approval.fullAccessHint': 'f = full access for this thread',
+  'approval.footer': '[y] allow once  [f] whole Session  [n] reject  [Ctrl-C] cancel',
+  'approval.fullAccessHint': 'f = every later turn in this Session stops asking',
   'approval.fullAccessDetail': 'no more file-write limits and no permission prompts',
   'approval.delegateHint': 'd = hand this request to another client',
   'confirm.title': 'Editor',
@@ -311,6 +311,8 @@ export const en: MessageTable = {
   'notice.approvalFullAccessFailed': ({ reason }) => `full access was not applied: ${reason}`,
   'notice.approvalFullAccessUnavailable': 'full access needs an open Session',
   'notice.approvalDelegated': ({ tool, session }) => `${tool} approval in ${session} was handed to another client`,
+  'notice.approvalLost': 'connection lost; this approval will return',
+  'notice.approvalRetried': 'your answer was re-sent after reconnecting',
   'notice.questionDelegated': ({ session }) => `a question in ${session} was handed to another client`,
   'notice.questionAnswerFailed': ({ reason }) => `the late answer could not be sent: ${reason}`,
   'notice.approvalThisSession': 'this Session',
@@ -399,7 +401,7 @@ export const en: MessageTable = {
 
   'plain.summary': '[summary]',
   'plain.approval': ({ tool }) => `[approval] ${tool}`,
-  'plain.approvalHint': '  y = allow once · f = full access · n = reject · d = hand off · c = cancel',
+  'plain.approvalHint': '  y = allow once · f = full access for this Session · n = reject · d = hand off · c = cancel',
   'plain.approvalOtherSession': ({ session }) => `[approval] from Session ${session}; answering here`,
   'plain.session': ({ id }) => `Session ${id}`,
   'plain.turnFailed': 'turn failed',

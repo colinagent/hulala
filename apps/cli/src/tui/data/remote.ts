@@ -212,6 +212,13 @@ export interface TerminalApproval {
   reason?: string
   signal?: AbortSignal
   /**
+   * The tool call being decided. A connection loss makes the Host replay the
+   * pending waterfall, and the replayed delivery carries the same call id, so
+   * this is what lets the client recognise an approval it already answered
+   * rather than ask twice or lose the answer.
+   */
+  callId?: string
+  /**
    * The Session whose Agent asked. DSH forwards the scoped waterfall with
    * `agentId` (the Session id) and rebuilds `request.agent` as that Session's
    * Client Context, so an answer can always be attributed to its owner.
@@ -1042,23 +1049,58 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
   let cookie = attachment.cookie
   /** The launch token that mints cookies for this origin; it outlives sockets. */
   const launchToken = attachment.record.descriptor.token
+  /**
+   * Deadline for one delivered interaction result.
+   *
+   * An approval or question answer is the one POST whose loss strands a turn:
+   * the Host keeps the waterfall pending while the transport still reports the
+   * client as attached, so nothing above this call retries. A forward that
+   * black-holes can hold the socket for minutes; failing this request quickly
+   * ends the event generation, lets the Host replay the pending waterfall on
+   * the next one, and gives the remembered choice a chance to answer it.
+   */
+  const RESULT_TIMEOUT_MS = 10_000
+  /**
+   * The cookie the live mux socket opened with.
+   *
+   * The Host binds a socket's Peer to that socket, and HTTP authenticates with
+   * the cookie cell. A cookie exchange that lands after the socket opened but
+   * before the transport reported `connected` would leave the two on different
+   * Peers: every forwarded-event result (an approval answer) would be refused
+   * and tear down the event stream. Remembering the opened credential lets the
+   * connected transition repair that race instead of inheriting it.
+   */
+  let liveSocketCookie: string | undefined
   installConnection(ctx, {
     interactions: 'answer',
     transport: {
       streamBaseUrl: attachment.baseUrl,
-      fetch: (input, init) => fetch(new URL(String(input), attachment.baseUrl), {
-        ...init,
-        headers: { ...Object.fromEntries(new Headers(init.headers)), cookie },
-      }),
-      createWebSocket: url => new (webSocketClass())(url, {
-        headers: { cookie, origin: attachment.baseUrl },
-        // Without this a handshake that never answers holds the socket in
-        // CONNECTING forever: the mux keeps waiting on its own attempt and never
-        // starts another, so a single stalled upgrade is a permanently dead
-        // window instead of one retry. Anywhere a forward can black-hole, that is
-        // the difference between a blip and a restart.
-        handshakeTimeout: 10_000,
-      }) as never,
+      fetch: (input, init) => {
+        const url = new URL(String(input), attachment.baseUrl)
+        const resultDelivery = url.pathname.endsWith('/$events/result')
+        const signal = resultDelivery
+          ? init.signal == null
+            ? AbortSignal.timeout(RESULT_TIMEOUT_MS)
+            : AbortSignal.any([init.signal, AbortSignal.timeout(RESULT_TIMEOUT_MS)])
+          : init.signal
+        return fetch(url, {
+          ...init,
+          ...(signal == null ? {} : { signal }),
+          headers: { ...Object.fromEntries(new Headers(init.headers)), cookie },
+        })
+      },
+      createWebSocket: (url) => {
+        liveSocketCookie = cookie
+        return new (webSocketClass())(url, {
+          headers: { cookie, origin: attachment.baseUrl },
+          // Without this a handshake that never answers holds the socket in
+          // CONNECTING forever: the mux keeps waiting on its own attempt and never
+          // starts another, so a single stalled upgrade is a permanently dead
+          // window instead of one retry. Anywhere a forward can black-hole, that is
+          // the difference between a blip and a restart.
+          handshakeTimeout: 10_000,
+        }) as never
+      },
     },
   })
   await ctx.plugin(TypertRegistry)
@@ -1160,6 +1202,7 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     const approval: TerminalApproval = {
       toolName: request.toolName,
       ...(sessionId === undefined ? {} : { sessionId }),
+      ...(request.callId === undefined ? {} : { callId: String(request.callId) }),
       ...(request.reason === undefined ? {} : { reason: request.reason }),
       ...(request.signal === undefined ? {} : { signal: request.signal }),
     }
@@ -1240,9 +1283,24 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     refreshTimer.unref?.()
   }
   const attemptRefresh = async (): Promise<void> => {
+    // The state can heal between the event that scheduled this attempt and the
+    // attempt itself. Exchanging now would mint a Peer the live mux socket is not
+    // using — and every approval answer POST would then be refused as belonging
+    // to another Peer, tearing down the event stream that asks for it. The live
+    // socket is the authority: keep the cookie it opened with.
+    if (connection.state.getSnapshot() === 'connected') {
+      stopRefresh()
+      return
+    }
     const changed = await refreshPeer()
     if (closed) return
-    if (connection.state.getSnapshot() === 'connected') return
+    if (connection.state.getSnapshot() === 'connected') {
+      // The exchange itself raced the reconnect. Adopt the fresh cookie by
+      // replacing the socket the transport just established; leaving the two on
+      // different Peers is the failure the guard above exists to prevent.
+      if (changed) connection.reconnect()
+      return
+    }
     // A fresh cookie only helps once something uses it, and the transport is
     // otherwise asleep in its backoff for up to ten seconds.
     if (changed) connection.reconnect()
@@ -1252,6 +1310,11 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     if (closed) return
     if (connection.state.getSnapshot() === 'connected') {
       stopRefresh()
+      // The socket that just became ready may have opened before a concurrent
+      // cookie exchange finished. Its Peer is the Host's socket Peer, while the
+      // HTTP path would carry the newer one; replace the socket so both halves
+      // speak for the same Peer again.
+      if (liveSocketCookie !== undefined && liveSocketCookie !== cookie) connection.reconnect()
       return
     }
     void attemptRefresh()
