@@ -5,13 +5,16 @@ Every Hulala release is recorded here, and the GitHub Release notes for
 the terminal client and its embedded Host ship together.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-New entries go under `## [Unreleased]`, in one of `### Added`, `### Changed`,
-`### Fixed`, `### Removed`, and they are written in English. A released section
-is immutable. `bun run changelog:cut` turns the unreleased entries into the
-section for the version in `package.json`; `bun run changelog:check` fails when
-that version has no section. Releases before 0.2.30 are not recorded.
+New entries go under `## [Unreleased]
 
-## [Unreleased]
+### Changed
+
+- An archived prompt is drawn on the editor's level-1 heading band instead of the
+  level-2 tint, so the prompt in the transcript and the `#` heading in the editor
+  column are the same colour on every terminal: the page moved 12% of the way
+  towards the palette's red warmed halfway to its yellow. A terminal that reports
+  no page now gets that same derivation on the editor's fallback theme, instead
+  of a separate fixed chip.
 
 ## [0.3.31] - 2026-11-21
 

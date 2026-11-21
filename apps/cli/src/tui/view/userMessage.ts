@@ -15,11 +15,12 @@
  * operator's own turn.
  *
  * The band, its text and the arrow all come from `buildStyles`: the band is the
- * editor's `##` heading tint — the terminal's page moved a tenth of the way
- * towards the palette's yellow — the text is the terminal's own foreground, and
- * the arrow is that ink faded towards the band. Colour derivations live there so
- * one terminal answer places every surface; with colour disabled (`NO_COLOR`)
- * this degrades to plain text.
+ * editor's `#` heading band — the terminal's page moved 12% of the way towards
+ * the palette's red warmed halfway to its yellow, which is the hue `nvimConfig`
+ * gives level 1 — the text is the terminal's own foreground, and the arrow is
+ * that ink faded towards the band. Colour derivations live there so one terminal
+ * answer places every surface; with colour disabled (`NO_COLOR`) this degrades
+ * to plain text.
  *
  * @module hulala-cli/tui/view/userMessage
  */
