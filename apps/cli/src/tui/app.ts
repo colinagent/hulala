@@ -616,7 +616,9 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
 
   // The editor's colours follow the terminal, so the split has no seam: ask the
   // terminal for its palette and fall back to the built-in one if it stays quiet.
-  // The same answer places the tool card a step above the page it is drawn on.
+  // The same answer places the tool card a step above the page it is drawn on,
+  // and tints the archived prompt with the palette's yellow — the band the editor
+  // draws behind a level-2 heading.
   void ui.queryTerminalColors({ timeoutMs: 300 })
     .then((colors) => {
       nvim.setTheme(editorThemeFromTerminal(colors))

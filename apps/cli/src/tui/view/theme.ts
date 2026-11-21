@@ -5,10 +5,10 @@
  * entirely by pi-tui. Selected/current text uses foreground highlight, never a
  * background block (product UI rule). Full-width background panels are not
  * selection state and are therefore allowed: an archived user message, which is
- * message content drawn like Claude Code's transcript rows; the status band,
- * which is the frame's own bottom row rather than any column's content; and a
- * tool card, which is a *surface* a call's body is printed on. A card leans the
- * way its call went, by a tint thin enough to be felt rather than read: the ink
+ * message content drawn as a palette band (see {@link placeUserSurface}); the
+ * status band, which is the frame's own bottom row rather than any column's
+ * content; and a tool card, which is a *surface* a call's body is printed on. A
+ * card leans the way its call went, by a tint thin enough to be felt rather than read: the ink
  * a card carries is one set for every tone, and the marker and the `exit 5`
  * capsule stay the loudest thing on the row.
  *
@@ -16,7 +16,7 @@
  */
 import { colorToOkhsl, okhslColor, parseColor } from '@earendil-works/pi-tui'
 import type { EditorTheme, MarkdownTheme, SelectListTheme, TerminalColors } from '@earendil-works/pi-tui'
-import { HIGHLIGHT_INK } from '@hulala/editor-home'
+import { FALLBACK_THEME, HIGHLIGHT_INK } from '@hulala/editor-home'
 
 export interface ThemeSet {
   editor: EditorTheme
@@ -39,13 +39,31 @@ const BRAND_RGB = [0x91, 0x80, 0x72] as const
 const HIGHLIGHT_RGB = parseRgb(HIGHLIGHT_INK)
 
 /**
- * Archived user message panel. A fixed dark chip with its own foreground, so
- * the block keeps the same contrast on light and dark terminals; the arrow is
- * muted like Claude Code's, the message body stays near-white.
+ * Archived user message panel: the prompt's own turn, as a band across the
+ * transcript.
+ *
+ * The band is the editor's *second* heading band. `nvimConfig` gives `##` the
+ * background tinted a tenth of the way towards the palette's yellow, and the
+ * prompt gets the same band from the same page and the same palette
+ * ({@link placeUserSurface}), so a prompt in the conversation and a level-2
+ * heading in the editor column are one palette rather than two. At a tenth of
+ * the way the band is only a cast on the page, so the prompt keeps the
+ * terminal's own text ink instead of a chip's near-white, and the arrow is that
+ * ink faded part of the way back into the band — the same fade the heading's
+ * `#` delimiters get.
+ *
+ * A terminal that reports no page keeps this fixed chip: it is the one tuned for
+ * a page that may be light or dark.
  */
-const USER_PANEL_BG = [0x37, 0x37, 0x37] as const
-const USER_PANEL_TEXT = [0xe8, 0xe8, 0xe8] as const
-const USER_PANEL_ARROW = [0x9a, 0x9a, 0x9a] as const
+const FIXED_USER_SURFACE: UserSurface = {
+  background: [0x37, 0x37, 0x37],
+  text: [0xe8, 0xe8, 0xe8],
+  arrow: [0x9a, 0x9a, 0x9a],
+}
+/** Share of the palette's yellow mixed into the page: the editor's `##` tint. */
+const USER_PANEL_TINT = 0.1
+/** How far the arrow fades from the prompt's ink into the band. */
+const USER_PANEL_ARROW_FADE = 0.45
 
 /**
  * Status band: the frame's bottom row, a step lighter than the page.
@@ -88,6 +106,13 @@ type Rgb = readonly [number, number, number]
 
 /** The tones a card is drawn in: the call's state, as a tint on the surface. */
 export type CardTone = 'neutral' | 'ok' | 'error' | 'warn'
+
+/** The three inks an archived prompt is drawn with: its band, its text, its arrow. */
+interface UserSurface {
+  readonly background: Rgb
+  readonly text: Rgb
+  readonly arrow: Rgb
+}
 
 /** The three inks one card draws its surface and its neutral text with. */
 interface CardSurface {
@@ -151,6 +176,29 @@ const CARD_ACCENT_CONTRAST = 3.5
  * frame's band rather than literals of their own.
  */
 const FIXED_CARDS: CardSurfaces = cardsOn(ASSUMED_PAGE, ASSUMED_TEXT)
+
+/**
+ * The band an archived prompt is drawn on, for the page the terminal reported.
+ *
+ * The editor's `##` band, carried to the conversation: the page's own background
+ * moved a tenth of the way towards the palette's yellow, which is what
+ * `nvimConfig`'s `BAND_TINT` gives level 2 and what the editor's `number` slot
+ * resolves to. Sharing the formula and the fallback yellow, rather than a second
+ * pair of literals, is what keeps the two halves of the split from drifting
+ * apart on a terminal that reports a background but no 16-colour palette.
+ * @param page - the page's background and text ink.
+ * @param yellow - the palette's yellow, or undefined when it reported none.
+ * @returns the band, its text ink and the arrow's ink.
+ */
+function placeUserSurface(
+  page: { background: Rgb; foreground: Rgb } | undefined,
+  yellow: Rgb | undefined,
+): UserSurface {
+  if (page === undefined) return FIXED_USER_SURFACE
+  const background = mixRgb(page.background, yellow ?? parseRgb(FALLBACK_THEME.number), USER_PANEL_TINT)
+  const text = page.foreground
+  return { background, text, arrow: mixRgb(text, background, USER_PANEL_ARROW_FADE) }
+}
 
 /**
  * Relative luminance of an sRGB triple, per WCAG 2.1.
@@ -430,6 +478,8 @@ const stylesByCapability = new Map<string, ReturnType<typeof createStyles>>()
 
 /** The cards' place against the page; `FIXED_CARDS` until the terminal reports one. */
 let cardSurfaces: CardSurfaces = FIXED_CARDS
+/** The archived prompt's band; the fixed chip until the terminal reports a page. */
+let userSurface: UserSurface = FIXED_USER_SURFACE
 /** Bumped whenever the page changes, so the style cache rebuilds once. */
 let surfaceRevision = 0
 
@@ -448,15 +498,25 @@ let surfaceRevision = 0
  * A light page keeps the fixed chip: there "above the page" points the other
  * way, the chip already contrasts, and its inks are the ones tuned for it. A
  * terminal that does not answer keeps it too.
+ *
+ * The archived prompt is placed from the same answer, but as a *band* rather than
+ * a slab: the editor's `##` heading tint, which is the page moved a tenth of the
+ * way towards the palette's yellow ({@link placeUserSurface}).
  * @param colors - what the terminal reported, or undefined when it stayed quiet.
  */
 export function setTerminalPage(colors: TerminalColors | undefined): void {
   const reported = colors?.background === undefined || colors?.foreground === undefined
     ? undefined
     : { background: toRgb(colors.background), foreground: toRgb(colors.foreground) }
-  const next = placeCards(reported)
-  if (sameRgb(cardSurfaces.neutral.background, next.neutral.background) && sameRgb(cardSurfaces.neutral.text, next.neutral.text)) return
-  cardSurfaces = next
+  const nextCards = placeCards(reported)
+  const reportedYellow = colors?.palette?.[3]
+  const nextUser = placeUserSurface(reported, reportedYellow === undefined ? undefined : toRgb(reportedYellow))
+  if (sameRgb(cardSurfaces.neutral.background, nextCards.neutral.background)
+    && sameRgb(cardSurfaces.neutral.text, nextCards.neutral.text)
+    && sameRgb(userSurface.background, nextUser.background)
+    && sameRgb(userSurface.text, nextUser.text)) return
+  cardSurfaces = nextCards
+  userSurface = nextUser
   surfaceRevision += 1
   stylesByCapability.clear()
 }
@@ -526,8 +586,8 @@ function createStyles(color: boolean): {
     accent: wrap('\u001b[36m', RESET),
     band: panel(`${bgOpen(BAND_BG)}${fgOpen(BAND_TEXT)}`),
     separator: wrap(fgOpen(SEPARATOR_RGB), RESET),
-    userPanel: panel(`${bgOpen(USER_PANEL_BG)}${fgOpen(USER_PANEL_TEXT)}`),
-    userArrow: wrap(fgOpen(USER_PANEL_ARROW), RESET),
+    userPanel: panel(`${bgOpen(userSurface.background)}${fgOpen(userSurface.text)}`),
+    userArrow: wrap(fgOpen(userSurface.arrow), RESET),
     error: wrap('\u001b[31m', RESET),
     warn: wrap('\u001b[33m', RESET),
     ok: wrap('\u001b[32m', RESET),

@@ -14,9 +14,12 @@
  * chip with page-coloured gaps reads as a highlighted line rather than as the
  * operator's own turn.
  *
- * The panel and text colours both come from `buildStyles`, which pins a fixed
- * foreground so the block stays legible on light and dark terminals. With
- * colour disabled (`NO_COLOR`) this degrades to plain text.
+ * The band, its text and the arrow all come from `buildStyles`: the band is the
+ * editor's `##` heading tint — the terminal's page moved a tenth of the way
+ * towards the palette's yellow — the text is the terminal's own foreground, and
+ * the arrow is that ink faded towards the band. Colour derivations live there so
+ * one terminal answer places every surface; with colour disabled (`NO_COLOR`)
+ * this degrades to plain text.
  *
  * @module hulala-cli/tui/view/userMessage
  */

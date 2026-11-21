@@ -13,6 +13,16 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- An archived prompt is drawn on the terminal's own palette instead of a fixed
+  chip. Its band is now the editor's level-2 heading tint — the reported page
+  moved a tenth of the way towards the palette's yellow — with the page's text
+  ink and an arrow faded back into the band, so a prompt in the conversation and
+  a `##` heading in the editor column are one palette, and a light or unusual
+  terminal theme no longer gets a dark slab in the middle of its transcript. A
+  terminal that reports no page keeps the fixed chip.
+
 ## [0.3.30] - 2026-11-20
 
 ### Added
