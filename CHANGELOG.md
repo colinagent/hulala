@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.32] - 2026-11-21
+
 ### Changed
 
 - The approval card's choices include the Session-wide grant in its footer:
