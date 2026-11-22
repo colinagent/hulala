@@ -13,6 +13,40 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.33] - 2026-11-22
+
+### Changed
+
+- An archived prompt is drawn in the editor's level-2 heading, background and
+  ink: the page moved a tenth of the way towards the palette's yellow, the prompt
+  text in that heading's own yellow, and the `❯` in the fade the `##` delimiters
+  get. Nothing comes from the terminal's foreground any more, so a prompt in the
+  conversation and a `##` heading in the editor column are one colour. Where a
+  pale palette yellow would leave the prompt hard to read on the band it derives,
+  the ink is deepened just until it clears 4.5:1.
+- Moving between the rail, the conversation and the sidebar is `Shift-Cmd-H` /
+  `Shift-Cmd-L` (second spelling: `Ctrl-Shift-H` / `Ctrl-Shift-L`). `Ctrl-[` and
+  `Ctrl-]` are no longer bound to anything: `Ctrl-[` is the `0x1b` byte of `Esc`
+  on a terminal that answers no keyboard report, so pressing it to move a panel
+  aborted the running turn instead — and it could not be fixed in place, because
+  nothing can tell the two keys apart there. Inside a column the leftward chord
+  always leaves, since no program can read a Command chord; the `Esc` key keeps
+  its old rule and still belongs to Neovim (outside normal mode) or a full-screen
+  program. The command palette moved from `Shift-Cmd-P` to `Shift-Cmd-K` (second
+  spelling `Ctrl-Shift-P`) to make room for the new Session keys, and `Shift-Cmd-P`
+  was already claimed by Ghostty's own command palette.
+- "Neovim only" moved from `Cmd-E` to `Shift-Cmd-I` (second spelling
+  `Ctrl-Shift-I`). Ghostty 1.4 binds `super+e` to its own `search_selection`, so the
+  mode had no working key there, and `Ctrl-I` was not an option: it is the `0x09`
+  byte of `Tab` on any terminal without the keyboard report, which would have
+  hijacked Tab in the composer's completion menu and in a focused shell or
+  Neovim. `Ctrl-Shift-I` sends nothing at all in a legacy encoding, so the
+  fallback is `/nvim`.
+- `Shift-Cmd-N` / `Shift-Cmd-P` open the next / previous Session from anywhere,
+  in the rail's own order (this directory first, then the rest, newest first) and
+  regardless of whether the rail is shown or folded. Inside the rail `Ctrl-N` /
+  `Ctrl-P` keep moving the cursor, and `/sessions` still searches the list.
+
 ## [0.3.32] - 2026-11-21
 
 ### Changed

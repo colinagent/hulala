@@ -21,7 +21,7 @@
  *
  * Spellings are normalized before they are compared, and the label form the hints
  * print is a spelling too: `Shift-Cmd-S`, `Shift+Super+S` and `super+shift+s` all
- * name the same chord, as do `Cmd-E` and `meta+e`. That is deliberate — `/keys`
+ * name the same chord, as do `Cmd-I` and `meta+i`. That is deliberate — `/keys`
  * and the command palette print labels, and a reader copying one out of them
  * should not have to translate it.
  *
@@ -60,14 +60,16 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   { id: 'app.expand', defaults: ['ctrl+o'], label: 'keymap.action.expand' },
   { id: 'app.interactions', defaults: ['alt+g'], label: 'keymap.action.interactions' },
   { id: 'app.redraw', defaults: ['ctrl+l'], label: 'keymap.action.redraw' },
-  { id: 'panel.focusLeft', defaults: ['ctrl+['], label: 'keymap.action.focusLeft' },
-  { id: 'panel.focusRight', defaults: ['ctrl+]'], label: 'keymap.action.focusRight' },
+  { id: 'session.previous', defaults: ['shift+super+p'], label: 'keymap.action.sessionPrevious' },
+  { id: 'session.next', defaults: ['shift+super+n'], label: 'keymap.action.sessionNext' },
+  { id: 'panel.focusLeft', defaults: ['shift+super+h', 'ctrl+shift+h'], label: 'keymap.action.focusLeft' },
+  { id: 'panel.focusRight', defaults: ['shift+super+l', 'ctrl+shift+l'], label: 'keymap.action.focusRight' },
   { id: 'panel.rail', defaults: ['shift+super+s'], label: 'keymap.action.rail' },
   { id: 'panel.chat', defaults: ['shift+super+c'], label: 'keymap.action.chat' },
   { id: 'panel.terminal', defaults: ['ctrl+t'], label: 'keymap.action.terminal' },
   { id: 'panel.editor', defaults: ['ctrl+d'], label: 'keymap.action.editor' },
-  { id: 'panel.editorOnly', defaults: ['super+e'], label: 'keymap.action.editorOnly' },
-  { id: 'panel.commands', defaults: ['shift+super+p'], label: 'keymap.action.commands' },
+  { id: 'panel.editorOnly', defaults: ['shift+super+i', 'ctrl+shift+i'], label: 'keymap.action.editorOnly' },
+  { id: 'panel.commands', defaults: ['shift+super+k', 'ctrl+shift+p'], label: 'keymap.action.commands' },
   {
     id: 'panel.dividerLeft',
     defaults: ['ctrl+shift+left', 'ctrl+shift+[', 'ctrl+super+['],

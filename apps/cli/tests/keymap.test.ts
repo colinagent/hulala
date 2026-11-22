@@ -34,11 +34,20 @@ describe('defaults', () => {
       const keymap = resolveKeymap(root)
       expect(keymap.problems).toEqual([])
       expect(keymap.bindings['panel.editor']).toEqual(['ctrl+d'])
-      expect(keymap.bindings['panel.editorOnly']).toEqual(['super+e'])
+      expect(keymap.bindings['panel.editorOnly']).toEqual(['shift+super+i', 'ctrl+shift+i'])
+      // `Ctrl-I` is the `Tab` byte, so it can never name a layout mode.
+      expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+i')
       expect(keymap.bindings['panel.rail']).toEqual(['shift+super+s'])
       expect(keymap.bindings['panel.chat']).toEqual(['shift+super+c'])
-      expect(keymap.bindings['panel.commands']).toEqual(['shift+super+p'])
+      expect(keymap.bindings['panel.commands']).toEqual(['shift+super+k', 'ctrl+shift+p'])
       expect(keymap.bindings['panel.terminal']).toEqual(['ctrl+t'])
+      expect(keymap.bindings['panel.focusLeft']).toEqual(['shift+super+h', 'ctrl+shift+h'])
+      expect(keymap.bindings['panel.focusRight']).toEqual(['shift+super+l', 'ctrl+shift+l'])
+      expect(keymap.bindings['session.previous']).toEqual(['shift+super+p'])
+      expect(keymap.bindings['session.next']).toEqual(['shift+super+n'])
+      // The one pair that must never come back: `Ctrl-[` is the `Esc` byte.
+      expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+[')
+      expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+]')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -79,7 +88,7 @@ describe('the user file', () => {
     expect(normalizeKeySpelling('PgUp')).toBe('pageup')
     // The spelling the hints print can be pasted straight into the file.
     expect(normalizeKeySpelling('Shift-Cmd-S')).toBe('shift+super+s')
-    expect(normalizeKeySpelling('Cmd-E')).toBe('super+e')
+    expect(normalizeKeySpelling('Cmd-I')).toBe('super+i')
     expect(normalizeKeySpelling('ctrl+option+t')).toBe('ctrl+alt+t')
     const keymap = parseKeymap({ 'panel.rail': ['super+shift+s'], 'panel.chat': ['shift+super+s'] })
     expect(keymap.problems).toContainEqual({ kind: 'duplicate', key: 'shift+super+s', first: 'panel.rail', second: 'panel.chat' })
@@ -133,7 +142,7 @@ describe('labels', () => {
   test('a chord prints the way the docs write it', () => {
     expect(keyLabel('ctrl+t')).toBe('Ctrl-T')
     expect(keyLabel('shift+super+s')).toBe('Shift-Cmd-S')
-    expect(keyLabel('super+e')).toBe('Cmd-E')
+    expect(keyLabel('super+i')).toBe('Cmd-I')
     expect(keyLabel('ctrl+shift+left')).toBe('Ctrl-Shift-←')
     expect(keyLabel('escape')).toBe('Esc')
   })

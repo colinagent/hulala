@@ -60,11 +60,13 @@ the middle, and one sidebar column on the right — the built-in terminal on
 `Ctrl-T`, Neovim on `Ctrl-D`. The two sidebar columns keep separate processes
 and only one is painted at a time. Each column key opens its column and takes
 the keyboard, and closes it again when that column is already painted, wherever
-the keyboard is. `Cmd-E` is the exception: it puts the rail and the conversation
-away and leaves Neovim alone — "just the editor" — and the next press restores
-the layout from before. `Ctrl-[` / `Ctrl-]` move focus between the rail, the
-conversation and the sidebar without closing anything. `Shift-Cmd-S` and
-`Shift-Cmd-C` show or put away the rail and the conversation. The conversation
+the keyboard is. `Shift-Cmd-I` is the exception: it puts the rail and the
+conversation away and leaves Neovim alone — "just the editor" — and the next press
+restores the layout from before. `Shift-Cmd-H` / `Shift-Cmd-L` move focus between
+the rail, the conversation and the sidebar without closing anything, and
+`Ctrl-Shift-H` / `Ctrl-Shift-L` are the same pair for a terminal where a Command
+chord never arrives. `Shift-Cmd-S` and `Shift-Cmd-C` show or put away the rail and
+the conversation. The conversation
 only hides while the rail or a sidebar column is on screen, so the frame never
 loses its last column; hiding it gives the sidebar the space the conversation
 had. `Ctrl-Q` exits, in the slot pi gives `Ctrl-D`, and still asks a dirty
@@ -107,16 +109,32 @@ request.
 An `Esc` press belongs elsewhere in two cases. While the completion menu is open
 it only closes the menu, and while a column has focus it belongs to the program
 whenever the program has something to cancel — a full-screen terminal program, or
-Neovim outside normal mode. Both cases exist because `Esc` and `Ctrl-[` are one
-key. With no turn running, `Esc` is the
-leftward move into the Session rail, keeping whatever draft the composer holds;
-inside the rail it returns to the composer (clearing the filter first). With the
-rail put away, a second `Esc` within half a second opens the searchable Session
-picker (`/sessions`) instead. `Shift-Cmd-S` shows or puts away the rail, and a
-hidden rail comes back with the keyboard on the list; it stays the fallback for
-terminals or input methods that swallow `Esc`, and `/rail` is the same toggle
-where a Command chord cannot arrive. It only ever shows or hides — moving the
-keyboard between the rail, the conversation and a column is `Ctrl-[` / `Ctrl-]`.
+Neovim outside normal mode. With no turn running, `Esc` is the leftward move into
+the Session rail, keeping whatever draft the composer holds; inside the rail it
+returns to the composer (clearing the filter first). With the rail put away, a
+second `Esc` within half a second opens the searchable Session picker
+(`/sessions`) instead. `Shift-Cmd-S` shows or puts away the rail, and a hidden
+rail comes back with the keyboard on the list; it stays the fallback for terminals
+or input methods that swallow `Esc`, and `/rail` is the same toggle where a
+Command chord cannot arrive. It only ever shows or hides — moving the keyboard
+between the rail, the conversation and a column is `Shift-Cmd-H` / `Shift-Cmd-L`.
+
+`Ctrl-[` is deliberately not a binding anywhere: it is the `0x1b` byte of `Esc` on
+a terminal that answers no keyboard report, so a chord there would be
+indistinguishable from the interrupt key and would abort a running turn. The
+chords are Command chords instead, and the client asks for the disambiguation
+report on startup so a terminal that took it (Ghostty, kitty, WezTerm, foot)
+reports them as their own keys. `Ctrl-Shift-H` / `Ctrl-Shift-L` are the second
+spelling for a system where a Command chord cannot arrive; in a legacy encoding
+those two send nothing at all, so a terminal without the report simply has no
+move key rather than a misfire.
+
+`Shift-Cmd-N` / `Shift-Cmd-P` open the next or previous Session from wherever the
+keyboard is. The walk is the rail's own order — this directory first, then the
+rest, newest first, blank Sessions skipped — and it does not depend on whether the
+rail is shown or folded, so the key is the same gesture in every layout. Inside
+the rail, `Ctrl-N` / `Ctrl-P` still move the cursor: one pair moves Sessions, the
+other moves a highlight.
 
 ## Reading the conversation
 
@@ -150,8 +168,8 @@ a diff, a file's contents — stays available for selection.
 
 The client owns the mouse: clicking a panel moves the keyboard to it. The
 conversation, the Session rail and the open column are three panels with one
-owner, so a click is the pointer's version of `Ctrl-[` / `Ctrl-]` and the panels
-that do not hold the keyboard are drawn faint — the same signal a terminal's own
+owner, so a click is the pointer's version of `Shift-Cmd-H` / `Shift-Cmd-L` and the
+panels that do not hold the keyboard are drawn faint — the same signal a terminal's own
 split gives. The click is a focus move only; it still does what the cell said:
 clicking a step row's `▸` folds it, and a drag across the conversation is the
 client's own selection — the text is drawn in reverse video, and letting go
@@ -193,7 +211,7 @@ selection goes to the clipboard you paste from.
 
 ## The command palette
 
-`Shift-Cmd-P` (or `/commands`) opens the palette: a searchable list of every
+`Shift-Cmd-K` (or `/commands`) opens the palette: a searchable list of every
 command, one row each, with what the command does and its shortcut on the right.
 Enter runs the highlighted command without going back to the composer, and a
 command that cannot run without an argument (`/rename`) instead brings the
@@ -235,8 +253,8 @@ Every chord the client intercepts is an action in
 A value is a list of key spellings — modifiers `ctrl`, `alt`, `shift`, `super`
 plus a letter, or `escape`, `enter`, `tab`, `space`, `pageup`, `left`, `f1` and
 so on. The label form the hints print is a spelling too (`Shift-Cmd-S`,
-`Cmd-E`), which is what makes `/keys` copy-pasteable. An empty list disables the
-action; an action the file does not mention keeps its default. The ids are the ones `/keys` prints next to their
+`Shift-Cmd-I`), which is what makes `/keys` copy-pasteable. An empty list disables
+the action; an action the file does not mention keeps its default. The ids are the ones `/keys` prints next to their
 descriptions, and `tui.editor.*` ids from pi-tui's own table are accepted in the
 same file for the composer's editing gestures.
 
@@ -276,8 +294,10 @@ unless they are the open one.
 | Key | Behaviour |
 |---|---|
 | `Shift-Cmd-S` (or `/rail`) | show or put away the rail; a hidden rail comes back with the keyboard on the list |
-| `Esc` / `Ctrl-[` | from the composer: move into the rail (a draft stays where it was); inside the rail: back to the composer |
-| `Ctrl-]` | from the rail: back to the composer; from the composer: into the painted column |
+| `Shift-Cmd-H` / `Ctrl-Shift-H` | from the composer: move into the rail (a draft stays where it was); from the rail or a column: back to the composer |
+| `Shift-Cmd-L` / `Ctrl-Shift-L` | from the rail: back to the composer; from the composer: into the painted column |
+| `Esc` | from the composer: into the rail when idle, cancel the turn when one runs; inside the rail: back to the composer |
+| `Shift-Cmd-N` / `Shift-Cmd-P` | open the next / previous Session from anywhere; in the rail `Ctrl-N` / `Ctrl-P` move the cursor instead |
 | `↑`/`↓`, `j`/`k`, `Ctrl-P`/`Ctrl-N` | move the cursor |
 | `Enter` | open the Session (on the `all` row: fold or unfold it) |
 | `n` | create a Session in the open Session's directory and switch to it |
@@ -421,7 +441,7 @@ bundled Neovim with isolated `XDG_*` homes.
 |---|---|
 | `Ctrl-T` | open and focus the terminal; press it again to hide the column wherever the keyboard is (the shell keeps running) |
 | `Ctrl-D` | switch the sidebar to Neovim; the shell keeps running in the background |
-| `Ctrl-[` / `Ctrl-]` | move focus between the terminal and the composer without hiding it |
+| `Shift-Cmd-H` / `Shift-Cmd-L` | move focus between the terminal and the composer without hiding it |
 | `Shift-PgUp` / `Shift-PgDn` | page the terminal's own history (plain `PageUp`/`PageDown` where the terminal cannot report the modifier) |
 | `/terminal` | same as `Ctrl-T` |
 
@@ -429,12 +449,12 @@ The column keeps 1000 lines of history, because a shell is read as much as it is
 typed into: the outer terminal's scrollback is unavailable in the alternate
 screen. Any other key returns to the live screen first and then reaches the
 shell. A full-screen program (`less`, `top`, `fzf`) owns the alternate screen,
-so it keeps `Esc` and its paging keys to itself; on the normal screen `Ctrl-[`
-returns to the composer. Hiding the terminal with `Ctrl-T` or `Shift-Cmd-C`
-leaves the shell and its jobs alive, and `Ctrl-]` reopens the last column while
-it is still running. The key is a visibility toggle for its own column: it hides the
-terminal even when the composer has the keyboard, and `Ctrl-]` is what moves
-focus back into it without hiding anything.
+so it keeps `Esc` and its paging keys to itself; on the normal screen `Esc` or
+`Shift-Cmd-H` returns to the composer. Hiding the terminal with `Ctrl-T` or
+`Shift-Cmd-C` leaves the shell and its jobs alive, and `Shift-Cmd-L` reopens the
+last column while it is still running. The key is a visibility toggle for its own
+column: it hides the terminal even when the composer has the keyboard, and
+`Shift-Cmd-L` is what moves focus back into it without hiding anything.
 
 ## The editor column beside the transcript
 
@@ -444,8 +464,8 @@ focus back into it without hiding anything.
 |---|---|
 | `Ctrl-D` | open the editor column and focus it; press it again to close it wherever the keyboard is |
 | `Ctrl-T` | switch the sidebar back to the built-in terminal |
-| `Cmd-E` (or `/nvim`) | leave only the editor column: the rail and the conversation go away; press again to restore the layout from before |
-| `Ctrl-[` / `Ctrl-]` | move focus between the column and the composer without closing it |
+| `Shift-Cmd-I` / `Ctrl-Shift-I` (or `/nvim`) | leave only the editor column: the rail and the conversation go away; press again to restore the layout from before |
+| `Shift-Cmd-H` / `Shift-Cmd-L` | move focus between the column and the composer without closing it |
 | `Ctrl+S` | save the current file (works in insert and visual mode too) |
 | `/editor` | same as `Ctrl-D` |
 
@@ -458,8 +478,8 @@ the only spelling every layer between the keyboard and Neovim forwards unchanged
 while a modified arrow is taken by the window manager (`Control-←` switches
 spaces on macOS) or encoded differently by each terminal.
 
-With Neovim alone (`Cmd-E`) every spelling of the column divider chord moves this
-boundary as well — `Ctrl-Cmd-[` / `Ctrl-Cmd-]`, `Ctrl-Shift-[` / `Ctrl-Shift-]`
+With Neovim alone (`Shift-Cmd-I`) every spelling of the column divider chord moves
+this boundary as well — `Ctrl-Cmd-[` / `Ctrl-Cmd-]`, `Ctrl-Shift-[` / `Ctrl-Shift-]`
 and `Ctrl-Shift-←` / `Ctrl-Shift-→`: one column means no frame boundary left to
 move, so the chord goes to the one rule still on screen. Side by side, the same
 chords keep resizing the editor column, and the tree's own keys above move the
@@ -485,8 +505,8 @@ selection all work there as they do in a terminal.
 Closing asks Neovim to leave first: it exits when everything can be written, and
 when a buffer cannot be written the client asks — `[s] 保存全部` / `[d] 放弃改动`
 / `[Esc] 取消` — instead of killing the process. As with `Ctrl-T`, the key
-closes the column wherever the keyboard is; `Ctrl-]` moves focus into it without
-closing anything. Files are saved automatically a
+closes the column wherever the keyboard is; `Shift-Cmd-L` moves focus into it
+without closing anything. Files are saved automatically a
 second after you stop typing, and immediately when the buffer is left or the
 client quits, so the disk the agent reads stays current. `Ctrl-W` is still
 Neovim's window prefix; `Ctrl-T` and `Ctrl-D` belong to the two column keys, so
@@ -519,17 +539,18 @@ the same engine the conversation uses; `Space u m` toggles both. Anything the
 renderer cannot draw — an unknown diagram type, a syntax error, art wider than the
 column — stays source.
 
-`Ctrl-[` is the same byte as `Esc`, so the keyboard does not simply take it: the
-column keeps the key while Neovim has something to cancel. Neovim reports its
-mode (`HULALA_NVIM_MODE_FILE`, written by a `ModeChanged` autocommand) and keeps
-`Ctrl-[` in insert, visual, command-line and operator-pending mode. In normal
-mode, when there is nothing to cancel, `Ctrl-[` moves focus back to the
-composer.
+`Shift-Cmd-H` always comes back from the column: no program can read a Command
+chord, so the client never has to ask who owns it. `Esc` is the exception that
+needs a rule — the column keeps the key while Neovim has something to cancel.
+Neovim reports its mode (`HULALA_NVIM_MODE_FILE`, written by a `ModeChanged`
+autocommand) and keeps `Esc` in insert, visual, command-line and
+operator-pending mode. In normal mode, when there is nothing to cancel, `Esc`
+moves focus back to the composer.
 
 ## The bundled editor
 
 `Ctrl-D` (or `/editor`) opens the Neovim column described above and moves focus
-into it; `Ctrl-[` leaves it to the conversation without closing it, and `Ctrl-D`
+into it; `Shift-Cmd-H` leaves it to the conversation without closing it, and `Ctrl-D`
 again closes it after asking about unwritten buffers. The editor ships with the
 client — the archive's `bin/nvim`, its runtime
 tree and the vendored `snacks.nvim` file tree — so nothing depends on a Neovim

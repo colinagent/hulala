@@ -7,7 +7,7 @@
  * `rail.focus()` starts the list's editing state, `panes.focus()` starts or
  * adopts a column and passes the caret through — but neither knows how to let go
  * without also saying where focus goes next. `blur()` is "back to the composer",
- * which is the right answer for `Ctrl-[` and the wrong one for a click: a
+ * which is the right answer for `Esc` and the wrong one for a click: a
  * conversation put away on purpose with `Shift-Cmd-C` must not reappear just
  * because the pointer moved from the rail to a column.
  *
@@ -80,7 +80,7 @@ export function apply(ctx: Context): void {
     const editor = composer()
     if (editor === undefined) return
     // The composer is the keyboard's home, so it has to be on screen to take it
-    // back; a frame built for `Cmd-E` may have the conversation put away.
+    // back; a frame built for `Ctrl-Shift-I` may have the conversation put away.
     if (!layout.conversationShown) layout.setConversationVisible(true)
     focusOn(editor)
     render.request()

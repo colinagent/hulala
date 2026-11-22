@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { imePolicyOf, modeReadsText, paneForSwitch, paneOwnsEscape } from '../../src/tui/pane/focus.js'
 
-test('Neovim keeps Ctrl-[ in every mode except normal', () => {
+test('Neovim keeps Esc in every mode except normal', () => {
   for (const mode of ['i', 'ic', 'R', 'v', 'V', 'c', 'no']) {
     expect(paneOwnsEscape('editor', { editorMode: mode, alternateScreen: false })).toBe(true)
   }
@@ -10,12 +10,12 @@ test('Neovim keeps Ctrl-[ in every mode except normal', () => {
   expect(paneOwnsEscape('editor', { editorMode: undefined, alternateScreen: false })).toBe(false)
 })
 
-test('the shell keeps Ctrl-[ only while a full-screen program owns the screen', () => {
+test('the shell keeps Esc only while a full-screen program owns the screen', () => {
   expect(paneOwnsEscape('terminal', { editorMode: undefined, alternateScreen: true })).toBe(true)
   expect(paneOwnsEscape('terminal', { editorMode: undefined, alternateScreen: false })).toBe(false)
 })
 
-test('Ctrl-] prefers the visible column, then the last live one, then any live one', () => {
+test('the rightward move prefers the visible column, then the last live one, then any live one', () => {
   const live = (...kinds: Array<'editor' | 'terminal'>) => (kind: 'editor' | 'terminal') => kinds.includes(kind)
   // The painted column wins even when both are alive.
   expect(paneForSwitch({ visible: 'terminal', last: 'editor' }, live('editor', 'terminal'))).toBe('terminal')

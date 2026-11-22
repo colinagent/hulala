@@ -5,18 +5,20 @@
  * whole design: a modal owns the keyboard, then the rail, then a focused column,
  * then the composer, then the client's own keys. Keyboard precedence cannot be
  * decided by whichever plugin registered last — a plugin that ate `Ctrl-C` would
- * make the client impossible to interrupt, and a column that ate `Ctrl-[` would
- * strand the keyboard inside a program.
+ * make the client impossible to interrupt, and a column that ate `Shift-Cmd-H`
+ * would strand the keyboard inside a program.
  *
  * No chord is spelled here. Every check is `matchesAction(id, data)`, so the keys
  * this pipeline answers to are the ones in `config/keybindings.json`, and the
  * startup hints and `/help` print those same bindings.
  *
- * `Ctrl-[` is the hard case, and the reason this is not just a key table: it is
- * the same byte as `Esc` on a legacy terminal, so it cannot simply be taken. It
- * moves focus only when the focused program has nothing to cancel, which the
- * editor reports through its mode file and the terminal through the alternate
- * screen.
+ * `Shift-Cmd-H` / `Shift-Cmd-L` are the leftward and rightward moves; the second
+ * spelling of each (`Ctrl-Shift-H` / `Ctrl-Shift-L`) exists for the terminals and
+ * systems where a Command chord never arrives. Neither is a byte a program in a
+ * column can read, so inside a column they always move the keyboard — while the
+ * `Esc` byte keeps the older rule: it belongs to the program whenever the program
+ * has something to cancel, which the editor reports through its mode file and
+ * the terminal through the alternate screen.
  *
  * `Ctrl-T` and `Ctrl-D` name the two sidebar columns: the built-in terminal and
  * Neovim. `Ctrl-D` is the editor's key because `Ctrl-F` is the forward-char,
@@ -27,23 +29,29 @@
  * asked to leave) wherever the keyboard is, and pressing the other column's key
  * swaps which one is painted, keeping both processes alive.
  *
- * `Cmd-E` is not a toggle like the others: it is "just the editor". The mode
- * itself lives in the command surface (`commands.toggleEditorOnly`), because the
- * key and `/nvim` are one action and must share one layout snapshot; this module
- * only routes the chord to it. A Command chord needs the Kitty keyboard report,
- * and `/nvim` is its fallback.
+ * `Ctrl-Shift-I` is not a toggle like the others: it is "just the editor". The
+ * mode itself lives in the command surface (`commands.toggleEditorOnly`), because
+ * the key and `/nvim` are one action and must share one layout snapshot; this
+ * module only routes the chord to it. It is not `Cmd-E` (`super+e` is Ghostty
+ * 1.4's own `search_selection`) and not `Ctrl-I`, which is the `Tab` byte —
+ * `Shift-Cmd-I` is the mac-family spelling and `/nvim` the fallback.
  *
  * `Shift-Cmd-S` and `Shift-Cmd-C` are the rail and the conversation. The rail key
  * is a visibility toggle and never a focus cycle: a shown rail is put away, a
  * hidden one comes back with the keyboard on it, and moving between the rail, the
- * conversation and the sidebar is `Ctrl-[`/`Ctrl-]` only. `Ctrl-Q` exits, in the
- * slot pi gives `Ctrl-D`. Both layout keys are Command chords, so `/rail` and
- * `/chat` exist for terminals that cannot deliver one.
+ * conversation and the sidebar is `Shift-Cmd-H`/`Shift-Cmd-L` only. `Ctrl-Q`
+ * exits, in the slot pi gives `Ctrl-D`. Both layout keys are Command chords, so
+ * `/rail` and `/chat` exist for terminals that cannot deliver one.
+ *
+ * `Shift-Cmd-N` and `Shift-Cmd-P` walk the Sessions from wherever the keyboard
+ * is — the walk is the rail's own order, so a hidden or folded rail changes
+ * nothing. Inside the rail `Ctrl-N`/`Ctrl-P` still move the cursor: one pair
+ * moves Sessions, the other moves a highlight.
  *
  * @module hulala-cli/tui/plugins/input
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { isKeyRelease } from '@earendil-works/pi-tui'
+import { isKeyRelease, matchesKey } from '@earendil-works/pi-tui'
 import { matchesAction } from '../../keymap.js'
 import { isStrayTerminalReport } from '../input/reports.js'
 import { t } from '../i18n/index.js'
@@ -70,16 +78,29 @@ export interface InputPluginConfig {
 }
 
 /**
- * Whether one event is the escape gesture.
+ * Whether one event is the escape gesture: the `Esc` key, or a leftward move.
  *
- * `Esc` and `Ctrl-[` are the same byte (`0x1b`) on every terminal that does not
- * negotiate the Kitty keyboard protocol — which `StreamTerminal` deliberately
- * does not. A terminal configured to report modifiers instead sends `Ctrl-[` as
- * its own sequence (`CSI 27;5;91~`, `CSI 91;5u`), so both bindings count, even
- * though only one of them is `app.interrupt` in the key table.
+ * The two are separate bindings (`app.interrupt` and `panel.focusLeft`), and the
+ * pipeline below answers both in the composer. They are still collected here
+ * because a user may bind one to the other's key — `"app.interrupt": ["ctrl+["]`
+ * is a spelling people try — and because every branch below needs the same
+ * precedence: the interrupt job first, the move second.
  */
 function isEscapeInput(data: string): boolean {
   return matchesAction('app.interrupt', data) || matchesAction('panel.focusLeft', data)
+}
+
+/**
+ * Whether one event is the leftward move *and not* the interrupt key.
+ *
+ * The defaults make these disjoint: `Esc` interrupts, `Shift-Cmd-H` moves. The
+ * distinction matters while a turn runs — the move must not abort it — and for
+ * an empty idle composer, where the double-`Esc` picker belongs to the escape
+ * byte alone. A user who binds both actions to one key gets the interrupt, which
+ * is the safe reading of an ambiguous chord.
+ */
+function isReportedFocusLeft(data: string): boolean {
+  return matchesAction('panel.focusLeft', data) && !matchesAction('app.interrupt', data)
 }
 
 /** Install the pipeline. */
@@ -161,8 +182,8 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
    * follows the key, which widens the column on its right and narrows the one on
    * its left.
    *
-   * With both side columns away (the editor alone, as `Cmd-E` leaves it) the frame
-   * has no boundary at all, so the key goes to the editor's own: Neovim's file
+   * With both side columns away (the editor alone, as `Shift-Cmd-I` leaves it) the
+   * frame has no boundary at all, so the key goes to the editor's own: Neovim's file
    * tree draws the one rule still on screen, and it moves on this same key. There
    * is nothing to trade it against, which is why the hand-off is safe here and not
    * in the layouts that do have a boundary.
@@ -263,6 +284,19 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       return undefined
     }
 
+    // Switching Sessions, from wherever the keyboard is. The walk is the rail's
+    // order (`railStepTarget`), so the gesture is the same while the rail is
+    // hidden, folded, or holding the keyboard — where `Ctrl-N`/`Ctrl-P` keep
+    // moving the cursor instead.
+    if (matchesAction('session.previous', data)) {
+      rails.step(-1)
+      return { consume: true }
+    }
+    if (matchesAction('session.next', data)) {
+      rails.step(1)
+      return { consume: true }
+    }
+
     // The rail owns the keyboard while it has focus. Only keys belonging to the
     // whole client are taken here; everything else falls through to
     // `SessionRail.handleInput` (filter typing, `n`, `r`, arrows).
@@ -283,6 +317,13 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
         return { consume: true }
       }
       if (matchesAction('panel.focusRight', data)) {
+        rails.blur()
+        return { consume: true }
+      }
+      // The leftward move is taken before the escape gesture below, which the
+      // filter box gets first: the filter owns `Esc` (to clear the query), not a
+      // chord the terminal reported as its own key.
+      if (matchesAction('panel.focusLeft', data)) {
         rails.blur()
         return { consume: true }
       }
@@ -317,12 +358,20 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     // While a column has focus every key belongs to its program except the
     // column keys; anything else consumed here would be stolen from the program.
     if (panes.focused) {
-      if (matchesAction('panel.focusLeft', data)) {
-        if (panes.ownsEscape()) return undefined
+      // `Shift-Cmd-H` is the leftward move, and a bare `Esc` is the same move
+      // only while the program has nothing to cancel: Neovim in insert mode and a
+      // full-screen program keep the key (`ownsEscape`). The command chord is
+      // never the program's — no column can read one.
+      const escapeKey = matchesKey(data, 'escape')
+      if (escapeKey || matchesAction('panel.focusLeft', data)) {
+        // A release is swallowed with its press, so a terminal that reports event
+        // types cannot hand the program a second Esc for one keystroke.
+        if (isKeyRelease(data)) return { consume: true }
+        if (escapeKey && panes.ownsEscape()) return undefined
         // Neovim still gets the key so its normal-mode `<esc>` mapping (clear the
         // search highlight) runs. The shell does not: readline would keep the key
         // pending as a meta prefix for whatever is typed next.
-        if (panes.visible === 'editor') panes.input('\u001b')
+        if (escapeKey && panes.visible === 'editor') panes.input('\u001b')
         panes.blur()
         return { consume: true }
       }
@@ -358,13 +407,18 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     // Esc is the interrupt key, as in pi's `app.interrupt`: it aborts the running
     // turn, and on an empty idle composer a second press opens the Session
     // picker. The completion menu keeps the first press for closing itself, and a
-    // focused column keeps the byte while it has something to cancel (above),
-    // because `Ctrl-[` and `Esc` are the same key.
+    // focused column keeps the byte while it has something to cancel (above).
+    // `Shift-Cmd-H` arrives here too, as the leftward move.
     if (isEscapeInput(data)) {
       // Kitty-protocol key releases repeat the code without a new press.
       if (isKeyRelease(data)) return { consume: true }
       if (editor.completionMenuOpen) return undefined
-      if (reducer.busy) {
+      // The leftward move is not the interrupt key: `Shift-Cmd-H` moves the
+      // keyboard even while a turn runs, and an idle empty composer does not turn
+      // a repeated press into the Session picker — that gesture is the `Esc`
+      // byte's.
+      const reportedLeft = isReportedFocusLeft(data)
+      if (reducer.busy && !reportedLeft) {
         void commands.cancel()
         return { consume: true }
       }
@@ -377,6 +431,9 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
         rails.focus()
         return { consume: true }
       }
+      // With no rail painted there is nowhere left to move to, and the picker
+      // below is the `Esc` byte's double-press gesture rather than this key's.
+      if (reportedLeft) return { consume: true }
       if (editor.getText().trim() !== '') return { consume: true }
       if (session.id === undefined) return { consume: true }
       const now = Date.now()
@@ -431,7 +488,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     // nothing else: a rail already on screen goes away even though the composer
     // has the keyboard, and one that is hidden comes back with the keyboard on
     // the list so it is usable straight away. Moving between columns is
-    // `Ctrl-[` / `Ctrl-]`.
+    // `Shift-Cmd-H` / `Shift-Cmd-L`.
     if (matchesAction('panel.rail', data)) {
       rails.toggle()
       return { consume: true }

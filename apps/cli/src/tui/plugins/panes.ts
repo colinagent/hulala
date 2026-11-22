@@ -81,13 +81,13 @@ export interface TuiPanes {
    * Visibility only, decided on which column is painted and never on where the
    * keyboard is: a painted terminal is hidden and a painted editor is asked to
    * leave even when the composer or the rail has the keyboard. Moving focus into
-   * an open column is `Ctrl-]`.
+   * an open column is `Shift-Cmd-L`.
    */
   toggle(kind: PaneKind, cwd: string): void
   /** Show `kind` and put the keyboard there, starting it if needed. */
   focus(kind: PaneKind, cwd: string): void
   /**
-   * The column `Ctrl-]` should focus without starting a program: the visible
+   * The column the rightward move should focus without starting a program: the visible
    * one, else the last closed one whose process is still alive.
    */
   switchable(): PaneKind | undefined
@@ -114,7 +114,7 @@ export interface TuiPanes {
   dispose(): void
   /** Write a key into the visible column's process. */
   input(data: string): void
-  /** Whether the focused program keeps `Ctrl-[` (the same byte as `Esc`). */
+  /** Whether the focused program keeps `Esc`, which it shares no chord with. */
   ownsEscape(): boolean
   /** Ask Neovim to leave, settling a refusal with a dialog. */
   leave(): Promise<boolean>
@@ -196,7 +196,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const seats = new Map<PaneKind, () => void>()
   /** The column painted in the sidebar; it stays visible when the composer has focus. */
   let visibleKind: PaneKind | undefined
-  /** The column shown most recently, so `Ctrl-]` can reopen it. */
+  /** The column shown most recently, so the rightward move can reopen it. */
   let lastKind: PaneKind | undefined
   /** The keyboard is in the visible column. */
   let focused = false
@@ -707,7 +707,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     // The key is a visibility toggle for its own column: whoever has the keyboard
     // does not matter. A painted terminal hides (and keeps its jobs), a painted
     // editor is asked to leave (it can lose unwritten buffers). Moving the
-    // keyboard into a column that is still open is `Ctrl-]`. A column the layout
+    // keyboard into a column that is still open is `Shift-Cmd-L`. A column the layout
     // cannot paint (a terminal narrowed below the split minimum) is re-opened
     // instead, because there is nothing on screen to close.
     if (visibleKind === kind && layout.paneId !== undefined) {
@@ -718,7 +718,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     focus(kind, cwd)
   }
 
-  /** The column `Ctrl-]` can focus without starting a program. */
+  /** The column the rightward move can focus without starting a program. */
   const switchable = (): PaneKind | undefined => paneForSwitch(
     { visible: visibleKind, last: lastKind },
     kind => runtimes.has(kind),

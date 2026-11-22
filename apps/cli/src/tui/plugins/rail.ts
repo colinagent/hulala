@@ -38,15 +38,24 @@ export interface TuiRail {
    *
    * Visibility only. A rail already on screen is put away even when the
    * composer or a column has the keyboard; a hidden rail comes back with the
-   * keyboard on the list. Moving between columns is `Ctrl-[` / `Ctrl-]`, so this
-   * key never doubles as a focus cycle, and it remains the fallback entry when a
-   * terminal or input method eats `Ctrl-[`.
+   * keyboard on the list. Moving between columns is `Shift-Cmd-H` / `Shift-Cmd-L`,
+   * so this key never doubles as a focus cycle, and it remains the fallback entry
+   * when a terminal or input method eats `Esc`.
    */
   toggle(): void
   /** Move the keyboard to the rail, showing it if it was hidden. */
   focus(): void
   /** Move the keyboard back to the composer; the rail stays visible. */
   blur(): void
+  /**
+   * `Shift-Cmd-N` / `Shift-Cmd-P`: open the Session below or above this one.
+   *
+   * The walk follows the list's order, not what the column is painting, so the
+   * key is the same gesture whether the rail is shown, hidden or folded. The
+   * keyboard stays where it is — this moves Sessions, not focus.
+   * @param direction - `1` for the next Session, `-1` for the previous one.
+   */
+  step(direction: -1 | 1): void
   /**
    * Let go of the keyboard without saying where it goes next.
    *
@@ -252,7 +261,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
    * keyboard is: a rail beside a focused editor column must still close, and a
    * visible rail must not turn the key into "move focus left". Only a rail that
    * actually held the keyboard hands it back to the composer; a column that owns
-   * it keeps it, and `Ctrl-[` is what leaves that column.
+   * it keeps it, and `Shift-Cmd-H` is what leaves that column.
    */
   const toggle = (): void => {
     if (config.isClosing()) return
@@ -318,6 +327,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     focus,
     blur,
     unfocus,
+    step: (direction: -1 | 1) => { rail.step(direction) },
     handleInput: (data: string) => { rail.handleInput(data) },
     sync: syncTimer,
     moveDivider,

@@ -225,6 +225,31 @@ export function railLists(state: RailState): RailLists {
   return { current, foreign, hidden: ordered.length - current.length, total: ordered.length }
 }
 
+/**
+ * The Session `Shift-Cmd-N` / `Shift-Cmd-P` opens next.
+ *
+ * The walk follows the list's own order — this directory first, then the rest,
+ * newest first — as though the `all` section were unfolded and every page
+ * revealed: the fold decides what is painted, not what exists, so the key keeps
+ * walking while the rail shows one directory. Blank Sessions stay out of the
+ * walk unless one is open, exactly as in the list, and the walk wraps at both
+ * ends.
+ * @param state - the rail's current data.
+ * @param direction - `1` for the row below, `-1` for the row above.
+ * @returns the id to open, or undefined when there is nowhere to go.
+ */
+export function railStepTarget(state: RailState, direction: -1 | 1): string | undefined {
+  const { current, foreign } = railLists({ ...state, query: '', allExpanded: true, revealed: true })
+  const order = [...current, ...foreign]
+  if (order.length < 2) return undefined
+  const at = order.findIndex(session => session.sessionId === state.currentId)
+  // An open Session the Host has not listed yet (a first launch) starts the walk
+  // just outside the row it would have had, so the first press lands on an end.
+  const from = at < 0 ? (direction === 1 ? -1 : 0) : at
+  const next = order[((from + direction) % order.length + order.length) % order.length]
+  return next === undefined || next.sessionId === state.currentId ? undefined : next.sessionId
+}
+
 /** One keyboard-reachable row; the `all` fold is addressed after these. */
 export type RailRow =
   | { readonly kind: 'new' }
@@ -302,6 +327,19 @@ export class SessionRail implements Component {
     if (sessionId === undefined) return
     const index = this.rowsOf().findIndex(row => row.kind === 'session' && row.session.sessionId === sessionId)
     if (index >= 0) this.cursor = index
+  }
+
+  /**
+   * Open the Session above or below the open one.
+   *
+   * The cursor does not move: the walk is over the list's order, not over what
+   * the column happens to be painting, and the keyboard stays with whoever has
+   * it. A press with nowhere to go does nothing.
+   * @param direction - `-1` for the previous Session, `1` for the next.
+   */
+  step(direction: -1 | 1): void {
+    const id = railStepTarget(this.options.state(), direction)
+    if (id !== undefined) this.options.onOpen(id)
   }
 
   handleInput(data: string): void {

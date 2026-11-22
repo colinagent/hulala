@@ -44,7 +44,7 @@ a file opens it beside the tree in the same column.
 
 - **Three columns, one window** — the Session rail on the left, the conversation
   in the middle, and one sidebar on the right: the built-in terminal on `Ctrl+T`,
-  Neovim on `Ctrl-D`, and `Cmd-E` for Neovim alone.
+  Neovim on `Ctrl-D`, and `Shift-Cmd-I` for Neovim alone.
 - **Neovim and ripgrep included** — nothing to install. Every bundled binary is
   a real file in `$HULALA_HOME/bin`, and `bin/` is appended to the children's
   `PATH`, so your own tools still win.
@@ -163,11 +163,12 @@ The frame is drivable without a mouse:
 |---|---|
 | `Ctrl-T` | open the built-in terminal in the right column; press again to close it |
 | `Ctrl-D` | open Neovim in the same column; press again to close it (it asks before dropping unwritten buffers) |
-| `Cmd-E` | Neovim only: put the Session rail and the conversation away and leave the editor column alone; press again to restore the layout from before |
+| `Shift-Cmd-I` | Neovim only: put the Session rail and the conversation away and leave the editor column alone; press again to restore the layout from before |
 | `Shift-Cmd-S` | show or hide the Session rail |
 | `Shift-Cmd-C` | put the conversation away while a column is open |
-| `Shift-Cmd-P` | the command palette: every command, what it does, and its shortcut, from any column and with the conversation put away |
-| `Ctrl-[` / `Ctrl-]` | move the keyboard between the Session rail, the conversation and the painted column |
+| `Shift-Cmd-K` | the command palette: every command, what it does, and its shortcut, from any column and with the conversation put away |
+| `Shift-Cmd-H` / `Shift-Cmd-L` | move the keyboard between the Session rail, the conversation and the painted column |
+| `Shift-Cmd-N` / `Shift-Cmd-P` | open the next / previous Session from wherever the keyboard is |
 | `Ctrl-Q` | detach: the window closes and the Host keeps running the turn |
 | `Esc` | stop the running turn; with nothing running, move into the rail |
 | `Ctrl-C` | stop the running turn; on an idle composer clear the draft, then quit |
@@ -183,12 +184,18 @@ The frame is drivable without a mouse:
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
 | `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/thinking`, `/editor`, `/terminal`, `/nvim`, `/rail`, `/chat`, `/keys`, `/cancel`, `/quit` |
 
-The Command chords (`Cmd-E`, `Shift-Cmd-S`, `Shift-Cmd-C`, `Shift-Cmd-P`) are
-delivered only by a terminal that speaks the Kitty keyboard protocol — Ghostty,
-kitty, WezTerm and iTerm2 do, Terminal.app does not. Every one of them has a
-slash-command equal, so the layout is reachable from any terminal:
-`/nvim`, `/rail`, `/chat`, `/commands`. Ctrl-`F` is not taken by anything: it
-stays forward-char in the composer and a shell, and page-down in Neovim.
+The Command chords (`Shift-Cmd-S`, `Shift-Cmd-C`, `Shift-Cmd-K`, `Shift-Cmd-H`,
+`Shift-Cmd-L`, `Shift-Cmd-N`, `Shift-Cmd-P`) are delivered only by a terminal that
+speaks the Kitty keyboard protocol — Ghostty, kitty, WezTerm and iTerm2 do,
+Terminal.app does not. The moves, the command palette and the Neovim-only mode
+have a second spelling for the systems where a Command chord never arrives
+(`Ctrl-Shift-H`, `Ctrl-Shift-L`, `Ctrl-Shift-P`, `Ctrl-Shift-I`), and every one of
+them has a slash-command equal,
+so the layout is reachable from any terminal: `/nvim`, `/rail`, `/chat`,
+`/commands`, `/sessions`. Ctrl-`F` is not taken by anything: it stays forward-char
+in the composer and a shell, and page-down in Neovim. `Ctrl-[` is not bound to
+anything either — it is the `Esc` byte on a terminal without that report, so an
+"escape" to move a panel would abort the running turn instead.
 
 A panel can also be taken with the pointer: clicking the conversation, the
 Session rail or the open column moves the keyboard there. The panels that do not
@@ -205,7 +212,7 @@ Every chord above can be rebound in `$HULALA_HOME/config/keybindings.json`:
 {
   "panel.editor": ["ctrl+f"],
   "panel.rail": ["ctrl+g"],
-  "panel.commands": ["shift+super+p", "f1"]
+  "panel.commands": ["shift+super+k", "f1"]
 }
 ```
 

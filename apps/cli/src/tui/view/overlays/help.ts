@@ -6,7 +6,7 @@
  * one rule it shares with the startup banner and the command palette.
  *
  * The command list is curated rather than the whole catalog: the panel has to fit
- * above the composer on a short terminal, and the palette (`Shift-Cmd-P`) is the
+ * above the composer on a short terminal, and the palette (`Shift-Cmd-K`) is the
  * complete, searchable version. Descriptions come from the same catalog the
  * palette and the `/` menu read.
  *
@@ -47,6 +47,8 @@ interface KeyLabels {
   readonly commands: string
   readonly focusLeft: string
   readonly focusRight: string
+  readonly sessionPrevious: string
+  readonly sessionNext: string
   readonly dividerLeft: string
   readonly dividerRight: string
 }
@@ -67,6 +69,8 @@ function keyLabels(): KeyLabels {
     commands: actionHint('panel.commands'),
     focusLeft: actionHint('panel.focusLeft'),
     focusRight: actionHint('panel.focusRight'),
+    sessionPrevious: actionHint('session.previous'),
+    sessionNext: actionHint('session.next'),
     dividerLeft: actionHint('panel.dividerLeft'),
     dividerRight: actionHint('panel.dividerRight'),
   }
@@ -161,6 +165,7 @@ export class HelpOverlay implements Component {
         dividerRight: keys.dividerRight,
       }),
       t('help.key.railKeys', { rail: keys.rail, focusLeft: keys.focusLeft, focusRight: keys.focusRight }),
+      t('help.key.sessions', { previous: keys.sessionPrevious, next: keys.sessionNext }),
       t('help.key.rail'),
       t('help.key.more'),
       t('help.key.commands', { commands: keys.commands }),

@@ -75,6 +75,8 @@ export interface MessageTable {
   'keymap.action.pasteImage': string
   'notice.pasteProblem': (values: { reason: 'empty' | 'too-large' | 'unsupported' | 'no-reader' | 'not-a-file' }) => string
   'keymap.action.redraw': string
+  'keymap.action.sessionPrevious': string
+  'keymap.action.sessionNext': string
   'keymap.action.focusLeft': string
   'keymap.action.focusRight': string
   'keymap.action.rail': string
@@ -125,6 +127,7 @@ export interface MessageTable {
     dividerRight: string
   }) => string
   'help.key.railKeys': (params: { rail: string; focusLeft: string; focusRight: string }) => string
+  'help.key.sessions': (params: { previous: string; next: string }) => string
   'help.key.commands': (params: { commands: string }) => string
   'help.key.rail': string
   'help.key.more': string

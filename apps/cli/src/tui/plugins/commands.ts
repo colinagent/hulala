@@ -66,11 +66,11 @@ export interface TuiCommands {
   /** Ask the Host to abort the running turn. */
   cancel(): Promise<void>
   /**
-   * `Cmd-E` / `/nvim`: leave only the editor column, or come back from it.
+   * `Shift-Cmd-I` / `/nvim`: leave only the editor column, or come back from it.
    *
    * The mode lives here because both entry points must share one snapshot: the
    * key and the slash command are the same action, and a command that opened the
-   * view without recording what it replaced would make the next `Cmd-E` restore
+   * view without recording what it replaced would make the next `Shift-Cmd-I` restore
    * nothing.
    */
   toggleEditorOnly(): void
@@ -127,7 +127,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   /** Drafts typed before a Session existed, kept with the mode their gesture named. */
   const pendingLines: Array<{ line: string; mode: TerminalPromptMode }> = []
   let cancelRequested = false
-  /** The layout from before `Cmd-E`, while Neovim-only mode is on. */
+  /** The layout from before `Shift-Cmd-I`, while Neovim-only mode is on. */
   let beforeEditorOnly: FrameSnapshot | undefined
 
   const repaint = (): void => { render.repaint() }
@@ -170,7 +170,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   }
 
   /**
-   * `Cmd-E`: leave only the editor column.
+   * `Shift-Cmd-I`: leave only the editor column.
    *
    * The conversation refuses to hide while the rail and the sidebar are both
    * closed (`layout.setConversationVisible`), so the editor is shown and focused
@@ -194,7 +194,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     repaint()
   }
 
-  /** `Cmd-E` again: the rail, the conversation and the keyboard as they were. */
+  /** `Shift-Cmd-I` again: the rail, the conversation and the keyboard as they were. */
   const leaveEditorOnly = (): void => {
     const snapshot = beforeEditorOnly
     beforeEditorOnly = undefined
@@ -213,7 +213,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   }
 
   /**
-   * `Cmd-E` / `/nvim` toggles Neovim-only mode.
+   * `Shift-Cmd-I` / `/nvim` toggles Neovim-only mode.
    *
    * A mode whose column disappeared on its own (Neovim quit, the Session changed)
    * is not a mode any more: the frame has already brought the conversation back,
@@ -406,8 +406,8 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       panes.toggle('terminal', session.cwd)
     },
     nvim: () => {
-      // The same action as `Cmd-E`, snapshot included: a command that built the
-      // view without recording what it replaced would make the next `Cmd-E`
+      // The same action as `Shift-Cmd-I`, snapshot included: a command that built
+      // the view without recording what it replaced would make the next press
       // restore nothing.
       toggleEditorOnly()
     },

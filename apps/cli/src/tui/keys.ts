@@ -15,22 +15,26 @@
  * the composer and a shell, page-down in Neovim). Each column key is a visibility
  * toggle: a painted column is closed by its own key wherever the keyboard is, and
  * `Ctrl-D` asks Neovim to leave before closing it, so unwritten buffers are a
- * question rather than a kill. `Cmd-E` is the exception: it puts the rail and the
+ * question rather than a kill. `Ctrl-Shift-I` is the exception: it puts the rail and the
  * conversation away and leaves Neovim alone, because "just the editor" is a place
  * the reader wants to be, not a toggle they want to nudge.
  * `Shift-Cmd-S` and `Shift-Cmd-C` show or put away the rail and the conversation;
  * the conversation still refuses to hide while the rail and the sidebar are both
  * closed, because there would be nothing left on screen. `Ctrl-Q` exits, in the
- * slot pi gives `Ctrl-D`. `Ctrl-[` / `Ctrl-]` move focus between the columns;
- * `Ctrl-[` is the same byte as `Esc`, so Neovim keeps it whenever it has
- * something to cancel (see `tui/pane/focus.ts`) and the terminal keeps it while a
- * full-screen program owns the alternate screen. `Ctrl-W` is not intercepted
- * while a column has focus, so Neovim's window prefix works; the column keys do
- * take `<C-t>` and `<C-d>` from Neovim, which is the price of naming the columns.
+ * slot pi gives `Ctrl-D`. `Shift-Cmd-H` / `Shift-Cmd-L` move focus between the
+ * columns, and `Ctrl-Shift-H` / `Ctrl-Shift-L` are the same pair for a terminal or
+ * system where a Command chord never arrives, so neither is a byte a column can
+ * read and both always leave. `Esc` is the other way out, and the one that needs
+ * a rule: Neovim keeps it whenever it has something to cancel (see
+ * `tui/pane/focus.ts`) and the terminal keeps it while a full-screen program owns
+ * the alternate screen. `Ctrl-W` is not intercepted while a column has focus, so
+ * Neovim's window prefix works; the column keys do take `<C-t>` and `<C-d>` from
+ * Neovim, which is the price of naming the columns.
  *
- * The three Command chords are only delivered by a terminal that took the Kitty
+ * The Command chords are only delivered by a terminal that took the Kitty
  * keyboard report (see `tui/terminal.ts`), which is why every one of them has a
- * slash-command equal: `/rail`, `/chat`, `/nvim` and `/commands`.
+ * second spelling or a slash-command equal: `/rail`, `/chat`, `/nvim`,
+ * `/commands` and `/sessions`.
  *
  * @module hulala-cli/tui/keys
  */

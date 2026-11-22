@@ -1,14 +1,16 @@
 /**
- * Sidebar focus policy: which column `Ctrl-]` reopens and who owns `Ctrl-[`.
+ * Sidebar focus policy: which column `Shift-Cmd-L` reopens, and who owns `Esc`.
  *
  * The sidebar is one column beside the conversation, showing either the shell
  * (`Ctrl-T`) or Neovim (`Ctrl-D`). The two processes are independent and both
  * stay alive while hidden, so switching columns is not closing anything.
  *
- * `Ctrl-[` is the same byte as `Esc`, so it cannot simply be taken away from the
- * sidebar: Neovim needs it in every mode except normal, and a full-screen
- * program in the terminal (a pager, `fzf`) needs it too. Only when the program
- * has nothing to cancel does the key mean "back to the composer".
+ * The keyboard comes back with `Shift-Cmd-H` (or `Ctrl-Shift-H`), which no
+ * program in a column can read, so it always leaves. `Esc` is the other way out
+ * and the one that needs a rule: Neovim needs it in every mode except normal,
+ * and a full-screen program in the terminal (a pager, `fzf`) needs it too. Only
+ * when the program has nothing to cancel does `Esc` mean "back to the
+ * composer".
  *
  * @module hulala-cli/tui/pane/focus
  */
@@ -16,7 +18,7 @@
 /** The two columns that can sit beside the transcript; at most one at a time. */
 export type PaneKind = 'terminal' | 'editor'
 
-/** Both columns, in the order `Ctrl-]` may reopen them. */
+/** Both columns, in the order the rightward move may reopen them. */
 export const PANE_KINDS: readonly PaneKind[] = ['editor', 'terminal']
 
 /** Everything the client knows about how the focused program uses `Esc`. */
@@ -36,7 +38,7 @@ export interface SidebarFocus {
 }
 
 /**
- * Whether the focused column keeps `Ctrl-[` instead of it moving focus back to
+ * Whether the focused column keeps `Esc` instead of it moving focus back to
  * the composer. Neovim reports its mode through `ModeChanged`, and a terminal on
  * the alternate screen is running a program with its own use for `Esc`.
  * @param kind - the focused column.
@@ -50,7 +52,7 @@ export function paneOwnsEscape(kind: PaneKind, state: EscapeOwnership): boolean 
 }
 
 /**
- * The column `Ctrl-]` should focus. The visible sidebar wins; a closed one is
+ * The column the rightward move should focus. The visible sidebar wins; a closed one is
  * reopened only while its process is still alive, so the key never starts a
  * program on its own.
  * @param focus - the sidebar state.

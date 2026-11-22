@@ -3,6 +3,7 @@ import { CURSOR_MARKER, visibleWidth } from '@earendil-works/pi-tui'
 import type { TerminalSession } from '../../src/tui/data/remote.js'
 import {
   railLists,
+  railStepTarget,
   relativeTimeLabel,
   sameDirectory,
   SessionRail,
@@ -76,6 +77,40 @@ function harness(overrides: Partial<RailState> = {}, rows = 12, color = false): 
   })
   return result
 }
+
+
+test('the Session walk follows the list: this directory, then the rest, blank rows skipped', () => {
+  const sessions = [
+    // A blank Session that is not open never enters the walk.
+    session({ sessionId: 'session-blank', blank: true, updatedAt: NOW - 30_000 }),
+    session({ sessionId: 'session-current', updatedAt: NOW - 60_000 }),
+    session({ sessionId: 'session-elder', updatedAt: NOW - 120_000 }),
+    // Another directory sits after this one however recent it is.
+    session({ sessionId: 'session-foreign', cwd: '/notes', updatedAt: NOW }),
+  ]
+  const base = state({ sessions, currentId: 'session-current' })
+  expect(railStepTarget(base, 1)).toBe('session-elder')
+  // The `all` fold decides what is painted, not what the key can reach.
+  expect(railStepTarget({ ...base, allExpanded: false }, 1)).toBe('session-elder')
+  expect(railStepTarget(base, 1) === 'session-blank').toBe(false)
+  // Past the last row of this directory the walk crosses into the next one, and
+  // from the last row of all it wraps to the head.
+  expect(railStepTarget({ ...base, currentId: 'session-elder' }, 1)).toBe('session-foreign')
+  expect(railStepTarget({ ...base, currentId: 'session-foreign' }, 1)).toBe('session-current')
+  expect(railStepTarget({ ...base, currentId: 'session-current' }, -1)).toBe('session-foreign')
+})
+
+test('a lone Session has nowhere to step, and an unlisted one starts at an end', () => {
+  const only = state({ sessions: [session({ sessionId: 'session-current' })] })
+  expect(railStepTarget(only, 1)).toBeUndefined()
+  expect(railStepTarget(only, -1)).toBeUndefined()
+  // The Host has not listed the open Session yet (a fresh window): the first
+  // press lands on the head, or on the tail when it walks backwards.
+  const unlisted = state({ sessions: [session({ sessionId: 'a' }), session({ sessionId: 'b' })], currentId: 'missing' })
+  expect(railStepTarget(unlisted, 1)).toBe('a')
+  expect(railStepTarget(unlisted, -1)).toBe('b')
+})
+
 
 test('the running indicator turns through the braille frames once a second tenth', () => {
   expect(spinnerFrame(0)).toBe(SPINNER_FRAMES[0])

@@ -42,34 +42,31 @@ const HIGHLIGHT_RGB = parseRgb(HIGHLIGHT_INK)
  * Archived user message panel: the prompt's own turn, as a band across the
  * transcript.
  *
- * The band is the editor's *first* heading band, exactly: `nvimConfig` gives `#`
- * a hue of its own — the palette's red warmed halfway towards its yellow
- * ({@link USER_PANEL_HUE}) — and tints the page 12% of the way towards it
- * ({@link USER_PANEL_TINT}). The prompt gets the same band from the same page and
- * the same two palette slots ({@link userBand}), so a prompt in the conversation
- * and a level-1 heading in the editor column are one colour rather than two that
- * happen to match. The band is only a cast on the page, so the prompt keeps the
- * terminal's own text ink instead of a chip's near-white, and the arrow is that
- * ink faded part of the way back into the band.
+ * The band and its ink are the editor's *second* heading, exactly: `nvimConfig`
+ * gives `##` the palette's yellow as its hue and tints the page a tenth of the
+ * way towards it ({@link USER_PANEL_TINT}), and it draws the heading text in that
+ * same yellow, undimmed. The prompt gets the same band and the same ink from the
+ * same page and the same palette slot ({@link placeUserSurface}), so a prompt in
+ * the conversation and a `##` heading in the editor column are one colour rather
+ * than two that happen to match; the arrow takes the heading delimiter's fade
+ * back into the page ({@link USER_PANEL_ARROW_FADE}).
+ *
+ * The band is only a cast on the page, so the prompt reads as the page warmed
+ * towards the heading rather than as a chip dropped on it. Where that cast cannot
+ * carry the heading's ink — a light page whose palette yellow is pale — the ink is
+ * deepened just enough to clear a floor ({@link USER_PANEL_CONTRAST}): a heading
+ * may be quiet for one line, the operator's own prompt may not.
  *
  * A terminal that reports nothing is not given a second chip: the same
  * derivation runs on the editor's fallback theme, so the two halves of the split
- * stay one colour even then ({@link FALLBACK_USER_TEXT}).
+ * stay one colour even then.
  */
-const USER_PANEL_HUE = 0.5
-/** Share of that hue mixed into the page: `nvimConfig`'s `BAND_TINT[1]`. */
-const USER_PANEL_TINT = 0.12
-/** How far the arrow fades from the prompt's ink into the band. */
+/** Share of the palette's yellow mixed into the page: `nvimConfig`'s `BAND_TINT[2]`. */
+const USER_PANEL_TINT = 0.1
+/** How far the arrow fades from the heading ink back into the page: the heading delimiters' blend. */
 const USER_PANEL_ARROW_FADE = 0.45
-/**
- * The prompt's text ink when the terminal reports no page.
- *
- * The band is derived from the editor's fallback theme in that case, but the ink
- * stays the client's own quiet near-white rather than that theme's foreground:
- * the prompt is drawn by a terminal the client knows nothing about, so the one
- * value it can trust is its own.
- */
-const FALLBACK_USER_TEXT: Rgb = [0xe8, 0xe8, 0xe8]
+/** Contrast the prompt's ink must clear against its band: the card bodies' floor. */
+const USER_PANEL_CONTRAST = 4.5
 
 /**
  * Status band: the frame's bottom row, a step lighter than the page.
@@ -186,39 +183,43 @@ const FIXED_CARDS: CardSurfaces = cardsOn(ASSUMED_PAGE, ASSUMED_TEXT)
 /**
  * The band an archived prompt is drawn on.
  *
- * The editor's `HulalaHeading1` band, carried to the conversation: the page
- * moved `USER_PANEL_TINT` of the way towards `blend(error, yellow, 0.5)`, which
- * is the hue `nvimConfig`'s `HUE_ORDER` gives level 1 from the editor's `error`
- * and `number` slots. Sharing the formula and the same two fallbacks, rather
- * than a second pair of literals, is what keeps the two halves of the split
- * from drifting apart — including on a terminal that reports a page but no
- * 16-colour palette, where both halves fall back to the same inks.
+ * The editor's `HulalaHeadingBand2`, carried to the conversation: the page moved
+ * `USER_PANEL_TINT` of the way towards the palette's yellow, which is what
+ * `nvimConfig` gives level 2 — `BAND_TINT[2]`, with `HUE_ORDER[2]` being the
+ * editor's own `number` slot. Sharing the formula and the same fallback, rather
+ * than a second pair of literals, is what keeps the two halves of the split from
+ * drifting apart — including on a terminal that reports a page but no 16-colour
+ * palette, where both halves fall back to the same ink.
  * @param page - the page's background, or undefined when it reported none.
- * @param red - the palette's red, or undefined when it reported none.
  * @param yellow - the palette's yellow, or undefined when it reported none.
  * @returns the band's colour.
  */
-function userBand(page: Rgb | undefined, red: Rgb | undefined, yellow: Rgb | undefined): Rgb {
-  const from = red ?? parseRgb(FALLBACK_THEME.error)
-  const toward = yellow ?? parseRgb(FALLBACK_THEME.number)
-  return mixRgb(page ?? parseRgb(FALLBACK_THEME.background), mixRgb(from, toward, USER_PANEL_HUE), USER_PANEL_TINT)
+function userBand(page: Rgb | undefined, yellow: Rgb | undefined): Rgb {
+  return mixRgb(
+    page ?? parseRgb(FALLBACK_THEME.background),
+    yellow ?? parseRgb(FALLBACK_THEME.number),
+    USER_PANEL_TINT,
+  )
 }
 
 /**
  * The three inks an archived prompt is drawn with on one page.
- * @param page - the page's background and text ink, or undefined when it reported none.
- * @param red - the palette's red, or undefined when it reported none.
+ *
+ * The text is the heading's own ink — the palette's yellow, undimmed, which is
+ * `HulalaHeading2`'s `fg` — and the arrow is that ink blended towards the page,
+ * which is the `markdownH2Delimiter` rule. Neither is derived from the page's
+ * foreground: the editor's heading does not use it either, and matching that is
+ * the point.
+ * @param page - the page's background, or undefined when it reported none.
  * @param yellow - the palette's yellow, or undefined when it reported none.
  * @returns the band, its text ink and the arrow's ink.
  */
-function placeUserSurface(
-  page: { background: Rgb; foreground: Rgb } | undefined,
-  red: Rgb | undefined,
-  yellow: Rgb | undefined,
-): UserSurface {
-  const background = userBand(page?.background, red, yellow)
-  const text = page?.foreground ?? FALLBACK_USER_TEXT
-  return { background, text, arrow: mixRgb(text, background, USER_PANEL_ARROW_FADE) }
+function placeUserSurface(page: Rgb | undefined, yellow: Rgb | undefined): UserSurface {
+  const pageBackground = page ?? parseRgb(FALLBACK_THEME.background)
+  const heading = yellow ?? parseRgb(FALLBACK_THEME.number)
+  const background = userBand(page, yellow)
+  const text = readable(heading, background, USER_PANEL_CONTRAST)
+  return { background, text, arrow: mixRgb(text, pageBackground, USER_PANEL_ARROW_FADE) }
 }
 
 /**
@@ -343,25 +344,27 @@ function bodyInk(surface: Rgb, text: Rgb): Rgb {
 }
 
 /**
- * Lift an accent until it clears a floor against the card.
+ * Move an ink away from its surface until it clears a floor.
  *
- * The accents are a fixed hue per family, picked against the fixed slab. On a
- * surface lifted for a brighter page the reds and cyans lose contrast first, so
+ * The card accents are a fixed hue per family, picked against the fixed slab. On
+ * a surface lifted for a brighter page the reds and cyans lose contrast first, so
  * each one is mixed toward white — the smallest lift that keeps its hue readable
- * — rather than replaced by a second palette.
- * @param ink - the accent's own colour.
- * @param surface - the card's background.
- * @param floor - the contrast ratio the accent has to clear.
- * @returns the accent to draw.
+ * — rather than replaced by a second palette. The archived prompt's band asks the
+ * same question from either side: on a light page the heading's yellow has to be
+ * deepened toward black instead, so the direction follows the surface.
+ * @param ink - the ink's own colour.
+ * @param surface - the surface it is drawn on.
+ * @param floor - the contrast ratio the ink has to clear.
+ * @returns the ink to draw.
  */
 function readable(ink: Rgb, surface: Rgb, floor: number): Rgb {
   if (contrast(ink, surface) >= floor) return ink
-  const white: Rgb = [255, 255, 255]
+  const away: Rgb = luminance(surface) < 0.5 ? [255, 255, 255] : [0, 0, 0]
   for (let step = 2; step <= 100; step += 2) {
-    const lifted = mixRgb(ink, white, step / 100)
-    if (contrast(lifted, surface) >= floor) return lifted
+    const moved = mixRgb(ink, away, step / 100)
+    if (contrast(moved, surface) >= floor) return moved
   }
-  return white
+  return away
 }
 
 /**
@@ -499,8 +502,8 @@ const stylesByCapability = new Map<string, ReturnType<typeof createStyles>>()
 
 /** The cards' place against the page; `FIXED_CARDS` until the terminal reports one. */
 let cardSurfaces: CardSurfaces = FIXED_CARDS
-/** The archived prompt's band; the fallback theme's until the terminal reports a page. */
-let userSurface: UserSurface = placeUserSurface(undefined, undefined, undefined)
+/** The archived prompt's band and ink; the fallback theme's until the terminal reports its page. */
+let userSurface: UserSurface = placeUserSurface(undefined, undefined)
 /** Bumped whenever the page changes, so the style cache rebuilds once. */
 let surfaceRevision = 0
 
@@ -521,8 +524,9 @@ let surfaceRevision = 0
  * terminal that does not answer keeps it too.
  *
  * The archived prompt is placed from the same answer, but as a *band* rather than
- * a slab: the editor's `##` heading tint, which is the page moved a tenth of the
- * way towards the palette's yellow ({@link placeUserSurface}).
+ * a slab: the editor's `##` heading, which is the page moved a tenth of the way
+ * towards the palette's yellow and drawn in that yellow
+ * ({@link placeUserSurface}).
  * @param colors - what the terminal reported, or undefined when it stayed quiet.
  */
 export function setTerminalPage(colors: TerminalColors | undefined): void {
@@ -530,11 +534,9 @@ export function setTerminalPage(colors: TerminalColors | undefined): void {
     ? undefined
     : { background: toRgb(colors.background), foreground: toRgb(colors.foreground) }
   const nextCards = placeCards(reported)
-  const reportedRed = colors?.palette?.[1]
   const reportedYellow = colors?.palette?.[3]
   const nextUser = placeUserSurface(
-    reported,
-    reportedRed === undefined ? undefined : toRgb(reportedRed),
+    reported?.background,
     reportedYellow === undefined ? undefined : toRgb(reportedYellow),
   )
   if (sameRgb(cardSurfaces.neutral.background, nextCards.neutral.background)

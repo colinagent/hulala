@@ -8,7 +8,7 @@
  *
  * @module hulala-cli/tui/view/hints
  */
-import { actionHint } from '../../keymap.js'
+import { actionHint, actionKeys, keyLabel } from '../../keymap.js'
 import { t, type MessageKey } from '../i18n/index.js'
 
 /** One hint: the keys, and what they do. */
@@ -54,11 +54,19 @@ function bound(id: string, key: MessageKey): UsageHint | undefined {
   return keys === '' ? undefined : { keys, text: t(key) }
 }
 
-/** Both ends of the focus movement, on the row that explains it. */
+/**
+ * Both ends of the focus movement, on the row that explains it.
+ *
+ * Only the first spelling of each is printed: the alternatives are for terminals
+ * where a Command chord cannot arrive, and `/keys` lists them all. Four chords in
+ * one rotating hint would push the sentence off a narrow window.
+ */
 function focusBinding(): UsageHint | undefined {
-  const left = actionHint('panel.focusLeft')
-  const right = actionHint('panel.focusRight')
-  const keys = [left, right].filter(part => part !== '').join(' / ')
+  const first = (id: string): string => {
+    const [spelling] = actionKeys(id)
+    return spelling === undefined ? '' : keyLabel(spelling)
+  }
+  const keys = [first('panel.focusLeft'), first('panel.focusRight')].filter(part => part !== '').join(' / ')
   return keys === '' ? undefined : { keys, text: t('hint.focus') }
 }
 
