@@ -2,8 +2,8 @@
 slug: ctrl-bracket-is-escape
 title: Ctrl-[ is Esc, so the panel keys moved
 description: Ctrl-[ is the Esc byte on most terminals, so it aborted the running turn. The panel moves are now Shift-Cmd-H and Shift-Cmd-L.
-date: 2026-11-22
-version: 0.3.33
+date: 2026-11-23
+version: 0.3.34
 ---
 
 ## The turn that stopped while you were typing
@@ -43,15 +43,16 @@ belong to the client and to nothing else.
 - `Shift-Cmd-H` and `Shift-Cmd-L` move the keyboard between the Session rail, the
   conversation and the sidebar. `Ctrl-Shift-H` and `Ctrl-Shift-L` are the same pair
   for a system where a Command chord never arrives.
-- `Shift-Cmd-N` and `Shift-Cmd-P` open the next and previous Session from anywhere,
-  in the rail's own order: this directory first, then the rest, newest first.
-  Whether the rail is shown or folded makes no difference, so the key is the same
-  gesture in every layout. Inside the rail, `Ctrl-N` and `Ctrl-P` still move the
-  cursor. One pair moves Sessions, the other moves a highlight.
-- `Shift-Cmd-K` opens the command palette. It used to be `Shift-Cmd-P`, which the
-  previous Session key now needs; Ghostty 1.4 had already claimed `super+shift+p`
-  for its own palette, so that key was dead in the terminal this release was tested
-  in.
+- `Shift-Cmd-↓` and `Shift-Cmd-↑` open the next and previous Session from
+  anywhere, in the rail's own order: this directory first, then the rest, newest
+  first. Whether the rail is shown or folded makes no difference, so the key is
+  the same gesture in every layout. `Ctrl-Shift-↓` / `↑` is the second spelling,
+  for a terminal that keeps `Cmd`+arrows for itself or cannot deliver a Command
+  chord. Inside the rail, `Ctrl-N` and `Ctrl-P` still move the cursor. One pair
+  moves Sessions, the other moves a highlight.
+- `Shift-Cmd-K` opens the command palette. It used to be `Shift-Cmd-P`;
+  Ghostty 1.4 had already claimed `super+shift+p` for its own palette, so that key
+  was dead in the terminal this release was tested in.
 - `Shift-Cmd-I` is "just Neovim". It used to be `Cmd-E`, which Ghostty 1.4 also
   claims (`super+e` is `search_selection`). It is not `Ctrl-I` on purpose: in any
   legacy encoding that is the `0x09` byte of `Tab`, which would have taken Tab away
@@ -101,13 +102,38 @@ If you want to confirm what your own terminal sends, start the client with
 `CSI 27u` for `Esc`, and a bare `\u001b` when the terminal or the input method
 collapsed the chord.
 
+## A key your terminal takes is a key you cannot press
+
+The first cut of this release put Session switching on `Shift-Cmd-N` and
+`Shift-Cmd-P`. Wrong letters: `Shift-Cmd-P` is Ghostty's own command palette, so
+the "previous Session" half of the pair never arrived anywhere it was needed.
+
+Arrows had the same trap, for a reason worth writing down. A terminal handles its
+own keybindings before it encodes anything to the program — in Ghostty that is
+`keyCallback` asking `maybeHandleBinding` first, and a binding consumes the key by
+default (`Binding.Flags.consumed` defaults to `true`). Ghostty 1.4 gives
+`super+shift+arrow_up` and `super+shift+arrow_down` to `jump_to_prompt`, so the
+Command pair is eaten before the client sees a byte. `super+shift+s`, `c`, `k`, `h`
+and `l` work because nothing in that table claims them.
+
+Two ways out, and this release ships both. `Ctrl-Shift-↓` / `↑` is a plain
+`ESC [ 1 ; 6 B` / `A` sequence that every terminal reports, Terminal.app included,
+so it always arrives. And for the Command pair, two lines in
+`~/.config/ghostty/config` hand it back:
+
+```ini
+keybind = super+shift+arrow_up=unbind
+keybind = super+shift+arrow_down=unbind
+```
+
+An unbound chord falls through to the encoder, which is also why every `Cmd` chord
+this client uses was chosen from outside that table in the first place.
+
 ## Why the whole keymap moved at once
 
 Three of these fixes belong together, and shipping them one at a time would have
-left a release where `Shift-Cmd-P` opened the palette while `Shift-Cmd-N` switched
-Sessions, and where the move keys were the only ones still on a byte that belongs
-to `Esc`. The changelog lists all four entries; this post is the reason behind
-them.
+left a release where the move keys were the only ones still on a byte that belongs
+to `Esc`. The changelog lists the entries; this post is the reason behind them.
 
 If you have not installed Hulala yet, [it goes in with one command](/download/).
 Coming from the previous release, [0.3.32 kept an approval answer alive across a

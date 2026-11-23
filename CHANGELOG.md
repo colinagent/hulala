@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.34] - 2026-11-23
+
 ### Changed
 
 - Session switching is `Shift-Cmd-↓` / `Shift-Cmd-↑` (or `Ctrl-Shift-↓` / `↑`)

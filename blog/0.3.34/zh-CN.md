@@ -2,8 +2,8 @@
 slug: ctrl-bracket-is-escape
 title: Ctrl-[ 就是 Esc，所以面板键换了
 description: Ctrl-[ 在没有键盘协议的终端里就是 Esc 的字节，用它切面板会顺手取消正在跑的回合。面板移动换成 Shift-Cmd-H / L。
-date: 2026-11-22
-version: 0.3.33
+date: 2026-11-23
+version: 0.3.34
 ---
 
 ## 想左移一格，回合却停了
@@ -34,13 +34,13 @@ version: 0.3.33
 
 - `Shift-Cmd-H` / `Shift-Cmd-L`：键盘在会话栏、对话、侧栏之间移动。`Ctrl-Shift-H`
   和 `Ctrl-Shift-L` 是同一组动作的第二写法，给送不到 Command 键的系统用。
-- `Shift-Cmd-N` / `Shift-Cmd-P`：在任意焦点位置切到下一个、上一个会话，顺序就是
+- `Shift-Cmd-↓` / `Shift-Cmd-↑`：在任意焦点位置切到下一个、上一个会话，顺序就是
   会话栏自己的顺序（本目录在前，其余按最近活动排序）。会话栏是显示还是收起都不影响，
-  所以每种布局下都是同一个手势。栏内 `Ctrl-N` / `Ctrl-P` 仍然只移动光标：一对切会话，
-  一对移高亮。
-- `Shift-Cmd-K`：命令面板。它原来是 `Shift-Cmd-P`，把 P 让给了"上一个会话"；而且
-  Ghostty 1.4 默认已经把 `super+shift+p` 绑成它自己的命令面板，这个键在本次发版使用的
-  终端里原本就是死键。
+  所以每种布局下都是同一个手势。第二写法是 `Ctrl-Shift-↓` / `↑`，给把 `Cmd`+方向键
+  留给自己、或根本送不到 Command 键的终端。栏内 `Ctrl-N` / `Ctrl-P` 仍然只移动光标：
+  一对切会话，一对移高亮。
+- `Shift-Cmd-K`：命令面板。它原来是 `Shift-Cmd-P`；Ghostty 1.4 默认已经把
+  `super+shift+p` 绑成它自己的命令面板，这个键在本次发版使用的终端里本来就是死键。
 - `Shift-Cmd-I`：只留 Neovim。它原来是 `Cmd-E`，同样被 Ghostty 1.4 占了
   （`super+e` 是 `search_selection`）。它没有用 `Ctrl-I`：任何 legacy 编码里
   `Ctrl-I` 都是 `Tab` 的 `0x09`，那会把 Tab 从补全菜单、shell 补全和 Neovim 缩进里
@@ -80,11 +80,32 @@ hulala update
 `~/.hulala/logs/tui-debug.log` 会写原始字节：`Shift-Cmd-H` 是 `CSI 104;10u`，
 `Esc` 是 `CSI 27u`，被终端或输入法折叠过的组合键则是一个裸 `\u001b`。
 
+## 终端拿走的那几个键，就是按不出来的键
+
+这一版的初稿把会话切换放在 `Shift-Cmd-N` / `Shift-Cmd-P` 上。字母选错了：
+`Shift-Cmd-P` 是 Ghostty 自己的命令面板，"上一个会话"那一半在需要它的地方根本到不了。
+
+方向键有同一个陷阱，原因值得写下来。终端在把按键编码发给程序之前，先处理自己的键位：
+Ghostty 里就是 `keyCallback` 先问 `maybeHandleBinding`，而绑定默认吃掉按键
+（`Binding.Flags.consumed` 默认 `true`）。Ghostty 1.4 把 `super+shift+arrow_up` 和
+`super+shift+arrow_down` 给了 `jump_to_prompt`，所以 Command 那一对在客户端看到字节之前
+就没了。`super+shift+s`、`c`、`k`、`h`、`l` 能用，是因为那张表里没人占它们。
+
+两条出路，这一版都给。`Ctrl-Shift-↓` / `↑` 是一条普通的 `ESC [ 1 ; 6 B` / `A` 序列，
+任何终端（含 Terminal.app）都上报，永远送得到。想让 Command 那一对也生效，
+`~/.config/ghostty/config` 里两行就还回来：
+
+```ini
+keybind = super+shift+arrow_up=unbind
+keybind = super+shift+arrow_down=unbind
+```
+
+没被绑定的组合才轮到编码器，这也是这个客户端所有 `Cmd` 键当初都从那张表外面挑的原因。
+
 ## 为什么一次把整套键位都改了
 
-这几件事绑在一起。分批发的话，会得到一个 `Shift-Cmd-P` 还开着命令面板、`Shift-Cmd-N`
-却在切会话的版本；也会得到一个移动键仍然挂在 `Esc` 字节上的版本。更新日志里是四条记录，
-这篇文章是它们背后的同一个理由。
+这几件事绑在一起。分批发的话，会得到一个移动键仍然挂在 `Esc` 字节上的版本。
+更新日志里是逐条记录，这篇文章是它们背后的同一个理由。
 
 还没装过 Hulala 的话，[一条命令就装好](/download/)。从上一个版本过来，
 [0.3.32 让审批答案在 ssh 断线后还在](/zh-CN/blog/approval-survives-a-dropped-ssh/)。

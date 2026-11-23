@@ -591,7 +591,7 @@ test('Shift-Cmd-H leaves the rail while the filter box has the keyboard', async 
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Ctrl-Shift-Down and Ctrl-Shift-Up walk the Session list from the composer', async () => {
+test('Shift-Cmd-Down/Up and Ctrl-Shift-Down/Up walk the Session list from the composer', async () => {
   const fake = fakeBackend()
   fake.setSessions([
     { sessionId: 'session-1234', updatedAt: Date.now(), running: false, blank: false, cwd: '/workspace', title: 'current one' },
@@ -606,6 +606,10 @@ test('Ctrl-Shift-Down and Ctrl-Shift-Up walk the Session list from the composer'
   await waitFor(() => fake.followed.at(-1) === 'session-1234', 'the previous one')
   tty.input.write(SESSION_PREVIOUS)
   await waitFor(() => fake.followed.at(-1) === 'session-bbbb', 'the walk wraps')
+  // The Control spelling is the same action for a terminal that keeps
+  // `Cmd`+arrows for itself; it must not need a second code path.
+  tty.input.write(SESSION_NEXT_LEGACY)
+  await waitFor(() => fake.followed.at(-1) === 'session-1234', 'the legacy spelling wraps too')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
