@@ -3832,48 +3832,100 @@
     "key": "hulala/web/0.3.34/hulala-0.3.34-darwin-arm64.tar.gz",
     "size": 11964503,
     "sha256": "4565118daee004cb99af731d2b00e4414b284df3eb6f179fbe85d8ec2edf0624",
+    "retired": true,
     "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-darwin-arm64.tar.gz"
   },
   {
     "key": "hulala/web/0.3.34/hulala-0.3.34-darwin-x64.tar.gz",
     "size": 12212803,
     "sha256": "0f8488c61d05ad4069ea781ede788f8de959883f6cda4106e987ea42ce727430",
+    "retired": true,
     "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-darwin-x64.tar.gz"
   },
   {
     "key": "hulala/web/0.3.34/hulala-0.3.34-linux-arm64.tar.gz",
     "size": 13696737,
     "sha256": "cffd9a5c64c7f64189dea312ad3549e5e6410f975a32ff6d3fa108894ff8fd0d",
+    "retired": true,
     "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-linux-arm64.tar.gz"
   },
   {
     "key": "hulala/web/0.3.34/hulala-0.3.34-linux-x64.tar.gz",
     "size": 13733385,
     "sha256": "ab548832601b79183eabcc69f4dae0dd2dd27d496a65a2db6b4b8b85c37ec5c6",
+    "retired": true,
     "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-linux-x64.tar.gz"
   },
   {
     "key": "hulala/web/0.3.34/install.sh",
     "size": 27137,
     "sha256": "1ad8bdadb512891f3fec8946e46d7eea6b4144788c1832c853b229c2ec68add7",
-    "static": true
+    "retired": true
   },
   {
     "key": "hulala/web/0.3.34/runtime-package-lock.json",
     "size": 522933,
     "sha256": "517abeddb28e547fb072659fe45e60cff012a6d40196f00478108fc8462aab35",
-    "static": true
+    "retired": true
   },
   {
     "key": "hulala/web/0.3.34/SHASUMS256.txt",
     "size": 486,
     "sha256": "c07847b4a83822df59a2cab165f7359a3a45b1fd319a8799688873ded63a2267",
-    "static": true
+    "retired": true
   },
   {
     "key": "hulala/web/0.3.34/web-releases.json",
     "size": 2500,
     "sha256": "4d82dc7283ee9b1e6fc4d1e8e3b79bbd399ed5ef2f88e4542e59782bda359e45",
+    "retired": true
+  },
+  {
+    "key": "hulala/web/0.3.35/hulala-0.3.35-darwin-arm64.tar.gz",
+    "size": 11967569,
+    "sha256": "305a213e9f48e345053e3ff74153c094ed9e4d174350e1f6a636eb2c2779ed12",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-darwin-arm64.tar.gz"
+  },
+  {
+    "key": "hulala/web/0.3.35/hulala-0.3.35-darwin-x64.tar.gz",
+    "size": 12215428,
+    "sha256": "137b0a78e1b65189169eb9d25835956a88e05208ed59784f55aba7c3e2b9d4d1",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-darwin-x64.tar.gz"
+  },
+  {
+    "key": "hulala/web/0.3.35/hulala-0.3.35-linux-arm64.tar.gz",
+    "size": 13697333,
+    "sha256": "df963232c4dbc144da12c5ed49aca8a33509b8a22e012045d2de5f09c9e3ba6f",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-linux-arm64.tar.gz"
+  },
+  {
+    "key": "hulala/web/0.3.35/hulala-0.3.35-linux-x64.tar.gz",
+    "size": 13733990,
+    "sha256": "f132fd97b361f4dbeb9ec23e65ff6d8ce1323c5fa77486da93d88549c85f3cfa",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-linux-x64.tar.gz"
+  },
+  {
+    "key": "hulala/web/0.3.35/install.sh",
+    "size": 27137,
+    "sha256": "41ebc30e36d6c8f78fe6f70abb292fb0a8a290091dfce147a6bace46a957ab47",
+    "static": true
+  },
+  {
+    "key": "hulala/web/0.3.35/runtime-package-lock.json",
+    "size": 522933,
+    "sha256": "efcd9b8d3240648314a931bb1ffeee190ee13c60fdd7166a7d25c06f0cfe82f0",
+    "static": true
+  },
+  {
+    "key": "hulala/web/0.3.35/SHASUMS256.txt",
+    "size": 486,
+    "sha256": "95ba3258832bbdd6666b6fa6d35e04352c0906f76783429900522545c90bf301",
+    "static": true
+  },
+  {
+    "key": "hulala/web/0.3.35/web-releases.json",
+    "size": 2500,
+    "sha256": "1eeff927d3fbe46a6efe1fd943b53f78d3a7d16577f4a4b6d04f88e3522bb2aa",
     "static": true
   },
   {
@@ -6143,29 +6195,57 @@
     "key": "hulala/web/latest/hulala-0.3.34-darwin-arm64.tar.gz",
     "size": 11964503,
     "sha256": "4565118daee004cb99af731d2b00e4414b284df3eb6f179fbe85d8ec2edf0624",
-    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-darwin-arm64.tar.gz",
-    "objectKey": "hulala/web/0.3.34/hulala-0.3.34-darwin-arm64.tar.gz"
+    "retired": true,
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-darwin-arm64.tar.gz"
   },
   {
     "key": "hulala/web/latest/hulala-0.3.34-darwin-x64.tar.gz",
     "size": 12212803,
     "sha256": "0f8488c61d05ad4069ea781ede788f8de959883f6cda4106e987ea42ce727430",
-    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-darwin-x64.tar.gz",
-    "objectKey": "hulala/web/0.3.34/hulala-0.3.34-darwin-x64.tar.gz"
+    "retired": true,
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-darwin-x64.tar.gz"
   },
   {
     "key": "hulala/web/latest/hulala-0.3.34-linux-arm64.tar.gz",
     "size": 13696737,
     "sha256": "cffd9a5c64c7f64189dea312ad3549e5e6410f975a32ff6d3fa108894ff8fd0d",
-    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-linux-arm64.tar.gz",
-    "objectKey": "hulala/web/0.3.34/hulala-0.3.34-linux-arm64.tar.gz"
+    "retired": true,
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-linux-arm64.tar.gz"
   },
   {
     "key": "hulala/web/latest/hulala-0.3.34-linux-x64.tar.gz",
     "size": 13733385,
     "sha256": "ab548832601b79183eabcc69f4dae0dd2dd27d496a65a2db6b4b8b85c37ec5c6",
-    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-linux-x64.tar.gz",
-    "objectKey": "hulala/web/0.3.34/hulala-0.3.34-linux-x64.tar.gz"
+    "retired": true,
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.34/hulala-0.3.34-linux-x64.tar.gz"
+  },
+  {
+    "key": "hulala/web/latest/hulala-0.3.35-darwin-arm64.tar.gz",
+    "size": 11967569,
+    "sha256": "305a213e9f48e345053e3ff74153c094ed9e4d174350e1f6a636eb2c2779ed12",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-darwin-arm64.tar.gz",
+    "objectKey": "hulala/web/0.3.35/hulala-0.3.35-darwin-arm64.tar.gz"
+  },
+  {
+    "key": "hulala/web/latest/hulala-0.3.35-darwin-x64.tar.gz",
+    "size": 12215428,
+    "sha256": "137b0a78e1b65189169eb9d25835956a88e05208ed59784f55aba7c3e2b9d4d1",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-darwin-x64.tar.gz",
+    "objectKey": "hulala/web/0.3.35/hulala-0.3.35-darwin-x64.tar.gz"
+  },
+  {
+    "key": "hulala/web/latest/hulala-0.3.35-linux-arm64.tar.gz",
+    "size": 13697333,
+    "sha256": "df963232c4dbc144da12c5ed49aca8a33509b8a22e012045d2de5f09c9e3ba6f",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-linux-arm64.tar.gz",
+    "objectKey": "hulala/web/0.3.35/hulala-0.3.35-linux-arm64.tar.gz"
+  },
+  {
+    "key": "hulala/web/latest/hulala-0.3.35-linux-x64.tar.gz",
+    "size": 13733990,
+    "sha256": "f132fd97b361f4dbeb9ec23e65ff6d8ce1323c5fa77486da93d88549c85f3cfa",
+    "fallback": "https://github.com/colinagent/hulala/releases/download/hulala-v0.3.35/hulala-0.3.35-linux-x64.tar.gz",
+    "objectKey": "hulala/web/0.3.35/hulala-0.3.35-linux-x64.tar.gz"
   },
   {
     "key": "hulala/web/latest/hulala-0.3.4-darwin-arm64.tar.gz",
@@ -6379,29 +6459,29 @@
   {
     "key": "hulala/web/latest/install.sh",
     "size": 27137,
-    "sha256": "1ad8bdadb512891f3fec8946e46d7eea6b4144788c1832c853b229c2ec68add7",
+    "sha256": "41ebc30e36d6c8f78fe6f70abb292fb0a8a290091dfce147a6bace46a957ab47",
     "static": true,
-    "objectKey": "hulala/web/0.3.34/install.sh"
+    "objectKey": "hulala/web/0.3.35/install.sh"
   },
   {
     "key": "hulala/web/latest/runtime-package-lock.json",
     "size": 522933,
-    "sha256": "517abeddb28e547fb072659fe45e60cff012a6d40196f00478108fc8462aab35",
+    "sha256": "efcd9b8d3240648314a931bb1ffeee190ee13c60fdd7166a7d25c06f0cfe82f0",
     "static": true,
-    "objectKey": "hulala/web/0.3.34/runtime-package-lock.json"
+    "objectKey": "hulala/web/0.3.35/runtime-package-lock.json"
   },
   {
     "key": "hulala/web/latest/SHASUMS256.txt",
     "size": 486,
-    "sha256": "c07847b4a83822df59a2cab165f7359a3a45b1fd319a8799688873ded63a2267",
+    "sha256": "95ba3258832bbdd6666b6fa6d35e04352c0906f76783429900522545c90bf301",
     "static": true,
-    "objectKey": "hulala/web/0.3.34/SHASUMS256.txt"
+    "objectKey": "hulala/web/0.3.35/SHASUMS256.txt"
   },
   {
     "key": "hulala/web/latest/web-releases.json",
     "size": 2500,
-    "sha256": "4d82dc7283ee9b1e6fc4d1e8e3b79bbd399ed5ef2f88e4542e59782bda359e45",
+    "sha256": "1eeff927d3fbe46a6efe1fd943b53f78d3a7d16577f4a4b6d04f88e3522bb2aa",
     "static": true,
-    "objectKey": "hulala/web/0.3.34/web-releases.json"
+    "objectKey": "hulala/web/0.3.35/web-releases.json"
   }
 ]
