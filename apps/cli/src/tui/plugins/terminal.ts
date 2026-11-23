@@ -146,6 +146,14 @@ export interface TuiTerminal {
    */
   refreshIme(): void
   /**
+   * Apply the focus a modal stood in the way of, now that it is gone.
+   *
+   * {@link TuiTerminal.focus} holds its request while a dialog is up instead of
+   * moving the keyboard off it. Whoever closes a dialog calls this once, after
+   * the overlay is hidden and before {@link TuiTerminal.refreshIme}.
+   */
+  releaseHeldFocus(): void
+  /**
    * Hear every change of what the focused surface reads keys as.
    *
    * The listener runs only when the policy actually changes, so a window that
@@ -430,9 +438,34 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     setCaretShape(caretOf(component))
   }
 
+  /**
+   * The focus a dialog stood in the way of.
+   *
+   * A panel may re-assert itself while an overlay is up — the rail losing its
+   * columns to a narrower window is the case that bit. Moving the keyboard then
+   * is worse than losing the request: pi-tui records the dialog's focus restore
+   * as blocked by the new component, and every later `y`/`f`/`n` is typed into
+   * the composer while the dialog still fills the screen. The keyboard stays
+   * with the overlay; the last request is kept and applied when it closes.
+   */
+  let heldFocus: Component | undefined
+
   const focus = (component: Component): void => {
+    // An overlay takes the keyboard through `showOverlay`, never through here,
+    // so a visible one means the caller is asking for the screen behind it.
+    if (screen.hasOverlay()) {
+      heldFocus = component
+      return
+    }
     screen.setFocus(component)
     refreshIme()
+  }
+
+  const releaseHeldFocus = (): void => {
+    if (heldFocus === undefined || screen.hasOverlay()) return
+    const component = heldFocus
+    heldFocus = undefined
+    screen.setFocus(component)
   }
 
   const observeIme = (observer: (policy: ImePolicy) => void): void => {
@@ -449,6 +482,7 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     focus,
     announce: announcePolicy,
     refreshIme,
+    releaseHeldFocus,
     observeIme,
     setCaretShape,
     setTitle: (title: string) => { terminal.setTitle(title) },

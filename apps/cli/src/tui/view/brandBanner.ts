@@ -54,9 +54,12 @@ interface Built {
 
 let built: Built | undefined
 
+/** One shared empty answer, so a banner-less frame keeps comparing equal to itself. */
+const NO_BANNER: string[] = []
+
 /** The banner for the empty home screen, or none when images are unavailable. */
 export function brandBannerLines(width: number): string[] {
-  if (getCapabilities().images === null) return []
+  if (getCapabilities().images === null) return NO_BANNER
   const language = activeLanguage()
   const keymap = keymapVersion()
   if (built !== undefined && built.width === width && built.language === language && built.keymap === keymap) {

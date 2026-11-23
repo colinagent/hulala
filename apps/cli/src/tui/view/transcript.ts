@@ -18,6 +18,13 @@
  * long conversation costs the rows in the viewport, not the rows it has ever
  * drawn.
  *
+ * The document opens with the welcome block (banner, then what the Session
+ * loaded), and that block scrolls with the conversation instead of being a home
+ * screen the first row replaces. A launch reminder (the release's changelog, an
+ * available update) is then a row like any other, so it can only ever print
+ * *below* the banner it used to displace. The block is a passed-in component so
+ * this container keeps knowing nothing about how a welcome screen is drawn.
+ *
  * A step row is also a mouse target: a primary click folds or unfolds that one
  * row, the way the web transcript's disclosure rows behave. A tool row answers
  * on its first line only, so the body's text (a diff, a file's contents) stays
@@ -49,13 +56,15 @@ import { codeHighlighter } from './codeHighlight.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
 import { ToolRowView } from './toolRow.js'
 import { UserMessage } from './userMessage.js'
-import { brandBannerLines } from './brandBanner.js'
 
 /** Session roots every tool row relativizes against. */
 export interface TranscriptRoots {
   cwd?: string | undefined
   home?: string | undefined
 }
+
+/** The welcome block's rows when there is no welcome block. */
+const NO_ROWS: readonly string[] = []
 
 export class Transcript implements Component {
   private items: TranscriptItem[] = []
@@ -78,10 +87,13 @@ export class Transcript implements Component {
    */
   private assembled: {
     width: number
+    head: readonly string[]
     parts: readonly string[][]
     running: string | undefined
     lines: string[]
   } | undefined
+  /** The welcome block plus the blank row that separates it from the items. */
+  private head: { width: number; rows: readonly string[]; lines: string[] } | undefined
   private expandAll = false
   private reasoningMode: ReasoningMode = 'tail'
   private runningStartedAt: number | undefined
@@ -94,6 +106,15 @@ export class Transcript implements Component {
   constructor(
     private readonly color: boolean,
     private readonly roots: () => TranscriptRoots,
+    /**
+     * The welcome block drawn above the first item, or none.
+     *
+     * A component rather than a handful of rows: its own content is width
+     * dependent, and a container that rebuilt it per frame would invalidate the
+     * whole document below it. A transcript without one (a test, a pane that
+     * prints no welcome) simply starts with its first item.
+     */
+    private readonly welcome?: Component,
   ) {
     const styles = buildStyles(color)
     // The shared markdown theme plus the one hook that needs this transcript's
@@ -135,6 +156,8 @@ export class Transcript implements Component {
 
   invalidate(): void {
     this.assembled = undefined
+    // A repaint after a palette change must restyle the welcome block too.
+    this.welcome?.invalidate()
     for (const item of this.items) this.components.get(item)?.invalidate()
   }
 
@@ -156,7 +179,8 @@ export class Transcript implements Component {
   }
 
   /**
-   * Build the document: every item's cached chunk, then the live turn's clock.
+   * Build the document: the welcome block, every item's cached chunk, then the
+   * live turn's clock.
    *
    * The arrays handed out here are shared with the renderer and with the rows
    * that produced them, so a caller must treat the lines as read-only. Returning
@@ -165,11 +189,11 @@ export class Transcript implements Component {
    */
   render(width: number): string[] {
     this.width = width
-    // Home screen: nothing said yet, so the banner stands in for the transcript.
-    if (this.items.length === 0 && this.runningStartedAt === undefined) return brandBannerLines(width)
+    const head = this.headLines(width)
     const assembled = this.assembled
     const parts: string[][] = []
-    let stale = assembled === undefined || assembled.width !== width || assembled.parts.length !== this.items.length
+    let stale = assembled === undefined || assembled.width !== width || assembled.head !== head
+      || assembled.parts.length !== this.items.length
     for (let index = 0; index < this.items.length; index += 1) {
       const item = this.items[index]!
       if (item.kind === 'assistant') this.syncAssistant(item)
@@ -182,7 +206,7 @@ export class Transcript implements Component {
     const running = this.runningStartedAt === undefined ? undefined : this.runningRow.render(width).join('\n')
     if (!stale && running === assembled!.running) return assembled!.lines
 
-    const lines: string[] = []
+    const lines: string[] = [...head]
     this.ranges = []
     for (let index = 0; index < parts.length; index += 1) {
       const rendered = parts[index]!
@@ -197,7 +221,26 @@ export class Transcript implements Component {
       if ((item.kind === 'tool' || item.kind === 'user') && this.items[index + 1]?.kind === item.kind) lines.push('')
     }
     if (running !== undefined) for (const line of running.split('\n')) lines.push(line)
-    this.assembled = { width, parts, running, lines }
+    this.assembled = { width, head, parts, running, lines }
+    return lines
+  }
+
+  /**
+   * The welcome block, then one blank row before the transcript.
+   *
+   * The rows come from a component that caches by width, so their identity is
+   * what the frame cache compares: rebuilding them per repaint would invalidate
+   * every row of the conversation on every keystroke. No welcome block means no
+   * leading row at all — a document never starts with a blank line.
+   */
+  private headLines(width: number): string[] {
+    // One shared empty array, so a transcript with no welcome block compares
+    // equal to itself on the next frame instead of rebuilding every row.
+    const rows = this.welcome?.render(width) ?? NO_ROWS
+    const cached = this.head
+    if (cached !== undefined && cached.width === width && cached.rows === rows) return cached.lines
+    const lines = rows.length === 0 ? [] : [...rows, '']
+    this.head = { width, rows, lines }
     return lines
   }
 

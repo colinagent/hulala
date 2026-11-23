@@ -13,6 +13,64 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.35] - 2026-11-23
+
+### Added
+
+- The home screen says what the open Session loaded, under the banner: its
+  skills and the MCP servers its directory declares, one bracket heading each,
+  the way pi's startup header lists its resources. Both answers come from the
+  Host, so a window attached elsewhere lists the far machine's skills and
+  `mcp.json` documents — `GET /api/startup` resolves the servers with the MCP
+  bundle's own roster, so the block cannot disagree with what will mount.
+
+### Changed
+
+- The layout keys are one modifier away from the keys they name: `Ctrl-H` /
+  `Ctrl-L` move the keyboard between the Session rail, the conversation and the
+  painted column, `Ctrl-S` shows or puts away the rail, and `Ctrl-,` / `Ctrl-.`
+  (with `Ctrl-↑` / `↓` behind them) open the previous and next Session. `Ctrl-L`
+  was the repair key, so a full repaint is `Cmd-L` / `Ctrl-Shift-L` now; the
+  Command chords stay as the alternate spelling of every one of these, and the
+  rail key keeps `Shift-Cmd-S` for the editor column, where the shipped Neovim
+  configuration writes the buffer on `<C-s>` and the byte stays Neovim's.
+- "Neovim only" moved from `Shift-Cmd-I` / `Ctrl-Shift-I` to `Ctrl-Shift-D` /
+  `Shift-Cmd-D`: the letter now names the column key it leaves alone, and Ghostty
+  1.4 claims `super+shift+d` for its own `new_split:down`, so the Control spelling
+  is the one that arrives there without touching its config. `/nvim` still needs
+  no keyboard report at all.
+- A modal is the only lit surface in the frame: while an approval, a question or
+  any other dialog is up, every panel behind it — the conversation, the Session
+  rail, an editor column and the status band — draws faint, the way an unfocused
+  panel already did, and the pointer no longer scrolls, folds or re-focuses
+  anything behind the dialog. The keyboard was already the dialog's; the frame
+  now says so too.
+- The welcome banner is the first block of the conversation instead of a home
+  screen the first row replaces, so the once-per-release changelog now prints
+  below it: banner, then what the Session loaded, then what changed. A release
+  note is a transcript row like any other and can no longer stand in for the
+  banner it used to cover.
+
+### Fixed
+
+- The terminal kept the home screen's pinwheel after the client exited: the logo
+  is a Kitty image, and the frame printed to the normal screen on the way out
+  transmits it again after the delete written before the screen was given back.
+  The second delete — the one meant to outlive that print — was lost by the
+  output queue: a flush that the running loop survives (the terminal's own stop)
+  abandons the message in flight but its write still answers, and the answer was
+  counted as a delivery, stepping the queue past the message behind it. A stale
+  answer is now ignored, so the banner's delete is the last thing the terminal
+  sees and no mark is left behind in Ghostty.
+- An approval could be on screen while the keyboard was back in the composer, so
+  `y` / `f` / `n` were typed as a draft instead of answering it. Narrowing the
+  window while the Session rail held the keyboard is one way in: the layout takes
+  the rail's columns away, the rail asks for the composer, and pi-tui records the
+  dialog's focus as blocked by it — after that every key goes to the composer
+  while the dialog still fills the screen. A focus request made while a dialog is
+  up is now held and applied when it closes, so a modal keeps the keyboard until
+  it is answered.
+
 ## [0.3.34] - 2026-11-23
 
 ### Changed

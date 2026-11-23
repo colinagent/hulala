@@ -21,6 +21,7 @@ import { apiEditorPlugin } from './apiEditor.ts'
 import { apiFilesPlugin } from './apiFiles.ts'
 import { apiGitPlugin } from './apiGit.ts'
 import { apiPastePlugin } from './apiPaste.ts'
+import { apiStartupPlugin } from './apiStartup.ts'
 import { commandTasksPlugin } from './commandTasks.ts'
 
 /** Host transport facts exposed to sibling plugins and the Host bootstrap. */
@@ -117,6 +118,9 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
   // A pasted file is written on this machine, not on the client's: the model's
   // tools run here, so the path in the prompt has to exist here.
   await ctx.plugin(apiPastePlugin)
+  // The welcome block asks what this Session's directory gives it in MCP
+  // servers; the answer is the roster the mounting plugin will resolve.
+  ctx.plugin(apiStartupPlugin)
   // The editor column runs Neovim here, not in the client: one authenticated
   // socket per editor carries Neovim's own msgpack channel.
   await ctx.plugin(apiEditorPlugin)

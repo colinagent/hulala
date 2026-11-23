@@ -19,7 +19,10 @@ const result = await Bun.build({
   format: 'esm',
   // First-party workspace code is bundled (Node ESM cannot resolve its
   // extensionless imports); published packages stay external with their addons.
-  external: ['@deepseek-ai/*', 'zod', 'ws', 'undici', 'koffi', 'sharp', 'miniflare'],
+  // `@colinagent/dsh-mcp` is external for the same reason the Harness packages
+  // are: it is a runtime bundle the profile loads, and the startup route asks it
+  // for its roster instead of carrying a second copy of that module.
+  external: ['@colinagent/*', '@deepseek-ai/*', 'zod', 'ws', 'undici', 'koffi', 'sharp', 'miniflare'],
   minify: true,
   sourcemap: 'none',
   plugins: privateHostBuildPlugins(),

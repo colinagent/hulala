@@ -92,6 +92,15 @@ export interface ScreenPaneOptions {
    */
   readonly onFocus?: () => void
   /**
+   * A modal owns the frame, so this column is not the current surface.
+   *
+   * The column keeps its program and its scroll position, but it draws faint and
+   * stops claiming the terminal's cursor while this is true — the same way it
+   * looks when the keyboard is in another panel. It reads no keys then: the modal
+   * is the focused component.
+   */
+  readonly covered?: () => boolean
+  /**
    * A divider the program inside this pane draws, reported by the program.
    *
    * Only the editor has one: Neovim's file tree is a split of its own, and the
@@ -164,10 +173,13 @@ export class ScreenPane implements Component, Focusable {
       this.options.screen.resize(width, height)
     }
     const history = this.options.scroll?.scrolledBack() ?? 0
+    // A column a dialog covers is not the current surface, exactly like one whose
+    // keyboard moved to another panel.
+    const current = this.focused && this.options.covered?.() !== true
     // A scrolled-back viewport has no program cursor on screen to mark. A column
     // without focus keeps showing it faded, so the cursor does not disappear
     // when the keyboard moves to the other column.
-    const cursor: CursorKind = history > 0 ? 'none' : this.focused ? 'focused' : 'dim'
+    const cursor: CursorKind = history > 0 ? 'none' : current ? 'focused' : 'dim'
     // The caret is the terminal's own cursor here, so its shape rides with the
     // frame that carries the marker instead of with the focus change.
     if (cursor === 'focused') this.options.onCaret?.(this.options.screen.caretShape())
@@ -179,7 +191,7 @@ export class ScreenPane implements Component, Focusable {
     // A column without the keyboard is still the same program, one step quieter:
     // the frame has two or three columns, and only one of them is where typing
     // goes. The divider accent is painted after, so a hovered rule keeps its ink.
-    const rows = this.focused ? fitted : faintLines(fitted, this.options.color)
+    const rows = current ? fitted : faintLines(fitted, this.options.color)
     this.paintDividerHover(rows, width)
     return rows
   }

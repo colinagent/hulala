@@ -12,13 +12,16 @@
  * this pipeline answers to are the ones in `config/keybindings.json`, and the
  * startup hints and `/help` print those same bindings.
  *
- * `Shift-Cmd-H` / `Shift-Cmd-L` are the leftward and rightward moves; the second
- * spelling of each (`Ctrl-Shift-H` / `Ctrl-Shift-L`) exists for the terminals and
- * systems where a Command chord never arrives. Neither is a byte a program in a
- * column can read, so inside a column they always move the keyboard — while the
- * `Esc` byte keeps the older rule: it belongs to the program whenever the program
- * has something to cancel, which the editor reports through its mode file and
- * the terminal through the alternate screen.
+ * `Ctrl-H` / `Ctrl-L` are the leftward and rightward moves, with `Shift-Cmd-H` /
+ * `Shift-Cmd-L` (and `Ctrl-Shift-H`) behind them for a terminal that reports no
+ * plain control byte. The leftward key is the one gesture deliberately taken from
+ * a focused column: `<C-h>` is a byte a program can read (Neovim's alternate
+ * backspace), but nothing else can leave a program's keyboard, so the move wins
+ * there. The rightward key is not taken: a column is the rightmost thing on
+ * screen, so `Ctrl-L` stays the program's (Neovim's redraw) whenever a column has
+ * the keyboard. The `Esc` byte keeps the older rule: it belongs to the program
+ * whenever the program has something to cancel, which the editor reports through
+ * its mode file and the terminal through the alternate screen.
  *
  * `Ctrl-T` and `Ctrl-D` name the two sidebar columns: the built-in terminal and
  * Neovim. `Ctrl-D` is the editor's key because `Ctrl-F` is the forward-char,
@@ -29,30 +32,39 @@
  * asked to leave) wherever the keyboard is, and pressing the other column's key
  * swaps which one is painted, keeping both processes alive.
  *
- * `Ctrl-Shift-I` is not a toggle like the others: it is "just the editor". The
+ * `Ctrl-Shift-D` is not a toggle like the others: it is "just the editor". The
  * mode itself lives in the command surface (`commands.toggleEditorOnly`), because
  * the key and `/nvim` are one action and must share one layout snapshot; this
- * module only routes the chord to it. It is not `Cmd-E` (`super+e` is Ghostty
- * 1.4's own `search_selection`) and not `Ctrl-I`, which is the `Tab` byte —
- * `Shift-Cmd-I` is the mac-family spelling and `/nvim` the fallback.
+ * module only routes the chord to it. The `D` is the editor's own column key with
+ * Shift held, and the pair is `Ctrl-Shift-D` then `Shift-Cmd-D` — the second needs
+ * the Kitty report, which Ghostty claims for its own `new_split:down`, so the
+ * Control spelling is the one that arrives without a configuration change and
+ * `/nvim` is the fallback. Not `Ctrl-I`: that is the `Tab` byte, so a legacy
+ * terminal would deliver completion instead of the mode.
  *
- * `Shift-Cmd-S` and `Shift-Cmd-C` are the rail and the conversation. The rail key
- * is a visibility toggle and never a focus cycle: a shown rail is put away, a
- * hidden one comes back with the keyboard on it, and moving between the rail, the
- * conversation and the sidebar is `Shift-Cmd-H`/`Shift-Cmd-L` only. `Ctrl-Q`
- * exits, in the slot pi gives `Ctrl-D`. Both layout keys are Command chords, so
- * `/rail` and `/chat` exist for terminals that cannot deliver one.
+ * `Ctrl-S` (or `Shift-Cmd-S`) and `Shift-Cmd-C` are the rail and the conversation.
+ * The rail key is a visibility toggle and never a focus cycle: a shown rail is put
+ * away, a hidden one comes back with the keyboard on it, and moving between the
+ * rail, the conversation and the sidebar is `Ctrl-H`/`Ctrl-L` only. `Ctrl-Q`
+ * exits, in the slot pi gives `Ctrl-D`. The rail answers from a focused column
+ * too, but only through a spelling the program cannot read: the shipped Neovim
+ * configuration writes the buffer on `<C-s>`, so that byte stays Neovim's, while a
+ * shell's `C-s` is flow control — a frozen screen rather than a command — so the
+ * terminal column does not keep it. `/rail` and `/chat` remain the way to reach
+ * both from a terminal that cannot deliver a Command chord.
  *
- * `Shift-Cmd-N` and `Shift-Cmd-P` walk the Sessions from wherever the keyboard
- * is — the walk is the rail's own order, so a hidden or folded rail changes
- * nothing. Inside the rail `Ctrl-N`/`Ctrl-P` still move the cursor: one pair
- * moves Sessions, the other moves a highlight.
+ * `Ctrl-,` / `Ctrl-.` walk the Sessions from wherever the keyboard is, with
+ * `Ctrl-↑`/`Ctrl-↓` behind them for a terminal that reports no Kitty sequence for
+ * the comma and the period — the walk is the rail's own order, so a hidden or
+ * folded rail changes nothing. Inside the rail `Ctrl-N`/`Ctrl-P` still move the
+ * cursor: one pair moves Sessions, the other moves a highlight.
  *
  * @module hulala-cli/tui/plugins/input
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { isKeyRelease, matchesKey } from '@earendil-works/pi-tui'
-import { matchesAction } from '../../keymap.js'
+import { actionKeys, matchesAction } from '../../keymap.js'
+import { isMouseReport } from '../input/mouse.js'
 import { isStrayTerminalReport } from '../input/reports.js'
 import { t } from '../i18n/index.js'
 
@@ -182,7 +194,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
    * follows the key, which widens the column on its right and narrows the one on
    * its left.
    *
-   * With both side columns away (the editor alone, as `Shift-Cmd-I` leaves it) the
+   * With both side columns away (the editor alone, as `Ctrl-Shift-D` leaves it) the
    * frame has no boundary at all, so the key goes to the editor's own: Neovim's file
    * tree draws the one rule still on screen, and it moves on this same key. There
    * is nothing to trade it against, which is why the hand-off is safe here and not
@@ -205,6 +217,25 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
     else if (paneShown) panes.moveDivider(direction)
   }
 
+  /**
+   * Whether the editor column reads the rail key as a command of its own.
+   *
+   * The shipped Neovim configuration binds `<C-s>` to `:write`, so a plain
+   * control-byte spelling belongs to the editor while it has the keyboard: taking
+   * it would silently unbind the save key every other surface documents. The
+   * terminal column is the exception on purpose — a shell reads `C-s` as flow
+   * control, which does not run a command, it freezes the output until `C-q` — so
+   * the rail keeps that byte there. A Command chord is not readable by a pty at
+   * all, which is why it always answers.
+   * @param data - one raw input event.
+   * @returns true when the event belongs to Neovim rather than the rail.
+   */
+  const editorOwnsRailKey = (data: string): boolean => {
+    if (panes.visible !== 'editor') return false
+    return actionKeys('panel.rail').some(key =>
+      /^ctrl\+[a-z]$/u.test(key) && matchesKey(data, key as Parameters<typeof matchesKey>[1]))
+  }
+
   const listener = (data: string): { consume: boolean } | undefined => {
     config.debug(`input ${JSON.stringify(data)} active=${String(panes.focused)} overlays=${overlays.open}`)
     // A terminal's own replies (palette answers, DA1, window and cursor
@@ -218,9 +249,14 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
       config.debug(`report ${JSON.stringify(data)}`)
       return { consume: true }
     }
-    // A modal owns the keyboard: its own keys (the Session picker's search, an
-    // approval's y/n) must not also drive the columns behind it.
-    if (overlays.open > 0) return undefined
+    // A modal owns the keyboard and the pointer: its own keys (the Session
+    // picker's search, an approval's y/n) must not also drive the columns behind
+    // it, and a click or a wheel must not scroll, fold or re-focus one while the
+    // dialog is the only surface the user can act on. The dialogs read no pointer
+    // input of their own, so there is nothing to forward. Every dialog the client
+    // shows goes through `hulalaOverlays.modal()`, which is the count `open`
+    // keeps; nothing else pushes a pi-tui overlay.
+    if (overlays.open > 0) return isMouseReport(data) ? { consume: true } : undefined
 
     // The exit key, in the slot pi gives `Ctrl-D`. It always answers, and the
     // shutdown asks a dirty editor before leaving.
@@ -383,7 +419,7 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
         panes.toggle('editor', session.cwd)
         return { consume: true }
       }
-      if (matchesAction('panel.rail', data)) {
+      if (matchesAction('panel.rail', data) && !editorOwnsRailKey(data)) {
         // The rail is a column, not the program's: a painted rail is put away
         // while the program keeps the keyboard, and a hidden one is shown and
         // takes it, so focus has to leave the program first.

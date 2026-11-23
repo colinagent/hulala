@@ -81,7 +81,7 @@ export interface TuiPanes {
    * Visibility only, decided on which column is painted and never on where the
    * keyboard is: a painted terminal is hidden and a painted editor is asked to
    * leave even when the composer or the rail has the keyboard. Moving focus into
-   * an open column is `Shift-Cmd-L`.
+   * an open column is `Ctrl-L`.
    */
   toggle(kind: PaneKind, cwd: string): void
   /** Show `kind` and put the keyboard there, starting it if needed. */
@@ -482,6 +482,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
       ...(kind === 'editor' ? { divider: treeDivider } : {}),
       onScroll: () => { if (visibleKind === kind) render.request() },
       onPointer: () => layout.clearDividerHover(),
+      // A dialog on screen means this column is not the current surface: it is
+      // drawn faint and keeps its hands off the terminal's cursor.
+      covered: () => ctx.get('hulalaFocus')?.modal === true,
       // The click names the column, so the coordinator clears whichever panel
       // held the keyboard and this column takes it; the gesture still falls
       // through to the program (or to the frame's own selection) afterwards.
@@ -707,7 +710,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     // The key is a visibility toggle for its own column: whoever has the keyboard
     // does not matter. A painted terminal hides (and keeps its jobs), a painted
     // editor is asked to leave (it can lose unwritten buffers). Moving the
-    // keyboard into a column that is still open is `Shift-Cmd-L`. A column the layout
+    // keyboard into a column that is still open is `Ctrl-L`. A column the layout
     // cannot paint (a terminal narrowed below the split minimum) is re-opened
     // instead, because there is nothing on screen to close.
     if (visibleKind === kind && layout.paneId !== undefined) {

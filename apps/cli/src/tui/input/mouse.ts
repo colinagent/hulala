@@ -93,3 +93,20 @@ export function wheelNotches(event: TuiMouseEvent): number {
   const delta = Math.abs(Math.round(event.wheelDelta ?? 0))
   return Math.min(10, delta)
 }
+
+/** The introducer every SGR (1006) report starts with. */
+const SGR_HEAD = '\u001b[<'
+
+/**
+ * Whether one piece of input is a pointer report.
+ *
+ * The parser frames each report on its own, so the head is enough to tell one
+ * from a keystroke: no key produces `ESC [ <`. A dialog consumes reports rather
+ * than forwarding them, because nothing behind it may scroll, fold or take the
+ * keyboard while it is up.
+ * @param data - one piece the input parser produced.
+ * @returns true when the piece is a mouse report.
+ */
+export function isMouseReport(data: string): boolean {
+  return data.startsWith(SGR_HEAD)
+}

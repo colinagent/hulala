@@ -150,8 +150,13 @@ export function apply(ctx: Context, config: LayoutPluginConfig): void {
   const render = ctx.hulalaRender
   // The conversation is the keyboard's home; it is faded only while the rail or
   // a column actually holds the keyboard. The focus service reads the panels'
-  // own flags, so this stays true during boot, before any of them exists.
-  const conversationFocused = (): boolean => (ctx.get('hulalaFocus')?.panel ?? 'composer') === 'composer'
+  // own flags, so this stays true during boot, before any of them exists. A
+  // modal owns the keyboard without being a panel: then the conversation is not
+  // the current surface either, and it draws faint behind the dialog.
+  const conversationFocused = (): boolean => {
+    const focus = ctx.get('hulalaFocus')
+    return focus?.modal !== true && (focus?.panel ?? 'composer') === 'composer'
+  }
   const onConversationPress = (): void => { ctx.get('hulalaFocus')?.composer() }
   // Per seat, an ordered map of id → entry. Exclusive seats hold one entry;
   // every other seat renders every entry, top to bottom.

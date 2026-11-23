@@ -206,6 +206,19 @@ export type TerminalCommandOutcome =
   | { kind: 'success'; text?: string; sourceEventSeq?: number }
   | { kind: 'error'; text: string }
 
+/**
+ * What the open Session loaded, for the welcome block under the banner.
+ *
+ * Both lists are the Host's answer for one Session: skills are the names its
+ * composer may invoke, MCP servers the ones its directory documents declare.
+ * The client never derives them from its own HOME, which behind `hulala ssh`
+ * names a different machine.
+ */
+export interface TerminalStartupFacts {
+  readonly skills: readonly string[]
+  readonly mcp: readonly string[]
+}
+
 /** One pending approval. */
 export interface TerminalApproval {
   toolName: string
@@ -643,6 +656,15 @@ export interface TerminalBackend {
   /** Every preset the Host offers as a current-session choice, plus their default. */
   permissionCatalog(): Promise<TerminalPermissionCatalog>
   /**
+   * What this Session loaded: its skills and the MCP servers its directory
+   * declares, for the welcome block.
+   *
+   * Absent on a backend with no such route — a fake Host in a test, an older
+   * Host — and the block then shows only the banner. A failure is never fatal:
+   * the block is a reminder, not a dependency of the window.
+   */
+  startupFacts?(sessionId: string): Promise<TerminalStartupFacts>
+  /**
    * Switch one Session's preset through the Host's `/permission` command.
    *
    * The command is the single write path: it appends the selection and both
@@ -715,6 +737,54 @@ export interface TerminalBackend {
 function unwrap<T>(result: RemoteResult<T>): T {
   if (result.ok) return result.value
   throw new Error(`${result.error.code}: ${result.error.message}`)
+}
+
+/**
+ * The skill names one Session's composer may invoke.
+ *
+ * The Harness Remote is the authority here, not a directory listing: it resolves
+ * the Session's preset scope and returns exactly the names `/` offers. Any
+ * failure — an older Host with no such namespace, a Session that has not
+ * settled — is no names, because the welcome block is a reminder.
+ * @param ctx - the client context carrying the Host's Remotes.
+ * @param sessionId - the Session whose composition selects the skills.
+ * @returns skill names, or none.
+ */
+async function skillsOf(ctx: Context, sessionId: string): Promise<string[]> {
+  try {
+    const value = unwrap(await ctx.remote.skills.list({ sessionId: sessionId as never }))
+    return value.skills.map(skill => skill.name)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The MCP server names the Host mounts for one Session.
+ *
+ * One authenticated GET to the Host's startup route, which reads the two
+ * `mcp.json` documents with the same roster the mounting plugin uses. Every
+ * failure — an older Host without the route, a forward being rebuilt, a body
+ * that is not the shape we asked for — is an empty list: the block is a
+ * reminder, and a reminder is not worth a retry loop or an error row.
+ * @param baseUrl - the attachment's origin, which a reconnect may have replaced.
+ * @param cookie - the connection cookie that origin accepts.
+ * @param sessionId - the Session whose directory selects the documents.
+ * @returns server names, in the Host's order, or none.
+ */
+async function startupMcp(baseUrl: string, cookie: string, sessionId: string): Promise<string[]> {
+  let response: Response
+  try {
+    response = await fetch(new URL(`/api/startup?session=${encodeURIComponent(sessionId)}`, baseUrl), {
+      headers: { cookie },
+    })
+  } catch {
+    return []
+  }
+  if (!response.ok) return []
+  const value = await response.json().catch(() => undefined) as { mcp?: unknown } | undefined
+  if (!Array.isArray(value?.mcp)) return []
+  return value.mcp.filter((name): name is string => typeof name === 'string')
 }
 
 /** Read the `permissions` projection's current preset out of a value block. */
@@ -1706,6 +1776,17 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
         if (second !== undefined) return second
       }
       throw new Error(t('error.pasteUnreachable'))
+    },
+
+    async startupFacts(sessionId) {
+      // Two sources, one answer: skills are a Harness Remote that already knows
+      // which ones this Session's preset scope may invoke, and MCP servers are
+      // the Host's own read of the documents the mounting plugin will use.
+      const [skills, mcp] = await Promise.all([
+        skillsOf(ctx, sessionId),
+        startupMcp(attachment.baseUrl, cookie, sessionId),
+      ])
+      return { skills, mcp }
     },
 
     async prompt(sessionId, text, mode) {

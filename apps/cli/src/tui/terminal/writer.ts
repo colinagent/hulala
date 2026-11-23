@@ -222,6 +222,14 @@ export function createBufferedWriter(sink: WriterSink, options: BufferedOptions 
   const queue: Message[] = []
   /** The message the sink is writing, if any. */
   let inflight: Message | undefined
+  /**
+   * Messages a flush took away from the sink's queue.
+   *
+   * The sink still holds the write and answers it later. Its bytes were already
+   * written, or lost, as far as the queue is concerned, so the callback must not
+   * be treated as a delivery: `head` would step past a message nobody wrote.
+   */
+  const abandoned = new Set<Message>()
   let head = 0
   let queued = 0
   let busy = false
@@ -347,6 +355,11 @@ export function createBufferedWriter(sink: WriterSink, options: BufferedOptions 
   }
 
   const onWritten = (message: Message, error: NodeJS.ErrnoException | null, written: number): void => {
+    // A flush wrote what stood behind this message and left it to the sink. Its
+    // callback arrives while the loop still runs — `flushSync` is not only the
+    // exit path, the terminal's own stop flushes mid-life — and it says nothing
+    // about the queue that the flush did not already settle.
+    if (abandoned.delete(message)) return
     if (closed) {
       busy = false
       inflight = undefined
@@ -429,10 +442,13 @@ export function createBufferedWriter(sink: WriterSink, options: BufferedOptions 
         retry = undefined
       }
       // The message in flight belongs to the sink: its remainder is not knowable
-      // from here, and its callback cannot run once the loop is stopping. It is
-      // dropped, which loses at most the frame being written; the queue behind it
-      // is still written in order, and nothing is left to run afterwards.
+      // from here, and at process exit its callback never runs. It is dropped,
+      // which loses at most the frame being written; the queue behind it is still
+      // written in order. A flush the running loop survives — the terminal's own
+      // stop does one — still leaves the callback to come, so the message is also
+      // remembered as abandoned and its answer is ignored.
       if (inflight !== undefined) {
+        abandoned.add(inflight)
         const dropped = queue.indexOf(inflight)
         if (dropped >= 0) {
           queued -= inflight.bytes.length

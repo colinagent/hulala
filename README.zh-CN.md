@@ -40,7 +40,7 @@ Neovim 和 ripgrep 随包自带，需要的 Node.js 也由安装器提供，先�
 ## 特性
 
 - **一个窗口三列** —— 左边会话栏，中间对话，右边一个侧栏：`Ctrl+T` 是内置终端，
-  `Ctrl-D` 是 Neovim，`Shift-Cmd-I` 只留 Neovim。
+  `Ctrl-D` 是 Neovim，`Ctrl-Shift-D` 只留 Neovim。
 - **不需要 tmux，也不需要启动脚本** —— Host 本身就是守护进程。每个窗口都是连到它的
   客户端，`Ctrl-Q` 只是断开，turn 继续跑。
 - **自带 Neovim 和 ripgrep** —— 什么都不用装。每个内置二进制都是 `$HULALA_HOME/bin`
@@ -126,12 +126,12 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 |---|---|
 | `Ctrl-T` | 在右列打开内置终端；再按一次关掉 |
 | `Ctrl-D` | 在同一列打开 Neovim；再按一次关掉（未保存的缓冲区会先问你） |
-| `Shift-Cmd-I` | 只留 Neovim：收起会话栏和对话栏，编辑器列不动；再按一次恢复进入前的布局 |
-| `Shift-Cmd-S` | 显示或收起会话栏 |
+| `Ctrl-Shift-D` | 只留 Neovim：收起会话栏和对话栏，编辑器列不动；再按一次恢复进入前的布局（`Shift-Cmd-D` 要在 Ghostty 里 unbind 它自己的 `new_split:down`，或者用 `/nvim`） |
+| `Ctrl-S` | 显示或收起会话栏（`Shift-Cmd-S` 同效；在 Neovim 列里这个字节归 Neovim，见下） |
 | `Shift-Cmd-C` | 列打开时把对话收起来 |
 | `Shift-Cmd-K` | 命令面板：每条命令做什么、快捷键是什么；在任何列里、对话收起时都能打开 |
-| `Shift-Cmd-H` / `Shift-Cmd-L` | 在会话栏、对话和已画出的列之间移动键盘 |
-| `Shift-Cmd-↓` / `Shift-Cmd-↑` | 在任何焦点位置切到下一个 / 上一个会话（终端自己占了 `Cmd`+方向键时用 `Ctrl-Shift-↓` / `↑`） |
+| `Ctrl-H` / `Ctrl-L` | 在会话栏、对话和已画出的列之间移动键盘（`Shift-Cmd-H` / `Shift-Cmd-L` 同效） |
+| `Ctrl-,` / `Ctrl-.` | 在任何焦点位置切到上一个 / 下一个会话（终端送不到逗号、句点的 Kitty 序列时用 `Ctrl-↑` / `Ctrl-↓`） |
 | `Ctrl-Q` | 断开：窗口关掉，Host 把 turn 继续跑完 |
 | `Esc` | 停掉正在跑的 turn；没有在跑时，进入会话栏 |
 | `Ctrl-C` | 停掉正在跑的 turn；composer 空闲时先清空草稿，再按一次退出 |
@@ -139,7 +139,8 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `Alt-Up` | 把排队的消息取回 composer |
 | `Ctrl-O` | 展开当前指向的工具行 |
 | `Shift-Tab` | 循环切换当前模型的思考等级；`/thinking` 打开等级选择器 |
-| `Ctrl-S` | 立刻写编辑器缓冲区（平时自动保存） |
+| `Ctrl-S`（在 Neovim 列里） | 立刻写编辑器缓冲区（平时自动保存）——自带的 Neovim 配置占着 `<C-s>`，所以会话栏那个键在那里不动它 |
+| `Cmd-L` / `Ctrl-Shift-L` | 丢掉渲染器对屏幕的记录、整屏重画：画面被丢掉的序列弄花时的手动补救（改窗口大小、重连、唤醒本来就会自动做一次） |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | 移动焦点列旁的分割线：右边那列变宽或变窄 |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | 同上；`Ctrl-Shift-←` / `Ctrl-Shift-→` 是任何终端都收得到的写法 |
 | 拖动分割线 | 用指针做同一件事，两侧的线都可以拖 |
@@ -147,18 +148,21 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
 | `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/nvim`、`/rail`、`/chat`、`/keys`、`/cancel`、`/quit` |
 
-带 Command 的几个键（`Shift-Cmd-S`、`Shift-Cmd-C`、`Shift-Cmd-K`、`Shift-Cmd-H`、
-`Shift-Cmd-L`）只有说 Kitty 键盘协议的终端才送得到：
-Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app 不行。移动焦点、命令面板和「只留
-Neovim」各有一个第二写法（`Ctrl-Shift-H`、`Ctrl-Shift-L`、`Ctrl-Shift-P`、
-`Ctrl-Shift-I`），并且每一个都有等价的斜杠命令：`/nvim`、`/rail`、`/chat`、`/commands`、
-`/sessions`。`Ctrl-F` 不再被任何东西占用：它在 composer、shell 里还是前移光标，在 Neovim
-里还是下翻一屏。`Ctrl-[` 不再绑任何动作——在没有键盘协议的终端里它就是 `Esc` 的字节，拿
-它当「左移」会顺手取消正在跑的回合；`Ctrl-I` 同理就是 `Tab` 的字节，所以「只留 Neovim」
-用 `Ctrl-Shift-I` 而不是 `Ctrl-I`。切换会话是 `Shift-Cmd-↓` / `Shift-Cmd-↑`，第二写法是
-`Ctrl-Shift-↓` / `↑`。终端对自己绑定了的组合键会直接吞掉：Ghostty 1.4 把 `Cmd`+方向键
-给了 `jump_to_prompt`，所以在它的配置里加 `keybind = super+shift+arrow_up=unbind`（`_down`
-同理）之后 Command 那一对才到得了客户端；Control 那一对在任何终端都送得到。
+布局键以 `Ctrl-` 打头：`Ctrl-H`/`Ctrl-L`、`Ctrl-S`、`Ctrl-T`、`Ctrl-D`、
+`Ctrl-,`/`Ctrl-.`、`Ctrl-↑`/`↓`。带 Command 的几个键（`Shift-Cmd-H`、`Shift-Cmd-L`、
+`Shift-Cmd-S`、`Shift-Cmd-C`、`Shift-Cmd-K`、`Shift-Cmd-D`）只有说 Kitty 键盘协议的终端
+才送得到：Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app 不行——所以每个布局手势都
+有一个 `Ctrl-` 写法，并且每一个都有等价的斜杠命令，任何终端上都能用：`/nvim`、`/rail`、
+`/chat`、`/commands`、`/sessions`。其中 `Ctrl-,`/`Ctrl-.` 要靠那个协议才能和逗号、句点
+区分开；`Ctrl-↑`/`↓` 是任何终端都收得到的兜底，`Shift-Cmd-↑`/`↓`（以及 `Ctrl-Shift-↑` /
+`↓`）是第三种写法。`Ctrl-F` 不再被任何东西占用：它在 composer、shell 里还是前移光标，在
+Neovim 里还是下翻一屏。`Ctrl-[` 不再绑任何动作——在没有键盘协议的终端里它就是 `Esc` 的
+字节，拿它当「左移」会顺手取消正在跑的回合。注意 `Ctrl-Shift-D` 在没有键盘协议的终端里就是
+`Ctrl-D` 的字节（会当成编辑器列的开关，而不是「只留 Neovim」），`Ctrl-I` 同理就是 `Tab`
+的字节——所以这两种字母只在说协议的终端上才精确。终端对自己绑定了的组合键会直接吞掉：Ghostty 1.4
+把 `Cmd`+方向键给了 `jump_to_prompt`，所以在它的配置里加
+`keybind = super+shift+arrow_up=unbind`（`_down` 同理）之后 Command 那一对才到得了客户端；
+Control 那几对在任何终端都送得到。
 
 列也能用指针切换：点对话、会话栏或已经打开的那一列，键盘就移到那里；没拿到键盘的
 面板会画得淡一点，像 Ghostty 自己的分屏一样一眼能看出键盘在哪。点在那一格上的手势

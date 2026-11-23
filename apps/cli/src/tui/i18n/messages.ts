@@ -301,6 +301,9 @@ export interface MessageTable {
   'banner.expand': string
   'banner.more': string
 
+  'startup.skills': string
+  'startup.mcp': string
+
   'notice.cancelRequested': string
   'notice.renamed': (params: { title: string }) => string
   'notice.noQueued': string

@@ -106,7 +106,7 @@ export interface OverlaysPluginConfig {
 
 /** Provide the overlay surface. */
 export function apply(ctx: Context, config: OverlaysPluginConfig): void {
-  const { screen, announce, refreshIme } = ctx.hulalaTerminal
+  const { screen, announce, refreshIme, releaseHeldFocus } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   let open = 0
   /** Dialogs the editor column owns; settled when that column disappears. */
@@ -138,6 +138,10 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
         release()
         editorModals.delete(cancelWith)
         handle?.hide()
+        // A panel that asked for the keyboard while the dialog was up gets it
+        // now; the overlay's own restore target would otherwise be a surface the
+        // layout has already taken away.
+        releaseHeldFocus()
         // The keyboard is back on whatever the overlay covered: say what that
         // surface reads, so a dialog over the composer gives English back.
         refreshIme()

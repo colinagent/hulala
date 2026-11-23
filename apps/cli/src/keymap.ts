@@ -4,14 +4,17 @@
  * Every chord hulala itself intercepts is an *action* here, so the input pipeline
  * never spells a key twice and the startup hints and `/help` can print the keys
  * that are actually in force. A terminal only reports what its keyboard encoding
- * allows, which is why the defaults lean on Command for the three column keys a
- * Kitty-protocol terminal can deliver and on `Ctrl-` for everything that has to
- * work everywhere.
+ * allows, which is why every layout gesture leads with a `Ctrl-` spelling that
+ * every terminal reports and keeps the Command chord as an alternate for the ones
+ * a Kitty-protocol terminal can deliver. The two Session keys are the exception at
+ * the front of their list: `Ctrl-,` / `Ctrl-.` are only distinct from the comma and
+ * the period under that protocol, so the arrow pair behind them is what a legacy
+ * terminal falls back to.
  *
  * The user's file is `<stateRoot>/config/keybindings.json`:
  *
  * ```json
- * { "panel.editor": ["ctrl+d"], "panel.rail": ["shift+super+s"] }
+ * { "panel.editor": ["ctrl+d"], "panel.rail": ["ctrl+s", "shift+super+s"] }
  * ```
  *
  * A value is a list of `matchesKey` spellings; an empty list disables the action;
@@ -59,20 +62,40 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   { id: 'app.pasteImage', defaults: ['ctrl+v'], label: 'keymap.action.pasteImage' },
   { id: 'app.expand', defaults: ['ctrl+o'], label: 'keymap.action.expand' },
   { id: 'app.interactions', defaults: ['alt+g'], label: 'keymap.action.interactions' },
-  { id: 'app.redraw', defaults: ['ctrl+l'], label: 'keymap.action.redraw' },
-  // The arrows carry the walk, Command first: `Ctrl-Shift-↑/↓` is the second
-  // spelling for a terminal that keeps `Cmd`+arrow for itself (Ghostty binds
-  // `super+shift+arrow_*` to `jump_to_prompt`) or cannot deliver a Command chord
-  // at all. Both are CSI sequences the application receives.
-  { id: 'session.previous', defaults: ['shift+super+up', 'ctrl+shift+up'], label: 'keymap.action.sessionPrevious' },
-  { id: 'session.next', defaults: ['shift+super+down', 'ctrl+shift+down'], label: 'keymap.action.sessionNext' },
-  { id: 'panel.focusLeft', defaults: ['shift+super+h', 'ctrl+shift+h'], label: 'keymap.action.focusLeft' },
-  { id: 'panel.focusRight', defaults: ['shift+super+l', 'ctrl+shift+l'], label: 'keymap.action.focusRight' },
-  { id: 'panel.rail', defaults: ['shift+super+s'], label: 'keymap.action.rail' },
+  // `Ctrl-L` belongs to the rightward move, so the repair key lives on its two
+  // shifted spellings: the Command one a Kitty-protocol terminal delivers, and the
+  // `Ctrl-Shift-L` the move gave up. Neither can collide with `Ctrl-L`.
+  { id: 'app.redraw', defaults: ['super+l', 'ctrl+shift+l'], label: 'keymap.action.redraw' },
+  // The walk leads with `Ctrl-,` / `Ctrl-.`: two adjacent keys, two modifiers at
+  // most, and under the Kitty protocol they are distinct from the comma and the
+  // period. No terminal sends them otherwise, so the arrows behind them carry the
+  // gesture everywhere — `Ctrl-↑/↓` first, which pi-tui's own prompt jump was
+  // released for (`tui/keys.ts`), then the two shifted pairs as alternates
+  // (`Ctrl-Shift-↑/↓` is the one a terminal that keeps `Cmd`+arrow for itself,
+  // Ghostty's `jump_to_prompt`, still reports).
+  { id: 'session.previous', defaults: ['ctrl+,', 'ctrl+up', 'shift+super+up', 'ctrl+shift+up'], label: 'keymap.action.sessionPrevious' },
+  { id: 'session.next', defaults: ['ctrl+.', 'ctrl+down', 'shift+super+down', 'ctrl+shift+down'], label: 'keymap.action.sessionNext' },
+  // `Ctrl-H` / `Ctrl-L` are the moves: one modifier, readable in every terminal,
+  // and no program in a column needs the leftward byte as much as the frame needs
+  // the gesture (`Ctrl-H` is `<C-h>`, the alternate backspace). The Command and
+  // `Ctrl-Shift` pairs stay as the spellings that a plain control byte cannot
+  // express, so the layout is reachable from a keyboard that reports neither.
+  { id: 'panel.focusLeft', defaults: ['ctrl+h', 'shift+super+h', 'ctrl+shift+h'], label: 'keymap.action.focusLeft' },
+  { id: 'panel.focusRight', defaults: ['ctrl+l', 'shift+super+l'], label: 'keymap.action.focusRight' },
+  // `Ctrl-S` is the rail: a visibility toggle from the composer and the rail, and
+  // from a focused column only where the program does not read the byte as a
+  // command (the editor binds `<C-s>` to `:write`, see `plugins/input.ts`).
+  { id: 'panel.rail', defaults: ['ctrl+s', 'shift+super+s'], label: 'keymap.action.rail' },
   { id: 'panel.chat', defaults: ['shift+super+c'], label: 'keymap.action.chat' },
   { id: 'panel.terminal', defaults: ['ctrl+t'], label: 'keymap.action.terminal' },
   { id: 'panel.editor', defaults: ['ctrl+d'], label: 'keymap.action.editor' },
-  { id: 'panel.editorOnly', defaults: ['shift+super+i', 'ctrl+shift+i'], label: 'keymap.action.editorOnly' },
+  // "Just the editor" names the key it leaves alone: the editor's own `Ctrl-D`
+  // with Shift held. `Ctrl-Shift-D` is the spelling a terminal that reports no
+  // Command chord still delivers; `Shift-Cmd-D` is the mac-family one, and
+  // `/nvim` the equal that needs no keyboard report at all. That shift matters on
+  // a terminal without the report, where `Ctrl-Shift-D` is the `Ctrl-D` byte and
+  // toggles the column instead of leaving it alone.
+  { id: 'panel.editorOnly', defaults: ['ctrl+shift+d', 'shift+super+d'], label: 'keymap.action.editorOnly' },
   { id: 'panel.commands', defaults: ['shift+super+k', 'ctrl+shift+p'], label: 'keymap.action.commands' },
   {
     id: 'panel.dividerLeft',

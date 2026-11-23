@@ -1,12 +1,12 @@
 /**
- * The four passive views: the conversation, the pending-inbox rows, the
- * directory line, and the status row.
+ * The passive views: the conversation, the welcome block's loaded facts, the
+ * pending-inbox rows, the directory line, and the status row.
  *
  * "Passive" is the point. Each one is a projection of state somebody else owns —
- * the reducer's fold, the Session's facts, the updater's hint — so none of them
- * holds a fact of its own. They register into their seats and are refreshed by
- * the frame, which is what removed the seven "remember to copy `reducer.items`
- * in" call sites the client used to carry.
+ * the reducer's fold, the Session's facts, the updater's hint, the Host's
+ * startup answer — so none of them holds a fact of its own. They register into
+ * their seats and are refreshed by the frame, which is what removed the seven
+ * "remember to copy `reducer.items` in" call sites the client used to carry.
  *
  * Reasoning expansion lives here too: it is display state over the transcript's
  * own items, not Session state.
@@ -18,6 +18,7 @@ import { CwdBar } from '../view/cwdBar.js'
 import { Fade } from '../view/fade.js'
 import { HINT_INTERVAL_MS } from '../view/hints.js'
 import { PendingMessages } from '../view/pendingMessages.js'
+import { Welcome } from '../view/welcome.js'
 import { StatusBar } from '../view/statusBar.js'
 import { Transcript } from '../view/transcript.js'
 
@@ -31,6 +32,14 @@ declare module '@deepseek-ai/cordis' {
 /** What the client reads and toggles on the passive views. */
 export interface TuiView {
   readonly transcript: Transcript
+  /**
+   * The welcome block the conversation opens with.
+   *
+   * The transcript owns where it is drawn; who fills its loaded facts is the
+   * startup plugin's business, so the two never have to agree about when a
+   * Session opens.
+   */
+  readonly welcome: Welcome
   /** `Ctrl-R`: cycle how much reasoning the transcript shows. */
   cycleReasoning(): string
   /** `Ctrl-O`: expand or collapse every tool card. */
@@ -52,7 +61,10 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   const { editor } = ctx.hulalaComposer
   const home = process.env.HOME ?? process.env.USERPROFILE
 
-  const transcript = new Transcript(config.color, () => ({ cwd: session.cwd, home }))
+  // Built here because the transcript draws it; its facts are filled by the
+  // startup plugin, because the Host is what knows them.
+  const welcome = new Welcome(config.color)
+  const transcript = new Transcript(config.color, () => ({ cwd: session.cwd, home }), welcome)
   // The working-directory line steps aside while the completion menu is up.
   const cwdBar = new CwdBar(() => ({ cwd: session.cwd, hidden: editor.completionMenuOpen }), config.color)
   // Pending inbox rows sit between the transcript and the composer, where pi
@@ -83,16 +95,25 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   // The transcript sits inside a viewport the frame reuses across rebuilds, so
   // it carries its own fade instead of receiving one from the layout tree: a
   // ScrollView keeps the content component it was built with, and a wrapped
-  // content created per rebuild would only ever apply to the first layout.
+  // content created per rebuild would only ever apply to the first layout. A
+  // dialog is the current surface while it is up, so the transcript fades behind
+  // it even though the keyboard was the composer's.
   const transcriptPanel = new Fade(
     transcript,
-    () => (ctx.get('hulalaFocus')?.panel ?? 'composer') !== 'composer',
+    () => {
+      const focus = ctx.get('hulalaFocus')
+      return focus?.modal === true || (focus?.panel ?? 'composer') !== 'composer'
+    },
     config.color,
   )
   layout.register('main', { id: 'transcript', component: transcriptPanel })
   layout.register('dock.pending', { id: 'pending', component: pending })
   layout.register('dock.cwd', { id: 'cwd', component: cwdBar })
-  layout.register('dock.status', { id: 'status', component: statusBar })
+  // The band under the columns is a panel too, and it has no other inactive
+  // state: it goes faint while a dialog is up, so the dialog is the only lit
+  // surface in the frame.
+  const statusPanel = new Fade(statusBar, () => ctx.get('hulalaFocus')?.modal === true, config.color)
+  layout.register('dock.status', { id: 'status', component: statusPanel })
 
   // The conversation is a projection of the fold, and the inbox rows a
   // projection of its pending lists: both are flushed by the frame instead of
@@ -103,6 +124,7 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
 
   ctx.provide('hulalaView', {
     transcript,
+    welcome,
     cycleReasoning: () => transcript.cycleReasoning(),
     toggleExpandAll: () => { transcript.toggleExpandAll() },
   })

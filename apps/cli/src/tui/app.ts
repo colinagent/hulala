@@ -62,6 +62,7 @@ import { inputPlugin } from './plugins/input.js'
 import { lifecyclePlugin } from './plugins/lifecycle.js'
 import { commandsPlugin } from './plugins/commands.js'
 import { changelogPlugin } from './plugins/changelog.js'
+import { startupPlugin } from './plugins/startup.js'
 import { viewPlugin } from './plugins/view.js'
 import { terminalPlugin } from './plugins/terminal.js'
 import { viewModelPlugin } from './plugins/viewModel.js'
@@ -325,6 +326,9 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     // frame is on screen, so it reads the panels' services lazily.
     await ctx.plugin(focusPlugin)
     await ctx.plugin(viewPlugin, { color: colorEnabled() })
+    // After the view it fills: the welcome block's facts belong to the open
+    // Session, so this has to run once there is one, not once the frame exists.
+    await ctx.plugin(startupPlugin)
     // Before the command surface: `/changelog` reads the service it provides.
     await ctx.plugin(changelogPlugin, { dataRoot })
     await ctx.plugin(commandsPlugin, { color: colorEnabled() })

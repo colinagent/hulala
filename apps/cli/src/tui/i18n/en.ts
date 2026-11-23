@@ -289,6 +289,9 @@ export const en: MessageTable = {
   'banner.expand': 'expand',
   'banner.more': 'for more',
 
+  'startup.skills': 'Skills',
+  'startup.mcp': 'MCP',
+
   'notice.cancelRequested': 'cancel requested',
   'notice.renamed': ({ title }) => `renamed to ${title}`,
   'notice.noQueued': 'no queued messages to restore',

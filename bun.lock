@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.3.29",
+      "version": "0.3.34",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -65,6 +65,7 @@
         "hulala-desktop-server": "./src/main.ts",
       },
       "dependencies": {
+        "@colinagent/dsh-mcp": "0.1.1",
         "@deepseek-ai/cordis": "4.1.0",
         "@deepseek-ai/dsh-api-remotes": "0.2.2-rc.5",
         "@deepseek-ai/dsh-client-connection": "0.2.2-rc.5",
@@ -124,7 +125,7 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.3.29",
+      "version": "0.3.34",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
@@ -157,7 +158,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.3.29",
+      "version": "0.3.34",
       "dependencies": {
         "@colinagent/dsh-mcp": "0.1.1",
         "@deepseek-ai/cordis": "4.1.0",

@@ -34,11 +34,11 @@ export interface TuiRail {
   /** The rail is drawn at this terminal width. */
   readonly shown: boolean
   /**
-   * `Shift-Cmd-S`: show the rail, or put it away.
+   * `Ctrl-S`: show the rail, or put it away.
    *
    * Visibility only. A rail already on screen is put away even when the
    * composer or a column has the keyboard; a hidden rail comes back with the
-   * keyboard on the list. Moving between columns is `Shift-Cmd-H` / `Shift-Cmd-L`,
+   * keyboard on the list. Moving between columns is `Ctrl-H` / `Ctrl-L`,
    * so this key never doubles as a focus cycle, and it remains the fallback entry
    * when a terminal or input method eats `Esc`.
    */
@@ -122,7 +122,9 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     }),
     rows: () => Math.max(4, terminal.rows - 1),
     color: config.color,
-    focused: () => focused,
+    // A modal owns the keyboard without being a panel, so the rail is not the
+    // current surface while one is up: it fades with the rest of the frame.
+    focused: () => focused && ctx.get('hulalaFocus')?.modal !== true,
     onOpen: id => { void session.open(id).finally(() => blur()) },
     onNew: () => { void session.startNew().finally(() => blur()) },
     onQuery: (next: string) => { query = next; render.request() },
@@ -255,13 +257,13 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   }
 
   /**
-   * `Shift-Cmd-S`: a shown rail is put away, a hidden one comes back.
+   * `Ctrl-S`: a shown rail is put away, a hidden one comes back.
    *
    * The decision is made on whether the rail is painted, never on where the
    * keyboard is: a rail beside a focused editor column must still close, and a
    * visible rail must not turn the key into "move focus left". Only a rail that
    * actually held the keyboard hands it back to the composer; a column that owns
-   * it keeps it, and `Shift-Cmd-H` is what leaves that column.
+   * it keeps it, and `Ctrl-H` is what leaves that column.
    */
   const toggle = (): void => {
     if (config.isClosing()) return
@@ -286,7 +288,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   layout.onChange(() => {
     if (focused && !layout.railShown) {
       focused = false
-      // The rail can be taken away by a narrow terminal as well as by `Shift-Cmd-S`.
+      // The rail can be taken away by a narrow terminal as well as by `Ctrl-S`.
       // Either way the keyboard cannot stay on a column that is not painted.
       if (!layout.conversationShown) layout.setConversationVisible(true)
       focusOn(composer.editor)

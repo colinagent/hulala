@@ -15,16 +15,16 @@
  * the composer and a shell, page-down in Neovim). Each column key is a visibility
  * toggle: a painted column is closed by its own key wherever the keyboard is, and
  * `Ctrl-D` asks Neovim to leave before closing it, so unwritten buffers are a
- * question rather than a kill. `Ctrl-Shift-I` is the exception: it puts the rail and the
+ * question rather than a kill. `Ctrl-Shift-D` is the exception: it puts the rail and the
  * conversation away and leaves Neovim alone, because "just the editor" is a place
  * the reader wants to be, not a toggle they want to nudge.
- * `Shift-Cmd-S` and `Shift-Cmd-C` show or put away the rail and the conversation;
+ * `Ctrl-S` and `Shift-Cmd-C` show or put away the rail and the conversation;
  * the conversation still refuses to hide while the rail and the sidebar are both
  * closed, because there would be nothing left on screen. `Ctrl-Q` exits, in the
- * slot pi gives `Ctrl-D`. `Shift-Cmd-H` / `Shift-Cmd-L` move focus between the
- * columns, and `Ctrl-Shift-H` / `Ctrl-Shift-L` are the same pair for a terminal or
- * system where a Command chord never arrives, so neither is a byte a column can
- * read and both always leave. `Esc` is the other way out, and the one that needs
+ * slot pi gives `Ctrl-D`. `Ctrl-H` / `Ctrl-L` move focus between the
+ * columns, with `Shift-Cmd-H` / `Shift-Cmd-L` (and `Ctrl-Shift-H`) behind them for a
+ * terminal where a Command chord never arrives, so the moves always leave. `Esc`
+ * is the other way out, and the one that needs
  * a rule: Neovim keeps it whenever it has something to cancel (see
  * `tui/pane/focus.ts`) and the terminal keeps it while a full-screen program owns
  * the alternate screen. `Ctrl-W` is not intercepted while a column has focus, so

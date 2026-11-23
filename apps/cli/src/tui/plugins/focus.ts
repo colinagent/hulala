@@ -38,6 +38,15 @@ export type FocusPanel = 'composer' | 'rail' | 'pane'
 export interface TuiFocus {
   /** The panel the next keystroke reaches. */
   readonly panel: FocusPanel
+  /**
+   * A modal owns the keyboard, so no panel is the current one.
+   *
+   * Every column draws faint while this is true: a dialog is the only surface
+   * the user can act on, and the frame says so the same way it already says
+   * which column has the keyboard. `panel` still names where the keyboard was,
+   * which is where it goes back when the dialog closes.
+   */
+  readonly modal: boolean
   /** Give the keyboard to the composer, which is the conversation's panel. */
   composer(): void
   /** Give the keyboard to the Session rail, showing it if it was hidden. */
@@ -80,7 +89,7 @@ export function apply(ctx: Context): void {
     const editor = composer()
     if (editor === undefined) return
     // The composer is the keyboard's home, so it has to be on screen to take it
-    // back; a frame built for `Ctrl-Shift-I` may have the conversation put away.
+    // back; a frame built for `Ctrl-Shift-D` may have the conversation put away.
     if (!layout.conversationShown) layout.setConversationVisible(true)
     focusOn(editor)
     render.request()
@@ -111,6 +120,9 @@ export function apply(ctx: Context): void {
       if (panes()?.focused === true) return 'pane'
       if (rail()?.focused === true) return 'rail'
       return 'composer'
+    },
+    get modal(): boolean {
+      return overlays.open > 0
     },
     composer: toComposer,
     rail: toRail,

@@ -206,6 +206,36 @@ test('a flush writes what is queued, in order, and abandons the message in fligh
   expect(writer.pendingBytes()).toBe(0)
 })
 
+test('a flush whose sink answers afterwards does not lose what follows', async () => {
+  // A flush is not only the exit path: the terminal's own stop flushes mid-life,
+  // and the loop keeps running, so the message it abandoned still gets an answer.
+  // That answer is not a delivery of the message now at the head of the queue —
+  // counting it as one steps `head` past a message nobody wrote. The exit path
+  // depends on this: the banner's delete is queued behind the document that
+  // re-places it, and the document must not be the reason it disappears.
+  let text = ''
+  const answers: Array<() => void> = []
+  const sink: WriterSink = {
+    write: (chunk, done) => { answers.push(() => { text += chunk.toString('utf8'); done(null, chunk.length) }) },
+    writeSync: chunk => { text += chunk.toString('utf8'); return chunk.length },
+  }
+  const writer = createBufferedWriter(sink)
+  writer.write('first') // in flight when the flush runs
+  writer.flushSync() // abandons it, with nothing behind it yet
+  writer.write('second') // queued after the flush
+  const abandoned = answers.shift()
+  const queued = answers.shift()
+  abandoned?.()
+  queued?.()
+  writer.write('third')
+  for (let turn = 0; turn < 10 && writer.pendingBytes() > 0; turn += 1) {
+    while (answers.length > 0) answers.shift()?.()
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  expect(text).toBe('firstsecondthird')
+  expect(writer.pendingBytes()).toBe(0)
+})
+
 test('a flushed queue survives a terminal that refuses a write', () => {
   const sink: WriterSink = {
     write: () => { /* never answers */ },

@@ -197,7 +197,7 @@ test('nested command surfaces switch once and restore once', async () => {
 test('an acquire and a release in the same tick still land in order', async () => {
   const fake = fakeHelper()
   const ownership = inputSourceOwnership(() => inputSource(fake.executable))
-  // The user presses `Shift-Cmd-L` into Neovim and `Shift-Cmd-H` straight back
+  // The user presses `Ctrl-L` into Neovim and `Ctrl-H` straight back
   // out: the switch must land before the restore, never after it.
   ownership.acquire()
   ownership.release()
