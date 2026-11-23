@@ -55,6 +55,18 @@ jobs:
           name: hulala-${{ matrix.target }}
           path: dist/release/*
           if-no-files-found: error
+      # The publish step needs the archive, its digest and the shared npm lock per
+      # platform. The first two reach the operator from the GitHub Release, whose
+      # host answers at megabytes per second; the lock lives only in the workflow
+      # artifacts, and pulling a per-target artifact for it would drag 25 MB off
+      # the actions blob host, which answers at tens of kilobytes per second on
+      # some links. One small artifact carries the lock alone.
+      - if: matrix.target == 'linux-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hulala-metadata
+          path: dist/release/runtime-package-lock.json
+          if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/hulala-v')
