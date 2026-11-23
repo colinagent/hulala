@@ -37,9 +37,12 @@ const SHIFT_CMD_K = '\u001b[107;10u' // command palette
 /** The panel moves and the session walk, as a Kitty keyboard report delivers them. */
 const SHIFT_CMD_H = '\u001b[104;10u' // leftward move
 const SHIFT_CMD_L = '\u001b[108;10u' // rightward move
-/** Session stepping: plain CSI, which every terminal reports. */
-const SESSION_NEXT = '\u001b[1;6B' // Ctrl-Shift-Down
-const SESSION_PREVIOUS = '\u001b[1;6A' // Ctrl-Shift-Up
+/** Session stepping: the Command spelling, as a Kitty keyboard report sends it. */
+const SESSION_NEXT = '\u001b[1;10B' // Shift-Cmd-Down
+const SESSION_PREVIOUS = '\u001b[1;10A' // Shift-Cmd-Up
+/** The same pair for a terminal where a Command chord never arrives. */
+const SESSION_NEXT_LEGACY = '\u001b[1;6B' // Ctrl-Shift-Down
+const SESSION_PREVIOUS_LEGACY = '\u001b[1;6A' // Ctrl-Shift-Up
 /** `Ctrl-D` in a legacy encoding: the editor column's toggle. */
 const CTRL_D = '\u0004'
 /** `Ctrl-T` in a legacy encoding: the terminal column's toggle. */

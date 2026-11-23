@@ -129,21 +129,30 @@ spelling for a system where a Command chord cannot arrive; in a legacy encoding
 those two send nothing at all, so a terminal without the report simply has no
 move key rather than a misfire.
 
-`Ctrl-Shift-↓` / `Ctrl-Shift-↑` open the next or previous Session from wherever the
-keyboard is. The walk is the rail's own order — this directory first, then the
-rest, newest first, blank Sessions skipped — and it does not depend on whether the
-rail is shown or folded, so the key is the same gesture in every layout. Inside
-the rail, `Ctrl-N` / `Ctrl-P` still move the cursor: one pair moves Sessions, the
-other moves a highlight.
+`Shift-Cmd-↓` / `Shift-Cmd-↑` open the next or previous Session from wherever the
+keyboard is, and `Ctrl-Shift-↓` / `Ctrl-Shift-↑` are the same pair for a terminal
+that keeps `Cmd`+arrows for itself or cannot deliver a Command chord. The walk is
+the rail's own order — this directory first, then the rest, newest first, blank
+Sessions skipped — and it does not depend on whether the rail is shown or folded,
+so the key is the same gesture in every layout. Inside the rail, `Ctrl-N` /
+`Ctrl-P` still move the cursor: one pair moves Sessions, the other moves a
+highlight.
 
-The pair is `Ctrl-Shift` and arrows on purpose. Every `Cmd`+arrow chord belongs
-to the terminal on macOS (Ghostty's `jump_to_prompt` and split navigation take
-`Cmd-↑`, `Cmd-Shift-↑`, `Cmd-Alt-↑` and `Cmd-Ctrl-↑`), and `Ctrl-Shift-↑`/`↓` is a
-plain CSI sequence — `ESC [ 1 ; 6 A` and `B` — that every terminal reports,
-Terminal.app included. pi-tui binds the same two keys to a prompt jump that looks
-for an OSC 133 marker this transcript never emits, so the client releases those
-two ids (`RELEASED_PI_KEYS` in `tui/keys.ts`) instead of leaving them to eat the
-key.
+A terminal consumes a chord it has its own binding for, so `Shift-Cmd-↑`/`↓`
+arrives only where nothing claims it. Ghostty 1.4 binds both to
+`jump_to_prompt`, which is why the `Ctrl-Shift` spelling ships alongside; adding
+these two lines to `~/.config/ghostty/config` gives the Command pair back:
+
+```ini
+keybind = super+shift+arrow_up=unbind
+keybind = super+shift+arrow_down=unbind
+```
+
+`Ctrl-Shift-↑`/`↓` needs no such help: it is `ESC [ 1 ; 6 A` and `B`, which every
+terminal reports, Terminal.app included. pi-tui binds that pair to a prompt jump
+that looks for an OSC 133 marker this transcript never emits, so the client
+releases those two ids (`RELEASED_PI_KEYS` in `tui/keys.ts`) instead of leaving
+them to eat the key.
 
 ## Reading the conversation
 
@@ -306,7 +315,7 @@ unless they are the open one.
 | `Shift-Cmd-H` / `Ctrl-Shift-H` | from the composer: move into the rail (a draft stays where it was); from the rail or a column: back to the composer |
 | `Shift-Cmd-L` / `Ctrl-Shift-L` | from the rail: back to the composer; from the composer: into the painted column |
 | `Esc` | from the composer: into the rail when idle, cancel the turn when one runs; inside the rail: back to the composer |
-| `Ctrl-Shift-↓` / `Ctrl-Shift-↑` | open the next / previous Session from anywhere; in the rail `Ctrl-N` / `Ctrl-P` move the cursor instead |
+| `Shift-Cmd-↓` / `Shift-Cmd-↑` (or `Ctrl-Shift-↓` / `↑`) | open the next / previous Session from anywhere; in the rail `Ctrl-N` / `Ctrl-P` move the cursor instead |
 | `↑`/`↓`, `j`/`k`, `Ctrl-P`/`Ctrl-N` | move the cursor |
 | `Enter` | open the Session (on the `all` row: fold or unfold it) |
 | `n` | create a Session in the open Session's directory and switch to it |

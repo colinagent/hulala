@@ -168,7 +168,7 @@ The frame is drivable without a mouse:
 | `Shift-Cmd-C` | put the conversation away while a column is open |
 | `Shift-Cmd-K` | the command palette: every command, what it does, and its shortcut, from any column and with the conversation put away |
 | `Shift-Cmd-H` / `Shift-Cmd-L` | move the keyboard between the Session rail, the conversation and the painted column |
-| `Ctrl-Shift-↓` / `Ctrl-Shift-↑` | open the next / previous Session from wherever the keyboard is |
+| `Shift-Cmd-↓` / `Shift-Cmd-↑` | open the next / previous Session from wherever the keyboard is (`Ctrl-Shift-↓` / `↑` where the terminal keeps `Cmd`+arrows) |
 | `Ctrl-Q` | detach: the window closes and the Host keeps running the turn |
 | `Esc` | stop the running turn; with nothing running, move into the rail |
 | `Ctrl-C` | stop the running turn; on an idle composer clear the draft, then quit |
@@ -192,9 +192,11 @@ have a second spelling for the systems where a Command chord never arrives
 (`Ctrl-Shift-H`, `Ctrl-Shift-L`, `Ctrl-Shift-P`, `Ctrl-Shift-I`), and every one of
 them has a slash-command equal,
 so the layout is reachable from any terminal: `/nvim`, `/rail`, `/chat`,
-`/commands`, `/sessions`. Switching Sessions is `Ctrl-Shift-↓` / `Ctrl-Shift-↑`:
-no Command chord at all, because every `Cmd`+arrow combination belongs to the
-terminal on macOS. Ctrl-`F` is not taken by anything: it stays forward-char
+`/commands`, `/sessions`. Switching Sessions is `Shift-Cmd-↓` / `Shift-Cmd-↑`, with `Ctrl-Shift-↓` / `↑` as
+the second spelling. A terminal consumes a chord it has its own binding for:
+Ghostty 1.4 gives `Cmd`+arrows to `jump_to_prompt`, so the Command pair arrives
+after `keybind = super+shift+arrow_up=unbind` (and the `_down` twin) in its
+config, and the Control pair always arrives. Ctrl-`F` is not taken by anything: it stays forward-char
 in the composer and a shell, and page-down in Neovim. `Ctrl-[` is not bound to
 anything either — it is the `Esc` byte on a terminal without that report, so an
 "escape" to move a panel would abort the running turn instead.
