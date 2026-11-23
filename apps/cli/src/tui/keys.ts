@@ -73,6 +73,21 @@ export function slashCommands(): CommandCompletion[] {
 /** Alt-screen viewport bindings that would otherwise swallow a column's keys. */
 export const VIEWPORT_PAGING_KEYS = ['tui.altScreen.pageUp', 'tui.altScreen.pageDown'] as const
 
+/**
+ * pi-tui gestures hulala releases for good, because pi's action has nothing to
+ * act on here.
+ *
+ * `tui.altScreen.previousPrompt` / `nextPrompt` jump to the next row carrying an
+ * OSC 133 prompt-start marker (`scrollToPrompt` in pi-tui), and hulala's
+ * transcript emits no such marker: the chord consumed the key and did nothing.
+ * `Ctrl-Shift-↑` / `↓` is the Session walk in the client's own table, so the two
+ * ids are unbound rather than left to eat it.
+ */
+const RELEASED_PI_KEYS: KeybindingsConfig = {
+  'tui.altScreen.previousPrompt': [],
+  'tui.altScreen.nextPrompt': [],
+}
+
 /** The hint every list shows for its two movement gestures. */
 export function listMoveHint(): string {
   return t('list.moveHint')
@@ -136,6 +151,7 @@ export function viewportPagingBindings(transcriptOwnsPaging: boolean): Keybindin
  */
 export function composerBindings(transcriptOwnsPaging: boolean): KeybindingsConfig {
   return {
+    ...RELEASED_PI_KEYS,
     ...COMPOSER_LIST_KEYS,
     ...viewportPagingBindings(transcriptOwnsPaging),
     ...editorBindingOverrides(),

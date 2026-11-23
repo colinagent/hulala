@@ -33,12 +33,13 @@ import type {
 const NEVIM_ONLY = '\u001b[105;6u'
 const SHIFT_CMD_S = '\u001b[115;10u' // Session rail
 const SHIFT_CMD_C = '\u001b[99;10u' // conversation
-const SHIFT_CMD_P = '\u001b[112;10u' // previous Session
 const SHIFT_CMD_K = '\u001b[107;10u' // command palette
 /** The panel moves and the session walk, as a Kitty keyboard report delivers them. */
 const SHIFT_CMD_H = '\u001b[104;10u' // leftward move
 const SHIFT_CMD_L = '\u001b[108;10u' // rightward move
-const SHIFT_CMD_N = '\u001b[110;10u' // next Session
+/** Session stepping: plain CSI, which every terminal reports. */
+const SESSION_NEXT = '\u001b[1;6B' // Ctrl-Shift-Down
+const SESSION_PREVIOUS = '\u001b[1;6A' // Ctrl-Shift-Up
 /** `Ctrl-D` in a legacy encoding: the editor column's toggle. */
 const CTRL_D = '\u0004'
 /** `Ctrl-T` in a legacy encoding: the terminal column's toggle. */
@@ -587,7 +588,7 @@ test('Shift-Cmd-H leaves the rail while the filter box has the keyboard', async 
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Shift-Cmd-N and Shift-Cmd-P walk the Session list from the composer', async () => {
+test('Ctrl-Shift-Down and Ctrl-Shift-Up walk the Session list from the composer', async () => {
   const fake = fakeBackend()
   fake.setSessions([
     { sessionId: 'session-1234', updatedAt: Date.now(), running: false, blank: false, cwd: '/workspace', title: 'current one' },
@@ -596,17 +597,18 @@ test('Shift-Cmd-N and Shift-Cmd-P walk the Session list from the composer', asyn
   ])
   const tty = startTty(fake)
   await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
-  tty.input.write(SHIFT_CMD_N)
+  tty.input.write(SESSION_NEXT)
   await waitFor(() => fake.followed.includes('session-aaaa'), 'the next Session')
-  tty.input.write(SHIFT_CMD_P)
+  tty.input.write(SESSION_PREVIOUS)
   await waitFor(() => fake.followed.at(-1) === 'session-1234', 'the previous one')
-  tty.input.write(SHIFT_CMD_P)
+  tty.input.write(SESSION_PREVIOUS)
   await waitFor(() => fake.followed.at(-1) === 'session-bbbb', 'the walk wraps')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Escape reported through the keyboard protocol still cancels the turn', async () => {  const fake = fakeBackend()
+test('Escape reported through the keyboard protocol still cancels the turn', async () => {
+  const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
   fake.handlers?.onRunning(true)

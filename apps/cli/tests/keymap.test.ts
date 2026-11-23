@@ -43,8 +43,8 @@ describe('defaults', () => {
       expect(keymap.bindings['panel.terminal']).toEqual(['ctrl+t'])
       expect(keymap.bindings['panel.focusLeft']).toEqual(['shift+super+h', 'ctrl+shift+h'])
       expect(keymap.bindings['panel.focusRight']).toEqual(['shift+super+l', 'ctrl+shift+l'])
-      expect(keymap.bindings['session.previous']).toEqual(['shift+super+p'])
-      expect(keymap.bindings['session.next']).toEqual(['shift+super+n'])
+      expect(keymap.bindings['session.previous']).toEqual(['ctrl+shift+up'])
+      expect(keymap.bindings['session.next']).toEqual(['ctrl+shift+down'])
       // The one pair that must never come back: `Ctrl-[` is the `Esc` byte.
       expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+[')
       expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+]')

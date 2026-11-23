@@ -131,7 +131,7 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `Shift-Cmd-C` | 列打开时把对话收起来 |
 | `Shift-Cmd-K` | 命令面板：每条命令做什么、快捷键是什么；在任何列里、对话收起时都能打开 |
 | `Shift-Cmd-H` / `Shift-Cmd-L` | 在会话栏、对话和已画出的列之间移动键盘 |
-| `Shift-Cmd-N` / `Shift-Cmd-P` | 在任何焦点位置切到下一个 / 上一个会话 |
+| `Ctrl-Shift-↓` / `Ctrl-Shift-↑` | 在任何焦点位置切到下一个 / 上一个会话 |
 | `Ctrl-Q` | 断开：窗口关掉，Host 把 turn 继续跑完 |
 | `Esc` | 停掉正在跑的 turn；没有在跑时，进入会话栏 |
 | `Ctrl-C` | 停掉正在跑的 turn；composer 空闲时先清空草稿，再按一次退出 |
@@ -148,14 +148,16 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/nvim`、`/rail`、`/chat`、`/keys`、`/cancel`、`/quit` |
 
 带 Command 的几个键（`Shift-Cmd-S`、`Shift-Cmd-C`、`Shift-Cmd-K`、`Shift-Cmd-H`、
-`Shift-Cmd-L`、`Shift-Cmd-N`、`Shift-Cmd-P`）只有说 Kitty 键盘协议的终端才送得到：
+`Shift-Cmd-L`）只有说 Kitty 键盘协议的终端才送得到：
 Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app 不行。移动焦点、命令面板和「只留
 Neovim」各有一个第二写法（`Ctrl-Shift-H`、`Ctrl-Shift-L`、`Ctrl-Shift-P`、
 `Ctrl-Shift-I`），并且每一个都有等价的斜杠命令：`/nvim`、`/rail`、`/chat`、`/commands`、
 `/sessions`。`Ctrl-F` 不再被任何东西占用：它在 composer、shell 里还是前移光标，在 Neovim
 里还是下翻一屏。`Ctrl-[` 不再绑任何动作——在没有键盘协议的终端里它就是 `Esc` 的字节，拿
 它当「左移」会顺手取消正在跑的回合；`Ctrl-I` 同理就是 `Tab` 的字节，所以「只留 Neovim」
-用 `Ctrl-Shift-I` 而不是 `Ctrl-I`。
+用 `Ctrl-Shift-I` 而不是 `Ctrl-I`。切换会话是 `Ctrl-Shift-↓` / `Ctrl-Shift-↑`：一个 Command
+键都不用，因为 macOS 上每一种 `Cmd`+方向键都被终端自己占着（Ghostty 的 `jump_to_prompt`
+与分屏操作）。
 
 列也能用指针切换：点对话、会话栏或已经打开的那一列，键盘就移到那里；没拿到键盘的
 面板会画得淡一点，像 Ghostty 自己的分屏一样一眼能看出键盘在哪。点在那一格上的手势

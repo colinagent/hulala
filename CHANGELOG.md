@@ -13,6 +13,17 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- Session switching is `Ctrl-Shift-↓` / `Ctrl-Shift-↑` instead of `Shift-Cmd-N` /
+  `Shift-Cmd-P`. `Shift-Cmd-P` opened the terminal's own palette on macOS
+  (Ghostty binds `super+shift+p`), and every `Cmd`+arrow combination belongs to the
+  terminal there as well (`jump_to_prompt`, split navigation, split resize), so the
+  pair is a Control chord with arrow keys: `ESC [ 1 ; 6 B` / `A`, which every
+  terminal reports, Terminal.app included. pi-tui's own `Ctrl-Shift-↑`/`↓` prompt
+  jump is released, since it looks for an OSC 133 marker this transcript never
+  emits and only swallowed the key.
+
 ## [0.3.33] - 2026-11-22
 
 ### Changed

@@ -60,8 +60,11 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   { id: 'app.expand', defaults: ['ctrl+o'], label: 'keymap.action.expand' },
   { id: 'app.interactions', defaults: ['alt+g'], label: 'keymap.action.interactions' },
   { id: 'app.redraw', defaults: ['ctrl+l'], label: 'keymap.action.redraw' },
-  { id: 'session.previous', defaults: ['shift+super+p'], label: 'keymap.action.sessionPrevious' },
-  { id: 'session.next', defaults: ['shift+super+n'], label: 'keymap.action.sessionNext' },
+  // Arrows, not letters: every `Cmd`+arrow chord belongs to the terminal on
+  // macOS (`jump_to_prompt`, split navigation, split resize), while
+  // `Ctrl-Shift-↑/↓` is a plain CSI sequence every terminal reports.
+  { id: 'session.previous', defaults: ['ctrl+shift+up'], label: 'keymap.action.sessionPrevious' },
+  { id: 'session.next', defaults: ['ctrl+shift+down'], label: 'keymap.action.sessionNext' },
   { id: 'panel.focusLeft', defaults: ['shift+super+h', 'ctrl+shift+h'], label: 'keymap.action.focusLeft' },
   { id: 'panel.focusRight', defaults: ['shift+super+l', 'ctrl+shift+l'], label: 'keymap.action.focusRight' },
   { id: 'panel.rail', defaults: ['shift+super+s'], label: 'keymap.action.rail' },
