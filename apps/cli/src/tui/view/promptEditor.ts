@@ -134,7 +134,9 @@ export class PromptEditor extends Editor {
    * A Session's journal is replayed when it opens, and again when the reader
    * switches back to it, so the same prompt can arrive more than once. pi seeds
    * its editor history from the loaded transcript for the same reason; the only
-   * difference here is that a second replay must not stack duplicates.
+   * difference here is that a second replay must not stack duplicates. The set
+   * is emptied with the list when another Session opens, so that Session's own
+   * replay is new material instead of a duplicate.
    */
   private readonly remembered = new Set<string>()
   /**
@@ -203,6 +205,44 @@ export class PromptEditor extends Editor {
       this.remembered.delete(oldest)
     }
     super.addToHistory(trimmed)
+  }
+
+  /**
+   * Start the Up/Down history over, as a Session change does.
+   *
+   * The composer is one editor for every Session this window reads, so without
+   * this the list would be the process's prompts rather than the open Session's:
+   * recall would hand the reader a prompt they sent in a conversation they have
+   * already left. The journal replay that follows a switch seeds the new one.
+   *
+   * pi-tui keeps the list in a private field with no clearing method and the
+   * version is pinned, so it is emptied where the base editor keeps it; a rename
+   * in a later version leaves the old prompts behind, which the test catches.
+   */
+  resetHistory(): void {
+    this.remembered.clear()
+    const base = this as unknown as {
+      history?: string[]
+      historyIndex?: number
+      historyDraft?: { lines: string[]; cursorLine: number; cursorCol: number } | null
+      state?: { lines: string[]; cursorLine: number; cursorCol: number }
+      scrollOffset?: number
+    }
+    // A switch that lands mid-browse shows a prompt from the Session just left,
+    // not a draft: put the reader's own draft back, which is the state the base
+    // editor captured when browsing began. Restoring it in place keeps the paste
+    // markers of that draft valid — `setText` would clear them and the turn would
+    // carry a literal `[paste #1 …]` instead of the pasted lines.
+    const draft = (base.historyIndex ?? -1) > -1 ? base.historyDraft ?? null : null
+    base.history?.splice(0)
+    // Leaving the editor mid-browse would keep an index into the list that no
+    // longer exists, and Up/Down would stop answering for the rest of the window.
+    base.historyIndex = -1
+    base.historyDraft = null
+    if (draft === null) return
+    base.state = draft
+    base.scrollOffset = 0
+    this.onChange?.(this.getText())
   }
 
   /**

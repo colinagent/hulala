@@ -13,6 +13,13 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- Up in the composer recalls the open Session's own prompts again. The window
+  kept one history for every Session it had read, so the key offered a prompt
+  from a conversation the reader had left; a switch now starts the list over and
+  the new Session's journal seeds it.
+
 ## [0.3.35] - 2026-11-23
 
 ### Added

@@ -293,3 +293,53 @@ test('a prompt replayed by the Session is remembered once', () => {
   editor.handleInput('\u001b[A')
   expect(editor.getText()).toBe('first prompt')
 })
+
+test('switching Session starts the recalled prompts over', () => {
+  const { editor } = makeEditor()
+  // A prompt from the Session this window has just left.
+  editor.addToHistory('old session prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('old session prompt')
+  editor.setText('')
+  editor.resetHistory()
+  // Nothing to recall until the next Session's journal replays; Up must not
+  // reach the prompt this window was showing one conversation ago.
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('')
+  editor.addToHistory('new session prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('new session prompt')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('new session prompt')
+})
+
+test('a Session switch mid-recall puts the draft back, not the old prompt', () => {
+  const { editor } = makeEditor()
+  editor.addToHistory('old session prompt')
+  type(editor, 'half a thought')
+  // Up only browses from the start of the draft, like pi's editor.
+  editor.handleInput('\u0001')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('old session prompt')
+  editor.resetHistory()
+  // Enter after the switch sends what the reader typed, never the prompt the
+  // previous Session recalled.
+  expect(editor.getText()).toBe('half a thought')
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('half a thought')
+})
+
+test('the restored draft keeps its pasted lines, not a dead marker', () => {
+  const { editor } = makeEditor()
+  editor.addToHistory('old session prompt')
+  const lines = Array.from({ length: 12 }, (_value, index) => `line ${String(index)}`)
+  editor.handleInput(`\u001b[200~${lines.join('\n')}\u001b[201~`)
+  editor.handleInput('\u0001') // Up browses from the start of the draft
+  editor.handleInput('\u001b[A')
+  expect(editor.getText()).toBe('old session prompt')
+  editor.resetHistory()
+  // The draft returns with its marker still expanding; rewriting it as text
+  // would clear the paste table and send `[paste #1 …]` to the model.
+  expect(editor.getText()).toContain('[paste #1')
+  expect(editor.getExpandedText()).toContain('line 11')
+})

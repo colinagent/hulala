@@ -407,6 +407,11 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     followDispose = undefined
     id = next
     reducer.reset()
+    // Up/Down history is the open Session's, not the window's: a prompt recalled
+    // from a conversation the reader has left is not theirs to send here. The
+    // replay of this Session's journal seeds the new list, so switching back
+    // still reaches its prompts.
+    if (previous !== undefined && previous !== next) composer.editor.resetHistory()
     // The new follow stream delivers a fresh snapshot; projections of the
     // previous Session must not be reconciled against its id.
     projected = []
