@@ -220,20 +220,18 @@ export function apply(ctx: Context, config: InputPluginConfig): void {
   /**
    * Whether the editor column reads the rail key as a command of its own.
    *
-   * The shipped Neovim configuration binds `<C-s>` to `:write`, so a plain
-   * control-byte spelling belongs to the editor while it has the keyboard: taking
-   * it would silently unbind the save key every other surface documents. The
-   * terminal column is the exception on purpose — a shell reads `C-s` as flow
-   * control, which does not run a command, it freezes the output until `C-q` — so
-   * the rail keeps that byte there. A Command chord is not readable by a pty at
-   * all, which is why it always answers.
+   * The shipped Neovim configuration binds `<C-s>` to `:write`, and a legacy
+   * encoding sends `Ctrl-Shift-S` as the same byte, so a control-letter spelling
+   * of the rail belongs to the editor while it has the keyboard: taking it would
+   * silently unbind the save key every other surface documents. The `Shift-Cmd-S`
+   * spelling is not readable by a pty at all, which is why it always answers.
    * @param data - one raw input event.
    * @returns true when the event belongs to Neovim rather than the rail.
    */
   const editorOwnsRailKey = (data: string): boolean => {
     if (panes.visible !== 'editor') return false
     return actionKeys('panel.rail').some(key =>
-      /^ctrl\+[a-z]$/u.test(key) && matchesKey(data, key as Parameters<typeof matchesKey>[1]))
+      /^ctrl(\+shift)?\+[a-z]$/u.test(key) && matchesKey(data, key as Parameters<typeof matchesKey>[1]))
   }
 
   const listener = (data: string): { consume: boolean } | undefined => {

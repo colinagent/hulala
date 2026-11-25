@@ -32,10 +32,9 @@ import type {
 import { ApiKeyPanel, ProviderSelector, type ProviderPickerResult } from '../view/selector/login.js'
 import { ModelSelector, type ModelPickerResult, type ModelSelection } from '../view/selector/model.js'
 import { PermissionSelector, type PermissionPickerResult } from '../view/selector/permission.js'
-import { FULL_ACCESS_PRESET, permissionLabel } from '../view/permission.js'
+import { permissionLabel } from '../view/permission.js'
 import { ThinkingSelector, type ThinkingPickerResult } from '../view/selector/thinking.js'
 import { ResumeOverlay, type ResumeResult } from '../view/overlays/resume.js'
-import { PermissionConfirmOverlay } from '../view/overlays/permissionConfirm.js'
 import { textOf } from '../data/viewModel.js'
 import {
   defaultThinkingLevelOf,
@@ -121,7 +120,6 @@ export interface SessionPluginConfig {
 export function apply(ctx: Context, config: SessionPluginConfig): void {
   const backend = ctx.backend
   const render = ctx.hulalaRender
-  const overlays = ctx.hulalaOverlays
   const panes = ctx.hulalaPanes
   const composer = ctx.hulalaComposer
   const { terminal } = ctx.hulalaTerminal
@@ -684,12 +682,6 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     await applyThinking(next.id, thinking.route)
   }
 
-  /** Ask once before a preset that also turns the Host's approval prompts off. */
-  const confirmFullAccess = async (): Promise<boolean> => overlays.modal<boolean>(done => new PermissionConfirmOverlay({
-    color: config.color,
-    onDecide: done,
-  }), { anchor: 'center', width: 64 })
-
   /** The Host permission catalog, or the reason there is none. */
   const loadPermissions = async (): Promise<TerminalPermissionCatalog | undefined> => {
     try {
@@ -718,67 +710,46 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     saveDefault: boolean,
   ): Promise<void> => {
     if (id === undefined) return
-    if (preset === FULL_ACCESS_PRESET && !await confirmFullAccess()) return
     try {
       await backend.setPermission(id, preset)
-      if (saveDefault) await backend.setDefaultPermission(preset)
     } catch (caught) {
       error(caught)
       return
     }
     permission = preset
     const name = permissionNameOf(loaded, preset)
-    reducer.addNotice(saveDefault ? t('notice.permissionDefault', { preset: name }) : t('notice.permission', { preset: name }))
-    repaint()
-  }
-
-  /** Write the new-Session default without touching this Session. */
-  const applyDefaultPermission = async (loaded: TerminalPermissionCatalog, preset: string): Promise<void> => {
-    if (preset === FULL_ACCESS_PRESET && !await confirmFullAccess()) return
-    try {
-      await backend.setDefaultPermission(preset)
-    } catch (caught) {
-      error(caught)
+    if (!saveDefault) {
+      reducer.addNotice(t('notice.permission', { preset: name }))
+      repaint()
       return
     }
-    reducer.addNotice(t('notice.permissionDefaultOnly', { preset: permissionNameOf(loaded, preset) }))
+    try {
+      await backend.setDefaultPermission(preset)
+      reducer.addNotice(t('notice.permissionDefault', { preset: name }))
+    } catch (caught) {
+      reducer.addNotice(t('notice.permissionDefaultFailed', {
+        preset: name,
+        reason: caught instanceof Error ? caught.message : String(caught),
+      }))
+    }
     repaint()
   }
 
   /**
-   * `/permission [default] [preset]`.
+   * `/permission`: the picker, and nothing else.
    *
-   * A preset switches this Session; `default <preset>` writes the default only.
-   * Neither form invents a permission of its own — the Host owns both writes.
+   * No argument opens the list; a word after the command is a usage error rather
+   * than a second way in, because a preset typed here would skip the row that says
+   * what it costs and the `Ctrl-S` that stores it for new Sessions.
    */
   const choosePermission = async (argument: string): Promise<void> => {
     if (id === undefined) return
-    const words = argument.trim().split(/\s+/u).filter(word => word !== '')
-    const wantsDefault = words[0] === 'default'
-    if (words.length > (wantsDefault ? 2 : 1)) {
+    if (argument.trim() !== '') {
       error(new Error(t('error.permissionUsage')))
       return
     }
-    const wanted = wantsDefault ? words[1] ?? '' : words[0] ?? ''
     const loaded = await loadPermissions()
     if (loaded === undefined) return
-    if (wanted !== '') {
-      const preset = loaded.options.find(option => option.value === wanted)
-      if (preset === undefined) {
-        error(new Error(t('error.permissionUnknown', {
-          preset: wanted,
-          presets: loaded.options.map(option => option.value).join(', '),
-        })))
-        return
-      }
-      if (wantsDefault) await applyDefaultPermission(loaded, preset.value)
-      else await applyPermission(loaded, preset.value, false)
-      return
-    }
-    if (wantsDefault) {
-      error(new Error(t('error.permissionUsage')))
-      return
-    }
     const picked = await composer.panel<PermissionPickerResult>(done => new PermissionSelector({
       presets: loaded.options,
       ...(permission === undefined ? {} : { current: permission }),
@@ -788,8 +759,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
       onResolve: done,
     }))
     if (picked.kind === 'cancel') return
-    if (picked.kind === 'save') await applyPermission(loaded, picked.preset, true)
-    else await applyPermission(loaded, picked.preset, false)
+    await applyPermission(loaded, picked.preset, picked.kind === 'save')
   }
 
   const pickModel = async (): Promise<ModelPickerResult> => {

@@ -26,7 +26,7 @@ test('the default keys are the ones the catalog and the panels print', () => {
   expect(hints.editor).toBe('Ctrl-D')
   expect(hints.terminal).toBe('Ctrl-T')
   expect(hints.nvim).toBe('Ctrl-Shift-D / Shift-Cmd-D')
-  expect(hints.rail).toBe('Ctrl-S / Shift-Cmd-S')
+  expect(hints.rail).toBe('Ctrl-Shift-S / Shift-Cmd-S')
   expect(hints.chat).toBe('Shift-Cmd-C')
   expect(hints.commands).toBe('Shift-Cmd-K / Ctrl-Shift-P')
   expect(hints.quit).toBe('Ctrl-Q')

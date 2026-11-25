@@ -1,11 +1,12 @@
 /**
  * `/permission`: the presets the Host offers, rendered where the composer sits.
  *
- * The two actions mirror pi's model and thinking selectors exactly: `Enter`
- * changes the current Session, `Ctrl+S` also stores the same choice as the
- * default for Sessions created later. One list carries both facts, because a
- * separate "default" screen would hide the answer to "which one is the
- * default?" behind an extra keystroke.
+ * The two actions mirror pi's model and thinking selectors: `Enter` changes the
+ * current Session, `Ctrl+S` also stores the same choice as the default for
+ * Sessions created later. One list carries both facts, because a separate
+ * "default" screen would hide the answer to "which one is the default?" behind
+ * an extra keystroke. A preset that drops approvals states that on its own row,
+ * so picking it needs no follow-up confirmation.
  *
  * The presets themselves are the Host's: three shipped keys get product
  * labels, anything else is shown under the name its configuration gave it.
@@ -25,7 +26,7 @@ import {
 import type { TerminalPermissionPreset } from '../../data/remote.js'
 import { t } from '../../i18n/index.js'
 import { listMove } from '../../keys.js'
-import { AUTO_REVIEW_PRESET, permissionLabel } from '../permission.js'
+import { AUTO_REVIEW_PRESET, FULL_ACCESS_PRESET, permissionLabel } from '../permission.js'
 import { padEnd } from '../pathText.js'
 import { buildStyles } from '../theme.js'
 import { Rule, listCapacity, scrollLabel, windowOf } from './chrome.js'
@@ -123,6 +124,10 @@ export class PermissionSelector extends Container implements Focusable {
       const label = padEnd(this.labels[index] ?? preset.value, this.widest)
       const details = [
         ...(preset.description === undefined || preset.description === '' ? [] : [preset.description]),
+        // The shipped table maps this key to `approval: never` over the
+        // unconfined sandbox, so the consequence is stated here instead of in a
+        // follow-up dialog; a Host that repoints the key can describe it itself.
+        ...(preset.value === FULL_ACCESS_PRESET ? [t('selector.permission.fullAccess')] : []),
         ...(preset.value === AUTO_REVIEW_PRESET ? [t('selector.permission.exp')] : []),
         ...(isDefault ? [t('selector.permission.default')] : []),
       ]
@@ -163,8 +168,6 @@ export class PermissionSelector extends Container implements Focusable {
       this.resolve('save')
       return
     }
-    if (matchesKey(data, 'enter')) {
-      this.resolve('select')
-    }
+    if (matchesKey(data, 'enter')) this.resolve('select')
   }
 }

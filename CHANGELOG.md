@@ -13,6 +13,20 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- `/permission` takes no argument: it opens the picker, where `Enter` switches
+  this Session and `Ctrl-S` also makes the choice the default for new Sessions
+  (pi's own two keys), and a word after the command is a usage error instead of a
+  second way in. The `danger-full-access` confirmation dialog is gone with it —
+  that preset's row states the consequence (`approvals off · no write sandbox`)
+  where it is picked, instead of asking again afterwards.
+- The Session rail is `Ctrl-Shift-S` (`Shift-Cmd-S` still works), one Shift away
+  from the editor's own `<C-s>`, which the shipped Neovim config binds to
+  `:write`. A bare `Ctrl-S` now belongs to whatever has the keyboard — Neovim
+  writes, a shell gets the flow-control byte — and to `/permission`, where it
+  stores the highlighted preset as the default for new Sessions.
+
 ### Fixed
 
 - Up in the composer recalls the open Session's own prompts again. The window

@@ -127,7 +127,7 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `Ctrl-T` | 在右列打开内置终端；再按一次关掉 |
 | `Ctrl-D` | 在同一列打开 Neovim；再按一次关掉（未保存的缓冲区会先问你） |
 | `Ctrl-Shift-D` | 只留 Neovim：收起会话栏和对话栏，编辑器列不动；再按一次恢复进入前的布局（`Shift-Cmd-D` 要在 Ghostty 里 unbind 它自己的 `new_split:down`，或者用 `/nvim`） |
-| `Ctrl-S` | 显示或收起会话栏（`Shift-Cmd-S` 同效；在 Neovim 列里这个字节归 Neovim，见下） |
+| `Ctrl-Shift-S` | 显示或收起会话栏（`Shift-Cmd-S` 同效；在 Neovim 列里这个组合归 Neovim，见下） |
 | `Shift-Cmd-C` | 列打开时把对话收起来 |
 | `Shift-Cmd-K` | 命令面板：每条命令做什么、快捷键是什么；在任何列里、对话收起时都能打开 |
 | `Ctrl-H` / `Ctrl-L` | 在会话栏、对话和已画出的列之间移动键盘（`Shift-Cmd-H` / `Shift-Cmd-L` 同效） |
@@ -139,7 +139,7 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `Alt-Up` | 把排队的消息取回 composer |
 | `Ctrl-O` | 展开当前指向的工具行 |
 | `Shift-Tab` | 循环切换当前模型的思考等级；`/thinking` 打开等级选择器 |
-| `Ctrl-S`（在 Neovim 列里） | 立刻写编辑器缓冲区（平时自动保存）——自带的 Neovim 配置占着 `<C-s>`，所以会话栏那个键在那里不动它 |
+| `Ctrl-S`（在 Neovim 列里） | 立刻写编辑器缓冲区（平时自动保存）——自带的 Neovim 配置占着 `<C-s>`，会话栏的键因此和它差一个 Shift |
 | `Cmd-L` / `Ctrl-Shift-L` | 丢掉渲染器对屏幕的记录、整屏重画：画面被丢掉的序列弄花时的手动补救（改窗口大小、重连、唤醒本来就会自动做一次） |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | 移动焦点列旁的分割线：右边那列变宽或变窄 |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | 同上；`Ctrl-Shift-←` / `Ctrl-Shift-→` 是任何终端都收得到的写法 |
@@ -148,7 +148,7 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
 | `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/nvim`、`/rail`、`/chat`、`/keys`、`/cancel`、`/quit` |
 
-布局键以 `Ctrl-` 打头：`Ctrl-H`/`Ctrl-L`、`Ctrl-S`、`Ctrl-T`、`Ctrl-D`、
+布局键以 `Ctrl-` 打头：`Ctrl-H`/`Ctrl-L`、`Ctrl-Shift-S`、`Ctrl-T`、`Ctrl-D`、
 `Ctrl-,`/`Ctrl-.`、`Ctrl-↑`/`↓`。带 Command 的几个键（`Shift-Cmd-H`、`Shift-Cmd-L`、
 `Shift-Cmd-S`、`Shift-Cmd-C`、`Shift-Cmd-K`、`Shift-Cmd-D`）只有说 Kitty 键盘协议的终端
 才送得到：Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app 不行——所以每个布局手势都

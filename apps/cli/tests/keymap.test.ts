@@ -37,7 +37,7 @@ describe('defaults', () => {
       expect(keymap.bindings['panel.editorOnly']).toEqual(['ctrl+shift+d', 'shift+super+d'])
       // `Ctrl-I` is the `Tab` byte, so it can never name a layout mode.
       expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+i')
-      expect(keymap.bindings['panel.rail']).toEqual(['ctrl+s', 'shift+super+s'])
+      expect(keymap.bindings['panel.rail']).toEqual(['ctrl+shift+s', 'shift+super+s'])
       expect(keymap.bindings['panel.chat']).toEqual(['shift+super+c'])
       expect(keymap.bindings['panel.commands']).toEqual(['shift+super+k', 'ctrl+shift+p'])
       expect(keymap.bindings['panel.terminal']).toEqual(['ctrl+t'])

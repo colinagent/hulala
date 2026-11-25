@@ -589,7 +589,7 @@ test('Ctrl-L is the rightward move back into the open column', async () => {
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('Ctrl-S toggles the rail, and Neovim keeps <C-s> while it has the keyboard', async () => {
+test('Ctrl-Shift-S toggles the rail, and Ctrl-S stays the editor’s own key', async () => {
   const home = mkdtempSync(join(tmpdir(), 'hulala-ctrl-s-'))
   const fake = fakeBackend(home)
   const editor = fakeEditor({ clean: true })
@@ -597,20 +597,28 @@ test('Ctrl-S toggles the rail, and Neovim keeps <C-s> while it has the keyboard'
   await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail painted')
   tty.input.write(CTRL_D) // Ctrl-D: the editor column takes the keyboard
   await waitFor(() => editor.spawned(), 'editor column')
-  // The shipped Neovim configuration writes the buffer on `<C-s>`, so the byte is
-  // the editor's while it has the keyboard — the rail key must not take it.
+  // The shipped Neovim configuration writes the buffer on `<C-s>`, so a plain
+  // Ctrl-S is the editor's, and so is the `Ctrl-Shift-S` spelling that a legacy
+  // encoding delivers as the same byte — the rail key must not take either.
   tty.input.write('\u0013') // Ctrl-S
   await waitFor(() => editor.writes().includes('<C-s>'), 'Ctrl-S reaches nvim')
+  expect(plain(tty.painted())).toContain('+ new session')
+  tty.input.write('\u001b[115;6u') // Ctrl-Shift-S
+  await new Promise(resolve => setTimeout(resolve, 120))
   expect(plain(tty.painted())).toContain('+ new session')
   // From the composer it is the rail's: the painted rail goes away.
   tty.input.write('\u0008') // Ctrl-H: leave the column
   await new Promise(resolve => setTimeout(resolve, 120))
-  const mark = tty.painted().length
+  // A bare Ctrl-S is nobody's chord any more: it must not put the rail away.
   tty.input.write('\u0013') // Ctrl-S
+  await new Promise(resolve => setTimeout(resolve, 120))
+  expect(plain(tty.painted())).toContain('+ new session')
+  const mark = tty.painted().length
+  tty.input.write('\u001b[115;6u') // Ctrl-Shift-S
   await waitFor(() => !plain(tty.painted().slice(mark)).includes('+ new session'), 'rail hidden')
   // And back: a hidden rail returns with the keyboard on the list, which `n`
   // proves by creating a Session instead of typing into the composer.
-  tty.input.write('\u0013')
+  tty.input.write('\u001b[115;6u')
   await new Promise(resolve => setTimeout(resolve, 120))
   tty.input.write('n')
   await waitFor(() => fake.created.length === 1, 'new Session')
@@ -790,6 +798,49 @@ test('Esc then Ctrl-N and Enter switches to the next Session in the rail', async
   expect(fake.followed.at(-1)).toBe('session-9999')
   input.write('/quit\r')
   await expect(run).resolves.toBe(0)
+})
+
+test('Up recalls the open Session’s prompts, not one the reader left', async () => {
+  const fake = fakeBackend()
+  fake.setSessions([
+    { sessionId: 'session-1234', updatedAt: Date.now(), running: false, blank: false, cwd: '/workspace', title: 'current one' },
+    { sessionId: 'session-9999', updatedAt: Date.now() - 60_000, running: false, blank: false, cwd: '/workspace', title: 'older one' },
+  ])
+  const tty = startTty(fake)
+  await waitFor(() => plain(tty.painted()).includes('history answer'), 'transcript')
+  await waitFor(() => plain(tty.painted()).includes('older one'), 'rail rows')
+  // A prompt that belongs to the Session this window starts on — here the echo
+  // another client's turn leaves in the journal.
+  fake.handlers?.onEvent({
+    type: 'user/message',
+    seq: 10,
+    time: Date.now(),
+    data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'only in the first Session' }] },
+  })
+  tty.input.write('\u001b[A') // Up
+  await waitFor(() => plain(tty.painted()).includes('only in the first Session'), 'the first Session’s recall')
+  // The composer still shows the recall; the switch itself is what gives the
+  // empty draft back, so the next Up starts from this Session's journal.
+  tty.input.write('\u001b')
+  await new Promise(resolve => setTimeout(resolve, 120))
+  tty.input.write('\u000e') // Ctrl-N
+  await new Promise(resolve => setTimeout(resolve, 80))
+  tty.input.write('\r')
+  await waitFor(() => fake.followed.at(-1) === 'session-9999', 'Session switch')
+  // The transcript is reset and replayed for the new Session; only then does the
+  // composer hold that Session's history.
+  const mark = tty.painted().length
+  await waitFor(() => plain(tty.painted().slice(mark)).includes('history answer'), 'replayed transcript')
+  const recalled = tty.painted().length
+  tty.input.write('\u001b[A') // Up
+  await waitFor(() => plain(tty.painted().slice(recalled)).includes('history question'), 'history recall')
+  // Recall reaches this Session's journal, never the prompt the previous
+  // Session already carries.
+  expect(plain(tty.painted().slice(recalled))).not.toContain('only in the first Session')
+  tty.input.write('\u0005') // Ctrl-E: history recall leaves the caret at line start
+  tty.input.write('\u0015') // Ctrl-U, so `/quit` is a command and not a draft
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
 })
 
 test('Shift-Cmd-S shows the rail and puts it away, and showing it takes the keyboard', async () => {
@@ -1728,7 +1779,7 @@ test('a model selection from another client reaches the footer', async () => {
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('the /permission picker applies a preset to the Session after the full-access gate', async () => {
+test('the /permission picker switches this Session, and the default only on Ctrl-S', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
@@ -1741,12 +1792,14 @@ test('the /permission picker applies a preset to the Session after the full-acce
   expect(picker).toContain('Workspace Write')
   // The default badge sits on the row the Host reports as the default, not on
   // the cursor: the cursor is the current Session's preset.
-  expect(picker).toContain('default for new Sessions')
+  expect(picker).toMatch(/Workspace Write\s+default/u)
+  expect(picker).toContain('Ctrl-S also makes the choice the default for new Sessions')
+  // The consequence of Full access is stated on its row, so picking it needs no
+  // second confirmation.
+  expect(picker).toContain('approvals off · no write sandbox')
 
   tty.input.write('\u001b[B') // ↓ to Full access
   tty.input.write('\r')
-  await waitFor(() => plain(tty.painted()).includes('Full access also turns the approval prompts off'), 'full-access gate')
-  tty.input.write('y')
   await waitFor(() => fake.permissions.length === 1, 'permission applied')
   expect(fake.permissions).toEqual(['danger-full-access'])
   expect(fake.permissionDefaults).toEqual([])
@@ -2223,32 +2276,42 @@ test('Ctrl-S applies the highlighted preset and stores it as the Session default
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('/permission default <preset> writes the default without switching the Session', async () => {
-  const fake = fakeBackend()
-  const tty = startTty(fake)
-  await waitFor(() => fake.handlers !== undefined, 'subscription')
+test('Ctrl-S inside the permission picker stores the default and leaves the rail alone', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'hulala-permission-ctrl-s-'))
+  const fake = fakeBackend(home)
+  const tty = startPtyTty(home, fake)
+  await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail painted')
+  fake.permission('workspace-write')
+  await waitFor(() => plain(tty.painted()).includes('permission Workspace Write'), 'footer preset')
 
-  tty.input.write('/permission default read-only\r')
+  tty.input.write('/permission\r')
+  await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
+  // The picker's own key, with the rail one Shift away: nothing here competes.
+  expect(plain(tty.painted())).toContain('Ctrl-S store default')
+  tty.input.write('\u0013') // Ctrl-S
   await waitFor(() => fake.permissionDefaults.length === 1, 'default written')
-  expect(fake.permissionDefaults).toEqual(['read-only'])
-  expect(fake.permissions).toEqual([])
-  await waitFor(() => tty.painted().includes('default permission for new Sessions: Read Only'), 'notice')
-  tty.input.write('/quit\r')
+  expect(fake.permissionDefaults).toEqual(['workspace-write'])
+  expect(plain(tty.painted())).toContain('+ new session')
+  tty.input.write('\u001b') // leave the picker
+  await new Promise(resolve => setTimeout(resolve, 120))
+  tty.input.write('\u0011')
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('/permission takes a preset directly and rejects one the Host does not offer', async () => {
+test('/permission takes no argument: any word after it is a usage error', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
 
   tty.input.write('/permission read-only\r')
-  await waitFor(() => fake.permissions.length === 1, 'permission applied')
-  expect(fake.permissions).toEqual(['read-only'])
+  await waitFor(() => tty.painted().includes('on its own to pick a preset'), 'usage error')
+  expect(fake.permissions).toEqual([])
+  expect(fake.permissionDefaults).toEqual([])
 
-  tty.input.write('/permission turbo\r')
-  await waitFor(() => tty.painted().includes('unknown permission preset "turbo"'), 'rejection')
-  expect(fake.permissions).toEqual(['read-only'])
+  tty.input.write('/permission default read-only\r')
+  await new Promise(resolve => setTimeout(resolve, 80))
+  expect(fake.permissions).toEqual([])
+  expect(fake.permissionDefaults).toEqual([])
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

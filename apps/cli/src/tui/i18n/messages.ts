@@ -142,10 +142,6 @@ export interface MessageTable {
   'confirm.body': string
   'confirm.failed': string
   'confirm.footer': string
-  'confirm.permission.title': string
-  'confirm.permission.body': string
-  'confirm.permission.detail': string
-  'confirm.permission.footer': string
   'conflict.title': string
   'conflict.body': (params: { name: string }) => string
   'conflict.detail': string
@@ -207,6 +203,7 @@ export interface MessageTable {
   'selector.permission.exp': string
   'selector.permission.footer': string
   'selector.permission.persists': string
+  'selector.permission.fullAccess': string
   'selector.permission.empty': string
 
   'permission.preset.readOnly': string
@@ -314,7 +311,7 @@ export interface MessageTable {
   'notice.thinking': (params: { level: string }) => string
   'notice.permission': (params: { preset: string }) => string
   'notice.permissionDefault': (params: { preset: string }) => string
-  'notice.permissionDefaultOnly': (params: { preset: string }) => string
+  'notice.permissionDefaultFailed': (params: { preset: string; reason: string }) => string
   'notice.createdSession': (params: { id: string }) => string
   'notice.savedKey': (params: { provider: string }) => string
   'notice.approval': (params: { outcome: string }) => string
@@ -367,7 +364,6 @@ export interface MessageTable {
   'error.thinkingUnavailable': string
   'error.thinkingUnknown': (params: { level: string; levels: string }) => string
   'error.permissionUsage': string
-  'error.permissionUnknown': (params: { preset: string; presets: string }) => string
   'error.permissionDefaultUnavailable': string
   'error.noProvider': string
   'error.languageUnsupported': (params: { value: string }) => string

@@ -257,6 +257,7 @@ test('the permission selector ticks the Session preset and badges the default se
   expect(rendered).toContain('    Full access')
   expect(rendered).toContain('↑↓/Ctrl-N/P move · Enter apply · Ctrl-S store default · Esc cancel')
   expect(rendered).toContain('Ctrl-S also makes the choice the default for new Sessions')
+  expect(rendered).toContain('approvals off · no write sandbox')
   for (const line of lines) expect(visibleWidth(line) <= 80).toBe(true)
 })
 

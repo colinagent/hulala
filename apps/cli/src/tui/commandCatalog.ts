@@ -91,7 +91,7 @@ export const COMMANDS = [
   { name: 'resume', descriptionKey: 'slash.resume', argumentHint: '[id]', group: 'session' },
   { name: 'model', descriptionKey: 'slash.model', argumentHint: '[provider/model]', group: 'model' },
   { name: 'thinking', descriptionKey: 'slash.thinking', argumentHint: '[level]', action: 'app.thinking', group: 'model' },
-  { name: 'permission', descriptionKey: 'slash.permission', argumentHint: '[default] [preset]', group: 'model' },
+  { name: 'permission', descriptionKey: 'slash.permission', group: 'model' },
   { name: 'login', descriptionKey: 'slash.login', argumentHint: '[provider]', group: 'model' },
   { name: 'rename', descriptionKey: 'slash.rename', argumentHint: '<title>', aliases: ['name'], group: 'session', requiresArgument: true },
   { name: 'cancel', descriptionKey: 'slash.cancel', action: 'app.interrupt', group: 'session' },

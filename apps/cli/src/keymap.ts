@@ -14,7 +14,7 @@
  * The user's file is `<stateRoot>/config/keybindings.json`:
  *
  * ```json
- * { "panel.editor": ["ctrl+d"], "panel.rail": ["ctrl+s", "shift+super+s"] }
+ * { "panel.editor": ["ctrl+d"], "panel.rail": ["ctrl+shift+s", "shift+super+s"] }
  * ```
  *
  * A value is a list of `matchesKey` spellings; an empty list disables the action;
@@ -82,10 +82,11 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   // express, so the layout is reachable from a keyboard that reports neither.
   { id: 'panel.focusLeft', defaults: ['ctrl+h', 'shift+super+h', 'ctrl+shift+h'], label: 'keymap.action.focusLeft' },
   { id: 'panel.focusRight', defaults: ['ctrl+l', 'shift+super+l'], label: 'keymap.action.focusRight' },
-  // `Ctrl-S` is the rail: a visibility toggle from the composer and the rail, and
-  // from a focused column only where the program does not read the byte as a
-  // command (the editor binds `<C-s>` to `:write`, see `plugins/input.ts`).
-  { id: 'panel.rail', defaults: ['ctrl+s', 'shift+super+s'], label: 'keymap.action.rail' },
+  // `Ctrl-Shift-S` is the rail: one Shift away from the editor's own `<C-s>`
+  // (`:write`), so the letter never means two things in the column that binds it.
+  // `Shift-Cmd-S` is the spelling a keyboard that reports no `Ctrl-Shift` chord
+  // still delivers; the editor keeps the chord itself, see `plugins/input.ts`.
+  { id: 'panel.rail', defaults: ['ctrl+shift+s', 'shift+super+s'], label: 'keymap.action.rail' },
   { id: 'panel.chat', defaults: ['shift+super+c'], label: 'keymap.action.chat' },
   { id: 'panel.terminal', defaults: ['ctrl+t'], label: 'keymap.action.terminal' },
   { id: 'panel.editor', defaults: ['ctrl+d'], label: 'keymap.action.editor' },

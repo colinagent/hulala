@@ -164,7 +164,7 @@ The frame is drivable without a mouse:
 | `Ctrl-T` | open the built-in terminal in the right column; press again to close it |
 | `Ctrl-D` | open Neovim in the same column; press again to close it (it asks before dropping unwritten buffers) |
 | `Ctrl-Shift-D` | Neovim only: put the Session rail and the conversation away and leave the editor column alone; press again to restore the layout from before (`Shift-Cmd-D` where Ghostty's own `new_split:down` is unbound, or `/nvim`) |
-| `Ctrl-S` | show or hide the Session rail (`Shift-Cmd-S` also works; in the Neovim column the byte stays Neovim's, see below) |
+| `Ctrl-Shift-S` | show or hide the Session rail (`Shift-Cmd-S` also works; in the Neovim column the chord stays Neovim's, see below) |
 | `Shift-Cmd-C` | put the conversation away while a column is open |
 | `Shift-Cmd-K` | the command palette: every command, what it does, and its shortcut, from any column and with the conversation put away |
 | `Ctrl-H` / `Ctrl-L` | move the keyboard between the Session rail, the conversation and the painted column (`Shift-Cmd-H` / `Shift-Cmd-L` also work) |
@@ -176,7 +176,7 @@ The frame is drivable without a mouse:
 | `Alt-Up` | take queued messages back into the composer |
 | `Ctrl-O` | expand the tool row under the pointer |
 | `Shift-Tab` | cycle the thinking level of the current model; `/thinking` opens the level picker |
-| `Ctrl-S` in the Neovim column | write the editor buffer now (it otherwise autosaves) — the shipped Neovim config owns `<C-s>`, so the rail key leaves it alone there |
+| `Ctrl-S` in the Neovim column | write the editor buffer now (it otherwise autosaves) — the shipped Neovim config owns `<C-s>`, and that is why the rail sits one Shift away from it |
 | `Cmd-L` / `Ctrl-Shift-L` | throw the renderer's copy of the screen away and repaint every row: the manual repair for a frame a lost sequence left wrong (a resize, a reconnect and a wake do the same by themselves) |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | move the divider beside the focused column: the column on its right grows or shrinks |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | the same move; `Ctrl-Shift-←` / `Ctrl-Shift-→` is the spelling every terminal reports |
@@ -185,7 +185,7 @@ The frame is drivable without a mouse:
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
 | `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/thinking`, `/editor`, `/terminal`, `/nvim`, `/rail`, `/chat`, `/keys`, `/cancel`, `/quit` |
 
-The layout keys lead with `Ctrl-`: `Ctrl-H`/`Ctrl-L`, `Ctrl-S`, `Ctrl-T`,
+The layout keys lead with `Ctrl-`: `Ctrl-H`/`Ctrl-L`, `Ctrl-Shift-S`, `Ctrl-T`,
 `Ctrl-D`, `Ctrl-,`/`Ctrl-.` and `Ctrl-↑`/`↓`. The Command chords (`Shift-Cmd-H`,
 `Shift-Cmd-L`, `Shift-Cmd-S`, `Shift-Cmd-C`, `Shift-Cmd-K`, `Shift-Cmd-D`) are
 delivered only by a terminal that speaks the Kitty keyboard protocol — Ghostty,

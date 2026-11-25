@@ -34,10 +34,10 @@ re-attached as a new process. `/help` inside the client lists `/sessions`,
 `/status`, `/editor`, `/terminal`, `/language` and `/quit`.
 `Shift-Tab` cycles the thinking level in place, and the footer names the level in
 effect next to the model; a choice made there (or in `/model`) is also the default
-DeepSeek Harness saves for new Sessions. `/permission` lists the presets the Host
-offers: `Enter` switches this Session, `Ctrl-S` also stores the choice as the
-default for new Sessions, and the list ticks the current preset and badges the
-default. The footer names the current preset next to the level.
+DeepSeek Harness saves for new Sessions. `/permission` takes no argument and lists the
+presets the Host offers: `Enter` switches this Session, `Ctrl-S` also stores the
+choice as the default for new Sessions, and the list ticks the current preset and
+badges the default. The footer names the current preset next to the level.
 
 The list above is the client's own commands. The Host's command catalog sits
 alongside it: every command the Session's agent registers appears in the `/`
@@ -65,7 +65,7 @@ conversation away and leaves Neovim alone — "just the editor" — and the next
 restores the layout from before. `Ctrl-H` / `Ctrl-L` move focus between
 the rail, the conversation and the sidebar without closing anything, and
 `Shift-Cmd-H` / `Shift-Cmd-L` (or `Ctrl-Shift-H` / `Ctrl-Shift-L`) are the same pair
-for a terminal that reports no plain control byte. `Ctrl-S` and `Shift-Cmd-C` show
+for a terminal that reports no plain control byte. `Ctrl-Shift-S` and `Shift-Cmd-C` show
 or put away the rail and the conversation. The conversation
 only hides while the rail or a sidebar column is on screen, so the frame never
 loses its last column; hiding it gives the sidebar the space the conversation
@@ -113,15 +113,16 @@ Neovim outside normal mode. With no turn running, `Esc` is the leftward move int
 the Session rail, keeping whatever draft the composer holds; inside the rail it
 returns to the composer (clearing the filter first). With the rail put away, a
 second `Esc` within half a second opens the searchable Session picker
-(`/sessions`) instead. `Ctrl-S` shows or puts away the rail, and a hidden
+(`/sessions`) instead. `Ctrl-Shift-S` shows or puts away the rail, and a hidden
 rail comes back with the keyboard on the list; it stays the fallback for terminals
 or input methods that swallow `Esc`, and `/rail` and `Shift-Cmd-S` are the same
-toggle where the byte belongs to a program or a Command chord arrives instead. It
+toggle where the chord belongs to a program or a Command chord arrives instead. It
 only ever shows or hides — moving the keyboard between the rail, the conversation
-and a column is `Ctrl-H` / `Ctrl-L`. While the Neovim column has the keyboard the
-`Ctrl-S` byte stays Neovim's, because the shipped configuration writes the buffer
-with it; the terminal column does not keep it, because a shell reads `C-s` as flow
-control rather than as a command.
+and a column is `Ctrl-H` / `Ctrl-L`. The rail sits one Shift away from the editor
+on purpose: the shipped Neovim configuration writes the buffer with `<C-s>`, and a
+legacy encoding sends `Ctrl-Shift-S` as that same byte, so the chord stays
+Neovim's while Neovim has the keyboard. A bare `Ctrl-S` is nobody's toggle any
+more — in a shell it is the shell's own flow-control byte.
 
 `Ctrl-[` is deliberately not a binding anywhere: it is the `0x1b` byte of `Esc` on
 a terminal that answers no keyboard report, so a chord there would be
