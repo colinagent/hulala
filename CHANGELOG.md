@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.36] - 2026-11-26
+
 ### Added
 
 - Clicking a link in the conversation opens it where the thing it names lives.
