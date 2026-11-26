@@ -2,10 +2,10 @@
  * The sidebar: one child program in a pty, rendered as terminal cells.
  *
  * The column shows either the built-in terminal (`Ctrl-T`) or Hulala's Neovim
- * (`Ctrl-D`); at most one is painted at a time, but neither process is the
+ * (`Ctrl-G`); at most one is painted at a time, but neither process is the
  * other's casualty. Switching columns, losing focus to the composer and hiding
  * the sidebar all keep the shell's jobs and Neovim's buffers alive. A process
- * ends when it exits on its own, when `Ctrl-D` asks Neovim to leave, when the
+ * ends when it exits on its own, when `Ctrl-G` asks Neovim to leave, when the
  * Session changes, or when the window closes.
  *
  * That ownership is the reason this is a plugin. A pty is the one resource in this
@@ -24,7 +24,7 @@ import type { PtyModule } from '../editor/pty.js'
 import { loadNodePty } from '../editor/pty.js'
 import { hostPty } from '../editor/hostPty.js'
 import { NvimUi } from '../editor/nvimUi.js'
-import { modeReadsText, paneForSwitch, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
+import { modeReadsText, paneOwnsEscape, type PaneKind } from '../pane/focus.js'
 import { startShellSession } from '../pane/shellSession.js'
 import { ScreenSession } from '../pane/screenSession.js'
 import { faintCursorSgr } from '../view/theme.js'
@@ -75,22 +75,27 @@ export interface TuiPanes {
    */
   open(kind: PaneKind, cwd: string): boolean
   /**
-   * `Ctrl-T` / `Ctrl-D`: open `kind` and focus it, or put the sidebar away when
-   * that same column is already painted.
+   * `Ctrl-T` / `Ctrl-G`: open `kind` and focus it, or put it away when it is the
+   * column holding the keyboard.
    *
-   * Visibility only, decided on which column is painted and never on where the
-   * keyboard is: a painted terminal is hidden and a painted editor is asked to
-   * leave even when the composer or the rail has the keyboard. Moving focus into
-   * an open column is `Ctrl-L`.
+   * The cycle itself lives in the command surface (`commands.focusPanel`),
+   * because it has to count the panels the frame draws before hiding one; this
+   * is the column's half. Hiding only answers while the column has the keyboard,
+   * so a column that is merely painted is never closed behind the user's back.
    */
-  toggle(kind: PaneKind, cwd: string): void
+  hide(kind: PaneKind): void
   /** Show `kind` and put the keyboard there, starting it if needed. */
   focus(kind: PaneKind, cwd: string): void
   /**
-   * The column the rightward move should focus without starting a program: the visible
-   * one, else the last closed one whose process is still alive.
+   * Open one file in the editor column, starting the column if needed.
+   *
+   * The path is the Host's, absolute: the column's Neovim runs where the file is,
+   * so this only hands it over. A column that cannot start has already said why
+   * (`pane.noEditor`, `pane.tooNarrow`), so a refusal here adds no second notice.
+   * @param path - absolute path on the Host.
+   * @returns false when no column could take it.
    */
-  switchable(): PaneKind | undefined
+  openFile(path: string): boolean
   /** Hide the sidebar; both processes keep running. */
   close(): void
   /** Move the keyboard back to the composer; the sidebar stays visible. */
@@ -196,8 +201,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
   const seats = new Map<PaneKind, () => void>()
   /** The column painted in the sidebar; it stays visible when the composer has focus. */
   let visibleKind: PaneKind | undefined
-  /** The column shown most recently, so the rightward move can reopen it. */
-  let lastKind: PaneKind | undefined
   /** The keyboard is in the visible column. */
   let focused = false
   /** Stops hearing Neovim's mode; set only while the editor column has the keys. */
@@ -386,7 +389,7 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     if (!focused) return
     unfocus()
     // Leaving the column returns to the conversation, bringing it back if it was
-    // put away with `Shift-Cmd-C`: the composer has to be on screen to take the
+    // put away with `Ctrl-F`: the composer has to be on screen to take the
     // keyboard. The sidebar itself stays open.
     if (!layout.conversationShown) layout.setConversationVisible(true)
     if (composer !== undefined) focusOn(composer)
@@ -397,7 +400,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     config.debug(`closePane visible=${String(visibleKind)} focused=${String(focused)} overlays=${overlays.open}`)
     if (layout.paneId === undefined) return
     const hadFocus = focused
-    if (visibleKind !== undefined) lastKind = visibleKind
     blur()
     visibleKind = undefined
     applyTitle()
@@ -667,7 +669,6 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     const runtime = runtimes.get(kind)
     if (runtime === undefined) return
     visibleKind = kind
-    lastKind = kind
     focused = true
     setPaging(false)
     // Register before showing so the pane seat already holds this column when
@@ -706,26 +707,33 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
 
   const open = (kind: PaneKind, cwd: string): boolean => openNow(kind, cwd) !== 'deferred'
 
-  const toggle = (kind: PaneKind, cwd: string): void => {
-    // The key is a visibility toggle for its own column: whoever has the keyboard
-    // does not matter. A painted terminal hides (and keeps its jobs), a painted
-    // editor is asked to leave (it can lose unwritten buffers). Moving the
-    // keyboard into a column that is still open is `Ctrl-L`. A column the layout
-    // cannot paint (a terminal narrowed below the split minimum) is re-opened
-    // instead, because there is nothing on screen to close.
-    if (visibleKind === kind && layout.paneId !== undefined) {
-      if (kind === 'editor') void leave()
-      else close()
-      return
-    }
-    focus(kind, cwd)
+  /**
+   * Open one file in the editor column.
+   *
+   * The column is started in the Session's own directory, exactly as `/editor`
+   * starts it: that is the directory the Host validated, and over SSH it is a
+   * path only the Host can see. A column that is already running takes the file
+   * directly, so the buffers the user has open are the ones it lands beside.
+   * @param path - absolute path on the Host.
+   * @returns false when no column could take it.
+   */
+  const openFile = (path: string): boolean => {
+    const cwd = ctx.get('hulalaSession')?.cwd
+    if (cwd === undefined || cwd === '') return false
+    focus('editor', cwd)
+    const runtime = runtimes.get('editor')
+    // The editor column is a UI over the Host's Neovim, never a pty: an older
+    // attachment has no editor at all, and `openNow` has said so.
+    if (runtime === undefined || !(runtime.session instanceof NvimUi)) return false
+    runtime.session.editFile(path)
+    return true
   }
 
-  /** The column the rightward move can focus without starting a program. */
-  const switchable = (): PaneKind | undefined => paneForSwitch(
-    { visible: visibleKind, last: lastKind },
-    kind => runtimes.has(kind),
-  )
+  const hide = (kind: PaneKind): void => {
+    if (visibleKind !== kind || layout.paneId === undefined) return
+    if (kind === 'editor') void leave()
+    else close()
+  }
 
   /** Resolve once Neovim is gone. */
   const gone = async (graceMs: number): Promise<boolean> => {
@@ -815,9 +823,9 @@ export function apply(ctx: Context, config: PanesPluginConfig): void {
     get shown() { return layout.paneId === SIDEBAR_ID },
     get focused() { return focused },
     open,
-    toggle,
+    hide,
     focus,
-    switchable,
+    openFile,
     close,
     blur,
     unfocus,

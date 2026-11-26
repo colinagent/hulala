@@ -67,6 +67,7 @@ import { viewPlugin } from './plugins/view.js'
 import { terminalPlugin } from './plugins/terminal.js'
 import { viewModelPlugin } from './plugins/viewModel.js'
 import { interactionsPlugin } from './plugins/interactions.js'
+import { openResourcePlugin } from './plugins/openResource.js'
 
 export interface RunTerminalOptions {
   backend: TerminalBackend
@@ -136,6 +137,14 @@ export interface RunTerminalOptions {
    * clipboard tool or writing to the developer's own clipboard.
    */
   copySelection?: (text: string) => Promise<boolean | string>
+  /**
+   * Open one URL in the reader's browser; tests record it instead.
+   *
+   * A URL is the one kind of link that is opened by the machine the client runs
+   * on rather than by the Host, so injecting this keeps a suite from starting a
+   * browser on the machine running the tests.
+   */
+  browse?: (url: string) => Promise<boolean>
 }
 
 /**
@@ -304,6 +313,12 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     })
     await ctx.plugin(composerPlugin, { color: colorEnabled() })
     await ctx.plugin(panesPlugin, { color: colorEnabled(), ...(options.pty === undefined ? {} : { pty: options.pty }), debug: debugLog })
+    // A click on a link is a resource question — Host path or browser URL — so it
+    // loads before the frame that can carry one. It reads the Session and the
+    // panes lazily: a link is only ever opened once both exist.
+    await ctx.plugin(openResourcePlugin, {
+      ...(options.browse === undefined ? {} : { browse: options.browse }),
+    })
     await ctx.plugin(sessionPlugin, {
       color: colorEnabled(),
       cwd: options.cwd,

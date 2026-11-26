@@ -33,8 +33,8 @@ test('the list is grouped and each row carries its shortcut', () => {
   // A row below the first window is reached by typing, and keeps its shortcut.
   for (const char of 'editor') palette.handleInput(char)
   const row = palette.render(78).join('\n').split('\n').find(line => line.includes('/editor')) ?? ''
-  expect(row).toContain('Ctrl-D')
-  expect(row.indexOf('Ctrl-D')).toBeGreaterThan(row.indexOf('nvim'))
+  expect(row).toContain('Ctrl-G')
+  expect(row.indexOf('Ctrl-G')).toBeGreaterThan(row.indexOf('nvim'))
 })
 
 test('typing filters by name and by what the command does', () => {

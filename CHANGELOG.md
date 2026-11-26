@@ -13,8 +13,38 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Added
+
+- Clicking a link in the conversation opens it where the thing it names lives.
+  A URL goes to the browser in front of the reader; a file is resolved by the
+  Host — against the Session's own directory, confined to its workspace — and
+  opens in the editor column. A name the model wrote as a bare relative path
+  (`2026-11-24-trader-trade-memory.md`) is the normal case, and it behaves the
+  same whether the Host is this machine or another one over SSH.
+- A tool result that carries an image draws the picture itself, under the tool
+  row, instead of printing the attachment reference: paste a screenshot or a QR
+  code, let the model read it, and it is on screen — over SSH too, because the
+  bytes come back through the Session's own attachment route. Kitty-protocol
+  terminals (Ghostty, kitty, WezTerm, Warp) place the pixels — a JPEG, WebP or GIF
+  is converted to PNG first, upright per its EXIF orientation — and every other
+  terminal gets `[Image: shot.png [image/png] 800x600]` and is never asked for
+  the bytes.
+
 ### Changed
 
+- The four panels each have one key, and each key is a cycle: `Ctrl-D` the
+  Session rail, `Ctrl-F` the conversation, `Ctrl-T` the terminal column and
+  `Ctrl-G` the Neovim column take the keyboard to that panel when it does not
+  have it, put the panel away when it does, and bring a hidden panel back with
+  the keyboard on it. The frame never loses its last panel: the key that would
+  close the only surface left says so instead. The keys are single control
+  letters, so every terminal reports them — no Command chord and no Kitty
+  keyboard report is needed to move between panels. Neovim-only mode is
+  `Ctrl-Shift-G`, and the old `Ctrl-Shift-S`, `Shift-Cmd-C`, `Ctrl-D`/`Shift-Cmd-D`
+  and `Ctrl-Cmd-H`/`Ctrl-Cmd-L` spellings are gone.
+- `Ctrl-H` is the alternate backspace again: the composer deletes the character
+  before the caret with it, exactly as a shell does, and a program in a column
+  receives the byte unchanged. `Ctrl-L` stays the program's own.
 - `/permission` takes no argument: it opens the picker, where `Enter` switches
   this Session and `Ctrl-S` also makes the choice the default for new Sessions
   (pi's own two keys), and a word after the command is a usage error instead of a
@@ -29,10 +59,22 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ### Fixed
 
+- A picker that stands in the composer's dock draws at full strength while it
+  holds the keyboard. `/model`, `/login`, `/permission`, `/thinking` and
+  `/remote` take the composer's slot and the keys with it, but the frame faded
+  that dock because a dialog owned the keyboard — so the one surface the next
+  keystroke went to was drawn faint, and every picker read as already dismissed.
+  The dock now fades for a floating dialog over the frame and not for a panel
+  standing in it.
 - Up in the composer recalls the open Session's own prompts again. The window
   kept one history for every Session it had read, so the key offered a prompt
   from a conversation the reader had left; a switch now starts the list over and
   the new Session's journal seeds it.
+- An approval's reason is readable in full. The dialog drew one clipped line, so
+  a Host sentence longer than the panel ended in `部署需要写 /app/trader、/...`
+  and the rest of what was being asked for was simply gone. Body lines now wrap
+  at the panel's width, and a reason taller than the window stops at the height
+  with a `…` instead of pushing the keys off screen.
 
 ## [0.3.35] - 2026-11-23
 

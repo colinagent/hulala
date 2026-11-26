@@ -4,9 +4,12 @@
  * Every chord hulala itself intercepts is an *action* here, so the input pipeline
  * never spells a key twice and the startup hints and `/help` can print the keys
  * that are actually in force. A terminal only reports what its keyboard encoding
- * allows, which is why every layout gesture leads with a `Ctrl-` spelling that
- * every terminal reports and keeps the Command chord as an alternate for the ones
- * a Kitty-protocol terminal can deliver. The two Session keys are the exception at
+ * allows, which is why the panel keys are single control letters (`Ctrl-D`,
+ * `Ctrl-F`, `Ctrl-T`, `Ctrl-G`) that every terminal reports, and the Command
+ * chords carry a second spelling where a Kitty-protocol terminal can deliver one.
+ * `Ctrl-H` / `Ctrl-L` are not the frame's: `<C-h>` is the alternate backspace
+ * every readline program honours, so the composer and a shell in a column keep
+ * it. The two Session keys are the exception at
  * the front of their list: `Ctrl-,` / `Ctrl-.` are only distinct from the comma and
  * the period under that protocol, so the arrow pair behind them is what a legacy
  * terminal falls back to.
@@ -62,9 +65,10 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   { id: 'app.pasteImage', defaults: ['ctrl+v'], label: 'keymap.action.pasteImage' },
   { id: 'app.expand', defaults: ['ctrl+o'], label: 'keymap.action.expand' },
   { id: 'app.interactions', defaults: ['alt+g'], label: 'keymap.action.interactions' },
-  // `Ctrl-L` belongs to the rightward move, so the repair key lives on its two
-  // shifted spellings: the Command one a Kitty-protocol terminal delivers, and the
-  // `Ctrl-Shift-L` the move gave up. Neither can collide with `Ctrl-L`.
+  // The repair key lives on its two shifted spellings: the Command one a
+  // Kitty-protocol terminal delivers, and `Ctrl-Shift-L`. A bare `Ctrl-L` stays
+  // free, the way `Ctrl-H` does: it is a control byte a program in a column may
+  // still read for itself.
   { id: 'app.redraw', defaults: ['super+l', 'ctrl+shift+l'], label: 'keymap.action.redraw' },
   // The walk leads with `Ctrl-,` / `Ctrl-.`: two adjacent keys, two modifiers at
   // most, and under the Kitty protocol they are distinct from the comma and the
@@ -75,28 +79,20 @@ export const KEY_ACTIONS: readonly KeyActionDefinition[] = [
   // Ghostty's `jump_to_prompt`, still reports).
   { id: 'session.previous', defaults: ['ctrl+,', 'ctrl+up', 'shift+super+up', 'ctrl+shift+up'], label: 'keymap.action.sessionPrevious' },
   { id: 'session.next', defaults: ['ctrl+.', 'ctrl+down', 'shift+super+down', 'ctrl+shift+down'], label: 'keymap.action.sessionNext' },
-  // `Ctrl-H` / `Ctrl-L` are the moves: one modifier, readable in every terminal,
-  // and no program in a column needs the leftward byte as much as the frame needs
-  // the gesture (`Ctrl-H` is `<C-h>`, the alternate backspace). The Command and
-  // `Ctrl-Shift` pairs stay as the spellings that a plain control byte cannot
-  // express, so the layout is reachable from a keyboard that reports neither.
-  { id: 'panel.focusLeft', defaults: ['ctrl+h', 'shift+super+h', 'ctrl+shift+h'], label: 'keymap.action.focusLeft' },
-  { id: 'panel.focusRight', defaults: ['ctrl+l', 'shift+super+l'], label: 'keymap.action.focusRight' },
-  // `Ctrl-Shift-S` is the rail: one Shift away from the editor's own `<C-s>`
-  // (`:write`), so the letter never means two things in the column that binds it.
-  // `Shift-Cmd-S` is the spelling a keyboard that reports no `Ctrl-Shift` chord
-  // still delivers; the editor keeps the chord itself, see `plugins/input.ts`.
-  { id: 'panel.rail', defaults: ['ctrl+shift+s', 'shift+super+s'], label: 'keymap.action.rail' },
-  { id: 'panel.chat', defaults: ['shift+super+c'], label: 'keymap.action.chat' },
+  // One key per panel, and each key is a cycle: a panel without the keyboard
+  // takes it, a panel with it goes away, and a panel that is away comes back with
+  // the keyboard on it. The keys are single control letters, so every terminal
+  // reports them — no Command chord and no Kitty report is needed to move
+  // between panels. `Ctrl-H` and `Ctrl-L` stay the bytes a program reads as
+  // backspace and redraw: the panel keys name a place, not a direction.
+  { id: 'panel.rail', defaults: ['ctrl+d'], label: 'keymap.action.rail' },
+  { id: 'panel.chat', defaults: ['ctrl+f'], label: 'keymap.action.chat' },
   { id: 'panel.terminal', defaults: ['ctrl+t'], label: 'keymap.action.terminal' },
-  { id: 'panel.editor', defaults: ['ctrl+d'], label: 'keymap.action.editor' },
-  // "Just the editor" names the key it leaves alone: the editor's own `Ctrl-D`
-  // with Shift held. `Ctrl-Shift-D` is the spelling a terminal that reports no
-  // Command chord still delivers; `Shift-Cmd-D` is the mac-family one, and
-  // `/nvim` the equal that needs no keyboard report at all. That shift matters on
-  // a terminal without the report, where `Ctrl-Shift-D` is the `Ctrl-D` byte and
-  // toggles the column instead of leaving it alone.
-  { id: 'panel.editorOnly', defaults: ['ctrl+shift+d', 'shift+super+d'], label: 'keymap.action.editorOnly' },
+  { id: 'panel.editor', defaults: ['ctrl+g'], label: 'keymap.action.editor' },
+  // "Just the editor" is the editor key with Shift held, so the letter still names
+  // the column it leaves alone. `Ctrl-Shift-G` is a chord only a Kitty-protocol
+  // terminal can report; `/nvim` is the equal that needs no keyboard report.
+  { id: 'panel.editorOnly', defaults: ['ctrl+shift+g'], label: 'keymap.action.editorOnly' },
   { id: 'panel.commands', defaults: ['shift+super+k', 'ctrl+shift+p'], label: 'keymap.action.commands' },
   {
     id: 'panel.dividerLeft',

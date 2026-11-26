@@ -146,11 +146,11 @@ e2e('the terminal column runs a real shell, paints CJK, and survives a resize', 
 
 editorE2E('the editor column runs a real Neovim and returns to the composer', async () => {
   // The Host starts the system nvim when the state root has no published
-  // editor. Ctrl-D opens it; insert mode and a wide character go through the
+  // editor. Ctrl-G opens it; insert mode and a wide character go through the
   // real channel, grid and cursor path, and `:q!` gives the frame back.
   const client = await startReadyClient({ home, cols: 120, rows: 36 })
   try {
-    client.write('\u0004')
+    client.write('\u0007')
     await client.waitFor(screen => screen.includes('[Scratch]') || screen.includes('NVIM'), 'the editor column', 25_000)
     client.write('i你好')
     await client.waitFor(screen => screen.includes('你好'), 'wide characters in the editor', 10_000)

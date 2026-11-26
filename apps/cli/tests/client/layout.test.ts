@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Component, TUI } from '@earendil-works/pi-tui'
 import { renderLayoutFrame } from '@earendil-works/pi-tui/dist/layout.js'
 import { buildRailTerminalLayout, buildSideColumnsLayout, buildSplitTerminalLayout, buildTerminalLayout, railFits, railWidthFor, railWidthLimit } from '../../src/tui/view/layout.js'
+import { composerFocused } from '../../src/tui/plugins/layout.js'
 import { PromptEditor } from '../../src/tui/view/promptEditor.js'
 import { buildTheme } from '../../src/tui/view/theme.js'
 
@@ -385,16 +386,48 @@ test('a conversation beside a column drawn apart from it is faded, cell for cell
     divider: slab('|', 20),
     onConversationPointer: () => undefined,
     conversationFocused: () => focused,
+    composerFocused: () => focused,
     color: true,
   }).root, 100, 20, () => undefined)
   const lit = build(true)
   const faded = build(false)
   expect(faded.lines.map(strip)).toEqual(lit.lines.map(strip))
   // The transcript belongs to the conversation and is faded with it; the column
-  // beside it carries its own fading and stays as it was painted.
+  // beside it carries its own fading and stays as it was painted. The composer is
+  // the dock's leaf, so it answers to its own predicate — here the same one.
   expect(faded.lines.find(line => line.includes('composer'))).toContain('\u001b[2mcomposer')
   expect(lit.lines.find(line => line.includes('composer'))).not.toContain('\u001b[2mcomposer')
   // The transcript fades itself (the viewport is reused across rebuilds), so
   // this layout only owns the dock leaves and the column beside them.
   expect(faded.lines.find(line => line.includes('nvim'))).not.toContain('\u001b[2mnvim')
+})
+
+test('a selector standing in for the composer is the dock, so it stays lit', () => {
+  // A command put a picker in the composer's slot: nothing here can be typed
+  // into except the picker, and the conversation behind it is not current.
+  const layout = buildSplitTerminalLayout({
+    transcript: overflowingTranscript(20),
+    pending: slab('pending', 1),
+    editor: slab('composer', 3),
+    statusBar: slab('status', 1),
+    pane: slab('nvim', 20),
+    paneWidth: 40,
+    divider: slab('|', 20),
+    onConversationPointer: () => undefined,
+    conversationFocused: () => false,
+    composerFocused: () => true,
+    color: true,
+  })
+  const frame = renderLayoutFrame(layout.root, 100, 20, () => undefined)
+  // The dock row above it belongs to the conversation and fades with it; the
+  // slot the picker occupies is the surface that owns the keys.
+  expect(frame.lines.find(line => line.includes('pending'))).toContain('\u001b[2m')
+  expect(frame.lines.find(line => line.includes('composer'))).not.toContain('\u001b[2mcomposer')
+  // A dialog over the whole frame fades the dock too, selector or not.
+  expect(composerFocused(undefined, false)).toBe(true)
+  expect(composerFocused({ panel: 'composer', modal: false }, true)).toBe(true)
+  expect(composerFocused({ panel: 'composer', modal: true }, true)).toBe(true)
+  expect(composerFocused({ panel: 'composer', modal: true }, false)).toBe(false)
+  expect(composerFocused({ panel: 'rail', modal: false }, true)).toBe(false)
+  expect(composerFocused({ panel: 'pane', modal: true }, false)).toBe(false)
 })

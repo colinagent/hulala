@@ -40,7 +40,7 @@ Neovim 和 ripgrep 随包自带，需要的 Node.js 也由安装器提供，先�
 ## 特性
 
 - **一个窗口三列** —— 左边会话栏，中间对话，右边一个侧栏：`Ctrl+T` 是内置终端，
-  `Ctrl-D` 是 Neovim，`Ctrl-Shift-D` 只留 Neovim。
+  `Ctrl-G` 是 Neovim，`Ctrl-Shift-G` 只留 Neovim。
 - **不需要 tmux，也不需要启动脚本** —— Host 本身就是守护进程。每个窗口都是连到它的
   客户端，`Ctrl-Q` 只是断开，turn 继续跑。
 - **自带 Neovim 和 ripgrep** —— 什么都不用装。每个内置二进制都是 `$HULALA_HOME/bin`
@@ -124,13 +124,12 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 
 | 按键 | 作用 |
 |---|---|
-| `Ctrl-T` | 在右列打开内置终端；再按一次关掉 |
-| `Ctrl-D` | 在同一列打开 Neovim；再按一次关掉（未保存的缓冲区会先问你） |
-| `Ctrl-Shift-D` | 只留 Neovim：收起会话栏和对话栏，编辑器列不动；再按一次恢复进入前的布局（`Shift-Cmd-D` 要在 Ghostty 里 unbind 它自己的 `new_split:down`，或者用 `/nvim`） |
-| `Ctrl-Shift-S` | 显示或收起会话栏（`Shift-Cmd-S` 同效；在 Neovim 列里这个组合归 Neovim，见下） |
-| `Shift-Cmd-C` | 列打开时把对话收起来 |
+| `Ctrl-D` | 会话栏：按一下把键盘交给它，再按一次收起，再按一次带着键盘打开（草稿留在原处） |
+| `Ctrl-F` | 对话栏：按一下把键盘交给它；在 composer 里按则收起对话（会话栏或侧栏会撑住画面） |
+| `Ctrl-T` | 内置终端列：按一下把键盘交给它，再按一次收起（shell 的作业继续跑） |
+| `Ctrl-G` | Neovim 列：按一下把键盘交给它，再按一次请 Neovim 退出（改动没保存会先问你） |
+| `Ctrl-Shift-G` | 只留 Neovim：收起会话栏和对话栏，编辑器列不动；再按一次恢复进入前的布局（需要 Kitty 键盘协议，或者用 `/nvim`） |
 | `Shift-Cmd-K` | 命令面板：每条命令做什么、快捷键是什么；在任何列里、对话收起时都能打开 |
-| `Ctrl-H` / `Ctrl-L` | 在会话栏、对话和已画出的列之间移动键盘（`Shift-Cmd-H` / `Shift-Cmd-L` 同效） |
 | `Ctrl-,` / `Ctrl-.` | 在任何焦点位置切到上一个 / 下一个会话（终端送不到逗号、句点的 Kitty 序列时用 `Ctrl-↑` / `Ctrl-↓`） |
 | `Ctrl-Q` | 断开：窗口关掉，Host 把 turn 继续跑完 |
 | `Esc` | 停掉正在跑的 turn；没有在跑时，进入会话栏 |
@@ -139,7 +138,7 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `Alt-Up` | 把排队的消息取回 composer |
 | `Ctrl-O` | 展开当前指向的工具行 |
 | `Shift-Tab` | 循环切换当前模型的思考等级；`/thinking` 打开等级选择器 |
-| `Ctrl-S`（在 Neovim 列里） | 立刻写编辑器缓冲区（平时自动保存）——自带的 Neovim 配置占着 `<C-s>`，会话栏的键因此和它差一个 Shift |
+| `Ctrl-S`（在 Neovim 列里） | 立刻写编辑器缓冲区（平时自动保存）——没有任何面板键是 Ctrl 加字母再加 Shift，所以这个字节归 Neovim |
 | `Cmd-L` / `Ctrl-Shift-L` | 丢掉渲染器对屏幕的记录、整屏重画：画面被丢掉的序列弄花时的手动补救（改窗口大小、重连、唤醒本来就会自动做一次） |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | 移动焦点列旁的分割线：右边那列变宽或变窄 |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | 同上；`Ctrl-Shift-←` / `Ctrl-Shift-→` 是任何终端都收得到的写法 |
@@ -148,18 +147,20 @@ hulala remote            # 列出 ~/.ssh/config 里的 alias
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | 在列表里移动；`Tab` 补全，`Enter` 打开 |
 | `/` | 命令：`/help`、`/sessions`、`/new`、`/model`、`/thinking`、`/editor`、`/terminal`、`/nvim`、`/rail`、`/chat`、`/keys`、`/cancel`、`/quit` |
 
-布局键以 `Ctrl-` 打头：`Ctrl-H`/`Ctrl-L`、`Ctrl-Shift-S`、`Ctrl-T`、`Ctrl-D`、
-`Ctrl-,`/`Ctrl-.`、`Ctrl-↑`/`↓`。带 Command 的几个键（`Shift-Cmd-H`、`Shift-Cmd-L`、
-`Shift-Cmd-S`、`Shift-Cmd-C`、`Shift-Cmd-K`、`Shift-Cmd-D`）只有说 Kitty 键盘协议的终端
-才送得到：Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app 不行——所以每个布局手势都
-有一个 `Ctrl-` 写法，并且每一个都有等价的斜杠命令，任何终端上都能用：`/nvim`、`/rail`、
-`/chat`、`/commands`、`/sessions`。其中 `Ctrl-,`/`Ctrl-.` 要靠那个协议才能和逗号、句点
-区分开；`Ctrl-↑`/`↓` 是任何终端都收得到的兜底，`Shift-Cmd-↑`/`↓`（以及 `Ctrl-Shift-↑` /
-`↓`）是第三种写法。`Ctrl-F` 不再被任何东西占用：它在 composer、shell 里还是前移光标，在
-Neovim 里还是下翻一屏。`Ctrl-[` 不再绑任何动作——在没有键盘协议的终端里它就是 `Esc` 的
-字节，拿它当「左移」会顺手取消正在跑的回合。注意 `Ctrl-Shift-D` 在没有键盘协议的终端里就是
-`Ctrl-D` 的字节（会当成编辑器列的开关，而不是「只留 Neovim」），`Ctrl-I` 同理就是 `Tab`
-的字节——所以这两种字母只在说协议的终端上才精确。终端对自己绑定了的组合键会直接吞掉：Ghostty 1.4
+每个面板一个键，这个键是一个循环：没拿到键盘的面板拿过键盘，拿到键盘的面板收起，收起的面板
+带着键盘回来。画面永远不会丢掉最后一块面板——那条会把唯一一块关掉的键只会告诉你不能关。
+`Ctrl-H` 故意不是布局键：它就是 `<C-h>`，第二个退格，composer 拿它删掉光标前一个字，和 shell
+里的行为一样。
+
+面板键都是单个控制字母，任何终端都送得到，ssh、tmux、Terminal.app 里也一样。需要多个修饰键的
+键才是 Command 组合（命令面板 `Shift-Cmd-K`、只留 Neovim 的 `Ctrl-Shift-G`、分割线那几组），
+只有说 Kitty 键盘协议的终端才送得到：Ghostty、kitty、WezTerm、iTerm2 可以，Terminal.app
+不行——所以每一个都有等价的斜杠命令，任何终端上都能用：`/nvim`、`/commands`、`/sessions`，
+以及面板命令 `/rail`、`/chat`、`/terminal`、`/editor`，再加上 `Esc` 和鼠标点击来移动键盘。
+其中 `Ctrl-,`/`Ctrl-.` 要靠那个协议才能和逗号、句点区分开；`Ctrl-↑`/`↓` 是任何终端都收得到的
+兜底，`Shift-Cmd-↑`/`↓`（以及 `Ctrl-Shift-↑`/`↓`）是第三种写法。`Ctrl-[` 不再绑任何动作——
+在没有键盘协议的终端里它就是 `Esc` 的字节，拿它当「左移」会顺手取消正在跑的回合。
+`Ctrl-I` 同理就是 `Tab` 的字节。终端对自己绑定了的组合键会直接吞掉：Ghostty 1.4
 把 `Cmd`+方向键给了 `jump_to_prompt`，所以在它的配置里加
 `keybind = super+shift+arrow_up=unbind`（`_down` 同理）之后 Command 那一对才到得了客户端；
 Control 那几对在任何终端都送得到。
@@ -175,14 +176,14 @@ Control 那几对在任何终端都送得到。
 ```json
 {
   "panel.editor": ["ctrl+f"],
-  "panel.rail": ["ctrl+g"],
+  "panel.rail": ["ctrl+y"],
   "panel.commands": ["shift+super+k", "f1"]
 }
 ```
 
 值是一组键名（和表里一样：`ctrl`、`alt`、`shift`、`super` 加一个字母，或 `escape`、
-`enter`、`tab`、`space`、`pageup`、`left`、`f1` 等）；表里印的写法也能直接抄，`Shift-Cmd-S`
-和 `super+shift+s` 是同一个键。空数组表示禁用该动作，文件里没提到的动作保持默认。同一个文件也接受 pi-tui 自己的 composer 绑定（`tui.editor.*`）。
+`enter`、`tab`、`space`、`pageup`、`left`、`f1` 等）；表里印的写法也能直接抄，`Shift-Cmd-K`
+和 `super+shift+k` 是同一个键。空数组表示禁用该动作，文件里没提到的动作保持默认。同一个文件也接受 pi-tui 自己的 composer 绑定（`tui.editor.*`）。
 写错键名、写了不存在的动作、同一个键绑给两个动作，都会在客户端里明确提示而不是被静默
 吞掉；无论如何至少保留一种退出方式。
 

@@ -55,6 +55,7 @@ import { mermaidMarkdown } from './mermaid.js'
 import { codeHighlighter } from './codeHighlight.js'
 import { type ReasoningMode, ThinkRow } from './thinkRow.js'
 import { ToolRowView } from './toolRow.js'
+import type { ToolImagery } from './toolImages.js'
 import { UserMessage } from './userMessage.js'
 
 /** Session roots every tool row relativizes against. */
@@ -115,6 +116,13 @@ export class Transcript implements Component {
      * prints no welcome) simply starts with its first item.
      */
     private readonly welcome?: Component,
+    /**
+     * Durable result images, drawn by the tool rows.
+     *
+     * Absent on a transcript with no attachment route (a test, a fake Host),
+     * where a row then draws its text without the picture it cannot load.
+     */
+    private readonly imagery?: ToolImagery,
   ) {
     const styles = buildStyles(color)
     // The shared markdown theme plus the one hook that needs this transcript's
@@ -338,6 +346,7 @@ export class Transcript implements Component {
           this.color,
           () => this.rowExpanded(item),
           () => this.gutter(() => this.rowExpanded(item), item),
+          this.imagery,
         )
       case 'command': {
         // Only a manual compaction carries a body: the summary is a detail row

@@ -24,12 +24,13 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component } from '@earendil-works/pi-tui'
 import type { DiffRow, DiffStats } from '../data/diffRow.js'
 import { type ToolRow, type ToolVariant, toolRow } from '../data/toolRow.js'
-import type { ToolStatus, TranscriptItem } from '../data/viewModel.js'
+import type { ToolImage, ToolStatus, TranscriptItem } from '../data/viewModel.js'
 import { activeLanguage, t } from '../i18n/index.js'
 import { colourLines, languageForPath } from './codeHighlight.js'
 import { headPreview, tailPreview } from './preview.js'
 import { iconBox } from './rowGlyph.js'
 import { buildStyles, type CardTone } from './theme.js'
+import type { ToolImagery } from './toolImages.js'
 
 /**
  * Family leading glyphs, chosen to match the web client's icon per family:
@@ -121,6 +122,7 @@ export class ToolRowView implements Component {
     result: string | undefined
     errorCode: string | undefined
     meta: unknown
+    images: readonly ToolImage[] | undefined
     cwd: string | undefined
     home: string | undefined
     row: ToolRow
@@ -140,6 +142,8 @@ export class ToolRowView implements Component {
     gutter: string
     durationMs: number | undefined
     language: string
+    /** Per-image versions the last draw was made from; a settled read changes one. */
+    imageryKey: string
     row: ToolRow
     lines: string[]
   } | undefined
@@ -150,6 +154,13 @@ export class ToolRowView implements Component {
     private readonly color: boolean,
     private readonly expanded: () => boolean,
     private readonly gutter: () => string,
+    /**
+     * Durable result images, already read from the Host.
+     *
+     * Absent on a client with no attachment route (a fake Host in a test): the
+     * row then draws its text alone instead of a picture it cannot load.
+     */
+    private readonly imagery?: ToolImagery,
   ) {}
 
   invalidate(): void {
@@ -162,6 +173,7 @@ export class ToolRowView implements Component {
     const expanded = this.expanded()
     const gutter = this.gutter()
     const language = activeLanguage()
+    const imageryKey = this.imageryKey(row.images)
     const cached = this.cachedRender
     if (
       cached !== undefined
@@ -170,11 +182,25 @@ export class ToolRowView implements Component {
       && cached.gutter === gutter
       && cached.durationMs === this.item.durationMs
       && cached.language === language
+      && cached.imageryKey === imageryKey
       && cached.row === row
     ) return cached.lines
     const lines = this.draw(width, row, expanded, gutter)
-    this.cachedRender = { width, expanded, gutter, durationMs: this.item.durationMs, language, row, lines }
+    this.cachedRender = { width, expanded, gutter, durationMs: this.item.durationMs, language, imageryKey, row, lines }
     return lines
+  }
+
+  /**
+   * The state of the pictures this row draws, as one comparable value.
+   *
+   * Only this row's own images count: a read settling under another call must
+   * not re-render this one, or a conversation with many pictures would redraw
+   * all of them for every arrival.
+   */
+  private imageryKey(images: readonly ToolImage[]): string {
+    const imagery = this.imagery
+    if (imagery === undefined || images.length === 0) return ''
+    return images.map(image => `${image.attachmentId}@${String(imagery.revision(image))}`).join(',')
   }
 
   private draw(width: number, row: ToolRow, expanded: boolean, gutter: string): string[] {
@@ -232,9 +258,35 @@ export class ToolRowView implements Component {
         body.push(...this.block(label, row.output, content, text => s.cardMuted(text), language))
       }
     }
+    // Durable images live under the body they came with: a read's picture is
+    // the result, and a call that printed nothing still has one to draw.
+    const images = this.imageBody(row.images, content)
+    if (images.length > 0) {
+      if (body.length > 0) body.push('')
+      body.push(...images)
+    }
     // A call that printed nothing worth showing is a title and no card: an empty
     // slab would be a grey line claiming a body exists.
     return body.length === 0 ? [line] : [line, ...this.card(body, width, toneOf(row.state))]
+  }
+
+  /**
+   * The durable images a result returned, drawn under its text.
+   *
+   * A picture is a layer placed on the cells of its row, so each line is an
+   * ordinary body row: the card's fill paints behind it and the alternate
+   * screen places the image over that background last, exactly as the welcome
+   * mark is placed beside the banner's text.
+   */
+  private imageBody(images: readonly ToolImage[], width: number): string[] {
+    if (this.imagery === undefined) return []
+    const lines: string[] = []
+    for (const image of images) {
+      for (const line of this.imagery.lines(image, Math.max(1, width - INDENT.length))) {
+        lines.push(`${INDENT}${line}`)
+      }
+    }
+    return lines
   }
 
   /**
@@ -345,6 +397,7 @@ export class ToolRowView implements Component {
       && cached.result === this.item.result
       && cached.errorCode === this.item.errorCode
       && cached.meta === this.item.meta
+      && cached.images === this.item.images
       && cached.cwd === roots.cwd
       && cached.home === roots.home
     ) return cached.row
@@ -354,6 +407,7 @@ export class ToolRowView implements Component {
       result: this.item.result,
       ...this.item.errorCode === undefined ? {} : { errorCode: this.item.errorCode },
       ...this.item.meta === undefined ? {} : { meta: this.item.meta },
+      ...this.item.images === undefined ? {} : { images: this.item.images },
       status: this.item.status,
       ...roots.cwd === undefined ? {} : { cwd: roots.cwd },
       ...roots.home === undefined ? {} : { home: roots.home },
@@ -363,6 +417,7 @@ export class ToolRowView implements Component {
       result: this.item.result,
       errorCode: this.item.errorCode,
       meta: this.item.meta,
+      images: this.item.images,
       cwd: roots.cwd,
       home: roots.home,
       row,

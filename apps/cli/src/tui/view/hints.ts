@@ -55,18 +55,20 @@ function bound(id: string, key: MessageKey): UsageHint | undefined {
 }
 
 /**
- * Both ends of the focus movement, on the row that explains it.
+ * The three panel keys that move the keyboard, on the row that explains them.
  *
- * Only the first spelling of each is printed: the alternatives are for terminals
- * where a Command chord cannot arrive, and `/keys` lists them all. Four chords in
- * one rotating hint would push the sentence off a narrow window.
+ * The terminal's `Ctrl-T` is already its own hint, and a fourth chord would push
+ * the sentence off a narrow window. Only the first spelling of each is printed,
+ * which is the whole list now that the panel keys have one apiece.
  */
 function focusBinding(): UsageHint | undefined {
   const first = (id: string): string => {
     const [spelling] = actionKeys(id)
     return spelling === undefined ? '' : keyLabel(spelling)
   }
-  const keys = [first('panel.focusLeft'), first('panel.focusRight')].filter(part => part !== '').join(' / ')
+  const keys = [first('panel.rail'), first('panel.chat'), first('panel.editor')]
+    .filter(part => part !== '')
+    .join(' / ')
   return keys === '' ? undefined : { keys, text: t('hint.focus') }
 }
 

@@ -23,37 +23,38 @@ function surfaces(): { banner: string; help: string } {
 test('the default keys are the ones the catalog and the panels print', () => {
   setActiveLanguage('en')
   const hints = Object.fromEntries(commandCatalog().map(entry => [entry.name, entry.hint]))
-  expect(hints.editor).toBe('Ctrl-D')
+  // One key per panel, no second spelling.
+  expect(hints.editor).toBe('Ctrl-G')
   expect(hints.terminal).toBe('Ctrl-T')
-  expect(hints.nvim).toBe('Ctrl-Shift-D / Shift-Cmd-D')
-  expect(hints.rail).toBe('Ctrl-Shift-S / Shift-Cmd-S')
-  expect(hints.chat).toBe('Shift-Cmd-C')
+  expect(hints.nvim).toBe('Ctrl-Shift-G')
+  expect(hints.rail).toBe('Ctrl-D')
+  expect(hints.chat).toBe('Ctrl-F')
   expect(hints.commands).toBe('Shift-Cmd-K / Ctrl-Shift-P')
   expect(hints.quit).toBe('Ctrl-Q')
   const { banner, help } = surfaces()
   expect(banner).toContain('Ctrl-T')
-  expect(banner).toContain('Ctrl-D')
+  expect(banner).toContain('Ctrl-G')
   expect(help).toContain('Ctrl-D')
-  expect(help).toContain('Shift-Cmd-S')
+  expect(help).toContain('Ctrl-Shift-G')
 })
 
 test('a rebound chord reaches the palette rows, the banner and /help', () => {
   setActiveLanguage('en')
   setActiveKeymap(parseKeymap({
     'panel.terminal': ['alt+t'],
-    'panel.rail': ['ctrl+g'],
-    'panel.editor': ['ctrl+f'],
+    'panel.rail': ['ctrl+shift+r'],
+    'panel.editor': ['ctrl+shift+e'],
   }))
   const hints = Object.fromEntries(commandCatalog().map(entry => [entry.name, entry.hint]))
   expect(hints.terminal).toBe('Alt-T')
-  expect(hints.rail).toBe('Ctrl-G')
-  expect(hints.editor).toBe('Ctrl-F')
+  expect(hints.rail).toBe('Ctrl-Shift-R')
+  expect(hints.editor).toBe('Ctrl-Shift-E')
   const { banner, help } = surfaces()
   expect(banner).toContain('Alt-T')
-  expect(banner).toContain('Ctrl-F')
+  expect(banner).toContain('Ctrl-Shift-E')
   expect(help).toContain('Alt-T')
-  expect(help).toContain('Ctrl-G')
-  expect(banner).not.toContain('Shift-Cmd-S')
+  expect(help).toContain('Ctrl-Shift-R')
+  expect(help).not.toContain('Ctrl-Shift-D')
 })
 
 test('a disabled action loses its hint everywhere instead of lying', () => {
@@ -63,8 +64,8 @@ test('a disabled action loses its hint everywhere instead of lying', () => {
   expect(hints.chat).toBe('')
   expect(hints.quit).toBe('')
   const { banner, help } = surfaces()
-  expect(banner).not.toContain('Shift-Cmd-C')
-  expect(help).not.toContain('Shift-Cmd-C')
+  expect(banner).not.toContain('Ctrl-F')
+  expect(help).not.toContain('Ctrl-F')
   // The panel says the action was disabled instead of leaving a blank cell.
   expect(help).toContain('disabled')
 })

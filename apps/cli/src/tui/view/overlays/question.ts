@@ -193,16 +193,18 @@ export class QuestionOverlay implements Component {
       // The subject is who or what asks: a URL icon is caller metadata the
       // terminal cannot fetch, so the name carries the recognition on its own.
       const subject = question.intent?.subject
-      if (subject !== undefined) body.push(s.accent(truncateToWidth(subject.name, inner)))
+      if (subject !== undefined) body.push(s.accent(subject.name))
       const heading = displayText(question.intent?.display?.question) ?? question.question
-      body.push(truncateToWidth(heading, inner))
+      body.push(heading)
       const detail = displayText(question.intent?.display?.detail) ?? question.detail
-      if (detail !== undefined && detail !== '') body.push(s.dim(truncateToWidth(detail, inner)))
+      if (detail !== undefined && detail !== '') body.push(s.dim(detail))
     } else {
+      // The heading and its detail are sentences, so the panel wraps them; a
+      // clipped question is a question the reader answers without reading.
       const heading = question.header === undefined ? '' : `[${question.header}] `
-      body.push(truncateToWidth(`${heading}${question.question}`, inner))
+      body.push(`${heading}${question.question}`)
       if (question.detail !== undefined && question.detail !== '') {
-        body.push(s.dim(truncateToWidth(question.detail, inner)))
+        body.push(s.dim(question.detail))
       }
     }
     body.push('')

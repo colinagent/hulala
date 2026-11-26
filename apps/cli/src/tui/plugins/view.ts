@@ -20,6 +20,7 @@ import { HINT_INTERVAL_MS } from '../view/hints.js'
 import { PendingMessages } from '../view/pendingMessages.js'
 import { Welcome } from '../view/welcome.js'
 import { StatusBar } from '../view/statusBar.js'
+import { createToolImagery } from '../view/toolImages.js'
 import { Transcript } from '../view/transcript.js'
 
 declare module '@deepseek-ai/cordis' {
@@ -64,7 +65,31 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
   // Built here because the transcript draws it; its facts are filled by the
   // startup plugin, because the Host is what knows them.
   const welcome = new Welcome(config.color)
-  const transcript = new Transcript(config.color, () => ({ cwd: session.cwd, home }), welcome)
+  // A result's picture is stored on the Host, not in the Session log: the rows
+  // read it back through this Session's own attachment route, once per image,
+  // and ask for the frame that draws it when the bytes land.
+  const imagery = createToolImagery({
+    read: async (image) => {
+      const sessionId = session.id
+      if (ctx.backend.readImage === undefined || sessionId === undefined) {
+        throw new Error('this Host offers no attachment read')
+      }
+      return await ctx.backend.readImage(sessionId, image)
+    },
+    onChange: () => { render.request() },
+    color: config.color,
+  })
+  // A picture belongs to the Session on screen. The switch rebuilds the
+  // transcript, so the rows that drew the last Session's images are gone; the
+  // bytes go with them instead of accumulating one Session at a time. A reopen
+  // of the same Session (a reconnect) keeps it.
+  let pictured = session.id
+  ctx.on('hulala/session-opened', (id) => {
+    if (id === pictured) return
+    pictured = id
+    imagery.clear()
+  })
+  const transcript = new Transcript(config.color, () => ({ cwd: session.cwd, home }), welcome, imagery)
   // The working-directory line steps aside while the completion menu is up.
   const cwdBar = new CwdBar(() => ({ cwd: session.cwd, hidden: editor.completionMenuOpen }), config.color)
   // Pending inbox rows sit between the transcript and the composer, where pi
@@ -133,6 +158,6 @@ export function apply(ctx: Context, config: ViewPluginConfig): void {
 /** Cordis object-form plugin. */
 export const viewPlugin = {
   name: 'hulala-view',
-  inject: ['hulalaRender', 'hulalaLayout', 'hulalaSession', 'hulalaUpdate', 'hulalaViewModel', 'hulalaComposer'],
+  inject: ['backend', 'hulalaRender', 'hulalaLayout', 'hulalaSession', 'hulalaUpdate', 'hulalaViewModel', 'hulalaComposer'],
   apply,
 }

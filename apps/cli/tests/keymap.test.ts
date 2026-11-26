@@ -33,19 +33,25 @@ describe('defaults', () => {
     try {
       const keymap = resolveKeymap(root)
       expect(keymap.problems).toEqual([])
-      expect(keymap.bindings['panel.editor']).toEqual(['ctrl+d'])
-      expect(keymap.bindings['panel.editorOnly']).toEqual(['ctrl+shift+d', 'shift+super+d'])
+      // One key per panel, and no second spelling: the cycle is the whole
+      // gesture, so a fifth way to reach a panel would only be another way to
+      // forget which one is current.
+      expect(keymap.bindings['panel.rail']).toEqual(['ctrl+d'])
+      expect(keymap.bindings['panel.chat']).toEqual(['ctrl+f'])
+      expect(keymap.bindings['panel.terminal']).toEqual(['ctrl+t'])
+      expect(keymap.bindings['panel.editor']).toEqual(['ctrl+g'])
+      expect(keymap.bindings['panel.editorOnly']).toEqual(['ctrl+shift+g'])
       // `Ctrl-I` is the `Tab` byte, so it can never name a layout mode.
       expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+i')
-      expect(keymap.bindings['panel.rail']).toEqual(['ctrl+shift+s', 'shift+super+s'])
-      expect(keymap.bindings['panel.chat']).toEqual(['shift+super+c'])
       expect(keymap.bindings['panel.commands']).toEqual(['shift+super+k', 'ctrl+shift+p'])
-      expect(keymap.bindings['panel.terminal']).toEqual(['ctrl+t'])
-      expect(keymap.bindings['panel.focusLeft']).toEqual(['ctrl+h', 'shift+super+h', 'ctrl+shift+h'])
-      expect(keymap.bindings['panel.focusRight']).toEqual(['ctrl+l', 'shift+super+l'])
+      // `Ctrl-H` is nobody's layout key: it is the alternate backspace, and the
+      // input pipeline projects both of its encodings onto Backspace
+      // (`tui/plugins/input.ts`).
+      expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+h')
+      expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+l')
       expect(keymap.bindings['session.previous']).toEqual(['ctrl+,', 'ctrl+up', 'shift+super+up', 'ctrl+shift+up'])
       expect(keymap.bindings['session.next']).toEqual(['ctrl+.', 'ctrl+down', 'shift+super+down', 'ctrl+shift+down'])
-      // The repair key gave up the byte the rightward move took.
+      // The repair key gave up the plain control byte the move used to take.
       expect(keymap.bindings['app.redraw']).toEqual(['super+l', 'ctrl+shift+l'])
       expect(keymap.bindings['app.redraw']).not.toContain('ctrl+l')
       // The one pair that must never come back: `Ctrl-[` is the `Esc` byte.
@@ -56,23 +62,25 @@ describe('defaults', () => {
     }
   })
 
-  test('Ctrl-F is nobody’s: the editor column left it to the programs', () => {
+  test('Ctrl-F is the conversation’s, and the composer lost its forward-char', () => {
     const keymap = parseKeymap({})
-    expect(Object.values(keymap.bindings).flat()).not.toContain('ctrl+f')
+    expect(keymap.bindings['panel.chat']).toEqual(['ctrl+f'])
+    // No other action may share it: one panel key, one owner.
+    expect(Object.values(keymap.bindings).flat().filter(key => key === 'ctrl+f')).toEqual(['ctrl+f'])
   })
 
   test('an action the file does not mention keeps its default', () => {
-    const keymap = parseKeymap({ 'panel.editor': ['ctrl+f'] })
-    expect(keymap.bindings['panel.editor']).toEqual(['ctrl+f'])
+    const keymap = parseKeymap({ 'panel.editor': ['ctrl+shift+e'] })
+    expect(keymap.bindings['panel.editor']).toEqual(['ctrl+shift+e'])
     expect(keymap.bindings['panel.terminal']).toEqual(DEFAULT_BINDINGS['panel.terminal']!)
   })
 })
 
 describe('the user file', () => {
   test('a rebinding replaces the default and is matched as written', () => {
-    const keymap = parseKeymap({ 'panel.editor': ['ctrl+f'] })
+    const keymap = parseKeymap({ 'panel.editor': ['ctrl+shift+e'] })
     setActiveKeymap(keymap)
-    expect(matchesAction('panel.editor', '\u0006')).toBe(true)
+    expect(matchesAction('panel.editor', '\u001b[101;6u')).toBe(true)
     expect(matchesAction('panel.editorOnly', '\u0006')).toBe(false)
     setActiveKeymap(parseKeymap({}))
   })
@@ -128,7 +136,7 @@ describe('the user file', () => {
     try {
       const keymap = resolveKeymap(root)
       expect(keymap.problems[0]?.kind).toBe('malformed')
-      expect(keymap.bindings['panel.editor']).toEqual(['ctrl+d'])
+      expect(keymap.bindings['panel.editor']).toEqual(['ctrl+g'])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

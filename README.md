@@ -44,7 +44,7 @@ a file opens it beside the tree in the same column.
 
 - **Three columns, one window** — the Session rail on the left, the conversation
   in the middle, and one sidebar on the right: the built-in terminal on `Ctrl+T`,
-  Neovim on `Ctrl-D`, and `Ctrl-Shift-D` for Neovim alone.
+  Neovim on `Ctrl-G`, and `Ctrl-Shift-G` for Neovim alone.
 - **Neovim and ripgrep included** — nothing to install. Every bundled binary is
   a real file in `$HULALA_HOME/bin`, and `bin/` is appended to the children's
   `PATH`, so your own tools still win.
@@ -161,13 +161,12 @@ The frame is drivable without a mouse:
 
 | Keys | Does |
 |---|---|
-| `Ctrl-T` | open the built-in terminal in the right column; press again to close it |
-| `Ctrl-D` | open Neovim in the same column; press again to close it (it asks before dropping unwritten buffers) |
-| `Ctrl-Shift-D` | Neovim only: put the Session rail and the conversation away and leave the editor column alone; press again to restore the layout from before (`Shift-Cmd-D` where Ghostty's own `new_split:down` is unbound, or `/nvim`) |
-| `Ctrl-Shift-S` | show or hide the Session rail (`Shift-Cmd-S` also works; in the Neovim column the chord stays Neovim's, see below) |
-| `Shift-Cmd-C` | put the conversation away while a column is open |
+| `Ctrl-D` | the Session rail: takes the keyboard there, press again to put the rail away, and again to bring it back (a draft stays where it was) |
+| `Ctrl-F` | the conversation: takes the keyboard there; from the composer, puts the conversation away while the rail or the column keeps the frame |
+| `Ctrl-T` | the built-in terminal column: takes the keyboard there, or puts the column away (the shell keeps its jobs) |
+| `Ctrl-G` | the Neovim column: takes the keyboard there, or asks Neovim to leave (it asks before dropping unwritten buffers) |
+| `Ctrl-Shift-G` | Neovim only: put the Session rail and the conversation away and leave the editor column alone; press again to restore the layout from before (needs the Kitty keyboard protocol, or `/nvim`) |
 | `Shift-Cmd-K` | the command palette: every command, what it does, and its shortcut, from any column and with the conversation put away |
-| `Ctrl-H` / `Ctrl-L` | move the keyboard between the Session rail, the conversation and the painted column (`Shift-Cmd-H` / `Shift-Cmd-L` also work) |
 | `Ctrl-,` / `Ctrl-.` | open the previous / next Session from wherever the keyboard is (`Ctrl-↑` / `Ctrl-↓` where the terminal reports no Kitty sequence for the comma and the period) |
 | `Ctrl-Q` | detach: the window closes and the Host keeps running the turn |
 | `Esc` | stop the running turn; with nothing running, move into the rail |
@@ -176,7 +175,7 @@ The frame is drivable without a mouse:
 | `Alt-Up` | take queued messages back into the composer |
 | `Ctrl-O` | expand the tool row under the pointer |
 | `Shift-Tab` | cycle the thinking level of the current model; `/thinking` opens the level picker |
-| `Ctrl-S` in the Neovim column | write the editor buffer now (it otherwise autosaves) — the shipped Neovim config owns `<C-s>`, and that is why the rail sits one Shift away from it |
+| `Ctrl-S` in the Neovim column | write the editor buffer now (it otherwise autosaves) — no panel key is a Ctrl letter with Shift, so the byte is Neovim's |
 | `Cmd-L` / `Ctrl-Shift-L` | throw the renderer's copy of the screen away and repaint every row: the manual repair for a frame a lost sequence left wrong (a resize, a reconnect and a wake do the same by themselves) |
 | `Cmd-Ctrl-[` / `Cmd-Ctrl-]` | move the divider beside the focused column: the column on its right grows or shrinks |
 | `Ctrl-Shift-[` / `Ctrl-Shift-]` | the same move; `Ctrl-Shift-←` / `Ctrl-Shift-→` is the spelling every terminal reports |
@@ -185,23 +184,30 @@ The frame is drivable without a mouse:
 | `↑` `↓` `j` `k` `Ctrl-P` `Ctrl-N` | move in a list; `Tab` completes, `Enter` opens |
 | `/` | a command: `/help`, `/sessions`, `/new`, `/model`, `/thinking`, `/editor`, `/terminal`, `/nvim`, `/rail`, `/chat`, `/keys`, `/cancel`, `/quit` |
 
-The layout keys lead with `Ctrl-`: `Ctrl-H`/`Ctrl-L`, `Ctrl-Shift-S`, `Ctrl-T`,
-`Ctrl-D`, `Ctrl-,`/`Ctrl-.` and `Ctrl-↑`/`↓`. The Command chords (`Shift-Cmd-H`,
-`Shift-Cmd-L`, `Shift-Cmd-S`, `Shift-Cmd-C`, `Shift-Cmd-K`, `Shift-Cmd-D`) are
-delivered only by a terminal that speaks the Kitty keyboard protocol — Ghostty,
-kitty, WezTerm and iTerm2 do, Terminal.app does not — so every layout gesture has
-a `Ctrl-` spelling, and every one of them has a slash-command equal, so the layout
-is reachable from any terminal: `/nvim`, `/rail`, `/chat`, `/commands`,
-`/sessions`. `Ctrl-,`/`Ctrl-.` need that protocol to be distinct from the comma
+Each panel has one key and the key is a cycle: a panel that does not have the
+keyboard takes it, a panel that has it is put away, and a panel that is away comes
+back with the keyboard on it. The frame never loses its last panel — the key that
+would close the only surface left says so instead. `Ctrl-H` is deliberately not a
+layout key: it is `<C-h>`, the alternate backspace, and the composer deletes a
+character with it the way a shell does.
+
+The panel keys are single control letters, so every terminal reports them — over
+ssh, in tmux and on Terminal.app too. The chords that need more than one
+modifier are Command chords (`Shift-Cmd-K` for the palette, `Ctrl-Shift-G` for
+Neovim only, the divider chords), and those are delivered only by a terminal that
+speaks the Kitty keyboard protocol — Ghostty, kitty, WezTerm and iTerm2 do,
+Terminal.app does not — so each one has a slash-command equal and the layout stays
+reachable from any terminal: `/nvim`, `/commands`, `/sessions`, and the panel
+commands `/rail`, `/chat`, `/terminal` and `/editor`, with `Esc` and a click to
+move the keyboard. `Ctrl-,`/`Ctrl-.` need that protocol to be distinct from the comma
 and the period; `Ctrl-↑`/`↓` is the fallback every terminal reports, and
 `Shift-Cmd-↑`/`↓` (with `Ctrl-Shift-↑`/`↓`) is the third spelling. A terminal
 consumes a chord it has its own binding for: Ghostty 1.4 gives `Cmd`+arrows to
 `jump_to_prompt`, so the Command pair arrives after
 `keybind = super+shift+arrow_up=unbind` (and the `_down` twin) in its config,
-while the Control pairs always arrive. Ctrl-`F` is not taken by anything: it stays
-forward-char in the composer and a shell, and page-down in Neovim. `Ctrl-[` is not
-bound to anything either — it is the `Esc` byte on a terminal without that report,
-so an "escape" to move a panel would abort the running turn instead.
+while the Control pairs always arrive. `Ctrl-[` is not bound to anything — it is
+the `Esc` byte on a terminal without that report, so an "escape" to move a panel
+would abort the running turn instead.
 
 A panel can also be taken with the pointer: clicking the conversation, the
 Session rail or the open column moves the keyboard there. The panels that do not
@@ -217,14 +223,14 @@ Every chord above can be rebound in `$HULALA_HOME/config/keybindings.json`:
 ```json
 {
   "panel.editor": ["ctrl+f"],
-  "panel.rail": ["ctrl+g"],
+  "panel.rail": ["ctrl+y"],
   "panel.commands": ["shift+super+k", "f1"]
 }
 ```
 
 A value is a list of key spellings (the same names the tables use: `ctrl`, `alt`,
 `shift`, `super`, plus a letter, `escape`, `enter`, `tab`, `space`, `pageup`,
-`left`, `f1`…); the label form works too, so `Shift-Cmd-S` and `super+shift+s` are
+`left`, `f1`…); the label form works too, so `Shift-Cmd-K` and `super+shift+k` are
 the same chord. An empty list disables the action, and an action the file does not
 mention keeps its default. pi-tui's own composer bindings (`tui.editor.*`) are
 accepted in the same file. A typo, an unknown action or one key bound to two

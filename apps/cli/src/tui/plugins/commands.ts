@@ -66,11 +66,22 @@ export interface TuiCommands {
   /** Ask the Host to abort the running turn. */
   cancel(): Promise<void>
   /**
-   * `Ctrl-Shift-D` / `/nvim`: leave only the editor column, or come back from it.
+   * `Ctrl-D` / `Ctrl-F` / `Ctrl-T` / `Ctrl-G`: take the keyboard to one panel,
+   * or put that panel away.
+   *
+   * One implementation for four chords and four slash commands (`/rail`,
+   * `/chat`, `/terminal`, `/editor`) because the cycle is one rule. The frame
+   * never loses its last panel: hiding the only one left is refused with a
+   * notice.
+   * @param panel - the panel the chord names.
+   */
+  focusPanel(panel: FramePanel): void
+  /**
+   * `Ctrl-Shift-G` / `/nvim`: leave only the editor column, or come back from it.
    *
    * The mode lives here because both entry points must share one snapshot: the
    * key and the slash command are the same action, and a command that opened the
-   * view without recording what it replaced would make the next `Ctrl-Shift-D` restore
+   * view without recording what it replaced would make the next `Ctrl-Shift-G` restore
    * nothing.
    */
   toggleEditorOnly(): void
@@ -100,6 +111,15 @@ interface FrameSnapshot {
   readonly pane: PaneKind | undefined
 }
 
+/**
+ * The four panels a key takes the keyboard to.
+ *
+ * The right column is one panel whichever program it holds, so `terminal` and
+ * `editor` are two names for the same seat — the key names which program should
+ * be in it.
+ */
+export type FramePanel = 'rail' | 'chat' | 'terminal' | 'editor'
+
 /** Colour flag for the help overlay. */
 export interface CommandsPluginConfig {
   readonly color: boolean
@@ -123,11 +143,12 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   const language = ctx.hulalaLanguage
   const { reducer } = ctx.hulalaViewModel
   const { editor } = ctx.hulalaComposer
+  const focus = ctx.hulalaFocus
 
   /** Drafts typed before a Session existed, kept with the mode their gesture named. */
   const pendingLines: Array<{ line: string; mode: TerminalPromptMode }> = []
   let cancelRequested = false
-  /** The layout from before `Ctrl-Shift-D`, while Neovim-only mode is on. */
+  /** The layout from before `Ctrl-Shift-G`, while Neovim-only mode is on. */
   let beforeEditorOnly: FrameSnapshot | undefined
 
   const repaint = (): void => { render.repaint() }
@@ -170,7 +191,99 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   }
 
   /**
-   * `Ctrl-Shift-D`: leave only the editor column.
+   * How many panels the frame is drawing.
+   *
+   * The rail and the conversation are independent, and the right column is one
+   * panel whichever seat it holds, so the editor and the terminal never both
+   * count. A panel that is wanted but does not fit (a narrow terminal) is not
+   * drawn and therefore not counted: the key cannot keep something the layout
+   * refused to paint.
+   */
+  const visiblePanels = (): number =>
+    (layout.railShown ? 1 : 0)
+    + (layout.conversationShown ? 1 : 0)
+    + (layout.paneId === undefined ? 0 : 1)
+
+  /**
+   * Refuse to put the last panel away.
+   *
+   * The frame must never become empty: with nothing drawn there is no composer to
+   * type into, no rail to move through and no column to look at, and the window
+   * would be a blank screen with a live Agent behind it. Every panel key asks this
+   * before it hides anything, so the refusal lands on the key that would have
+   * closed the last surface.
+   * @returns true when the hide was refused (and the refusal has been said).
+   */
+  const refusedLastPanel = (): boolean => {
+    if (visiblePanels() > 1) return false
+    reducer.addNotice(t('input.keepPanel'))
+    // With the conversation away the notice has nowhere to be read yet, so the
+    // refusal is also audible: the bell is what says "that key did nothing" when
+    // there is no surface to print it on.
+    if (!layout.conversationShown) terminal.write('\u0007')
+    repaint()
+    return true
+  }
+
+  /**
+   * `Ctrl-D` / `Ctrl-F` / `Ctrl-T` / `Ctrl-G`: take the keyboard to a panel, or
+   * put that panel away.
+   *
+   * The rule is the same for all four, which is why it lives in one place: a
+   * panel without the keyboard takes it, a panel with it goes away, and a panel
+   * that is away comes back with the keyboard on it. The conversation is the
+   * keyboard's home, so hiding any other panel returns there (bringing it back on
+   * screen if it had been put away); hiding the conversation itself hands the
+   * keyboard to the nearest panel still drawn — the rail, then the column.
+   * @param panel - the panel the chord names.
+   */
+  const focusPanel = (panel: FramePanel): void => {
+    if (panel === 'rail') {
+      if (rail.focused) {
+        if (refusedLastPanel()) return
+        rail.hide()
+      } else {
+        focus.rail()
+      }
+      repaint()
+      return
+    }
+    if (panel === 'chat') {
+      if (focus.panel === 'composer') {
+        if (refusedLastPanel()) return
+        layout.setConversationVisible(false)
+        // The composer left the frame with the conversation. What is still drawn
+        // takes the keyboard: the rail first, then the column that shares the
+        // frame with it. One of them is up, or `refusedLastPanel` would have
+        // returned above.
+        if (layout.railShown) focus.rail()
+        else if (panes.visible !== undefined) focus.pane(panes.visible)
+      } else {
+        focus.composer()
+      }
+      repaint()
+      return
+    }
+    const kind: PaneKind = panel === 'editor' ? 'editor' : 'terminal'
+    if (panes.focused && panes.visible === kind) {
+      if (refusedLastPanel()) return
+      panes.hide(kind)
+      repaint()
+      return
+    }
+    // Fetching the other program into the shared seat is the same gesture as
+    // focusing this one, so a column that is not painted takes the keyboard
+    // through `focus`, which starts or adopts it.
+    if (panes.visible === kind) focus.pane(kind)
+    else {
+      rail.unfocus()
+      panes.focus(kind, session.cwd)
+    }
+    repaint()
+  }
+
+  /**
+   * `Ctrl-Shift-G`: leave only the editor column.
    *
    * The conversation refuses to hide while the rail and the sidebar are both
    * closed (`layout.setConversationVisible`), so the editor is shown and focused
@@ -194,7 +307,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     repaint()
   }
 
-  /** `Ctrl-Shift-D` again: the rail, the conversation and the keyboard as they were. */
+  /** `Ctrl-Shift-G` again: the rail, the conversation and the keyboard as they were. */
   const leaveEditorOnly = (): void => {
     const snapshot = beforeEditorOnly
     beforeEditorOnly = undefined
@@ -213,7 +326,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
   }
 
   /**
-   * `Ctrl-Shift-D` / `/nvim` toggles Neovim-only mode.
+   * `Ctrl-Shift-G` / `/nvim` toggles Neovim-only mode.
    *
    * A mode whose column disappeared on its own (Neovim quit, the Session changed)
    * is not a mode any more: the frame has already brought the conversation back,
@@ -400,42 +513,22 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       updater.requestRestart()
     },
     editor: () => {
-      panes.toggle('editor', session.cwd)
+      focusPanel('editor')
     },
     terminal: () => {
-      panes.toggle('terminal', session.cwd)
+      focusPanel('terminal')
     },
     nvim: () => {
-      // The same action as `Ctrl-Shift-D`, snapshot included: a command that built
+      // The same action as `Ctrl-Shift-G`, snapshot included: a command that built
       // the view without recording what it replaced would make the next press
       // restore nothing.
       toggleEditorOnly()
     },
     rail: () => {
-      rail.toggle()
+      focusPanel('rail')
     },
     chat: () => {
-      if (layout.conversationShown) {
-        if (!layout.railShown && layout.paneId === undefined) {
-          reducer.addNotice(t('input.keepColumn'))
-          repaint()
-          return
-        }
-        layout.setConversationVisible(false)
-        // The composer left the frame with the conversation. A column that
-        // already owns the keyboard keeps it; the composer's keyboard goes to a
-        // column still painted, or to the rail.
-        if (!panes.focused && !rail.focused) {
-          if (panes.visible !== undefined) panes.focus(panes.visible, session.cwd)
-          else rail.focus()
-        }
-      } else {
-        layout.setConversationVisible(true)
-        if (panes.focused) panes.blur()
-        else if (rail.focused) rail.blur()
-        else focusOn(editor)
-      }
-      repaint()
+      focusPanel('chat')
     },
     commands: async () => {
       await openPalette()
@@ -641,6 +734,7 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
     paste,
     dequeue,
     openPalette,
+    focusPanel,
     toggleEditorOnly,
     modeFor: (gesture: 'enter' | 'accelerated') => (gesture === 'accelerated' || !reducer.busy ? 'queue' : 'steer'),
     cancel,
@@ -659,6 +753,9 @@ export const commandsPlugin = {
     'hulalaUpdate',
     'hulalaRail',
     'hulalaLayout',
+    // The panel cycle releases whichever panel held the keyboard, and that
+    // arbitration lives in `plugins/focus`. Applied before this plugin.
+    'hulalaFocus',
     'hulalaView',
     'hulalaLifecycle',
     'hulalaViewModel',

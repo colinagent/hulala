@@ -30,7 +30,7 @@
  */
 import { abbreviateHomePath, relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 import { type DiffRow, type DiffStats, diffRows, diffStats, fileDiffs, intendedDiff } from './diffRow.js'
-import { type ToolStatus, stoppedByMeta } from './viewModel.js'
+import { type ToolImage, type ToolStatus, stoppedByMeta } from './viewModel.js'
 
 /** Row family selected by the tool name. */
 export type ToolVariant = 'bash' | 'read' | 'write' | 'edit' | 'search' | 'code' | 'others'
@@ -51,6 +51,8 @@ export interface ToolRowInput {
   cwd?: string | undefined
   /** Host account home, used to abbreviate a leftover `$HOME` prefix. */
   home?: string | undefined
+  /** Durable images the settled result returned, in result order. */
+  images?: readonly ToolImage[] | undefined
 }
 
 /** Everything the transcript row needs, derived once per settled call. */
@@ -82,6 +84,8 @@ export interface ToolRow {
   diff: { rows: DiffRow[]; stats: DiffStats } | undefined
   /** Shell exit status, shown as a capsule on a failed command. */
   exit: { code?: number; signal?: string } | undefined
+  /** Durable images the result returned; the rows draw them under the body. */
+  images: readonly ToolImage[]
 }
 
 /**
@@ -253,10 +257,10 @@ function bodyOf(variant: ToolVariant, args: Record<string, unknown> | undefined,
 }
 
 /**
- * The `<path>…</path><content>…</content>` envelope the read tool renders its
- * result in. The body is what a reader wants; the envelope is wire framing.
+ * The `<path>…</path><content>…</content>` envelope a file or image read renders
+ * its result in. The body is what a reader wants; the envelope is wire framing.
  */
-const READ_ENVELOPE = /^<path>[^\n]*<\/path>\n<type>file<\/type>\n<content>\n([\s\S]*)\n<\/content>$/u
+const READ_ENVELOPE = /^<path>[^\n]*<\/path>\n<type>(?:file|image)<\/type>\n<content>\n([\s\S]*)\n<\/content>$/u
 
 /**
  * The line window a read call asked for, as the row's summary suffix.
@@ -365,5 +369,6 @@ export function toolRow(input: ToolRowInput): ToolRow {
     output,
     diff: rows === undefined || rows.length === 0 ? undefined : { rows, stats: diffStats(rows) },
     exit,
+    images: input.images ?? [],
   }
 }

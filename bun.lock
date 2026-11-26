@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.3.34",
+      "version": "0.3.35",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -40,6 +40,7 @@
         "@hulala/editor-home": "workspace:*",
         "@hulala/host-client": "workspace:*",
         "@hulala/runtime": "workspace:*",
+        "@silvia-odwyer/photon-node": "0.3.4",
         "@speed-highlight/core": "2.1.0",
         "diff": "9.0.0",
         "grok-mermaid": "0.2.3",
@@ -125,7 +126,7 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.3.34",
+      "version": "0.3.35",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
@@ -158,7 +159,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.3.34",
+      "version": "0.3.35",
       "dependencies": {
         "@colinagent/dsh-mcp": "0.1.1",
         "@deepseek-ai/cordis": "4.1.0",
@@ -1302,6 +1303,8 @@
     "@sec-ant/readable-stream": ["@sec-ant/readable-stream@0.4.1", "", {}, "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="],
 
     "@shuding/opentype.js": ["@shuding/opentype.js@1.4.0-beta.0", "", { "dependencies": { "fflate": "^0.7.3", "string.prototype.codepointat": "^0.2.1" }, "bin": { "ot": "bin/ot" } }, "sha512-3NgmNyH3l/Hv6EvsWJbsvpcpUba6R8IREQ83nH83cyakCw7uM1arZKNfHwv1Wz6jgqrF/j4x5ELvR6PnK9nTcA=="],
+
+    "@silvia-odwyer/photon-node": ["@silvia-odwyer/photon-node@0.3.4", "", {}, "sha512-bnly4BKB3KDTFxrUIcgCLbaeVVS8lrAkri1pEzskpmxu9MdfGQTy8b8EgcD83ywD3RPMsIulY8xJH5Awa+t9fA=="],
 
     "@sindresorhus/is": ["@sindresorhus/is@7.2.0", "", {}, "sha512-P1Cz1dWaFfR4IR+U13mqqiGsLFf1KbayybWwdd2vfctdV6hDpUkgCY0nKOLLTMSoRd/jJNjtbqzf13K8DCCXQw=="],
 

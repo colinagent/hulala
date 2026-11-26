@@ -150,6 +150,22 @@ test('resize asks Neovim for the same grid the pane gave us', () => {
   expect(sent[1]).toEqual([0, 2, 'nvim_ui_try_resize', [6, 3]])
 })
 
+test('a file is opened as one Lua call, so a name is never typed as keys', () => {
+  const { session, sent } = ui()
+  session.editFile('/tmp/a name with % and #.md')
+  // `fnameescape` runs in Neovim: escaping a Host path here would be this client
+  // guessing at another program's quoting rules, and feeding the name through
+  // `nvim_input` would read `%` and `#` as Ex expansions.
+  expect(sent[1]).toEqual([
+    0,
+    2,
+    'nvim_exec_lua',
+    ['vim.api.nvim_command("edit " .. vim.fn.fnameescape(...))', ['/tmp/a name with % and #.md']],
+  ])
+  session.editFile('')
+  expect(sent).toHaveLength(2)
+})
+
 test('the mode drives the caret shape and the caller hears it', () => {
   let mode: string | undefined
   const { session } = ui()

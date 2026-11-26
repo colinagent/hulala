@@ -31,6 +31,12 @@ export interface ApprovalOverlayOptions {
   toolName: string
   reason?: string
   color: boolean
+  /**
+   * Terminal rows, when the caller knows them. The reason is a sentence the
+   * model wrote, so the panel needs a ceiling it would not need for its own
+   * labels; without one a long reason pushes the keys off screen.
+   */
+  rows?: number
   onDecide(decision: ApprovalDecision): void
 }
 
@@ -56,7 +62,13 @@ export class ApprovalOverlay implements Component {
     body.push(s.dim(t('approval.fullAccessDetail')))
     body.push(s.dim(t('approval.delegateHint')))
     const footer = [s.accent(t('approval.footer'))]
-    return panel(panelWidth, t('approval.title'), body, footer)
+    // The terminal's rows are not all the body's to spend: the two borders and
+    // the footer are the panel's own, and a row above and below keep it off the
+    // frame's edges. What is left is the reason's budget.
+    const rows = this.options.rows
+    return panel(panelWidth, t('approval.title'), body, footer, rows === undefined
+      ? {}
+      : { maxBodyRows: Math.max(3, rows - 5) })
   }
 
   handleInput(data: string): void {

@@ -166,6 +166,28 @@ integration('a real nvim --embed session draws text, cursor, mode, mouse and pas
   }
 }, 20_000)
 
+integration('a clicked file opens in the column, with its name taken literally', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'hulala-nvim-open-'))
+  // A name a reader would write and a shell or an Ex command would mangle.
+  const name = 'a name with % and #.md'
+  writeFileSync(join(cwd, name), '# opened by the column\n')
+  const editor = startEditor({ cwd, cols: 60, rows: 10 })
+  const has = (text: string): boolean => editor.screen().some(line => line.includes(text))
+
+  try {
+    await waitFor(() => has('[No Name]'), 'the initial screen')
+    editor.ui.editFile(join(cwd, name))
+    await waitFor(() => has(`a name with % and #.md`), 'the opened file')
+    await waitFor(() => has('opened by the column'), 'its text')
+
+    editor.ui.inputNotation(':q!<CR>')
+    await waitFor(() => editor.exitCode() !== undefined, 'Neovim to exit')
+  } finally {
+    await editor.stop()
+    rmSync(cwd, { recursive: true, force: true })
+  }
+}, 20_000)
+
 integration('the file tree prompt lives exactly as long as the tree', async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'hulala-nvim-tree-'))
   writeFileSync(join(cwd, 'alpha.txt'), 'alpha\n')

@@ -77,8 +77,6 @@ export interface MessageTable {
   'keymap.action.redraw': string
   'keymap.action.sessionPrevious': string
   'keymap.action.sessionNext': string
-  'keymap.action.focusLeft': string
-  'keymap.action.focusRight': string
   'keymap.action.rail': string
   'keymap.action.chat': string
   'keymap.action.terminal': string
@@ -126,7 +124,6 @@ export interface MessageTable {
     dividerLeft: string
     dividerRight: string
   }) => string
-  'help.key.railKeys': (params: { rail: string; focusLeft: string; focusRight: string }) => string
   'help.key.sessions': (params: { previous: string; next: string }) => string
   'help.key.commands': (params: { commands: string }) => string
   'help.key.rail': string
@@ -302,6 +299,9 @@ export interface MessageTable {
   'startup.mcp': string
 
   'notice.cancelRequested': string
+  'notice.openUnavailable': (params: { target: string }) => string
+  'notice.openFailed': (params: { target: string; reason: string }) => string
+  'notice.browserFailed': (params: { url: string }) => string
   'notice.renamed': (params: { title: string }) => string
   'notice.noQueued': string
   'notice.restored': (params: { count: number }) => string
@@ -403,7 +403,7 @@ export interface MessageTable {
   'update.exitCode': (params: { code: number }) => string
 
   'input.pressAgain': string
-  'input.keepColumn': string
+  'input.keepPanel': string
 
   'plain.summary': string
   'plain.approval': (params: { tool: string }) => string

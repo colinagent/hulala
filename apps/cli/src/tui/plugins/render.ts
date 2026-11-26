@@ -19,7 +19,7 @@
  * - `reconcile(reason)` says that copy may be wrong, so the next frame is every
  *   row, preceded by a full clear. Anything that can change the terminal without
  *   going through a frame belongs here: a discarded frame, a resize, a reconnect,
- *   a rebuilt frame tree, the user's own `Ctrl-L`.
+ *   a rebuilt frame tree, the user's own `Ctrl-Shift-L` (or `Cmd-L`).
  *
  * The reason is not decoration: it is the only durable record of why a window
  * painted everything, and the debug trace prints it. There is no third verb and
@@ -54,7 +54,7 @@ export type ReconcileReason =
   | 'wake'
   /** The frame tree was rebuilt: columns, widths and the dock's height moved. */
   | 'layout'
-  /** `Ctrl-L`: the user asking for a clean screen. */
+  /** `Ctrl-Shift-L` / `Cmd-L`: the user asking for a clean screen. */
   | 'manual'
   /** Every visible string changed language. */
   | 'language'

@@ -106,7 +106,7 @@ export interface OverlaysPluginConfig {
 
 /** Provide the overlay surface. */
 export function apply(ctx: Context, config: OverlaysPluginConfig): void {
-  const { screen, announce, refreshIme, releaseHeldFocus } = ctx.hulalaTerminal
+  const { terminal, screen, announce, refreshIme, releaseHeldFocus } = ctx.hulalaTerminal
   const render = ctx.hulalaRender
   let open = 0
   /** Dialogs the editor column owns; settled when that column disappears. */
@@ -171,6 +171,8 @@ export function apply(ctx: Context, config: OverlaysPluginConfig): void {
         toolName: request.toolName,
         ...(request.reason === undefined ? {} : { reason: request.reason }),
         color: config.color,
+        // Read when the request arrives, so a window resized since is respected.
+        rows: terminal.rows,
         onDecide: done,
       })
     }, { anchor: 'bottom-center', width: 72 })

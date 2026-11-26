@@ -458,6 +458,21 @@ export class NvimUi {
     this.request('nvim_input', [notation])
   }
 
+  /**
+   * Open one file in the column.
+   *
+   * The name is a path on the machine running Neovim, because that is where the
+   * column's files are: a client that resolved it itself would be answering for
+   * a filesystem it cannot see. Vim escapes the name, so a space, `%`, `#` or
+   * `|` in a filename needs no quoting from here, and one request carries the
+   * whole command — a name can never be read as a sequence of keystrokes.
+   * @param path - absolute path on the Host.
+   */
+  editFile(path: string): void {
+    if (this.disposed || path === '') return
+    this.request('nvim_exec_lua', ['vim.api.nvim_command("edit " .. vim.fn.fnameescape(...))', [path]])
+  }
+
   /** Send one request and ignore its response. */
   private request(method: string, params: Msgpack[]): void {
     this.nextRequest += 1

@@ -63,6 +63,7 @@
     "@hulala/editor-home": "workspace:*",
     "@hulala/host-client": "workspace:*",
     "@hulala/runtime": "workspace:*",
+    "@silvia-odwyer/photon-node": "0.3.4",
     "@speed-highlight/core": "2.1.0",
     "diff": "9.0.0",
     "grok-mermaid": "0.2.3",

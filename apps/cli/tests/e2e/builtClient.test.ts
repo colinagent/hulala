@@ -82,7 +82,7 @@ built('the bundle starts beside no dependency tree at all', () => {
 builtEditor('the built bundle runs a real Neovim and returns to the composer', async () => {
   const client = await startReadyClient({ home, entry: BUNDLE, ...(node === null ? {} : { runtime: node }), cols: 120, rows: 36 })
   try {
-    client.write('\u0004')
+    client.write('\u0007')
     await client.waitFor(screen => screen.includes('[Scratch]') || screen.includes('NVIM'), 'the editor column', 25_000)
     client.write('i你好')
     await client.waitFor(screen => screen.includes('你好'), 'wide characters in the built editor', 10_000)

@@ -45,8 +45,6 @@ interface KeyLabels {
   readonly editor: string
   readonly editorOnly: string
   readonly commands: string
-  readonly focusLeft: string
-  readonly focusRight: string
   readonly sessionPrevious: string
   readonly sessionNext: string
   readonly dividerLeft: string
@@ -67,8 +65,6 @@ function keyLabels(): KeyLabels {
     editor: actionHint('panel.editor'),
     editorOnly: actionHint('panel.editorOnly'),
     commands: actionHint('panel.commands'),
-    focusLeft: actionHint('panel.focusLeft'),
-    focusRight: actionHint('panel.focusRight'),
     sessionPrevious: actionHint('session.previous'),
     sessionNext: actionHint('session.next'),
     dividerLeft: actionHint('panel.dividerLeft'),
@@ -164,7 +160,6 @@ export class HelpOverlay implements Component {
         dividerLeft: keys.dividerLeft,
         dividerRight: keys.dividerRight,
       }),
-      t('help.key.railKeys', { rail: keys.rail, focusLeft: keys.focusLeft, focusRight: keys.focusRight }),
       t('help.key.sessions', { previous: keys.sessionPrevious, next: keys.sessionNext }),
       t('help.key.rail'),
       t('help.key.more'),

@@ -100,12 +100,25 @@ const runtimeManifest = JSON.parse(await readFile(join(repositoryRoot, 'packages
 const serverManifest = JSON.parse(await readFile(join(repositoryRoot, 'apps/server/package.json'), 'utf8')) as { dependencies?: Record<string, string> }
 const cliManifest = JSON.parse(await readFile(join(repositoryRoot, 'apps/cli/package.json'), 'utf8')) as { dependencies?: Record<string, string> }
 const rootManifest = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8')) as { patchedDependencies?: Record<string, string> }
-// `ws` is resolved at runtime by the client (see `tui/data/websocket.ts`): it is
-// a Node library with dynamic requires, and inlining it kept the mux alive only
-// until a second stream attached. The archive's dependency tree is the client's
-// search path for it, so it has to be declared here rather than left to a
-// transitive.
-const clientRuntime = cliManifest.dependencies?.ws === undefined ? {} : { ws: cliManifest.dependencies.ws }
+// The client modules resolved at runtime instead of bundled, all for the same
+// reason: inlining them breaks them.
+//
+// - `ws` (`tui/data/websocket.ts`) is a Node library with dynamic requires, and
+//   the bundled copy kept the mux alive only until a second stream attached;
+// - `@silvia-odwyer/photon-node` (`tui/view/pngTranscoder.ts`) reads its `.wasm`
+//   beside its own entry, and kitty terminals need it to draw any image that is
+//   not already a PNG.
+//
+// The archive's dependency tree is the client's search path for both, so they
+// are declared here rather than left to a transitive.
+const CLIENT_RUNTIME = ['ws', '@silvia-odwyer/photon-node'] as const
+const clientRuntime = Object.fromEntries(CLIENT_RUNTIME.map((name) => {
+  const version = cliManifest.dependencies?.[name]
+  // Silently dropping one would ship a client whose runtime import cannot
+  // resolve — the failure would only appear when a user opened a picture.
+  if (version === undefined) throw new Error(`${name} is loaded at runtime by the client but apps/cli/package.json does not declare it`)
+  return [name, version] as const
+}))
 const dependencies = { ...dependenciesOf(runtimeManifest), ...dependenciesOf(serverManifest), ...clientRuntime }
 await writeFile(join(staging, 'runtime', 'package.json'), `${JSON.stringify({
   name: '@hulala/tui-runtime',

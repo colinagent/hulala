@@ -230,9 +230,9 @@ test('a slash row ends with the command’s shortcut', async () => {
   await settle()
   const row = editor.render(80).find(line => line.includes('/editor')) ?? ''
   // The shortcut column is what a reader came for; the description gives way.
-  expect(row).toContain('Ctrl-D')
+  expect(row).toContain('Ctrl-G')
   expect(visibleWidth(row)).toBeLessThanOrEqual(80)
-  expect(row.indexOf('Ctrl-D')).toBeGreaterThan(row.indexOf('nvim'))
+  expect(row.indexOf('Ctrl-G')).toBeGreaterThan(row.indexOf('nvim'))
 })
 
 test('an argument hint leads the description column, as in pi', async () => {

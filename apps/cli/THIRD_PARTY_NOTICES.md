@@ -47,6 +47,14 @@ from the source repository at build time.
 - Use: the editor's EPUB reader (`:Reader book.epub`)
 - License: MIT; vendored under `apps/cli/vendor/reader.nvim/`
 
+## photon
+
+- Project: [silvia-odwyer/photon](https://github.com/silvia-odwyer/photon)
+- Package: `@silvia-odwyer/photon-node` 0.3.4, its WebAssembly module inside the package
+- Use: re-encoding a JPEG, WebP or GIF tool-result image as PNG — the one raster
+  the kitty graphics protocol transmits — for the transcript's inline pictures
+- License: Apache-2.0; installed from npm, unmodified
+
 ## libghostty-vt (Ghostty)
 
 - Project: [ghostty-org/ghostty](https://github.com/ghostty-org/ghostty)

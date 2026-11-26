@@ -34,6 +34,7 @@ import {
   railWidthLimit,
   SPLIT_MIN_SIZE,
 } from '../view/layout.js'
+import type { TuiFocus } from './focus.js'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -43,6 +44,30 @@ declare module '@deepseek-ai/cordis' {
 }
 
 export type { SeatId }
+
+/**
+ * Whether the input dock draws as the current surface.
+ *
+ * The dock holds the composer, or the selector a command put in its place
+ * (`/model`, `/login`, the permission picker). A selector takes the keyboard for
+ * itself, so the dock stays lit — dimming it was the one thing that made every
+ * picker look like it had already been dismissed. The case that does fade the
+ * dock is a floating dialog over the frame: then nothing under the dialog can be
+ * typed into, the selector included.
+ * @param focus - the keyboard's current owner, or undefined before the service exists.
+ * @param selectorUp - whether a panel has taken the composer's slot.
+ * @returns true when the dock draws at full strength.
+ */
+export function composerFocused(
+  focus: Pick<TuiFocus, 'panel' | 'modal'> | undefined,
+  selectorUp: boolean,
+): boolean {
+  if (focus === undefined) return true
+  // The rail and the columns are panels of their own, so the dock is not where
+  // the keys go whatever else is up.
+  if (focus.panel !== 'composer') return false
+  return focus.modal !== true || selectorUp
+}
 
 /** Colour flag: a conversation that is not focused is faded with it. */
 export interface LayoutPluginConfig {
@@ -84,7 +109,7 @@ export interface TuiLayout {
   /** The rail is drawn at this width. */
   readonly railShown: boolean
   /**
-   * Show the conversation column, or put it away with `Shift-Cmd-C`.
+   * Show the conversation column, or put it away with `Ctrl-F`.
    *
    * A hidden conversation is refused while neither side column is drawn: the
    * frame never becomes empty. The seat registrations stay in place, so
@@ -157,6 +182,11 @@ export function apply(ctx: Context, config: LayoutPluginConfig): void {
     const focus = ctx.get('hulalaFocus')
     return focus?.modal !== true && (focus?.panel ?? 'composer') === 'composer'
   }
+  // The dock is the composer, or the selector standing in for it. A selector
+  // holds the keyboard itself, so `modal` alone must not dim the surface the
+  // keys are actually going to.
+  const dockFocused = (): boolean =>
+    composerFocused(ctx.get('hulalaFocus'), ctx.get('hulalaComposer')?.slot.replaced === true)
   const onConversationPress = (): void => { ctx.get('hulalaFocus')?.composer() }
   // Per seat, an ordered map of id → entry. Exclusive seats hold one entry;
   // every other seat renders every entry, top to bottom.
@@ -327,6 +357,7 @@ export function apply(ctx: Context, config: LayoutPluginConfig): void {
               onConversationPointer: clearDividerHover,
               onConversationPress,
               conversationFocused,
+              composerFocused: dockFocused,
               color: config.color,
               pane: {
                 component: paneShown.component,
@@ -348,6 +379,7 @@ export function apply(ctx: Context, config: LayoutPluginConfig): void {
               onConversationPointer: clearDividerHover,
               onConversationPress,
               conversationFocused,
+              composerFocused: dockFocused,
               color: config.color,
               ...scroll,
             })
@@ -363,6 +395,7 @@ export function apply(ctx: Context, config: LayoutPluginConfig): void {
           onConversationPointer: clearDividerHover,
           onConversationPress,
           conversationFocused,
+          composerFocused: dockFocused,
           color: config.color,
           ...scroll,
         })

@@ -57,6 +57,17 @@ export interface TerminalLayoutOptions {
    * which is the plain layout's case.
    */
   readonly conversationFocused?: () => boolean
+  /**
+   * Whether the input dock holds the keyboard.
+   *
+   * The dock is the composer, or the selector a command put in its place. It is
+   * faded for the same reason the conversation is — it is not where the next
+   * keystroke goes — but it is not part of the conversation: a floating dialog
+   * over the frame fades both, while a selector drawn *in* the dock owns the
+   * keyboard itself and has to stay lit. Absent means "the dock is never faded",
+   * which is the plain layout's case.
+   */
+  readonly composerFocused?: () => boolean
   /** Whether styling is enabled, which a faded conversation needs. */
   readonly color?: boolean
   /** A press inside the conversation column, e.g. to take the keyboard back. */
@@ -103,20 +114,32 @@ class ConversationColumn extends VStack {
 }
 
 /**
- * Wrap one conversation leaf so it is drawn faint while the keyboard is away.
+ * Wrap one leaf so it is drawn faint while `focused` says it is not current.
  *
  * The conversation is a layout node, so the frame paints its leaves rather than
  * the column; the fade has to sit on each leaf the column owns. The transcript
  * is the exception: it lives inside a viewport the frame reuses, so it carries
- * its own fade from the view plugin.
+ * its own fade from the view plugin. The dock's own leaf is faded by
+ * {@link TerminalLayoutOptions.composerFocused} instead, because a selector
+ * standing in for the composer is not the conversation.
+ * @param component - the leaf to draw.
+ * @param focused - whether the surface owning this leaf has the keyboard.
+ * @param color - whether styling is enabled.
+ * @returns the leaf unchanged when there is no predicate to ask.
+ */
+function fadeWhen(component: Component, focused: (() => boolean) | undefined, color: boolean | undefined): Component {
+  if (focused === undefined) return component
+  return new Fade(component, () => !focused(), color ?? false)
+}
+
+/**
+ * Wrap one conversation leaf so it is drawn faint while the keyboard is away.
  * @param component - the leaf to draw.
  * @param options - the layout's focus predicate and colour capability.
  * @returns the leaf unchanged when the frame has no focus predicate.
  */
 function fadeWhenInactive(component: Component, options: TerminalLayoutOptions): Component {
-  const focused = options.conversationFocused
-  if (focused === undefined) return component
-  return new Fade(component, () => !focused(), options.color ?? false)
+  return fadeWhen(component, options.conversationFocused, options.color)
 }
 
 export interface SplitTerminalLayoutOptions extends TerminalLayoutOptions {
@@ -150,7 +173,7 @@ export interface SideColumn {
 }
 
 /**
- * What is left when the conversation column is put away with `Ctrl-D`.
+ * What is left when the conversation column is put away with `Ctrl-F`.
  *
  * There is no transcript to grow, so the columns that remain share the width
  * themselves: the pane keeps the width its divider was dragged to and the rail
@@ -297,7 +320,7 @@ export function buildRailTerminalLayout(options: RailLayoutOptions): SplitTermin
   const conversation = new ConversationColumn([
     { component: transcriptScroll, basis: 0, grow: 1, shrink: 1, minSize: 1 },
     ...chatEntries(options),
-    { component: fadeWhenInactive(options.editor, options), shrink: 1, minSize: COMPOSER_MIN_SIZE },
+    { component: fadeWhen(options.editor, options.composerFocused, options.color), shrink: 1, minSize: COMPOSER_MIN_SIZE },
   ], {
     onPointer: options.onConversationPointer ?? options.pane?.onConversationPointer,
     onPress: options.onConversationPress,
@@ -417,7 +440,7 @@ export function buildSplitTerminalLayout(options: SplitTerminalLayoutOptions): S
   const conversation = new ConversationColumn([
     { component: transcriptScroll, basis: 0, grow: 1, shrink: 1, minSize: 1 },
     ...chatEntries(options),
-    { component: fadeWhenInactive(options.editor, options), shrink: 1, minSize: COMPOSER_MIN_SIZE },
+    { component: fadeWhen(options.editor, options.composerFocused, options.color), shrink: 1, minSize: COMPOSER_MIN_SIZE },
   ], {
     onPointer: options.onConversationPointer,
     onPress: options.onConversationPress,

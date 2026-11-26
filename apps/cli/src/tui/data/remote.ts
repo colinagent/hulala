@@ -34,6 +34,7 @@ import UserQuestionsRemote from '@deepseek-ai/dsh-user-questions/remote'
 import { exchangeConnection, type HostAttachment } from '../../hostAttach.js'
 import { webSocketClass } from './websocket.js'
 import { createEditorChannel, type EditorChannel } from './editorChannel.js'
+import type { ToolImage } from './viewModel.js'
 import { t } from '../i18n/index.js'
 
 /** Host settings namespace that owns `defaultPreset` for new Sessions. */
@@ -617,6 +618,15 @@ export interface TerminalBackend {
   readonly terminal?: HostTerminals
   /** Read-only Session workspace reads; absent on a fake backend. */
   readonly workspaceFiles?: HostWorkspaceFiles
+  /**
+   * Read one durable image a tool result returned, for the transcript to draw.
+   *
+   * The bytes never ride the Session log: a result carries a reference into the
+   * Host's attachment store, and this is the Session route that turns it back
+   * into pixels. Absent on a backend with no attachment store (a fake Host in a
+   * test, an older Host), and the row then keeps its text fallback.
+   */
+  readImage?(sessionId: string, image: ToolImage): Promise<Uint8Array>
   /** Session-owned Neovim, rendered as a grid instead of a pty. */
   readonly editor?: HostEditor
   ready(): Promise<void>
@@ -1935,6 +1945,17 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
 
     async rename(sessionId, title) {
       unwrap(await ctx.remote.session.rename({ sessionId: sessionId as never, title }))
+    },
+
+    async readImage(sessionId, image) {
+      // The reference is opaque and branded on the wire; this client only ever
+      // passes back what the Session log handed it, so the envelope is rebuilt
+      // from the narrowed fields rather than a second parsed shape.
+      const value = unwrap(await ctx.remote.session.attachment({
+        sessionId: sessionId as never,
+        attachment: image as never,
+      }))
+      return Uint8Array.from(Buffer.from(value.data, 'base64'))
     },
 
     onApproval(handler) {

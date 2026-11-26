@@ -34,15 +34,15 @@ export interface TuiRail {
   /** The rail is drawn at this terminal width. */
   readonly shown: boolean
   /**
-   * `Ctrl-S`: show the rail, or put it away.
+   * `Ctrl-D`: put the rail away and hand the keyboard back.
    *
-   * Visibility only. A rail already on screen is put away even when the
-   * composer or a column has the keyboard; a hidden rail comes back with the
-   * keyboard on the list. Moving between columns is `Ctrl-H` / `Ctrl-L`,
-   * so this key never doubles as a focus cycle, and it remains the fallback entry
-   * when a terminal or input method eats `Esc`.
+   * Called only while the rail has the keyboard: `Ctrl-D` is a cycle, and a rail
+   * that has kept the keyboard is the one the key takes away. The composer is
+   * the keyboard's home, so it takes the keyboard back — brought on screen again
+   * when it had been put away. Whether the rail fits is the layout's decision, so
+   * this never closes a rail that only a resize removed.
    */
-  toggle(): void
+  hide(): void
   /** Move the keyboard to the rail, showing it if it was hidden. */
   focus(): void
   /** Move the keyboard back to the composer; the rail stays visible. */
@@ -257,20 +257,16 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   }
 
   /**
-   * `Ctrl-S`: a shown rail is put away, a hidden one comes back.
+   * `Ctrl-D`: a rail with the keyboard is put away; a hidden one comes back.
    *
-   * The decision is made on whether the rail is painted, never on where the
-   * keyboard is: a rail beside a focused editor column must still close, and a
-   * visible rail must not turn the key into "move focus left". Only a rail that
-   * actually held the keyboard hands it back to the composer; a column that owns
-   * it keeps it, and `Ctrl-H` is what leaves that column.
+   * The panel key cycle lives in the command surface (`commands.focusPanel`),
+   * because it has to count the panels the frame is drawing; this is the rail's
+   * half of it. The composer is the keyboard's home, so the rail hands it back
+   * on the way out.
    */
-  const toggle = (): void => {
+  const hide = (): void => {
     if (config.isClosing()) return
-    if (!layout.railShown) {
-      focus()
-      return
-    }
+    if (!layout.railShown) return
     const hadKeyboard = focused
     focused = false
     query = ''
@@ -288,8 +284,8 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
   layout.onChange(() => {
     if (focused && !layout.railShown) {
       focused = false
-      // The rail can be taken away by a narrow terminal as well as by `Ctrl-S`.
-      // Either way the keyboard cannot stay on a column that is not painted.
+      // The rail can be taken away by a narrow terminal. The keyboard cannot stay
+      // on a column that is not painted, so it returns to the composer.
       if (!layout.conversationShown) layout.setConversationVisible(true)
       focusOn(composer.editor)
     } else if (focused) {
@@ -325,7 +321,7 @@ export function apply(ctx: Context, config: RailPluginConfig): void {
     get focused() { return focused },
     get shown() { return shown() },
     get filterFocused() { return rail.filterFocused },
-    toggle,
+    hide,
     focus,
     blur,
     unfocus,

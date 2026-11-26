@@ -2,13 +2,13 @@
  * Which panel owns the keyboard, and the one way a click moves it there.
  *
  * The frame has three surfaces that read a keystroke: the conversation's
- * composer, the Session rail, and the column (`Ctrl-T`'s terminal or `Ctrl-D`'s
+ * composer, the Session rail, and the column (`Ctrl-T`'s terminal or `Ctrl-G`'s
  * Neovim). Two of them already know how to take the keyboard for themselves —
  * `rail.focus()` starts the list's editing state, `panes.focus()` starts or
  * adopts a column and passes the caret through — but neither knows how to let go
  * without also saying where focus goes next. `blur()` is "back to the composer",
  * which is the right answer for `Esc` and the wrong one for a click: a
- * conversation put away on purpose with `Shift-Cmd-C` must not reappear just
+ * conversation put away on purpose with `Ctrl-F` must not reappear just
  * because the pointer moved from the rail to a column.
  *
  * So this plugin is the arbitration, not a second owner. The flags stay where
@@ -89,7 +89,7 @@ export function apply(ctx: Context): void {
     const editor = composer()
     if (editor === undefined) return
     // The composer is the keyboard's home, so it has to be on screen to take it
-    // back; a frame built for `Ctrl-Shift-D` may have the conversation put away.
+    // back; a frame built for `Ctrl-Shift-G` may have the conversation put away.
     if (!layout.conversationShown) layout.setConversationVisible(true)
     focusOn(editor)
     render.request()

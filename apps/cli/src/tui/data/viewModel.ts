@@ -26,6 +26,26 @@ import type {
 /** Lifecycle of one tool call, matching the web client's row states. */
 export type ToolStatus = 'preparing' | 'running' | 'ok' | 'error' | 'stopped'
 
+/**
+ * One durable image a settled tool result returned.
+ *
+ * The record is the wire's own reference, narrowed: the bytes live in the
+ * Host's attachment store under `attachmentId`, which is opaque and only ever
+ * handed back to the Session route that reads it. `read_image` is what puts one
+ * of these on a result today; a pasted prompt's image is a path in its text and
+ * reaches the transcript the same way, through that tool.
+ */
+export interface ToolImage {
+  readonly attachmentId: string
+  readonly mediaType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
+  /** Exact encoded byte length, as the store verified it. */
+  readonly bytes: number
+  readonly width: number
+  readonly height: number
+  /** Display name the store stripped of path information, when it kept one. */
+  readonly name?: string
+}
+
 /** One rendered transcript entry. */
 export type TranscriptItem =
   | { kind: 'user'; text: string; time: number }
@@ -42,6 +62,8 @@ export type TranscriptItem =
       errorCode?: string
       /** Tool-private presentation payload persisted on `tool/result`. */
       meta?: unknown
+      /** Durable images the result returned, in result order; empty for most calls. */
+      images?: readonly ToolImage[]
       time: number
       durationMs?: number
     }
@@ -104,7 +126,13 @@ export function reasoningOf(content: unknown): string {
     .join('\n')
 }
 
-/** Flatten settled tool-result content: text verbatim, other blocks as JSON. */
+/**
+ * Flatten settled tool-result content: text verbatim, other blocks as JSON.
+ *
+ * An image block contributes no text. Its bytes are drawn inline by the row and
+ * its reference is opaque, so dumping the envelope would print storage facts
+ * under a picture the reader can already see.
+ */
 export function resultText(content: unknown): string {
   if (!Array.isArray(content)) return ''
   return content
@@ -112,9 +140,58 @@ export function resultText(content: unknown): string {
       if (block === null || typeof block !== 'object') return []
       const record = block as { type?: unknown; text?: unknown }
       if (record.type === 'text' && typeof record.text === 'string') return [record.text]
+      if (record.type === 'image') return []
       return [JSON.stringify(block, null, 2)]
     })
     .join('\n')
+}
+
+/** Media types a durable image block may claim; anything else is not drawn. */
+const TOOL_IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+])
+
+/** Whether {@link imagesOf} can trust a positive size; zero-length facts are malformed. */
+function positiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+}
+
+/**
+ * Narrow the image blocks of one settled tool result, in result order.
+ *
+ * Every field arrives unvalidated on replay — an obsolete or hand-edited log
+ * reaches here — so a block that does not hold together is skipped rather than
+ * failing the whole result: the text beside it is still worth reading. The
+ * attachment id is only checked for existence, never parsed, because it is
+ * opaque and owned by the store that minted it.
+ *
+ * @param content - the settled result's content blocks.
+ * @returns the durable image references, empty when the result carried none.
+ */
+export function imagesOf(content: unknown): ToolImage[] {
+  if (!Array.isArray(content)) return []
+  const images: ToolImage[] = []
+  for (const block of content) {
+    if (block === null || typeof block !== 'object') continue
+    const record = block as { type?: unknown; attachment?: unknown }
+    if (record.type !== 'image') continue
+    const attachment = record.attachment
+    if (attachment === null || typeof attachment !== 'object' || Array.isArray(attachment)) continue
+    const { attachmentId, mediaType, bytes, width, height, name } = attachment as Record<string, unknown>
+    if (typeof attachmentId !== 'string' || attachmentId === '') continue
+    if (typeof mediaType !== 'string' || !TOOL_IMAGE_MEDIA_TYPES.has(mediaType)) continue
+    if (!positiveInteger(bytes) || !positiveInteger(width) || !positiveInteger(height)) continue
+    if (name !== undefined && typeof name !== 'string') continue
+    images.push({
+      attachmentId,
+      mediaType: mediaType as ToolImage['mediaType'],
+      bytes,
+      width,
+      height,
+      ...name === undefined ? {} : { name },
+    })
+  }
+  return images
 }
 
 function stringAt(value: unknown, ...path: readonly string[]): string | undefined {
@@ -360,6 +437,7 @@ export class ViewModelReducer {
         const errorCode = typeof data.error?.code === 'string' ? data.error.code : undefined
         const meta = data.meta
         const result = resultText(data.message?.content)
+        const images = imagesOf(data.message?.content)
         const status = toolStatusOf({ isError, ...(errorCode === undefined ? {} : { errorCode }), meta })
         const tracked = callId === undefined ? undefined : this.toolCalls.get(callId)
         if (callId !== undefined) this.toolCalls.delete(callId)
@@ -369,6 +447,7 @@ export class ViewModelReducer {
           item.result = result
           if (errorCode !== undefined) item.errorCode = errorCode
           if (meta !== undefined) item.meta = meta
+          if (images.length > 0) item.images = images
           item.durationMs = Date.now() - tracked.startedAt
           return
         }
@@ -376,6 +455,7 @@ export class ViewModelReducer {
           kind: 'tool', name: 'tool', args: '', result, status, time: event.time,
           ...(errorCode === undefined ? {} : { errorCode }),
           ...(meta === undefined ? {} : { meta }),
+          ...(images.length === 0 ? {} : { images }),
         })
         return
       }

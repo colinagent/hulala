@@ -60,6 +60,17 @@ declare module '@deepseek-ai/cordis' {
      * until something else forces one.
      */
     'hulala/output-lost'(reason: LostReason): void
+    /**
+     * The reader activated one link in the conversation.
+     *
+     * A click on a hyperlink is the client's, not the terminal's: mouse
+     * reporting is on, so the terminal never sees the click, and what a link
+     * names is not always something this machine can open — a file named in the
+     * conversation lives in the Host's filesystem, which may be another machine.
+     * Resolving it is a resource question (`data/resource.ts`), not a terminal
+     * one, so this carries the raw target and nothing more.
+     */
+    'hulala/open-resource'(href: string): void
   }
 }
 
@@ -347,6 +358,10 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     // has to land on the clipboard the user pastes from: the terminal's over a
     // remote link, this machine's when the client runs where the user sits.
     copySelection: config.copySelection ?? copySelectedText(data => { terminal.write(data) }),
+    // A press and release on the same cell is a click on the link under it, and
+    // pi-tui hands over the target the frame was drawn with. Without this the
+    // click falls into the selection machinery and a rendered link is decoration.
+    openUrl: href => { ctx.emit('hulala/open-resource', href) },
   })
   // One manager instance, mutated later: `TuiAltScreen` resolves its viewport
   // keys through the globally installed manager on every keystroke.

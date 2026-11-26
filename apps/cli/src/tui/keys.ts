@@ -9,32 +9,32 @@
  *
  * The frame has three columns: the session rail on the left, the conversation in
  * the middle, and one sidebar column on the right — the built-in terminal on
- * `Ctrl-T`, Neovim on `Ctrl-D`. The two sidebar columns are mutually exclusive
- * but keep their own processes while the other is shown. `Ctrl-D` is the editor's
- * toggle because `Ctrl-F` belongs to every program in the frame (forward-char in
- * the composer and a shell, page-down in Neovim). Each column key is a visibility
- * toggle: a painted column is closed by its own key wherever the keyboard is, and
- * `Ctrl-D` asks Neovim to leave before closing it, so unwritten buffers are a
- * question rather than a kill. `Ctrl-Shift-D` is the exception: it puts the rail and the
- * conversation away and leaves Neovim alone, because "just the editor" is a place
- * the reader wants to be, not a toggle they want to nudge.
- * `Ctrl-S` and `Shift-Cmd-C` show or put away the rail and the conversation;
- * the conversation still refuses to hide while the rail and the sidebar are both
- * closed, because there would be nothing left on screen. `Ctrl-Q` exits, in the
- * slot pi gives `Ctrl-D`. `Ctrl-H` / `Ctrl-L` move focus between the
- * columns, with `Shift-Cmd-H` / `Shift-Cmd-L` (and `Ctrl-Shift-H`) behind them for a
- * terminal where a Command chord never arrives, so the moves always leave. `Esc`
- * is the other way out, and the one that needs
- * a rule: Neovim keeps it whenever it has something to cancel (see
+ * `Ctrl-T`, Neovim on `Ctrl-G`. The two sidebar columns are mutually exclusive
+ * but keep their own processes while the other is shown. Every panel has one key
+ * and the key is a cycle: a panel without the keyboard takes it (`Ctrl-D` the
+ * rail, `Ctrl-F` the conversation, `Ctrl-T` the terminal column, `Ctrl-G` the
+ * Neovim column), a panel holding it is put away by the same key, and a panel that
+ * is away comes back with the keyboard on it. `Ctrl-G` asks Neovim to leave before
+ * closing its column, so unwritten buffers are a question rather than a kill. The
+ * frame never loses its last panel: the key that would close the only surface
+ * left says so instead. `Ctrl-Shift-G` is the exception to the cycle: it puts the
+ * rail and the conversation away and leaves Neovim alone, because "just the
+ * editor" is a place the reader wants to be, not a panel they want to nudge.
+ * `Ctrl-Q` exits, in the slot pi gives `Ctrl-D`. `Ctrl-H` and `Ctrl-L` are
+ * nobody's: `<C-h>` is the alternate backspace every readline program honours, so
+ * the input pipeline projects it onto Backspace and leaves `Ctrl-L` to the
+ * program (`tui/plugins/input.ts`). `Esc` is the other way out, and the one that
+ * needs a rule: Neovim keeps it whenever it has something to cancel (see
  * `tui/pane/focus.ts`) and the terminal keeps it while a full-screen program owns
  * the alternate screen. `Ctrl-W` is not intercepted while a column has focus, so
- * Neovim's window prefix works; the column keys do take `<C-t>` and `<C-d>` from
- * Neovim, which is the price of naming the columns.
+ * Neovim's window prefix works; the panel keys do take `<C-t>`, `<C-f>` and
+ * `<C-g>` from a focused program, which is the price of naming the panels.
  *
- * The Command chords are only delivered by a terminal that took the Kitty
- * keyboard report (see `tui/terminal.ts`), which is why every one of them has a
- * second spelling or a slash-command equal: `/rail`, `/chat`, `/nvim`,
- * `/commands` and `/sessions`.
+ * The panel keys are single control letters, so every terminal reports them and
+ * no Kitty keyboard report is needed to move between panels. The Command chords
+ * (the palette, the dividers, Neovim-only mode) are only delivered by a terminal
+ * that took that report (see `tui/terminal.ts`), which is why each of them has a
+ * slash-command equal: `/nvim` and `/commands`.
  *
  * @module hulala-cli/tui/keys
  */
