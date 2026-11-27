@@ -15,7 +15,7 @@
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { resolveRuntimePaths } from '@hulala/runtime'
 import { PROFILE_NAME, seedHostProfile } from '@hulala/runtime/host'
@@ -172,25 +172,43 @@ export async function runHostPluginCommand(args: string[]): Promise<number> {
     dsh?: { profile?: { bundles?: string[] } }
   }
   console.log(`profile ${profile}: ${(manifest.dsh?.profile?.bundles ?? []).join(', ')}`)
-  return await verifyActivation(profile, installedNames(rest, manifest), restart)
+  return await verifyActivation(profile, await installedNames(rest, manifest, profileDir), restart)
 }
 
 /**
  * Package names an install command names, as the profile now spells them.
  * @param rest - forwarded arguments (`add <spec>...`).
  * @param manifest - profile manifest after the operation.
+ * @param profileDir - profile directory, to resolve a path spec.
  * @returns bare package names the operation installed.
  */
-function installedNames(rest: readonly string[], manifest: { dependencies?: Record<string, string> }): string[] {
+async function installedNames(
+  rest: readonly string[],
+  manifest: { dependencies?: Record<string, string> },
+  profileDir: string,
+): Promise<string[]> {
   const command = rest.find(argument => !argument.startsWith('-'))
   if (command !== 'add' && command !== 'install' && command !== 'i') return []
   const specs = rest.filter(argument => !argument.startsWith('-') && argument !== command)
-  // `pkg@1`, `@scope/pkg@1` and `link:/path` all reduce to the manifest key:
-  // the version separator is the first `@` after the name itself.
-  const names = specs.map(spec => {
+  const names = await Promise.all(specs.map(async spec => {
+    // A path spec names a directory, not a package: the only honest way to
+    // learn which row it installs is to read the manifest it points at.
+    if (spec.startsWith('link:') || spec.startsWith('file:')) {
+      const target = spec.replace(/^(?:link|file):/u, '')
+      const directory = isAbsolute(target) ? target : resolve(profileDir, target)
+      try {
+        const pkg = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as { name?: unknown }
+        if (typeof pkg.name === 'string') return pkg.name
+      } catch {
+        // Not a package directory; nothing to verify against.
+      }
+      return spec
+    }
+    // `pkg@1` and `@scope/pkg@1` reduce to the manifest key: the version
+    // separator is the first `@` after the name itself.
     const version = spec.indexOf('@', spec.startsWith('@') ? 1 : 0)
     return version > 0 ? spec.slice(0, version) : spec
-  })
+  }))
   const declared = new Set(Object.keys(manifest.dependencies ?? {}))
   return names.filter(name => declared.has(name))
 }
@@ -215,7 +233,7 @@ async function verifyActivation(profile: string, names: readonly string[], resta
       : `The Host is ${inspected.state}; restart it before relying on this change.`)
     return 0
   }
-  const before = activeVersions(inspected.state === 'running' ? inspected.health.plugins : undefined)
+  const before = activeVersions(inspected.health.plugins)
   if (restart) {
     await stopHost()
     const health = await attachHost().then(() => inspectHost())
@@ -223,9 +241,9 @@ async function verifyActivation(profile: string, names: readonly string[], resta
       process.stderr.write('hulala: the Host did not come back after the restart.\n')
       return 1
     }
-    return report(activeVersions(health.state === 'running' ? health.health.plugins : undefined), names, 'after the restart')
+    return report(activeVersions(health.health.plugins), names, 'after the restart', true)
   }
-  return report(before, names, `in the running Host (pid ${String(inspected.record.pid)})`)
+  return report(before, names, `in the running Host (pid ${String(inspected.record.pid)})`, false)
 }
 
 /** Module → loaded version, from one Host health document. */
@@ -236,27 +254,70 @@ function activeVersions(plugins: readonly { module: string, version: string, sta
 }
 
 /**
+ * The row a package name refers to.
+ *
+ * A bundle's Loader row is named by the module it inserts, which may be a
+ * subpath export — `@colinagent/hulala-bot` enters as
+ * `@colinagent/hulala-bot/plugin`. Comparing the bare package name alone
+ * reported a perfectly active bot as "not loaded", so a package owns every row
+ * whose module is the name itself or sits below it.
+ * @param loaded - module → state from the Host.
+ * @param name - package name from the install spec.
+ * @returns that package's row, if the Host loaded one.
+ */
+function rowOf(
+  loaded: Map<string, { version: string, state: string }>,
+  name: string,
+): { version: string, state: string } | undefined {
+  const exact = loaded.get(name)
+  if (exact !== undefined) return exact
+  for (const [module, row] of loaded) {
+    if (module.startsWith(`${name}/`)) return row
+  }
+  return undefined
+}
+
+/**
  * Print the difference between a profile and the live roster.
+ *
+ * An install that succeeded and a Host that has not restarted yet are two
+ * different things, and only the second is a failure — of `--restart`, which
+ * promises exactly that. Plain `add` therefore reports and exits 0: `hulala
+ * install bot` runs it, and a machine that happens to have a Host running must
+ * not report a failed install because of a restart it never asked for.
  * @param loaded - module → state from the Host.
  * @param names - packages the operation installed.
  * @param where - how to describe the observed Host.
- * @returns non-zero when a named package is not active there.
+ * @param required - whether this command promised the change would be live.
+ * @returns non-zero only when `required` and a named package is not active.
  */
-function report(loaded: Map<string, { version: string, state: string }>, names: readonly string[], where: string): number {
+function report(
+  loaded: Map<string, { version: string, state: string }>,
+  names: readonly string[],
+  where: string,
+  required: boolean,
+): number {
   if (names.length === 0) return 0
-  const missing = names.filter(name => loaded.get(name)?.state !== 'active')
+  const missing = names.filter(name => rowOf(loaded, name)?.state !== 'active')
   if (missing.length === 0) {
     console.log(`Loaded ${names.join(', ')} ${where}.`)
     return 0
   }
+  // "Not loaded yet" and "loaded and broken" need different advice: restarting
+  // fixes only the first, and telling someone to restart a Host that already
+  // tried is how a real failure reads as a stale process.
+  let stale = false
   for (const name of missing) {
-    const row = loaded.get(name)
-    process.stderr.write(row === undefined
-      ? `hulala: ${name} is not loaded ${where}; it was installed after that Host booted.\n`
-      : `hulala: ${name}@${row.version} is ${row.state} ${where}, while the profile names a newer install.\n`)
+    const row = rowOf(loaded, name)
+    if (row === undefined) {
+      stale = true
+      process.stderr.write(`hulala: ${name} is installed but not loaded ${where}; that Host started before it.\n`)
+      continue
+    }
+    process.stderr.write(`hulala: ${name}@${row.version} is ${row.state} ${where}; the Host log names the reason.\n`)
   }
-  process.stderr.write('hulala: restart the Host to load the change (`hulala host stop && hulala host start`), or pass --restart.\n')
-  return 1
+  if (stale) process.stderr.write('hulala: restart the Host to load it (`hulala host stop && hulala host start`), or pass --restart next time.\n')
+  return required ? 1 : 0
 }
 
 /** The first-party chat bot, installed like any other Host plugin. */

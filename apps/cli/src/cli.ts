@@ -55,9 +55,10 @@ async function runHostCommand(args: string[]): Promise<number> {
       return 0
     }
     // A Host whose declared composition did not fully activate still answers,
-    // so the roster travels with the rest of its facts: `plugins` is what it
-    // loaded, `degraded` is what it promised and did not. Exit stays 0 because
-    // remote probes parse this document and treat a non-zero exit as unreachable.
+    // so the difference travels with the rest of its facts. Only the rows a
+    // reader can act on are printed — the full roster is a health document, not
+    // something to paste into a terminal. Exit stays 0 because remote probes
+    // parse this document and treat a non-zero exit as unreachable.
     const degraded = inspected.state === 'running' ? inspected.health.degraded ?? [] : []
     console.log(JSON.stringify({
       state: inspected.state,
@@ -66,9 +67,7 @@ async function runHostCommand(args: string[]): Promise<number> {
       version: inspected.record.version,
       instanceId: inspected.record.descriptor.instanceId,
       httpUrl: inspected.record.descriptor.httpUrl,
-      ...(inspected.state === 'running'
-        ? { plugins: (inspected.health.plugins ?? []).length, degraded }
-        : {}),
+      ...(degraded.length > 0 ? { degraded } : {}),
     }, null, 2))
     if (degraded.length > 0) {
       const rows = degraded.map(row => `${row.module}@${row.version} (${row.state})`).join(', ')

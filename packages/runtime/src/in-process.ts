@@ -10,6 +10,7 @@ import { loadLayeredEnv, loadOptionalPatches, loadProfile, reportSkippedBundles 
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { runProfile } from '@deepseek-ai/dsh/profile-boot'
 import { readCreatorMode } from './creator.js'
+import { PROFILE_SKIPS_SERVICE } from './profile-skips.js'
 import {
   ensureRuntimePaths,
   resolveRuntimePaths,
@@ -549,6 +550,8 @@ function nestedErrorMessages(error: unknown): string[] {
  * readiness after the tree settles. None of that belongs to us, and a second
  * implementation is how the Host silently lost all of it.
  */
+export { PROFILE_SKIPS_SERVICE, type ProfileSkip } from './profile-skips.js'
+
 export async function bootRepositoryHarness(
   options: InProcessHarnessOptions,
 ): Promise<InProcessHarnessHandle> {
@@ -582,6 +585,10 @@ export async function bootRepositoryHarness(
       args: ['--host', '127.0.0.1', '--port', String(options.webPort ?? 0), '--no-open'],
     })
     ctx = booted.ctx
+    // The gate's verdict exists only as a stderr line otherwise: a bundle it
+    // skipped never becomes a Loader entry, so the Host's roster cannot see the
+    // one class of failure that happens before the tree is mounted.
+    ctx.provide(PROFILE_SKIPS_SERVICE, profile.skippedBundles.map(skip => ({ name: skip.packageName, reason: skip.reason })))
     currentState = 'running'
     let stopped = false
     return {

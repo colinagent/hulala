@@ -17,15 +17,17 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 - `hulala host status` reports what the running Host loaded: a bounded `plugins`
   roster with each entry's module, version and state, and `degraded` naming the
-  entries that did not activate. The Host reads it from the live Loader, so a
-  bundle that never started is visible without reading a log file.
+  entries that did not activate — including bundles the compatibility gate
+  refused before the tree was mounted. The Host reads it from the live Loader,
+  so a bundle that never started is visible without reading a log file.
 - `hulala doctor` checks the installation instead of describing it: a profile
   `link:` whose runtime version no longer exists, a running Host that does not
   report a roster, and any entry that is not active. It exits non-zero when it
   finds one, so a script can gate on it.
 - `hulala plugin ... add <package> --restart` restarts a running Host and fails
   when the installed package is still not active. Without the flag the command
-  says which version the running Host has, instead of only asking for a restart.
+  reports what that Host loaded — installed-but-not-loaded, or the state it
+  failed with — and still exits 0, because the install itself succeeded.
   `hulala host start` also reports whether it started a Host or found one already
   answering.
 

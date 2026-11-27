@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { doctorProblems } from '../src/doctor.ts'
+import { diagnose } from '../src/doctor.ts'
 
 /** Run one check against an injected state root, restoring the environment. */
 async function withRoot(run: (root: string) => Promise<void>): Promise<void> {
@@ -41,8 +41,9 @@ test('names a profile link whose runtime version was pruned', async () => {
       '@colinagent/dsh-mcp': `link:${live}`,
       '@colinagent/hulala-bot': `link:${pruned}`,
     })
-    const problems = await doctorProblems(root)
+    const { problems, warnings } = await diagnose(root)
     assert.equal(problems.length, 1)
+    assert.equal(warnings.length, 0)
     assert.equal(problems[0]?.check, 'profile-link')
     // The detail has to name the package and the path: "a link is broken" is
     // not enough to find the row that a `hulala plugin add` wrote.
@@ -56,6 +57,8 @@ test('a healthy profile with no Host running has nothing to report', async () =>
     const live = join(root, 'runtime', 'client', 'versions', 'live', 'runtime', 'node_modules', '@colinagent', 'dsh-mcp')
     await mkdir(live, { recursive: true })
     await writeProfile(root, { '@colinagent/dsh-mcp': `link:${live}`, 'plain-package': '^1.0.0' })
-    assert.deepEqual(await doctorProblems(root), [])
+    // No Host is running in this test, so the check reports nothing broken and
+    // nothing it could not prove: `hulala doctor` prints "ok" and exits 0.
+    assert.deepEqual(await diagnose(root), { problems: [], warnings: [] })
   })
 })

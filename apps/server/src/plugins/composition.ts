@@ -17,6 +17,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
+import { PROFILE_SKIPS_SERVICE } from '@hulala/runtime/host'
 import type { PluginState } from '@hulala/host-client/node'
 
 /** One bounded read of the live composition. */
@@ -87,9 +88,22 @@ export function readComposition(ctx: Context): Composition {
     }
     rows.push({ id: entry.id, module, version, state })
   }
-  const degraded = rows.filter(row => row.state !== 'active' && row.state !== 'disabled')
-  const suite = rows.filter(row => row.state === 'active' && row.module.startsWith(SUITE_SCOPE))
-  const rest = rows.filter(row => !degraded.includes(row) && !suite.includes(row))
+  // Bundles the compatibility gate skipped never reach the Loader, so they are
+  // not among `rows`; they are the one failure that happens before the tree is
+  // mounted and the one a roster alone would miss.
+  const skipped: PluginState[] = (ctx.get(PROFILE_SKIPS_SERVICE) ?? []).map(skip => ({
+    id: `skipped:${skip.name}`,
+    module: skip.name,
+    version: 'unknown',
+    state: 'skipped',
+  }))
+  const degraded = [
+    ...skipped,
+    ...rows.filter(row => row.state !== 'active' && row.state !== 'disabled'),
+  ]
+  const live = rows.filter(row => row.state === 'active')
+  const suite = live.filter(row => row.module.startsWith(SUITE_SCOPE))
+  const rest = live.filter(row => !suite.includes(row))
   return {
     // Failures and our own suite first: those are the rows a client acts on.
     plugins: [...degraded, ...suite, ...rest].slice(0, MAX_ROWS),

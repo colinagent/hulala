@@ -23,26 +23,42 @@ export interface Problem {
   readonly detail: string
 }
 
+/** What one doctor run found. */
+export interface Diagnosis {
+  /** Things that are broken now; a non-zero exit is about these. */
+  readonly problems: readonly Problem[]
+  /** Things that limit what this command can prove, but are not broken. */
+  readonly warnings: readonly Problem[]
+}
+
 /**
  * Check the profile on disk and the Host that is actually running.
  * @param data - the Hulala state root.
- * @returns every problem found; empty means the suite looks loaded.
+ * @returns broken links and inactive entries as problems, and anything that
+ * keeps the check from being conclusive as a warning.
  */
-export async function doctorProblems(data: string): Promise<Problem[]> {
-  const problems: Problem[] = [...profileLinks(resolveRuntimePaths({ root: data }))].map(detail => ({ check: 'profile-link', detail }))
+export async function diagnose(data: string): Promise<Diagnosis> {
+  const problems: Problem[] = profileLinks(resolveRuntimePaths({ root: data }))
+    .map(detail => ({ check: 'profile-link', detail }))
+  const warnings: Problem[] = []
   const inspected = await inspectHost()
-  if (inspected.state !== 'running') return problems
+  if (inspected.state !== 'running') return { problems, warnings }
   const { health } = inspected
   if (health.plugins === undefined) {
-    problems.push({
+    // An older Host cannot report, which is not the same news as a broken one:
+    // it is a reason this run proves less, not a reason to fail an install.
+    warnings.push({
       check: 'host-composition',
-      detail: `the running Host (pid ${String(inspected.record.pid)}) reports no plugin roster; it predates this check, so nothing can confirm what it loaded`,
+      detail: `the running Host (pid ${String(inspected.record.pid)}) predates this check, so nothing confirms what it loaded; restart it after the next update`,
     })
   }
   for (const row of health.degraded ?? []) {
-    problems.push({ check: 'host-degraded', detail: `${row.module}@${row.version} is ${row.state} in the running Host (pid ${String(inspected.record.pid)})` })
+    problems.push({
+      check: 'host-degraded',
+      detail: `${row.module}@${row.version} is ${row.state} in the running Host (pid ${String(inspected.record.pid)})`,
+    })
   }
-  return problems
+  return { problems, warnings }
 }
 
 /**
@@ -54,7 +70,8 @@ export async function doctorProblems(data: string): Promise<Problem[]> {
  * @returns one line per broken link.
  */
 function profileLinks(paths: ReturnType<typeof resolveRuntimePaths>): string[] {
-  const manifestPath = join(paths.harnessDir, 'profiles', PROFILE_NAME, 'package.json')
+  const profileDir = join(paths.harnessDir, 'profiles', PROFILE_NAME)
+  const manifestPath = join(profileDir, 'package.json')
   if (!existsSync(manifestPath)) return []
   let dependencies: Record<string, string> = {}
   try {
@@ -63,13 +80,12 @@ function profileLinks(paths: ReturnType<typeof resolveRuntimePaths>): string[] {
   } catch {
     return [`${manifestPath} is not readable JSON`]
   }
-  const profileDir = join(paths.harnessDir, 'profiles', PROFILE_NAME)
   const broken: string[] = []
   for (const [name, spec] of Object.entries(dependencies)) {
     if (!spec.startsWith('link:')) continue
     const target = spec.slice('link:'.length)
     const path = isAbsolute(target) ? target : resolve(profileDir, target)
-    if (!existsSync(path)) broken.push(`${name} links ${path}, which no longer exists (start the Host once to repair it)`)
+    if (!existsSync(path)) broken.push(`${name} links ${path}, which no longer exists (starting the Host once repairs it)`)
   }
   return broken
 }
