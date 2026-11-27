@@ -13,6 +13,34 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Changed
+
+- The footer no longer appends the Session's permission preset after the model.
+  It read as configuration in a row of running figures, and on a narrow terminal
+  it clipped the route it followed. The preset stays where it is asked for:
+  `/permission` for the picker, `/status` for the `permission` and `default`
+  rows.
+
+### Fixed
+
+- A tool-result picture stays on screen while any part of it is still in view.
+  Scrolling until the picture's first row left the conversation viewport used to
+  take the whole image with it, leaving the card's blank fill behind: the
+  renderer searched upward for the placement and stopped at the first card row
+  that had any content at all. Lifting `@earendil-works/pi-tui` to 1.6.1 brings
+  the layout that scans past those rows and crops the placement to the rows still
+  visible, so the rest of the picture keeps drawing — its top cut off, not gone.
+
+- Running the tests no longer changes the developer's keyboard input source. The
+  end-to-end suites start a real client on a pty with a temporary `HULALA_HOME`,
+  and that client published its input-source helper into the temp root and then
+  used it: one `bun run test` on macOS selected a real system input source 21
+  times in seven seconds, and a third-party input method re-registers its own
+  shortcuts every time it is selected again (Doubao IME answers with a "shortcut
+  conflict" notice). A window whose state root is a temporary directory is an
+  automated run and no longer takes the input source at all; `HULALA_INPUT_SOURCE`
+  (`0` / `1`) states the answer explicitly.
+
 ## [0.3.37] - 2026-11-27
 
 ### Fixed

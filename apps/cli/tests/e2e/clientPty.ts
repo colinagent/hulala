@@ -171,6 +171,11 @@ export async function startClient(options: StartClientOptions): Promise<ClientPt
         HULALA_HOME: options.home,
         TERM: 'xterm-ghostty',
         HULALA_LANG: 'en',
+        // The client would otherwise select a system input source on every focus
+        // edge: a pty run of a real client is still a test, and the developer's
+        // keyboard belongs to the developer. (The temp state root already
+        // forbids it; this states the intent where the client is started.)
+        HULALA_INPUT_SOURCE: '0',
       },
       terminal: {
         cols: options.cols ?? 100,

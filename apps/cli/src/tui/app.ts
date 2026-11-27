@@ -43,6 +43,7 @@ import { collect, handoffInvocation, spawnHandoff } from '../spawn.js'
 import { createTerminalKernel, provideBackend, type TerminalKernel } from './kernel.js'
 import { composerPlugin } from './plugins/composer.js'
 import { editorPlugin } from './plugins/editor.js'
+import { inputSourceAllowed } from './editor/inputSourcePolicy.js'
 import { focusPlugin } from './plugins/focus.js'
 import { imePlugin } from './plugins/ime.js'
 import { keymapPlugin } from './plugins/keymap.js'
@@ -298,7 +299,13 @@ export async function runTerminalClient(options: RunTerminalOptions): Promise<nu
     await ctx.plugin(editorPlugin)
     // The input source is a window-wide fact: the rail and both sidebar columns
     // ask it for English while they own the keyboard, so it loads before them.
-    await ctx.plugin(imePlugin, { live: ownsTerminal(options) })
+    // Selecting a system source is machine-wide, so an injected-stream window and
+    // an automated one (a temporary state root, where the end-to-end suites run a
+    // real client on a pty) are both excluded: a test must not change the
+    // developer's keyboard.
+    await ctx.plugin(imePlugin, {
+      live: ownsTerminal(options) && inputSourceAllowed({ dataRoot }),
+    })
     // Ordered by dependency: each row injects only what a row above it provides,
     // so no plugin spends its first tick pending on a later one.
     await ctx.plugin(overlaysPlugin, { color: colorEnabled(), debug: debugLog })
