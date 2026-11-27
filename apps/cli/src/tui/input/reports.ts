@@ -70,6 +70,31 @@ const WINDOW_REPORT = /^\u001b\[(?!6;)\d+(?:;\d+)*t$/u
 const DAMAGED_MOUSE = /^\d{1,4}(?:;\d{1,4}){1,2}[Mm]$/u
 
 /**
+ * A focus report: `ESC [ I` when the window gained the keyboard, `ESC [ O` when
+ * it lost it.
+ *
+ * The client keeps `?1004` on because it is the only way a terminal program can
+ * learn that nobody is looking at it: while the window is in the background, the
+ * input-source ownership must not change the machine's keyboard layout for the
+ * surface that happens to hold focus inside it. The report is still not a key —
+ * it is consumed here, before every other reading of the bytes, and only its
+ * meaning (focused or not) travels on.
+ */
+const FOCUS_REPORT = /^\u001b\[([IO])$/u
+
+/**
+ * Whether one delivered piece is a focus report.
+ * @param data - one complete piece from {@link InputParser}.
+ * @returns true when the window gained focus, false when it lost it, undefined
+ *   for anything else.
+ */
+export function focusReportOf(data: string): boolean | undefined {
+  const match = FOCUS_REPORT.exec(data)
+  if (match === null) return undefined
+  return match[1] === 'I'
+}
+
+/**
  * Whether one delivered piece is a terminal report that nobody claimed.
  * @param data - one complete piece from {@link InputParser}.
  * @returns true when the frame must swallow it instead of typing it.

@@ -31,6 +31,15 @@ that version has no section. Releases before 0.2.30 are not recorded.
   the layout that scans past those rows and crops the placement to the rows still
   visible, so the rest of the picture keeps drawing — its top cut off, not gone.
 
+- A window in the background no longer changes the machine's keyboard input
+  source. The client kept `?1004` off, so it could not tell whether anyone was
+  looking at it; an approval card or a selector appearing in an unfocused window
+  selected a real system input source while the user was typing somewhere else,
+  and the user's own source came back only when that surface went away. Focus
+  reports are kept on now, read in the terminal wrapper before the screen sees
+  them, and the input-source ownership holds its claim only while the window is
+  in front: losing the window gives the user's source back at once, and a
+  background policy change calls nothing at all.
 - Running the tests no longer changes the developer's keyboard input source. The
   end-to-end suites start a real client on a pty with a temporary `HULALA_HOME`,
   and that client published its input-source helper into the temp root and then

@@ -3974,19 +3974,24 @@ test('the frame asks for button motion only, so a trackpad does not flood input'
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('focus reports are turned off, so a screenshot does not type them', async () => {
+test('focus reports are consumed, so a screenshot does not type them', async () => {
   // `ESC [ I` and `ESC [ O` arrive whenever the window's focus changes — taking a
-  // screenshot, clicking another window — and each is a sequence that can be
-  // split and typed. The adapter never lets the enable through, and clears any
-  // state a previous program left behind.
+  // screenshot, clicking another window. They are what tells the input-source
+  // ownership that nobody is looking at this window, so the mode stays on; the
+  // bytes are still consumed (the wrapper reads them first, the screen consumes
+  // them afterwards), which is what keeps them out of the composer.
   const tty = startTty(fakeBackend())
   await waitFor(() => tty.painted().includes('❯'), 'composer')
-  expect(tty.painted()).not.toContain('\u001b[?1004h')
-  expect(tty.painted()).toContain('\u001b[?1004l')
-  // And the key itself reaches nobody: the composer keeps only what was typed.
+  expect(tty.painted()).toContain('\u001b[?1004h')
+  expect(tty.painted()).not.toContain('\u001b[?1003h')
   tty.input.write('\u001b[I')
+  tty.input.write('\u001b[O')
   await new Promise(resolve => setTimeout(resolve, 120))
+  // Neither report is text, and neither is a key the composer or a panel acted on.
   expect(tty.painted()).not.toContain('[I')
+  expect(tty.painted()).not.toContain('[O')
+  tty.input.write('/status\r')
+  await waitFor(() => plain(tty.painted()).includes('hulala  v'), '/status still runs')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

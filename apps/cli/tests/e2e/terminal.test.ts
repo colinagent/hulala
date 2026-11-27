@@ -43,15 +43,16 @@ async function withClient(run: (client: ClientPty) => Promise<void>): Promise<vo
   }
 }
 
-e2e('the frame refuses all-motion and focus reports, and restores the terminal', async () => {
+e2e('the frame refuses bare motion, keeps focus reporting, and restores the terminal', async () => {
   await withClient(async (client) => {
     const modes = client.mouseModes()
-    // The renderer asks for both; the adapter refuses the enables. A disable is
-    // still written, for a terminal a previous program left in those modes.
+    // Bare motion is refused; a disable is still written, for a terminal a
+    // previous program left in that mode. Focus reporting is kept on — it is how
+    // the client learns nobody is looking at this window — and the wrapper reads
+    // the reports before the screen consumes them, so they are never typed.
     expect(modes).not.toContain('1003h')
-    expect(modes).not.toContain('1004h')
     expect(modes).toContain('1003l')
-    expect(modes).toContain('1004l')
+    expect(modes).toContain('1004h')
     expect(modes).toContain('1002h')
     expect(modes).toContain('1006h')
 

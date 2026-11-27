@@ -15,7 +15,7 @@
 import { appendFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deleteKittyImage } from '@earendil-works/pi-tui'
-import { FOCUS_OFF, MOTION_OFF } from './terminal/modes.js'
+import { FOCUS_ON, MOTION_OFF } from './terminal/modes.js'
 import { createInterface } from 'node:readline'
 import { VERSION } from '../constants.js'
 import type {
@@ -626,11 +626,13 @@ async function runInteractive(options: RunTerminalOptions, exitProcess: boolean)
   // would then scroll the alternate screen as Up/Down keys — which is history
   // recall in the composer, not a moving transcript.
   terminal.write(MOTION_OFF)
-  // Focus reports (`ESC [ I`, `ESC [ O`) fire whenever the window's focus
-  // changes — a screenshot, a click elsewhere — and each one is another sequence
-  // that can be split and typed. pi-tui uses `ESC[O` to drop a drag in progress,
-  // but with bare motion off that is a smaller loss than the garbage is.
-  terminal.write(FOCUS_OFF)
+  // Focus reports (`ESC [ I`, `ESC [ O`) say whether anyone is looking at this
+  // window. They are kept on and parsed in the terminal wrapper before the
+  // screen sees them (`terminal.ts`'s `onFocusReport`): the input-source
+  // ownership must not switch the machine's keyboard for a window in the
+  // background, and that is the only signal a terminal program gets. The bytes
+  // still reach pi-tui afterwards, which consumes them — they are never typed.
+  terminal.write(FOCUS_ON)
   ui.start()
   ctx.hulalaInteractions.arm()
   // The language picker (when the language is unset) is a first-frame surface:

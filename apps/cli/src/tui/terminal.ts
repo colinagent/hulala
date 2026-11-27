@@ -29,6 +29,7 @@
  */
 import { formatProgramStatus, type ProgramStatus, type Terminal } from '@earendil-works/pi-tui'
 import { InputParser } from './input/parse.js'
+import { focusReportOf } from './input/reports.js'
 import { filterUnusedModes, POP_KEYBOARD_PROTOCOL, PUSH_DISAMBIGUATE } from './terminal/modes.js'
 import {
   DEFAULT_ESCAPE_TIMEOUT_MS,
@@ -108,6 +109,8 @@ export class StreamTerminal implements Terminal {
   private readonly trace: ((line: string) => void) | undefined
   private inputHandler: ((data: string) => void) | undefined
   private resizeHandler: (() => void) | undefined
+  /** Hears `?1004` reports; the screen must never see the bytes first. */
+  private focusHandler: ((focused: boolean) => void) | undefined
   /** The terminal went away (the window was closed or the pty was lost). */
   private hangupHandler: (() => void) | undefined
   private endData: (() => void) | undefined
@@ -158,6 +161,19 @@ export class StreamTerminal implements Terminal {
     this.hangupHandler = handler
   }
 
+  /**
+   * Hear the terminal window's focus reports (`?1004`).
+   *
+   * A terminal program cannot know whether anyone is looking at it any other
+   * way, and the input-source ownership must not change the machine's keyboard
+   * for a window in the background. A terminal that never reports leaves the
+   * handler silent, which reads as "focused" everywhere.
+   * @param handler - called with the new state for each report.
+   */
+  onFocusReport(handler: (focused: boolean) => void): void {
+    this.focusHandler = handler
+  }
+
   start(onInput: (data: string) => void, onResize: () => void): void {
     this.inputHandler = onInput
     this.resizeHandler = onResize
@@ -185,7 +201,19 @@ export class StreamTerminal implements Terminal {
       const text = String(chunk)
       this.trace?.(`raw ${JSON.stringify(text)}`)
       if (this.trace !== undefined) this.traceReadGap()
-      for (const piece of this.parser?.push(text) ?? []) this.deliver(piece)
+      for (const piece of this.parser?.push(text) ?? []) {
+        // The window's focus is state, not a key: the client's input-source
+        // ownership needs it, and the screen would otherwise consume it before
+        // any listener of ours could see it (`TuiAltScreen` registers its own
+        // listener first). It still reaches the screen afterwards, so pi-tui's
+        // drag cleanup on blur keeps working — and is consumed there, never typed.
+        const focused = focusReportOf(piece)
+        if (focused !== undefined) {
+          this.trace?.(`focus ${focused ? 'in' : 'out'}`)
+          this.focusHandler?.(focused)
+        }
+        this.deliver(piece)
+      }
       // A tail whose escape was already handed on is dropped, never typed; the
       // trace keeps the evidence for a machine whose read boundaries change.
       for (const dropped of this.parser?.takeDrops() ?? []) this.trace?.(`drop ${JSON.stringify(dropped)}`)

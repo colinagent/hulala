@@ -3,10 +3,11 @@
  *
  * A terminal mode is the client's promise to consume what it asks for. pi-tui
  * owns a generic TUI's needs and enables mouse + focus reporting on start; this
- * client uses button-motion mouse reports (its own UI) but consumes neither bare
- * motion (`?1003`) nor focus reports (`?1004`). Every unused mode is another
- * sequence that can be cut by a read and typed as text, so the adapter filters
- * the enable sequences out of everything written and writes their disables
+ * client keeps button-motion mouse reports (its own UI) and focus reports (which
+ * surface is in front, so a background window can leave the machine's input
+ * source alone) and refuses only bare motion (`?1003`). Every unused mode is
+ * another sequence that can be cut by a read and typed as text, so the adapter
+ * filters the refused enable out of everything written and writes its disable
  * before the renderer asks for the ones it keeps.
  *
  * Enable, disable and restore live here so a mode cannot be switched on in one
@@ -28,27 +29,28 @@ export const POP_KEYBOARD_PROTOCOL = '\u001b[<u'
  *
  * Button motion (`?1002`) keeps clicks, drags, selections and the wheel while a
  * trackpad no longer reports every bare movement. SGR (`?1006`) is the report
- * encoding the renderer parses.
+ * encoding the renderer parses. Focus (`?1004`) is the only way a terminal
+ * program can learn that its window lost the keyboard: the two reports are
+ * consumed by the input pipeline (`../input/reports.ts`), never typed, and the
+ * input-source ownership asks them before it touches the machine.
  */
 const USED_MODES = [
   { name: 'button-motion', enable: '\u001b[?1002h', disable: '\u001b[?1002l' },
   { name: 'sgr-mouse', enable: '\u001b[?1006h', disable: '\u001b[?1006l' },
+  { name: 'focus', enable: '\u001b[?1004h', disable: '\u001b[?1004l' },
 ] as const
 
 /**
  * Modes the client refuses.
  *
  * All-motion tracking (`?1003`) makes every pointer movement a report — hundreds
- * a second on a trackpad, each one a chance to be split by a read. Focus
- * reporting (`?1004`) fires on every window focus change (a screenshot, a click
- * elsewhere) and nothing in the frame needs it. pi-tui enables both on a terminal
- * it does not recognise as a multiplexer, so the adapter strips the enables and
- * writes the disables itself — see {@link MOTION_OFF} for why the order of those
- * two writes is part of the contract.
+ * a second on a trackpad, each one a chance to be split by a read. pi-tui enables
+ * it on a terminal it does not recognise as a multiplexer, so the adapter strips
+ * the enable and writes the disable itself — see {@link MOTION_OFF} for why the
+ * order of those two writes is part of the contract.
  */
 const UNUSED_MODES = [
   { name: 'all-motion', enable: '\u001b[?1003h', disable: '\u001b[?1003l' },
-  { name: 'focus', enable: '\u001b[?1004h', disable: '\u001b[?1004l' },
 ] as const
 
 /**
@@ -62,13 +64,15 @@ const UNUSED_MODES = [
 export const MOTION_OFF = UNUSED_MODES[0].disable
 
 /**
- * Turn focus reporting off; also clears a previous program's state.
+ * Turn focus reporting on before the renderer starts.
  *
- * Unlike the mouse modes this one is its own flag, so it may follow the
- * renderer's enable; it is still written with {@link MOTION_OFF} so one place
- * owns the order.
+ * The client writes this itself rather than waiting for pi-tui's group: the two
+ * reports are what tell a background window to leave the input source alone, and
+ * a mode that only some renderers enable would silently take that ability away.
+ * Written after {@link MOTION_OFF} and before `ui.start()`, so no mouse reset of
+ * a previous program can clear it afterwards.
  */
-export const FOCUS_OFF = UNUSED_MODES[1].disable
+export const FOCUS_ON = USED_MODES[2].enable
 
 /** The mouse modes the client keeps on, for the frame and for tests. */
 export const KEPT_MODE_SEQUENCES: readonly string[] = USED_MODES.map(mode => mode.enable)
@@ -80,15 +84,15 @@ export const KEPT_MODE_SEQUENCES: readonly string[] = USED_MODES.map(mode => mod
  * mode left on by an older client could not be cleared. The pattern mirrors
  * {@link UNUSED_MODES}; `modes.test.ts` asserts the two agree.
  */
-const UNUSED_ENABLE = /\u001b\[\?(?:1003|1004)h/gu
+const UNUSED_ENABLE = /\u001b\[\?1003h/gu
 
 /**
  * Remove the enable sequences of modes this client does not consume.
  *
  * Applied to every write, because the renderer writes the group itself and a
  * future renderer may write it again. A partial sequence split across two writes
- * cannot be filtered here; the explicit disables in {@link MOTION_OFF} and
- * {@link FOCUS_OFF} at start cover that case.
+ * cannot be filtered here; the explicit disable in {@link MOTION_OFF} at start
+ * covers that case.
  * @param text - bytes bound for the outer terminal.
  * @returns the same bytes without the refused enables.
  */

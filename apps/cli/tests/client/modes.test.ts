@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import {
-  FOCUS_OFF,
+  FOCUS_ON,
   filterUnusedModes,
   KEPT_MODE_SEQUENCES,
   MOTION_OFF,
@@ -16,9 +16,10 @@ test('the renderer cannot switch on a mode the client does not consume', () => {
   expect(filtered).toContain('\u001b[?1000h')
   expect(filtered).toContain('\u001b[?1002h')
   expect(filtered).toContain('\u001b[?1006h')
-  // All-motion and focus reporting are refused, not enabled-then-disabled.
+  // All-motion is refused, not enabled-then-disabled; focus reporting is kept,
+  // because it is the only signal a background window gets.
   expect(filtered).not.toContain('\u001b[?1003h')
-  expect(filtered).not.toContain('\u001b[?1004h')
+  expect(filtered).toContain('\u001b[?1004h')
 })
 
 test('the filter never eats a disable or ordinary output', () => {
@@ -31,12 +32,15 @@ test('the filter never eats a disable or ordinary output', () => {
 test('the used modes are exactly the sequences the filter leaves', () => {
   expect(filterUnusedModes(KEPT_MODE_SEQUENCES.join(''))).toBe(KEPT_MODE_SEQUENCES.join(''))
   expect(KEPT_MODE_SEQUENCES.join('')).not.toContain('1003')
-  expect(KEPT_MODE_SEQUENCES.join('')).not.toContain('1004')
+  expect(KEPT_MODE_SEQUENCES.join('')).toContain('1004')
 })
 
-test('the neutralizers are the disables of the refused modes', () => {
+test('the bare-motion neutralizer is its disable, and focus is enabled by name', () => {
   expect(MOTION_OFF).toBe('\u001b[?1003l')
-  expect(FOCUS_OFF).toBe('\u001b[?1004l')
+  // Written by the client itself rather than left to the renderer's group: a
+  // mode only some renderers enable would take the focus rule away silently.
+  expect(FOCUS_ON).toBe('\u001b[?1004h')
+  expect(filterUnusedModes(FOCUS_ON)).toBe(FOCUS_ON)
 })
 
 test('one restore sequence covers every mode the renderer can ask for', () => {

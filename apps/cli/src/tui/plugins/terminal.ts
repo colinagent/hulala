@@ -173,6 +173,26 @@ export interface TuiTerminal {
    */
   observeIme(observer: (policy: ImePolicy) => void): void
   /**
+   * Whether the terminal window is in front.
+   *
+   * A terminal program is told this only through `?1004` focus reports, which
+   * the input pipeline consumes (`../input/reports.ts`); a terminal that never
+   * reports keeps this true, so machines without focus reporting behave exactly
+   * as before. The input-source ownership reads it before it changes the
+   * machine's keyboard layout: a window nobody is looking at must not switch it.
+   */
+  readonly focused: boolean
+  /**
+   * Subscribe to window-focus reports.
+   * @param listener - called with the new state whenever it changes.
+   */
+  observeFocus(listener: (focused: boolean) => void): void
+  /**
+   * Record one focus report the input pipeline consumed.
+   * @param focused - true when the window gained the keyboard.
+   */
+  reportFocus(focused: boolean): void
+  /**
    * Decide whether the open completion menu owns `PageUp`/`PageDown`.
    *
    * The menu pages its own five-row window, so the viewport must not take the
@@ -487,6 +507,20 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     imeObservers.push(observer)
   }
 
+  // A terminal that never reports focus is treated as focused, which is the
+  // behaviour every machine had before `?1004` was kept on.
+  let windowFocused = true
+  const focusObservers: ((focused: boolean) => void)[] = []
+  const reportFocus = (focused: boolean): void => {
+    if (focused === windowFocused) return
+    windowFocused = focused
+    for (const observer of focusObservers) observer(focused)
+  }
+  const observeFocus = (observer: (focused: boolean) => void): void => {
+    focusObservers.push(observer)
+  }
+  terminal.onFocusReport((focused: boolean) => { reportFocus(focused) })
+
   ctx.provide('hulalaTerminal', {
     terminal,
     screen,
@@ -499,6 +533,9 @@ export function apply(ctx: Context, config: TerminalPluginConfig): void {
     refreshIme,
     releaseHeldFocus,
     observeIme,
+    get focused() { return windowFocused },
+    observeFocus,
+    reportFocus,
     setCaretShape,
     setTitle: (title: string) => { terminal.setTitle(title) },
     restoreTerminal,

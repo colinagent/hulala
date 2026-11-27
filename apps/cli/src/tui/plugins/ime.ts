@@ -11,11 +11,15 @@
  * Who is which is declared by the surface itself (`imePolicy`, see
  * `../pane/focus.ts`) and delivered through the terminal's focus funnel, so this
  * plugin listens rather than asking. The rule for when to switch, what to
- * remember and what to give back lives in `../editor/inputSource.ts`.
+ * remember and what to give back lives in `../editor/inputSource.ts`; whether the
+ * window may switch at all is `../editor/imeOwnershipGate.ts`, which keeps a
+ * background window off the machine's keyboard and hands the user's source back
+ * the moment they look elsewhere.
  *
  * @module hulala-cli/tui/plugins/ime
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { ImeOwnershipGate } from '../editor/imeOwnershipGate.js'
 import { inputSource, inputSourceOwnership, type InputSourceOwnership } from '../editor/inputSource.js'
 import { t } from '../i18n/index.js'
 
@@ -54,10 +58,13 @@ export function apply(ctx: Context, config: ImePluginConfig): void {
     },
   )
   ctx.provide('hulalaIme', ownership)
-  terminal.observeIme(policy => {
-    if (policy === 'command') ownership.acquire()
-    else ownership.release()
-  })
+  // The policy alone is not enough: while this window is in the background the
+  // machine's keyboard belongs to whatever the user is actually typing into, so
+  // a surface here changing its meaning must not select a source. The gate holds
+  // the pair and loses the front releases at once, handing the source back.
+  const gate = new ImeOwnershipGate(ownership, terminal.focused)
+  terminal.observeIme(policy => { gate.setPolicy(policy) })
+  terminal.observeFocus(focused => { gate.setFocus(focused) })
   // Quitting while a column has the keyboard must not leave the machine in
   // English: the user's shell prompt is theirs too.
   ctx.effect(() => () => ownership.restoreNow(), 'hulala: input source restored')
