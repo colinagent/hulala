@@ -183,6 +183,11 @@ test('a system proxy is exported for every download, and an environment proxy wi
   expect(section).toBeDefined()
   const directory = join(mkdtempSync(join(tmpdir(), 'hulala proxy ')), 'fakebin')
   mkdirSync(directory, { recursive: true })
+  // The branch a host takes is decided by `uname -s`, so it is stubbed as well:
+  // stubbing only `scutil` made this test pass on macOS and silently read the
+  // Linux branch everywhere else, where it found nothing.
+  writeFileSync(join(directory, 'uname'), '#!/bin/sh\necho Darwin\n')
+  chmodSync(join(directory, 'uname'), 0o755)
   writeFileSync(join(directory, 'scutil'), `#!/bin/sh
 cat <<'X'
 <dictionary> {
@@ -208,6 +213,30 @@ X
   const explicit = run({ HTTPS_PROXY: 'http://corporate.invalid:3128' })
   expect(explicit.stdout.toString()).toBe('|')
   expect(explicit.stderr.toString()).toBe('')
+})
+
+test('a GNOME desktop proxy is read on Linux', () => {
+  const section = /^detect_system_proxy\(\) \{[\s\S]*?^\}/m.exec(script)?.[0]
+  expect(section).toBeDefined()
+  const directory = join(mkdtempSync(join(tmpdir(), 'hulala proxy linux ')), 'fakebin')
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(join(directory, 'uname'), '#!/bin/sh\necho Linux\n')
+  chmodSync(join(directory, 'uname'), 0o755)
+  // `gsettings get <schema> <key>` answers per key, the way the real one does.
+  writeFileSync(join(directory, 'gsettings'), `#!/bin/sh
+case "$3" in
+  mode) echo "'manual'" ;;
+  host) echo "'127.0.0.1'" ;;
+  port) echo '7890' ;;
+esac
+`)
+  chmodSync(join(directory, 'gsettings'), 0o755)
+  const result = Bun.spawnSync(['/bin/sh', '-c', `${section}\ndetect_system_proxy\nprintf '%s' "\${https_proxy:-}"`], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { PATH: `${directory}:${process.env.PATH}` },
+  })
+  expect(result.stdout.toString()).toBe('http://127.0.0.1:7890')
 })
 
 test('a machine without Node is told what it needs, and nothing is downloaded', () => {
