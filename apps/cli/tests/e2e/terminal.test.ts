@@ -132,8 +132,11 @@ e2e('the terminal column runs a real shell, paints CJK, and survives a resize', 
   await withClient(async (client) => {
     client.write('\u0014')
     // The shell prompt is the proof the column actually opened: a transcript
-    // false-positive used to pass this test without a shell behind it.
-    await client.waitFor(screen => screen.includes('colin@host') || screen.includes('%'), 'the shell prompt', 15_000)
+    // false-positive used to pass this test without a shell behind it. The
+    // marker is set here rather than guessed from the machine's prompt, which
+    // made this pass only on the developer's laptop.
+    client.write("PS1='hulala-e2e$ '\r")
+    await client.waitFor(screen => screen.includes('hulala-e2e$'), 'the shell prompt', 15_000)
     client.write("printf '中文 ok\\n'\r")
     await client.waitFor(screen => screen.includes('中文 ok'), 'CJK output in the shell column', 10_000)
 
@@ -171,7 +174,10 @@ e2e('Ctrl-T pressed right after boot still opens the column', async () => {
   // open now defers until the id is known and then completes the focus.
   await withClient(async (client) => {
     client.write('\u0014')
-    await client.waitFor(screen => screen.includes('colin@host') || screen.includes('%'), 'the shell prompt', 15_000)
+    // Same marker as the column test: the prompt is set by the test, so this
+    // does not depend on who owns the runner.
+    client.write("PS1='hulala-e2e$ '\r")
+    await client.waitFor(screen => screen.includes('hulala-e2e$'), 'the shell prompt', 15_000)
     client.write("printf 'race ok\\n'\r")
     await client.waitFor(screen => screen.includes('race ok'), 'the command output', 10_000)
     expect(await client.quit()).toBe(0)

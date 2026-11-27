@@ -30,7 +30,9 @@ test('the command directory is added to the shell profile once and removed again
     // fish_add_path, and bash is registered in both the non-login file and the
     // login file, because a macOS terminal starts a login shell while an editor
     // terminal does not.
-    const health: NodeJS.ProcessEnv = { ...process.env, PATH: '/usr/bin' }
+    // Built, not inherited: a runner that exports XDG_CONFIG_HOME would move
+    // fish's profile out of the injected home and compare the machine's paths.
+    const health: NodeJS.ProcessEnv = { PATH: '/usr/bin', HOME: home }
     const configDir = join(home, 'zdot')
     const profilesOf = async (shell: string, environment = health) => {
       const registration = await addCommandPath(directory, home, shell, 'darwin', environment)

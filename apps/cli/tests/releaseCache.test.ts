@@ -56,10 +56,11 @@ test('pruning keeps only the installed version and drops partial downloads', asy
     expect(removed).toEqual(['0.1.9', '0.1.10'])
     expect(await readdir(join(data, 'cache', 'releases'))).toEqual(['0.1.15'])
     // The archive and the index facts that make it installable offline remain.
-    expect(await readdir(join(data, 'cache', 'releases', '0.1.15'))).toEqual([
+    // Sorted: `readdir` order is the filesystem's, not an assertion of ours.
+    expect((await readdir(join(data, 'cache', 'releases', '0.1.15'))).sort()).toEqual([
       `${releaseTarget()}-0.1.15.tar.gz`,
       `${releaseTarget()}-0.1.15.tar.gz.json`,
-    ])
+    ].sort())
   } finally { await rm(data, { recursive: true, force: true }) }
 })
 
