@@ -286,6 +286,7 @@ export const zhCN: MessageTable = {
   'banner.expand': '展开',
   'banner.more': '了解更多',
 
+  'startup.problems': '问题',
   'startup.skills': '技能',
   'startup.mcp': 'MCP',
 

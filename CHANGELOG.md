@@ -28,6 +28,11 @@ that version has no section. Releases before 0.2.30 are not recorded.
   says which version the running Host has, instead of only asking for a restart.
   `hulala host start` also reports whether it started a Host or found one already
   answering.
+- The welcome block names what the Host promised and did not load, above the
+  skills and MCP lists it would otherwise ask you to trust: a `[Problems]` line
+  per entry, with its module, version and Loader state. Nothing is printed when
+  the composition is complete, and an older Host that cannot report stays silent
+  rather than showing an empty heading.
 
 ### Changed
 

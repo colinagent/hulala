@@ -34,12 +34,30 @@ import { t } from '../i18n/index.js'
 import { brandBannerLines } from './brandBanner.js'
 import { buildStyles } from './theme.js'
 
+/** One entry the running Host declared and did not activate. */
+export interface StartupProblem {
+  /** Module the Loader names, e.g. `@colinagent/dsh-mcp`. */
+  readonly module: string
+  /** Version the Host resolved for it. */
+  readonly version: string
+  /** Loader state: `failed`, `skipped`, `pending`, … */
+  readonly state: string
+}
+
 /** What one Session's composition loaded, as the Host reports it. */
 export interface StartupFacts {
   /** Skills the Session's composer may invoke, by the name `/` completes to. */
   readonly skills: readonly string[]
   /** MCP servers the Session's `mcp.json` documents will mount. */
   readonly mcp: readonly string[]
+  /**
+   * What this Host promised and did not load, from its own health document.
+   *
+   * Printed first, above the inventories: a reader who was told which MCP
+   * servers are in effect should know first that one of them never started.
+   * Empty or absent is the normal state.
+   */
+  readonly problems?: readonly StartupProblem[]
 }
 
 /** The banner and the loaded facts, as the transcript draws them. */
@@ -83,19 +101,27 @@ export class Welcome implements Component {
   private sections(width: number): string[] {
     const facts = this.facts
     if (facts === undefined) return []
-    const sections = [
-      { heading: t('startup.skills'), values: names(facts.skills) },
-      { heading: t('startup.mcp'), values: names(facts.mcp) },
-    ].filter(section => section.values.length > 0)
-    if (sections.length === 0) return []
+    const sections: { heading: string, values: string[], tone: 'normal' | 'warn' }[] = []
+    // Problems lead: they are the only section that asks the reader to do
+    // something, and they are absent in the normal case.
+    const problems = (facts.problems ?? []).map(problem =>
+      `${problem.module}@${problem.version} (${problem.state})`)
+    if (problems.length > 0) sections.push({ heading: t('startup.problems'), values: problems, tone: 'warn' })
+    sections.push(
+      { heading: t('startup.skills'), values: names(facts.skills), tone: 'normal' },
+      { heading: t('startup.mcp'), values: names(facts.mcp), tone: 'normal' },
+    )
+    const filled = sections.filter(section => section.values.length > 0)
+    if (filled.length === 0) return []
     const styles = buildStyles(this.color)
     const lines: string[] = []
-    for (const [index, section] of sections.entries()) {
+    for (const [index, section] of filled.entries()) {
       // One blank row between sections, the way pi spaces its loaded-resource
       // blocks; the last one needs none, because the document separates the
       // whole welcome block from the transcript that follows.
       if (index > 0) lines.push('')
-      lines.push(styles.accent(`[${section.heading}]`))
+      const paint = section.tone === 'warn' ? styles.warn : styles.accent
+      lines.push(paint(`[${section.heading}]`))
       for (const line of wrapped(section.values, width)) lines.push(styles.dim(`  ${line}`))
     }
     return lines

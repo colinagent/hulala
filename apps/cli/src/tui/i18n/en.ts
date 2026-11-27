@@ -285,6 +285,7 @@ export const en: MessageTable = {
   'banner.expand': 'expand',
   'banner.more': 'for more',
 
+  'startup.problems': 'Problems',
   'startup.skills': 'Skills',
   'startup.mcp': 'MCP',
 

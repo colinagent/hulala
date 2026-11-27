@@ -297,6 +297,7 @@ export interface MessageTable {
   'banner.expand': string
   'banner.more': string
 
+  'startup.problems': string
   'startup.skills': string
   'startup.mcp': string
 

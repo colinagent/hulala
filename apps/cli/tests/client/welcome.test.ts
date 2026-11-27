@@ -37,6 +37,30 @@ test('the facts print under the banner, one bracket heading per inventory', () =
   expect(lines[rowOf(lines, '[MCP]') + 1]).toBe('  memory')
 })
 
+test('a Host that did not load something says so above the inventories', () => {
+  setCapabilities({ images: null, trueColor: false, hyperlinks: false })
+  const welcome = new Welcome(false)
+  welcome.setFacts({
+    skills: ['pdf'],
+    mcp: ['memory'],
+    problems: [{ module: '@colinagent/dsh-mcp', version: '0.1.1', state: 'failed' }],
+  })
+  const lines = plain(welcome.render(100))
+  // Nothing to do with what the Session offers: a reader who is about to trust
+  // the lists below has to see this first.
+  expect(lines[0]).toBe('[Problems]')
+  expect(lines[1]).toBe('  @colinagent/dsh-mcp@0.1.1 (failed)')
+  expect(rowOf(lines, '[Skills]')).toBeGreaterThan(rowOf(lines, '[Problems]'))
+  expect(rowOf(lines, '[MCP]')).toBeGreaterThan(rowOf(lines, '[Skills]'))
+})
+
+test('a healthy Host prints no problems heading at all', () => {
+  setCapabilities({ images: null, trueColor: false, hyperlinks: false })
+  const welcome = new Welcome(false)
+  welcome.setFacts({ skills: ['pdf'], mcp: [], problems: [] })
+  expect(plain(welcome.render(80))).toEqual(['[Skills]', '  pdf'])
+})
+
 test('nothing loaded is a banner and no heading at all', () => {
   setCapabilities({ images: 'kitty', trueColor: true, hyperlinks: false })
   const welcome = new Welcome(false)

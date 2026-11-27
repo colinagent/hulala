@@ -29,6 +29,7 @@ import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import { resolveRoster } from '@colinagent/dsh-mcp'
+import { readComposition } from './composition.ts'
 import type { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -180,8 +181,16 @@ export const apiStartupPlugin = {
             readDocument(paths.user),
             readDocument(paths.project),
           ])
+          // The same answer the readiness route gives, so the welcome block can
+          // say what this Host promised and did not load. A session is only the
+          // address of the question: the composition belongs to the process.
+          const problems = readComposition(ctx).degraded.map(row => ({
+            module: row.module,
+            version: row.version,
+            state: row.state,
+          }))
           try {
-            respond(response, 200, { mcp: startupMcpServers({ user, project, cwd, home }) })
+            respond(response, 200, { mcp: startupMcpServers({ user, project, cwd, home }), problems })
           } catch (error) {
             respond(response, 500, { message: error instanceof Error ? error.message : String(error) })
           }

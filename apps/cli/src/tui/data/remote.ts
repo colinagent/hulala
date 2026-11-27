@@ -218,6 +218,8 @@ export type TerminalCommandOutcome =
 export interface TerminalStartupFacts {
   readonly skills: readonly string[]
   readonly mcp: readonly string[]
+  /** What the Host declared and did not activate; absent on an older Host. */
+  readonly problems?: readonly { readonly module: string, readonly version: string, readonly state: string }[]
 }
 
 /** One pending approval. */
@@ -770,31 +772,45 @@ async function skillsOf(ctx: Context, sessionId: string): Promise<string[]> {
 }
 
 /**
- * The MCP server names the Host mounts for one Session.
+ * What the Host's startup route reports for one Session.
  *
- * One authenticated GET to the Host's startup route, which reads the two
- * `mcp.json` documents with the same roster the mounting plugin uses. Every
- * failure — an older Host without the route, a forward being rebuilt, a body
- * that is not the shape we asked for — is an empty list: the block is a
- * reminder, and a reminder is not worth a retry loop or an error row.
+ * One authenticated GET, which reads the two `mcp.json` documents with the same
+ * roster the mounting plugin uses and repeats the composition failures its
+ * readiness route reports. Every failure — an older Host without the route, a
+ * forward being rebuilt, a body that is not the shape we asked for — is nothing:
+ * the block is a reminder, and a reminder is not worth a retry loop or an error
+ * row.
  * @param baseUrl - the attachment's origin, which a reconnect may have replaced.
  * @param cookie - the connection cookie that origin accepts.
  * @param sessionId - the Session whose directory selects the documents.
- * @returns server names, in the Host's order, or none.
+ * @returns server names in the Host's order, and the failures it reported.
  */
-async function startupMcp(baseUrl: string, cookie: string, sessionId: string): Promise<string[]> {
+async function startupRoute(
+  baseUrl: string,
+  cookie: string,
+  sessionId: string,
+): Promise<{ mcp: string[], problems: { module: string, version: string, state: string }[] }> {
+  const nothing = { mcp: [], problems: [] }
   let response: Response
   try {
     response = await fetch(new URL(`/api/startup?session=${encodeURIComponent(sessionId)}`, baseUrl), {
       headers: { cookie },
     })
   } catch {
-    return []
+    return nothing
   }
-  if (!response.ok) return []
-  const value = await response.json().catch(() => undefined) as { mcp?: unknown } | undefined
-  if (!Array.isArray(value?.mcp)) return []
-  return value.mcp.filter((name): name is string => typeof name === 'string')
+  if (!response.ok) return nothing
+  const value = await response.json().catch(() => undefined) as { mcp?: unknown, problems?: unknown } | undefined
+  const mcp = Array.isArray(value?.mcp) ? value.mcp.filter((name): name is string => typeof name === 'string') : []
+  const problems = Array.isArray(value?.problems)
+    ? value.problems.flatMap((row) => {
+      if (row === null || typeof row !== 'object') return []
+      const { module, version, state } = row as { module?: unknown, version?: unknown, state?: unknown }
+      if (typeof module !== 'string' || typeof version !== 'string' || typeof state !== 'string') return []
+      return [{ module, version, state }]
+    })
+    : []
+  return { mcp, problems }
 }
 
 /** Read the `permissions` projection's current preset out of a value block. */
@@ -1791,12 +1807,14 @@ export async function createHostBackend(attachment: HostAttachment, context?: Co
     async startupFacts(sessionId) {
       // Two sources, one answer: skills are a Harness Remote that already knows
       // which ones this Session's preset scope may invoke, and MCP servers are
-      // the Host's own read of the documents the mounting plugin will use.
-      const [skills, mcp] = await Promise.all([
+      // the Host's own read of the documents the mounting plugin will use. The
+      // same route also names what the Host failed to load, so the welcome block
+      // can say so before the reader trusts the list below it.
+      const [skills, startup] = await Promise.all([
         skillsOf(ctx, sessionId),
-        startupMcp(attachment.baseUrl, cookie, sessionId),
+        startupRoute(attachment.baseUrl, cookie, sessionId),
       ])
-      return { skills, mcp }
+      return { skills, mcp: startup.mcp, problems: startup.problems }
     },
 
     async prompt(sessionId, text, mode) {
