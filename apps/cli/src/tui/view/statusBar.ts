@@ -15,10 +15,13 @@
  * honest, and the version is not something the footer has to carry. The working
  * directory is the rail's header, not the band's.
  *
- * The right slot names the route and the thinking level it runs at
- * (`deepseek/deepseek-flash • max`), the same pair pi's footer shows. The level
- * is `reasoningEffort` when `/model` recorded one, else the catalog default the
- * Host would apply; a model that does not reason adds nothing.
+ * The right slot names the model and the thinking level it runs at
+ * (`deepseek-flash • max`). The provider stays out of it: `deepseek-official`
+ * is the same word for every Session of a setup, and on a narrow terminal it
+ * was the first thing the band had to cut. The full route is still printed by
+ * `/model` and by `/status`. The level is `reasoningEffort` when `/model`
+ * recorded one, else the catalog default the Host would apply; a model that
+ * does not reason adds nothing.
  *
  * The Session's permission preset is not a reading and is not shown here: it
  * belongs to `/permission` and to `/status`, which is where the user asks for
@@ -83,10 +86,10 @@ export class StatusBar implements Component {
     const readings = this.readings(state)
     // The right slot keeps its own ink: the model first, then the level, so a
     // clipped terminal leaves the level readable at the end of the row.
-    const route = state.model === undefined
+    const modelLabel = state.model === undefined
       ? ''
-      : `${state.model.provider}/${state.model.model}${state.thinkingLevel === undefined ? '' : ` • ${state.thinkingLevel}`}`
-    const model = shortenFromStart(route, usable)
+      : `${state.model.model}${state.thinkingLevel === undefined ? '' : ` • ${state.thinkingLevel}`}`
+    const model = shortenFromStart(modelLabel, usable)
     const modelWidth = visibleWidth(model)
     const modelStart = usable - modelWidth
 

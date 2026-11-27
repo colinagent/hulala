@@ -206,17 +206,22 @@ with nothing to preview is the title alone. In detail:
   image it cannot decode, leaves the reference line;
 - a `write`, `edit` or `apply_patch` row draws the **change itself**: one path
   header per file, `-`/`+` lines with three lines of context, `⋯` between hunks,
-  and a `+N -M` count in the title. Nine rows are shown; the file's own hunks
-  come from the tool result, so what you see is what landed on disk;
+  and a `+N -M` count in the title. A change of up to sixteen rows is shown
+  whole; a longer one keeps its first eight and last eight rows with the hidden
+  count between them, so a change near either end keeps the context on both
+  sides. The file's own hunks come from the tool result, so what you see is what
+  landed on disk;
 - a thought shows `✳ Think` and the **last** five lines it has reached, with a
   count of the rest. A short thought shows every line, and the block does not
   grow or move when the thought settles.
 
-Clicking a row's `▸` opens one row; `Ctrl-O` opens every tool row and every
-thought at once, and clicking again closes one. `/reasoning` cycles thoughts
-between the folded tail, the full text, and hidden. A thought answers a click
-anywhere on it; a tool row answers on its header line only, so the body text —
-a diff, a file's contents — stays available for selection.
+Clicking a row opens one; `Ctrl-O` opens every tool row and every thought at
+once, and clicking again closes one. `/reasoning` cycles thoughts between the
+folded tail, the full text, and hidden. A row that folds answers anywhere on
+itself — a card's body is a disclosure as much as its title is, and a thought's
+folded block *is* the row — while the press stays with the screen's own
+selection, so a drag across a card still selects its text and only a click that
+moved nowhere folds it.
 
 ## Selecting and copying text
 
@@ -229,8 +234,8 @@ clicking a step row's `▸` folds it, and a drag across the conversation is the
 client's own selection — the text is drawn in reverse video, and letting go
 copies it (copy-on-select) — while the terminal's native selection needs its
 bypass key, `Shift` on most terminals (`Option` in Terminal.app and iTerm2 by
-default). A drag that starts on a step row's first line is a selection too; the
-row only folds on a completed click.
+default). A drag that starts anywhere on a step row is a selection too; the
+row only folds on a completed click that moved nowhere.
 
 A column running a program is that program's terminal: the same click is also a
 pointer report to it when it asked for one, which is what lets Neovim's tree and

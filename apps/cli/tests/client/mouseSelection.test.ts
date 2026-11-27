@@ -205,6 +205,18 @@ test('a drag across an answer selects it, copies it, and a click still folds a s
     input.write(pointer(0, headerColumn + 1, headerRow + 1, 'm'))
     await waitFor(() => plainRows()[headerRow]?.includes('▾') === true, 'the folded row')
 
+    // The card's body is a disclosure too, as it is in pi: a click on the
+    // command line folds the same row back. The press is still nobody's, so the
+    // drag selection above keeps working from here.
+    const bodyRow = plainRows().findIndex(line => line.includes('$ bun install'))
+    expect(bodyRow).toBeGreaterThan(0)
+    const bodyColumn = (plainRows()[bodyRow] ?? '').indexOf('$')
+    await pause(600)
+    input.write(pointer(0, bodyColumn + 1, bodyRow + 1, 'M'))
+    await pause()
+    input.write(pointer(0, bodyColumn + 1, bodyRow + 1, 'm'))
+    await waitFor(() => plainRows()[headerRow]?.includes('▾') !== true, 'the card to fold from its body')
+
     // The click was not a selection, so it copied nothing again.
     expect(copied).toHaveLength(2)
   } finally {

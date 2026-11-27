@@ -15,9 +15,10 @@
  * loudest thing on the row. A call with nothing worth showing is the title alone.
  *
  * A body that fits its budget is shown whole; a longer one is folded to the
- * budget with a counted hint line, and the reader opens the rest with a click
- * or `Ctrl-O`. The budgets are visual lines, not source lines: one long line
- * (minified JSON) must not wrap across the whole screen.
+ * budget — a change keeps its head and tail — with a counted hint line, and the
+ * reader opens the rest with a click or `Ctrl-O`. The budgets are visual lines,
+ * not source lines: one long line (minified JSON) must not wrap across the whole
+ * screen.
  *
  * @module hulala-cli/tui/view/toolRow
  */
@@ -52,8 +53,8 @@ const OUTPUT_LINES = 20
 const TEXT_PREVIEW_LINES = 6
 /** Output lines a folded shell row keeps from the end of what it printed. */
 const SHELL_PREVIEW_LINES = 5
-/** Body rows a folded change shows before the rest is counted. */
-const DIFF_PREVIEW_LINES = 5
+/** Body rows a folded change shows, split between its head and its tail. */
+const DIFF_PREVIEW_LINES = 16
 /** Indent of every wrapped continuation and body line. */
 const INDENT = '  '
 /**
@@ -359,8 +360,12 @@ export class ToolRowView implements Component {
 
   /**
    * The change, with each row keeping its marker.
-   * A folded change shows its first rows — the file, then the first edits — and
-   * counts the rest; an open one shows all of it.
+   *
+   * A folded change keeps its head *and* its tail — eight rows each, the split
+   * the web client's `DiffBlock` uses — with the hidden count between them. A
+   * head-only window cut the lines below the change, so a one-line edit showed
+   * its three context lines and then, before the added line's own context, a
+   * count. An open change shows all of it.
    */
   private diffBody(diff: { rows: DiffRow[]; stats: DiffStats }, width: number, expanded: boolean): string[] {
     const s = buildStyles(this.color)
@@ -383,8 +388,11 @@ export class ToolRowView implements Component {
     const folded = !expanded && rows.length > DIFF_PREVIEW_LINES
     if (!folded) return rows.flatMap(row => fit(paint(row)).map(line => `${INDENT}${INDENT}${line}`))
 
-    const lines = rows.slice(0, DIFF_PREVIEW_LINES).flatMap(row => fit(paint(row)))
+    const headLines = Math.ceil(DIFF_PREVIEW_LINES / 2)
+    const tailLines = DIFF_PREVIEW_LINES - headLines
+    const lines = rows.slice(0, headLines).flatMap(row => fit(paint(row)))
     lines.push(s.cardMuted(t('tool.moreLines', { n: rows.length - DIFF_PREVIEW_LINES })))
+    lines.push(...rows.slice(rows.length - tailLines).flatMap(row => fit(paint(row))))
     return lines.map(line => `${INDENT}${INDENT}${line}`)
   }
 

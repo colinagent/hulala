@@ -17,19 +17,30 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 - `hulala host status` reports what the running Host loaded: a bounded `plugins`
   roster with each entry's module, version and state, and `degraded` naming the
-  entries that did not activate — including bundles the compatibility gate
-  refused before the tree was mounted. The Host reads it from the live Loader,
-  so a bundle that never started is visible without reading a log file.
+  entries that did not activate. The Host reads it from the live Loader, so a
+  bundle that never started is visible without reading a log file.
 - `hulala doctor` checks the installation instead of describing it: a profile
   `link:` whose runtime version no longer exists, a running Host that does not
   report a roster, and any entry that is not active. It exits non-zero when it
   finds one, so a script can gate on it.
 - `hulala plugin ... add <package> --restart` restarts a running Host and fails
   when the installed package is still not active. Without the flag the command
-  reports what that Host loaded — installed-but-not-loaded, or the state it
-  failed with — and still exits 0, because the install itself succeeded.
+  says which version the running Host has, instead of only asking for a restart.
   `hulala host start` also reports whether it started a Host or found one already
   answering.
+
+### Changed
+
+- A change card shows up to sixteen rows whole, and a longer one keeps its first
+  eight and last eight with the hidden count between them, instead of always
+  cutting at nine: a change near either end of a file keeps its context on both
+  sides.
+
+- The footer names the model without its provider: `deepseek-flash • max`
+  instead of `deepseek-official/deepseek-flash • max`. The provider is the same
+  word for every Session of a setup, it was the first thing a narrow terminal had
+  to cut, and the thinking level is what the slot is actually read for. `/model`
+  and `/status` still print the full route.
 
 ### Fixed
 
@@ -39,6 +50,19 @@ that version has no section. Releases before 0.2.30 are not recorded.
   occupies it, so creating the new link failed and the manifest kept the dead
   path. `@colinagent/dsh-mcp` stayed inactive for eight days that way while the
   Host booted normally.
+
+- A change card keeps the lines on both sides of the change. A folded change shows
+  sixteen rows — eight at its head, the hidden count, then eight at its tail,
+  the split the web client's diff card uses — instead of only the first five.
+  The five-row window cut off a one-line edit's context below the change, and a
+  replacement could show the `-` line with the `+` line counted away.
+
+- A step card folds and unfolds when its body is clicked, as pi's cards do,
+  instead of answering only on its title line. The press is still the screen's
+  own selection, so a drag across a card selects its text and only a click that
+  moved nowhere folds. A click in a scrolled conversation is also no longer
+  handed to the transcript a second time at the same row of the unscrolled
+  document, which could fold a card the reader was not looking at.
 
 - A tool result's picture keeps drawing once its first row scrolls above the
   conversation, in every layout and not only the plain one. `pi-tui` crops a

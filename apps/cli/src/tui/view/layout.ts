@@ -104,12 +104,22 @@ class ConversationColumn extends VStack {
     super(children)
   }
 
-  handleMouse(event: TuiMouseEvent) {
+  /**
+   * Report the pointer and the press, and leave the children alone.
+   *
+   * The alternate screen has already dispatched this pointer event to every
+   * leaf box under it, each in that leaf's own coordinates, before the column
+   * itself is asked. Delegating again through the container would render the
+   * children back as their viewport rows — above all the conversation, whose
+   * viewport is not its document — so a click on ordinary text would be read
+   * as a click on whatever card happens to sit at that row of the unscrolled
+   * transcript, and would fold a card the reader is not even looking at.
+   */
+  handleMouse(event: TuiMouseEvent): undefined {
     this.options.onPointer?.()
     // A press moves the keyboard to the composer before the child sees the
     // event, so the same click can also fold a step row or start a selection.
     if (event.type === 'press') this.options.onPress?.()
-    return super.handleMouse(event)
   }
 }
 

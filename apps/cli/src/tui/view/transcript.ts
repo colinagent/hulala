@@ -26,14 +26,15 @@
  * this container keeps knowing nothing about how a welcome screen is drawn.
  *
  * A step row is also a mouse target: a primary click folds or unfolds that one
- * row, the way the web transcript's disclosure rows behave. A tool row answers
- * on its first line only, so the body's text (a diff, a file's contents) stays
- * available for selection; a reasoning block answers anywhere on itself, since
- * its folded body *is* the row. The hit test needs no per-row components
- * because this container knows the line range each item occupies — the
- * alternate screen hands it coordinates local to the scrolled document. A click
- * is the *only* gesture answered here: claiming the press as well would take the
- * whole drag away from the screen's text selection.
+ * row, the way the web transcript's disclosure rows behave. A tool card, its
+ * body included, answers anywhere on itself — the whole card is the
+ * disclosure, as it is in pi — and a reasoning block does too, since its folded
+ * body *is* the row. The hit test needs no per-row components because this
+ * container knows the line range each item occupies — the alternate screen
+ * hands it coordinates local to the scrolled document. A click is the *only*
+ * gesture answered here: claiming the press as well would take the whole drag
+ * away from the screen's text selection, so a drag across a card still selects
+ * its text and only a click that moved nowhere folds it.
  *
  * @module hulala-cli/tui/view/transcript
  */
@@ -253,17 +254,16 @@ export class Transcript implements Component {
   }
 
   /**
-   * Fold or unfold the row whose header line the pointer is on. Only the header
-   * is a target, so the body text underneath stays available for selection.
+   * Fold or unfold the row the pointer is on.
+   *
+   * Every row that folds answers anywhere on itself, the way pi's cards do: a
+   * card's body is a disclosure as much as its title is, and a thought's folded
+   * block *is* the row. Broadening the target costs the text selection nothing
+   * because the press is never claimed: a drag that starts on a body still
+   * selects what it crosses, and only a click that moved nowhere folds.
    */
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    // A tool row answers on its title line, which is its first row — the card
-    // below it is the body — and a thought answers on any of its rows, because
-    // the folded block has no separate header to aim at.
-    const row = this.ranges.find(range => range.end > range.start && (
-      event.y === range.start
-      || (range.item.kind === 'reasoning' && event.y > range.start && event.y < range.end)
-    ))
+    const row = this.ranges.find(range => event.y >= range.start && event.y < range.end)
     const target = row !== undefined && (
       row.item.kind === 'tool'
       || row.item.kind === 'reasoning'
@@ -277,7 +277,7 @@ export class Transcript implements Component {
     }
     if (event.button !== 'left' || target === undefined) return undefined
     // The press is left unclaimed so the alternate screen's own text selection
-    // keeps working from a row header too: a drag that starts here selects the
+    // keeps working from a row's body too: a drag that starts here selects the
     // text, and only a press and release on the same cell arrives as a click.
     if (event.type !== 'click') return undefined
     this.flip(target)

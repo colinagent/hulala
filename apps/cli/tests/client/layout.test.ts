@@ -4,6 +4,7 @@ import { renderLayoutFrame } from '@earendil-works/pi-tui/dist/layout.js'
 import { buildRailTerminalLayout, buildSideColumnsLayout, buildSplitTerminalLayout, buildTerminalLayout, railFits, railWidthFor, railWidthLimit } from '../../src/tui/view/layout.js'
 import { composerFocused } from '../../src/tui/plugins/layout.js'
 import { PromptEditor } from '../../src/tui/view/promptEditor.js'
+import { Transcript } from '../../src/tui/view/transcript.js'
 import { buildTheme } from '../../src/tui/view/theme.js'
 
 const strip = (line: string): string => line
@@ -345,6 +346,44 @@ test('the rail carries the path instead of the row above the composer', () => {
   expect(conversation(withBar)).toHaveLength(4)
   expect(conversation(withoutBar)).toHaveLength(3)
   expect(conversation(withoutBar).at(-1)?.rect.height).toBe(3)
+})
+
+test('a click in a scrolled conversation is not read at its viewport row', () => {
+  // The column reports the pointer and the press, but it must not hand the
+  // event down a second time: the alternate screen already dispatched it to
+  // every leaf box under the pointer, the transcript included, in that leaf's
+  // own coordinates. Rendering the children back into the column would read
+  // viewport row 0 as document row 0 and fold the card at the top of the
+  // conversation on a click that landed far below it.
+  const transcript = new Transcript(false, () => ({ cwd: '/work/hulala' }))
+  transcript.setItems([
+    { kind: 'tool', name: 'bash', args: JSON.stringify({ command: 'pwd', description: 'Show the directory' }), result: '/work/hulala', status: 'ok', time: 0 },
+    ...Array.from({ length: 30 }, (_, index) => ({ kind: 'user' as const, text: `prompt ${String(index)}`, time: 0 })),
+  ])
+  const layout = buildRailTerminalLayout({
+    transcript,
+    pending: slab('pending', 1),
+    editor: slab('composer', 3),
+    statusBar: slab('status', 1),
+    rail: slab('rail', 24),
+    railWidth: 18,
+    railDivider: slab('|', 24),
+  })
+  const frame = renderLayoutFrame(layout.root, 100, 24, () => undefined)
+  expect(layout.transcriptScroll.scrollTop).toBeGreaterThan(0)
+  const conversation = frame.root.children[0]?.children?.[4]?.component as
+    { handleMouse?: (event: Parameters<Transcript['handleMouse']>[0]) => unknown } | undefined
+  // The column is the subject: a moved box would otherwise make the click below
+  // a no-op that passes for the wrong reason.
+  expect(conversation).toBeDefined()
+  const click = {
+    type: 'click', button: 'left', x: 4, y: 0, screenX: 23, screenY: 0,
+    width: 60, height: 20, shift: false, alt: false, ctrl: false,
+  } as const
+  expect(conversation?.handleMouse?.(click)).toBeUndefined()
+  // The card at the top of the document is nobody's target: the pointer is not
+  // on it, so its gutter stays blank.
+  expect(transcript.render(75)[0]).toBe('  >_ Bash · Show the directory')
 })
 
 test('a press inside the conversation asks for the keyboard, and only a press does', () => {

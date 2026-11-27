@@ -1993,12 +1993,12 @@ test('the footer names the thinking level and Shift-Tab cycles it', async () => 
   reasoningSession(fake)
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
-  await waitFor(() => tty.painted().includes('deepseek-official/deepseek-flash • off'), 'footer level')
+  await waitFor(() => tty.painted().includes('deepseek-flash • off'), 'footer level')
   tty.input.write('\u001b[Z') // Shift-Tab
   await waitFor(() => fake.efforts.length === 1, 'level change')
   expect(fake.efforts).toEqual(['low'])
   await waitFor(() => tty.painted().includes('thinking level: low'), 'level notice')
-  await waitFor(() => tty.painted().includes('deepseek-official/deepseek-flash • low'), 'footer after cycle')
+  await waitFor(() => tty.painted().includes('deepseek-flash • low'), 'footer after cycle')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
@@ -2046,7 +2046,7 @@ test('a model selection from another client reaches the footer', async () => {
     time: Date.now(),
     data: { provider: 'deepseek-official', model: 'deepseek-flash', reasoningEffort: 'max' },
   })
-  await waitFor(() => tty.painted().includes('deepseek-official/deepseek-flash • max'), 'footer route')
+  await waitFor(() => tty.painted().includes('deepseek-flash • max'), 'footer model')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
