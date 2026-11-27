@@ -20,6 +20,10 @@
  * is `reasoningEffort` when `/model` recorded one, else the catalog default the
  * Host would apply; a model that does not reason adds nothing.
  *
+ * The Session's permission preset is not a reading and is not shown here: it
+ * belongs to `/permission` and to `/status`, which is where the user asks for
+ * configuration rather than for the running figures.
+ *
  * @module hulala-cli/tui/view/statusBar
  */
 import type { Component } from '@earendil-works/pi-tui'
@@ -30,7 +34,6 @@ import type { TerminalMetrics } from '../data/remote.js'
 import { buildStyles } from './theme.js'
 import { padEnd, shortenFromStart, truncateLeftText } from './pathText.js'
 import { hintLine, usageHint, type UsageHint } from './hints.js'
-import { permissionLabel } from './permission.js'
 import { t } from '../i18n/index.js'
 
 export interface StatusState {
@@ -38,8 +41,6 @@ export interface StatusState {
   model?: { provider: string; model: string }
   /** Thinking level in effect for `model`; absent when the model does not reason. */
   thinkingLevel?: string
-  /** Effective permission preset of the open Session; absent until the Host reports one. */
-  permission?: string
   disconnected: boolean
   /** Newer release found by the background check, shown as a persistent hint. */
   update?: string
@@ -81,18 +82,11 @@ export class StatusBar implements Component {
 
     const readings = this.readings(state)
     // The right slot keeps its own ink: the model first, then the level, so a
-    // clipped terminal leaves the level readable at the end of the row. The
-    // permission preset follows them; it is not a selection state, so it stays
-    // in the band's ink like every other reading instead of getting a colour
-    // of its own.
+    // clipped terminal leaves the level readable at the end of the row.
     const route = state.model === undefined
       ? ''
       : `${state.model.provider}/${state.model.model}${state.thinkingLevel === undefined ? '' : ` • ${state.thinkingLevel}`}`
-    const preset = state.permission === undefined
-      ? ''
-      : `${t('status.label.permission')} ${permissionLabel(state.permission)}`
-    const modelText = [route, preset].filter(part => part !== '').join(' · ')
-    const model = shortenFromStart(modelText, usable)
+    const model = shortenFromStart(route, usable)
     const modelWidth = visibleWidth(model)
     const modelStart = usable - modelWidth
 

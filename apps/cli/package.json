@@ -1,6 +1,6 @@
 {
   "name": "hulala",
-  "version": "0.3.37",
+  "version": "0.3.38",
   "description": "Launch your local personal agent, built on DeepSeek Harness, with one npx command.",
   "type": "module",
   "bin": {
@@ -58,7 +58,7 @@
     "@deepseek-ai/dsh-user-approval": "0.2.2-rc.5",
     "@deepseek-ai/dsh-user-questions": "0.2.2-rc.5",
     "@deepseek-ai/dsh-util-workspace-path": "0.2.2-rc.5",
-    "@earendil-works/pi-tui": "1.4.0",
+    "@earendil-works/pi-tui": "1.6.1",
     "@hulala/distribution": "workspace:*",
     "@hulala/editor-home": "workspace:*",
     "@hulala/host-client": "workspace:*",

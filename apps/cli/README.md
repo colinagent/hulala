@@ -43,7 +43,7 @@ registered at runtime — Auto review, for instance — is marked `this Session 
 configured preset table. The notice after `Enter` names both facts — the preset
 this Session now runs at, and the preset a new Session still starts at — with
 `Ctrl-S` as the key that changes the second one; `/status` lists the same pair as
-`permission` and `default`. The footer names the current preset next to the level.
+`permission` and `default`.
 
 The list above is the client's own commands. The Host's command catalog sits
 alongside it: every command the Session's agent registers appears in the `/`

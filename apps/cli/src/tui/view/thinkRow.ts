@@ -144,7 +144,7 @@ export class ThinkRow implements Component {
     ]
   }
 
-  private body(text: string, width: number): string[] {
+  private body(text: string, width: number): readonly string[] {
     if (this.markdown === undefined || this.markdown.text !== text) {
       this.markdown = { text, component: new Markdown(text, PADDING, 0, this.theme, undefined, { renderLatex: true }) }
     }

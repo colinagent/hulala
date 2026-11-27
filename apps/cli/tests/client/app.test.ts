@@ -1320,14 +1320,17 @@ test('Cmd-L throws the renderer\'s copy of the screen away and paints every row'
   output.on('data', (chunk: Buffer | string) => { text += String(chunk) })
   cleanups.push(() => { input.destroy(); output.destroy() })
   const run = runTerminalClient({ backend: fake.backend, cwd: '/workspace', input, output, resume: 'session-1234', escapeTimeoutMs: 20 })
-  const clears = (): number => (text.match(/\u001b\[2J/gu) ?? []).length
+  /** Rows the renderer erased before writing them: one per painted row. */
+  const painted = (): number => (text.match(/\u001b\[\d+;1H\u001b\[2K/gu) ?? []).length
   await waitFor(() => plain(text).includes('history answer'), 'transcript')
-  const before = clears()
+  const before = painted()
   // `Cmd-L` is the user's own repair: the frame is rebuilt from an empty model,
-  // which is the clear plus every row. A differential repaint would keep every
-  // cell the renderer believes is unchanged — the cells a lost frame left wrong.
+  // which maps every row again. A differential repaint would keep every cell the
+  // renderer believes is unchanged — the cells a lost frame left wrong. The row
+  // erase is the signal on both full-redraw paths: a terminal that can draw a
+  // picture keeps its uploads and clears each row instead of the screen.
   input.write('\u001b[108;9u') // Cmd-L
-  await waitFor(() => clears() > before, 'full repaint')
+  await waitFor(() => painted() >= before + 24, 'full repaint')
   input.write('/quit\r')
   await expect(run).resolves.toBe(0)
 })
@@ -2053,7 +2056,6 @@ test('the /permission picker switches this Session, and the default only on Ctrl
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.permission('workspace-write')
-  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
 
   tty.input.write('/permission\r')
   await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
@@ -2082,7 +2084,6 @@ test('Enter on the preset new Sessions already start at reports both at once', a
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.permission('workspace-write')
-  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
 
   tty.input.write('/permission\r')
   await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
@@ -2100,14 +2101,12 @@ test('/status names the Session preset and the new-Session default side by side'
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.permission('danger-full-access')
   fake.setHostDefault('workspace-write')
-  await waitFor(() => tty.painted().includes('permission Full access'), 'footer preset')
 
   tty.input.write('/status\r')
   await waitFor(() => plain(tty.painted()).includes('hulala  v'), '/status ran')
   // The two facts differ on purpose here: this Session is wide open, while the
-  // next one still starts confined. Both rows come from the listing itself (the
-  // band's footer only ever names the Session), and they sit next to each other
-  // so one reading compares them.
+  // next one still starts confined. Both rows come from the listing itself, and
+  // they sit next to each other so one reading compares them.
   const status = plain(tty.painted()).split('hulala  v').at(-1) ?? ''
   expect(status).toContain('permission Full access')
   expect(status).toMatch(/default\s+Workspace Write/u)
@@ -2122,7 +2121,6 @@ test('Ctrl-S on a preset only the Session may use switches, and says the default
   const confined = { value: 'workspace-write', name: 'workspace-write' }
   fake.setPermissionOptions([confined, { value: 'auto', name: 'Auto review' }], [confined])
   fake.permission('workspace-write')
-  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
 
   tty.input.write('/permission\r')
   await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
@@ -2596,7 +2594,6 @@ test('Ctrl-S applies the highlighted preset and stores it as the Session default
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.permission('workspace-write')
-  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
 
   tty.input.write('/permission\r')
   await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
@@ -2615,7 +2612,6 @@ test('Ctrl-S inside the permission picker stores the default and leaves the rail
   const tty = startPtyTty(home, fake)
   await waitFor(() => plain(tty.painted()).includes('+ new session'), 'rail painted')
   fake.permission('workspace-write')
-  await waitFor(() => plain(tty.painted()).includes('permission Workspace Write'), 'footer preset')
 
   tty.input.write('/permission\r')
   await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
@@ -2649,12 +2645,18 @@ test('/permission takes no argument: any word after it is a usage error', async 
   await expect(tty.run).resolves.toBe(0)
 })
 
-test('a permission change from another client reaches the footer', async () => {
+test('a permission change from another client reaches the picker', async () => {
   const fake = fakeBackend()
   const tty = startTty(fake)
   await waitFor(() => fake.handlers !== undefined, 'subscription')
   fake.permission('danger-full-access')
-  await waitFor(() => tty.painted().includes('permission Full access'), 'footer preset')
+  // The preset is configuration, not a reading: the footer stays out of it, and
+  // the picker is where the user reads it back.
+  tty.input.write('/permission\r')
+  await waitFor(() => plain(tty.painted()).includes('Permission — Full access'), 'permission picker')
+  expect(plain(tty.painted())).not.toContain('permission Full access')
+  tty.input.write('\u001b') // leave the picker
+  await new Promise(resolve => setTimeout(resolve, 120))
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

@@ -31,7 +31,7 @@ export class Fade implements Component {
     private readonly color: boolean,
   ) {}
 
-  render(width: number): string[] {
+  render(width: number): readonly string[] {
     const lines = this.child.render(width)
     return this.faded() ? faintLines(lines, this.color) : lines
   }

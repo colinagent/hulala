@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.38] - 2026-11-27
+
 ### Changed
 
 - The footer no longer appends the Session's permission preset after the model.
@@ -38,7 +40,6 @@ that version has no section. Releases before 0.2.30 are not recorded.
   that had any content at all. Lifting `@earendil-works/pi-tui` to 1.6.1 brings
   the layout that scans past those rows and crops the placement to the rows still
   visible, so the rest of the picture keeps drawing — its top cut off, not gone.
-
 - A window in the background no longer changes the machine's keyboard input
   source. The client kept `?1004` off, so it could not tell whether anyone was
   looking at it; an approval card or a selector appearing in an unfocused window

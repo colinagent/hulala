@@ -84,7 +84,7 @@ export interface ToolImagery {
    * @param width - columns available, indent included.
    * @returns rows to draw, empty while there is nothing to draw yet.
    */
-  lines(image: ToolImage, width: number): string[]
+  lines(image: ToolImage, width: number): readonly string[]
   /**
    * Forget every cached image, placement ids included.
    *

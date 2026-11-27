@@ -1,6 +1,6 @@
 {
   "name": "@hulala/monorepo",
-  "version": "0.3.37",
+  "version": "0.3.38",
   "description": "Hulala \u2014 a local personal agent built on DeepSeek Harness.",
   "private": true,
   "license": "GPL-3.0-only",
@@ -60,6 +60,6 @@
   },
   "patchedDependencies": {
     "@deepseek-ai/dsh-subprocess-local@0.2.2-rc.5": "patches/@deepseek-ai%2Fdsh-subprocess-local@0.2.2-rc.5.patch",
-    "@earendil-works/pi-tui@1.4.0": "patches/@earendil-works%2Fpi-tui@1.4.0.patch"
+    "@earendil-works/pi-tui@1.6.1": "patches/@earendil-works%2Fpi-tui@1.6.1.patch"
   }
 }

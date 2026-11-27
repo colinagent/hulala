@@ -35,7 +35,7 @@ export class ComposerSlot implements Component {
     this.active = this.composer
   }
 
-  render(width: number): string[] {
+  render(width: number): readonly string[] {
     return this.active.render(width)
   }
 

@@ -89,7 +89,7 @@ export class Transcript implements Component {
   private assembled: {
     width: number
     head: readonly string[]
-    parts: readonly string[][]
+    parts: readonly (readonly string[])[]
     running: string | undefined
     lines: string[]
   } | undefined
@@ -199,7 +199,7 @@ export class Transcript implements Component {
     this.width = width
     const head = this.headLines(width)
     const assembled = this.assembled
-    const parts: string[][] = []
+    const parts: (readonly string[])[] = []
     let stale = assembled === undefined || assembled.width !== width || assembled.head !== head
       || assembled.parts.length !== this.items.length
     for (let index = 0; index < this.items.length; index += 1) {

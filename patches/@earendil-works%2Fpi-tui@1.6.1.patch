@@ -1,8 +1,8 @@
 diff --git a/dist/tui.js b/dist/tui.js
-index 3fcdcf98381b1494daa786b3e283a33b4b5bacb0..d1f4f9ffe061adb3af187ca04afde23685263a1d 100644
+index e36f266558d7310540dd03f67c567ea38cb1d14e..9fa2b726bfe7689e6a4f66db6ed46e94ec1d1706 100644
 --- a/dist/tui.js
 +++ b/dist/tui.js
-@@ -153,10 +153,63 @@ export class Container {
+@@ -178,10 +178,63 @@ export class Container {
   * TUI - Main class for managing terminal UI with differential rendering
   */
  const SEGMENT_RESET = "\x1b[0m\x1b]8;;\x07";

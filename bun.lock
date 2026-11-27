@@ -15,7 +15,7 @@
     },
     "apps/cli": {
       "name": "hulala",
-      "version": "0.3.35",
+      "version": "0.3.37",
       "bin": {
         "hulala": "./dist/cli.js",
       },
@@ -35,7 +35,7 @@
         "@deepseek-ai/dsh-user-approval": "0.2.2-rc.5",
         "@deepseek-ai/dsh-user-questions": "0.2.2-rc.5",
         "@deepseek-ai/dsh-util-workspace-path": "0.2.2-rc.5",
-        "@earendil-works/pi-tui": "1.4.0",
+        "@earendil-works/pi-tui": "1.6.1",
         "@hulala/distribution": "workspace:*",
         "@hulala/editor-home": "workspace:*",
         "@hulala/host-client": "workspace:*",
@@ -126,7 +126,7 @@
     },
     "packages/distribution": {
       "name": "@hulala/distribution",
-      "version": "0.3.35",
+      "version": "0.3.37",
       "dependencies": {
         "tar-stream": "3.2.2",
       },
@@ -139,7 +139,7 @@
       "name": "@hulala/editor-home",
       "version": "0.3.16",
       "dependencies": {
-        "@earendil-works/pi-tui": "1.4.0",
+        "@earendil-works/pi-tui": "1.6.1",
       },
       "devDependencies": {
         "@types/bun": "^1.3.0",
@@ -159,7 +159,7 @@
     },
     "packages/runtime": {
       "name": "@hulala/runtime",
-      "version": "0.3.35",
+      "version": "0.3.37",
       "dependencies": {
         "@colinagent/dsh-mcp": "0.1.1",
         "@deepseek-ai/cordis": "4.1.0",
@@ -210,7 +210,7 @@
     },
   },
   "patchedDependencies": {
-    "@earendil-works/pi-tui@1.4.0": "patches/@earendil-works%2Fpi-tui@1.4.0.patch",
+    "@earendil-works/pi-tui@1.6.1": "patches/@earendil-works%2Fpi-tui@1.6.1.patch",
     "@deepseek-ai/dsh-subprocess-local@0.2.2-rc.5": "patches/@deepseek-ai%2Fdsh-subprocess-local@0.2.2-rc.5.patch",
   },
   "packages": {
@@ -984,7 +984,7 @@
 
     "@earendil-works/pi-telemetry": ["@earendil-works/pi-telemetry@1.5.2", "", {}, "sha512-m+cumjIqNh1aMISi/9ttcG3ZOwIdriPbz/eMyWmRMJCGa/WcgY1RX4lrb7HvsHhSfI/JUeBESA4nOCr8C3y5ow=="],
 
-    "@earendil-works/pi-tui": ["@earendil-works/pi-tui@1.4.0", "", { "dependencies": { "get-east-asian-width": "1.6.0", "marked": "18.0.11", "marked-cjk-friendly": "0.1.2" } }, "sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg=="],
+    "@earendil-works/pi-tui": ["@earendil-works/pi-tui@1.6.1", "", { "dependencies": { "get-east-asian-width": "1.6.0", "marked": "18.0.11", "marked-cjk-friendly": "0.1.2" } }, "sha512-6WQPbhuoQKCIiu5Jp4S/cFdeqdm4SbAXlgCytsY/4ycR1sqHY4nB8xPTfGUucn61hVnN7hkOzI1CWNmE8UDQ3A=="],
 
     "@emnapi/core": ["@emnapi/core@1.10.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw=="],
 
