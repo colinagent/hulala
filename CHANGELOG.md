@@ -13,6 +13,17 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Fixed
+
+- A tool result's picture keeps drawing once its first row scrolls above the
+  conversation, in every layout and not only the plain one. `pi-tui` crops a
+  placement whose top has left the viewport, but 1.6.1 painted that crop only
+  while the conversation was the whole terminal row; beside the session rail or
+  the editor column the viewport is a column, so the cropped picture was dropped
+  and the card's empty surface was left in its place. The conversation's own
+  column now receives the crop. Both spellings of the layout — rail and editor
+  pane — have a regression test through the real transcript and layout builders.
+
 ## [0.3.38] - 2026-11-27
 
 ### Changed

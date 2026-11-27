@@ -1,5 +1,22 @@
+diff --git a/dist/layout.js b/dist/layout.js
+index 8b8ffcf..d6ab336 100644
+--- a/dist/layout.js
++++ b/dist/layout.js
+@@ -271,6 +271,12 @@ function paintBox(box, screen, totalWidth) {
+                 const cropped = cropKittyImageLine(imageLine, hiddenRows, visibleRows);
+                 if (box.rect.x === 0 && box.rect.width >= totalWidth)
+                     screen[box.rect.y] = cropped;
++                else {
++                    // The viewport is a column, not the whole row: a conversation beside
++                    // the session rail or the editor column still owns these cells, so the
++                    // cropped placement goes back into its own x instead of being dropped.
++                    screen[box.rect.y] = compositeTuiLine(screen[box.rect.y] ?? "", cropped, box.rect.x, box.rect.width, totalWidth);
++                }
+             }
+             break;
+         }
 diff --git a/dist/tui.js b/dist/tui.js
-index e36f266558d7310540dd03f67c567ea38cb1d14e..9fa2b726bfe7689e6a4f66db6ed46e94ec1d1706 100644
+index e36f266..9fa2b72 100644
 --- a/dist/tui.js
 +++ b/dist/tui.js
 @@ -178,10 +178,63 @@ export class Container {
