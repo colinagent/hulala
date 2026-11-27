@@ -13,6 +13,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.39] - 2026-11-27
+
 ### Added
 
 - `hulala host status` reports what the running Host loaded: a bounded `plugins`
@@ -25,7 +27,8 @@ that version has no section. Releases before 0.2.30 are not recorded.
   finds one, so a script can gate on it.
 - `hulala plugin ... add <package> --restart` restarts a running Host and fails
   when the installed package is still not active. Without the flag the command
-  says which version the running Host has, instead of only asking for a restart.
+  reports what that Host has loaded — installed-but-not-loaded, or the state it
+  failed with — and still exits 0, because the install itself succeeded.
   `hulala host start` also reports whether it started a Host or found one already
   answering.
 - The welcome block names what the Host promised and did not load, above the

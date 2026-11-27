@@ -1,6 +1,6 @@
 {
   "name": "@hulala/monorepo",
-  "version": "0.3.38",
+  "version": "0.3.39",
   "description": "Hulala \u2014 a local personal agent built on DeepSeek Harness.",
   "private": true,
   "license": "GPL-3.0-only",
