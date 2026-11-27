@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { VERSION } from '../constants.js'
 import { inspectHost, stopHost } from '../hostAttach.js'
+import { doctorProblems } from '../doctor.js'
 import { resolvePaths } from '../paths.js'
 import { installBotCommand } from '../plugins/host.js'
 import { spawnDetached } from '../spawn.js'
@@ -244,6 +245,7 @@ export async function runDistributionCommand(command: string, args: string[]): P
   if (command === 'install' && args[0] === 'bot') return await installBotCommand()
   const input = options(args), paths = resolvePaths()
   if (command === 'doctor') {
+    const problems = await doctorProblems(paths.data)
     console.log(JSON.stringify({
       version: VERSION,
       source: owner(),
@@ -251,8 +253,11 @@ export async function runDistributionCommand(command: string, args: string[]): P
       state: paths.data,
       package: process.env.HULALA_PACKAGE_ROOT || null,
       installation: process.env.HULALA_INSTALL_ROOT || null,
+      problems,
     }, null, 2))
-    return 0
+    // A doctor that always exits 0 cannot be used as a gate in a script.
+    for (const problem of problems) process.stderr.write(`hulala: ${problem.check}: ${problem.detail}\n`)
+    return problems.length === 0 ? 0 : 1
   }
   if (input.check && command !== 'update') throw new Error('--check is only valid with hulala update')
   if ((input.downloadOnly || input.background) && command !== 'update') throw new Error('--download-only and --background are only valid with hulala update')

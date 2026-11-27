@@ -54,6 +54,11 @@ async function runHostCommand(args: string[]): Promise<number> {
       console.log(JSON.stringify({ state: 'stopped' }, null, 2))
       return 0
     }
+    // A Host whose declared composition did not fully activate still answers,
+    // so the roster travels with the rest of its facts: `plugins` is what it
+    // loaded, `degraded` is what it promised and did not. Exit stays 0 because
+    // remote probes parse this document and treat a non-zero exit as unreachable.
+    const degraded = inspected.state === 'running' ? inspected.health.degraded ?? [] : []
     console.log(JSON.stringify({
       state: inspected.state,
       pid: inspected.record.pid,
@@ -61,9 +66,21 @@ async function runHostCommand(args: string[]): Promise<number> {
       version: inspected.record.version,
       instanceId: inspected.record.descriptor.instanceId,
       httpUrl: inspected.record.descriptor.httpUrl,
+      ...(inspected.state === 'running'
+        ? { plugins: (inspected.health.plugins ?? []).length, degraded }
+        : {}),
     }, null, 2))
+    if (degraded.length > 0) {
+      const rows = degraded.map(row => `${row.module}@${row.version} (${row.state})`).join(', ')
+      console.error(`hulala: ${String(degraded.length)} plugin(s) did not activate: ${rows}`)
+    }
     return 0
   }
+  // Distinguish "this command started a Host" from "a Host was already
+  // answering". They print the same facts, and a user who stopped a Host,
+  // installed a plugin, and then ran `start` needs to know which one happened:
+  // a process that booted before the install never loads the new version.
+  const before = await inspectHost()
   const attached = await attachHost()
   console.log(JSON.stringify({
     state: 'running',
@@ -72,7 +89,16 @@ async function runHostCommand(args: string[]): Promise<number> {
     version: attached.record.version,
     instanceId: attached.record.descriptor.instanceId,
     httpUrl: attached.baseUrl,
+    started: before.state !== 'running',
   }, null, 2))
+  if (before.state === 'running') {
+    const since = before.state === 'running' ? before.health.startedAt : 'unknown'
+    console.error(`hulala: the Host was already running (pid ${String(before.record.pid)}, started ${since}); nothing was started.`)
+    const degraded = before.state === 'running' ? before.health.degraded ?? [] : []
+    if (degraded.length > 0) {
+      console.error(`hulala: ${String(degraded.length)} plugin(s) are not active: ${degraded.map(row => `${row.module}@${row.version} (${row.state})`).join(', ')}`)
+    }
+  }
   return 0
 }
 

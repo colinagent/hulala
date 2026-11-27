@@ -41,6 +41,22 @@ export const runtimeStateSchema = z.object({
 
 export type RuntimeState = z.infer<typeof runtimeStateSchema>
 
+/**
+ * One Loader entry the Host reports about itself.
+ *
+ * `state` is DSH's own fiber state name; `version` comes from the resolution the
+ * Host booted with, so it answers "which build is actually loaded" rather than
+ * "which build is on disk".
+ */
+export const pluginStateSchema = z.object({
+  id: z.string(),
+  module: z.string(),
+  version: z.string(),
+  state: z.string(),
+})
+
+export type PluginState = z.infer<typeof pluginStateSchema>
+
 /** Health document served at `/health`; also the protocol handshake. */
 export const healthSchema = z.object({
   name: z.literal('hulala-desktop-server'),
@@ -51,6 +67,15 @@ export const healthSchema = z.object({
   pid: z.number().int().positive(),
   startedAt: z.string().datetime(),
   runtime: runtimeStateSchema,
+  /**
+   * Bounded Loader roster of the live process; absent on Hosts that predate it.
+   *
+   * Optional because a client may attach to a Host older than itself, and an
+   * absent roster must read as "unknown", never as "nothing loaded".
+   */
+  plugins: z.array(pluginStateSchema).optional(),
+  /** Entries the Loader did not activate: the composed suite is incomplete. */
+  degraded: z.array(pluginStateSchema).optional(),
 })
 
 export type Health = z.infer<typeof healthSchema>

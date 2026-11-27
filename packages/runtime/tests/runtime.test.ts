@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { lstat } from 'node:fs/promises'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolveRuntimePaths } from '../src/index'
@@ -211,6 +211,33 @@ test('replaces stale Host rows in an existing profile', async () => {
     await rm(root, { recursive: true, force: true })
   }
 }, 30_000)
+
+test('repairs a bundle link an older runtime left dangling', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'hulala-runtime-relink-'))
+  try {
+    const paths = resolveRuntimePaths({ root })
+    const profileDir = await seedHostProfile(paths, REPOSITORY_ROOT)
+    const link = join(profileDir, 'node_modules', '@colinagent', 'dsh-mcp')
+    const source = await readlink(link)
+    // The profile a pruned runtime leaves behind: a link into a version tree
+    // that no longer exists, plus the `link:` spec that named it. `access`
+    // follows the link, so the old presence check saw "absent" while the entry
+    // still occupied the path and creation failed with EEXIST.
+    const pruned = join(profileDir, 'node_modules', '.pruned-runtime-version', '@colinagent', 'dsh-mcp')
+    await rm(link, { force: true })
+    await symlink(pruned, link, 'dir')
+    const manifestPath = join(profileDir, 'package.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { dependencies: Record<string, string> }
+    manifest.dependencies['@colinagent/dsh-mcp'] = `link:${pruned}`
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+
+    const again = await seedHostProfile(paths, REPOSITORY_ROOT)
+    expect(await readlink(join(again, 'node_modules', '@colinagent', 'dsh-mcp'))).toBe(source)
+    expect((await readProfileManifest(root)).dependencies?.['@colinagent/dsh-mcp']).toBe(`link:${source}`)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
 
 test('links the bundles the user installed into their own DSH profile', async () => {
   const root = await mkdtemp(join(tmpdir(), 'hulala-detect-'))

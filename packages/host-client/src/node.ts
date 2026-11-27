@@ -23,9 +23,11 @@ export {
   HOST_DAEMON_PROTOCOL,
   connectionDescriptorSchema,
   healthSchema,
+  pluginStateSchema,
   runtimeStateSchema,
   type ConnectionDescriptor,
   type Health,
+  type PluginState,
   type RuntimeState,
 } from './protocol.js'
 

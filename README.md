@@ -84,9 +84,17 @@ attaches to that process, and any number of them can be open at once.
 ```sh
 hulala host start        # the one Host for this state root, detached
 hulala                   # attach a window — do this in as many terminals as you like
-hulala host status       # what the daemon is doing
+hulala host status       # what the daemon is doing, and what it loaded
 hulala host stop         # the only thing that stops it
 ```
+
+`host status` prints the facts the daemon published about itself, including a
+bounded `plugins` roster and a `degraded` list: every entry the composition
+declared and the Loader did not activate, with its module and version. A Host
+that booted with something missing still answers, so this is where "it loaded"
+is asked rather than inferred from a log line. `hulala doctor` checks the same
+facts and exits non-zero — a profile `link:` whose runtime version was pruned, a
+Host that reports no roster, or any inactive entry.
 
 Clients discover the daemon through `endpoint.json` in the state root, so a
 second window never starts a private rival while a healthy Host answers. Closing
@@ -309,7 +317,13 @@ Host's root context. It is installed into a profile, never into the client:
 ```sh
 hulala plugin --profile tui add <package>    # same arguments DSH forwards to pnpm
 hulala plugin --profile tui list
+hulala plugin --profile tui add <package> --restart   # restart, then verify it loaded
 ```
+
+A Host imports its profile once, at boot, so an install that does not restart it
+changes nothing the running process uses. `add` therefore says which version the
+running Host has — and `--restart` restarts it and fails when the package is
+still not active.
 
 Everything it may do is whatever DSH exposes — sessions, workspaces, approvals,
 tools, MCP servers. The client is assembled from plugins internally, but that

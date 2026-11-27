@@ -13,7 +13,28 @@ permissions:
   contents: write
 
 jobs:
+  # One run for the whole tag, not one per platform: a tag pushed from a
+  # checkout whose tests were never run must not ship, and four identical runs
+  # would only make that slower to find out.
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Test
+        run: bun run test
+
   build:
+    needs: check
     strategy:
       fail-fast: false
       matrix:

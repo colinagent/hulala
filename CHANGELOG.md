@@ -13,7 +13,30 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+### Added
+
+- `hulala host status` reports what the running Host loaded: a bounded `plugins`
+  roster with each entry's module, version and state, and `degraded` naming the
+  entries that did not activate. The Host reads it from the live Loader, so a
+  bundle that never started is visible without reading a log file.
+- `hulala doctor` checks the installation instead of describing it: a profile
+  `link:` whose runtime version no longer exists, a running Host that does not
+  report a roster, and any entry that is not active. It exits non-zero when it
+  finds one, so a script can gate on it.
+- `hulala plugin ... add <package> --restart` restarts a running Host and fails
+  when the installed package is still not active. Without the flag the command
+  says which version the running Host has, instead of only asking for a restart.
+  `hulala host start` also reports whether it started a Host or found one already
+  answering.
+
 ### Fixed
+
+- A profile `link:` that points into a runtime version an upgrade pruned is
+  repaired at the next Host boot. The old check asked whether the path existed,
+  which follows the link and answers "absent" while the dangling entry still
+  occupies it, so creating the new link failed and the manifest kept the dead
+  path. `@colinagent/dsh-mcp` stayed inactive for eight days that way while the
+  Host booted normally.
 
 - A tool result's picture keeps drawing once its first row scrolls above the
   conversation, in every layout and not only the plain one. `pi-tui` crops a

@@ -23,6 +23,7 @@ import { apiGitPlugin } from './apiGit.ts'
 import { apiPastePlugin } from './apiPaste.ts'
 import { apiStartupPlugin } from './apiStartup.ts'
 import { commandTasksPlugin } from './commandTasks.ts'
+import { readComposition, type Composition } from './composition.ts'
 
 /** Host transport facts exposed to sibling plugins and the Host bootstrap. */
 export interface HulalaHostService {
@@ -38,6 +39,7 @@ declare module '@deepseek-ai/cordis' {
 
 /** Stable plugin name used by lifecycle diagnostics. */
 export const name = 'hulala-host'
+
 
 /** Mount the DSH web carrier when the profile did not already provide it. */
 async function ensureWebServer(ctx: Context, port: number): Promise<WebServer> {
@@ -103,8 +105,20 @@ export async function apply(ctx: Context, config: ServerConfig): Promise<void> {
       kind: 'exact',
       path: '/health',
       handler: (_request, response) => {
+        // Read on every request, not captured at boot: an entry can fail after
+        // startup, and a roster frozen at readiness would keep reporting a
+        // composition the process no longer has.
+        let composition: Composition = { plugins: [], degraded: [] }
+        try {
+          composition = readComposition(ctx)
+        } catch (error) {
+          // A roster this Host cannot read must not take the readiness route
+          // down with it: the Host is still answering, it just cannot say what
+          // it loaded.
+          console.error(`hulala: composition read failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`)
+        }
         response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
-        response.end(JSON.stringify(health))
+        response.end(JSON.stringify({ ...health, ...composition }))
       },
     }),
     'hulala-host: readiness route',

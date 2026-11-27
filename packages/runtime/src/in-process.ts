@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { access, mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readlink, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -348,15 +348,7 @@ async function syncHostBundles(profileDir: string, runtimeRoot: string): Promise
       const source = packageRootOf(runtimeRequire, name)
       if (source === undefined) continue
       const link = join(profileDir, 'node_modules', name)
-      if (!(await exists(link))) {
-        try {
-          await mkdir(dirname(link), { recursive: true })
-          await symlink(source, link, 'dir')
-        } catch {
-          // A link we cannot make is a bundle we do not load; the Host still boots.
-          continue
-        }
-      }
+      if (!(await relinkBundle(link, source))) continue
       if (!bundles.includes(name)) {
         bundles.push(name)
         changed = true
@@ -451,6 +443,52 @@ async function exists(path: string): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+/**
+ * Point one profile link at the copy this runtime ships.
+ *
+ * An upgrade prunes the old runtime version tree, which leaves the profile's
+ * symlink dangling: `access` follows the link and reports the path absent while
+ * the entry still occupies it, so creating the new link fails with `EEXIST` and
+ * the row keeps naming a package that no longer exists. Every boot therefore
+ * compares the target, not mere presence, and replaces it — a stale `link:`
+ * dependency in the manifest is repaired by the same pass.
+ * @param link - profile `node_modules/<name>` entry.
+ * @param source - package directory inside this runtime.
+ * @returns whether the profile now resolves this bundle from `source`.
+ */
+async function relinkBundle(link: string, source: string): Promise<boolean> {
+  const target = await linkTarget(link)
+  // A real directory is an install the user owns; the runtime does not replace
+  // it, and DSH's own precedence decides which copy loads.
+  if (target === source || target === 'directory') return true
+  try {
+    if (target !== 'absent') await rm(link, { force: true })
+    await mkdir(dirname(link), { recursive: true })
+    await symlink(source, link, 'dir')
+    return true
+  } catch {
+    // A link we cannot make is a bundle we do not load; the Host still boots.
+    return false
+  }
+}
+
+/**
+ * What occupies a link path: its resolved target, a real directory, or nothing.
+ * @param link - path to inspect without following it.
+ * @returns absolute symlink target, `'directory'` for a real entry, `'absent'`.
+ */
+async function linkTarget(link: string): Promise<string | 'directory' | 'absent'> {
+  try {
+    return resolve(dirname(link), await readlink(link))
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return 'absent'
+    // `readlink` on a real directory: not a link this function may replace.
+    if (code === 'EINVAL' || code === 'EISDIR' || code === 'EPERM') return 'directory'
+    throw error
   }
 }
 

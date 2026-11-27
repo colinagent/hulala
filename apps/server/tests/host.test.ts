@@ -26,7 +26,15 @@ test('publishes the DSH transport and keeps only the Host assembly surface', asy
 
   const healthResponse = await fetch(`${host.descriptor.httpUrl}/health`)
   expect(healthResponse.status).toBe(200)
-  const health = await healthResponse.json() as { name?: unknown; protocol?: unknown; instanceId?: unknown; pid?: unknown; runtime?: { state?: unknown } }
+  const health = await healthResponse.json() as {
+    name?: unknown
+    protocol?: unknown
+    instanceId?: unknown
+    pid?: unknown
+    runtime?: { state?: unknown }
+    plugins?: { module: string, version: string, state: string }[]
+    degraded?: { module: string, state: string }[]
+  }
   expect(health).toMatchObject({
     name: 'hulala-desktop-server',
     protocol: HOST_DAEMON_PROTOCOL,
@@ -34,6 +42,13 @@ test('publishes the DSH transport and keeps only the Host assembly surface', asy
     pid: host.pid,
     runtime: { state: 'running' },
   })
+  // The roster is how a client answers "did the suite I declared actually load".
+  // `@colinagent/dsh-mcp` is a runtime-owned bundle, not an optional extra, so it
+  // must be active with the version this runtime ships.
+  const mcp = health.plugins?.find(row => row.module === '@colinagent/dsh-mcp')
+  expect(mcp?.state).toBe('active')
+  expect(mcp?.version).toMatch(/^\d+\.\d+\.\d+/u)
+  expect(health.degraded).toEqual([])
 
   const exchange = await fetch(
     `${host.descriptor.httpUrl}/connect?token=${encodeURIComponent(host.descriptor.token)}&interactions=answer`,
