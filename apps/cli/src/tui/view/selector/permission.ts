@@ -13,6 +13,12 @@
  * There is no permission logic here — the Session write is the Host's
  * `/permission` command, and the default is the Host's settings document.
  *
+ * One list carries both facts, so a row states its own scope: the stored default
+ * is marked `default for new Sessions`, and a preset the Host only registered for
+ * the current Session (a live integration's, never one of its configured table)
+ * is marked `this Session only` — `Ctrl-S` cannot store that one, and the row
+ * says so before the key is pressed.
+ *
  * @module hulala-cli/tui/view/selector/permission
  */
 import {
@@ -41,6 +47,8 @@ export type PermissionPickerResult =
 export interface PermissionSelectorOptions {
   /** Every selectable preset, in the Host's contribution order. */
   presets: readonly TerminalPermissionPreset[]
+  /** Values the Host accepts as a new-Session default (`catalog.defaultOptions`). */
+  defaultPresets: readonly string[]
   /** The preset this Session runs at now; the cursor starts here and it is ticked. */
   current?: string
   /** The preset new Sessions start at, marked with a badge. */
@@ -122,14 +130,18 @@ export class PermissionSelector extends Container implements Focusable {
       const prefix = selected ? s.accent('→ ') : '  '
       const check = current ? s.ok('✓ ') : '  '
       const label = padEnd(this.labels[index] ?? preset.value, this.widest)
+      // What a row means for the *next* Session leads, because it is the one
+      // fact a narrow terminal must not truncate: `✓` alone is this Session, and
+      // the two are what a reader confuses before a new Session asks anyway.
       const details = [
+        ...(isDefault ? [t('selector.permission.default')] : []),
+        ...(this.options.defaultPresets.includes(preset.value) ? [] : [t('selector.permission.sessionOnly')]),
         ...(preset.description === undefined || preset.description === '' ? [] : [preset.description]),
         // The shipped table maps this key to `approval: never` over the
         // unconfined sandbox, so the consequence is stated here instead of in a
         // follow-up dialog; a Host that repoints the key can describe it itself.
         ...(preset.value === FULL_ACCESS_PRESET ? [t('selector.permission.fullAccess')] : []),
         ...(preset.value === AUTO_REVIEW_PRESET ? [t('selector.permission.exp')] : []),
-        ...(isDefault ? [t('selector.permission.default')] : []),
       ]
       const detail = details.length === 0 ? '' : s.dim(`  ${details.join(' · ')}`)
       this.list.addChild(new TruncatedText(`${prefix}${check}${selected ? s.accent(label) : label}${detail}`, 0, 0))

@@ -462,7 +462,9 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       repaint()
     },
     status: async () => {
-      const row = (label: string, value: string): void => { reducer.addNotice(`${label.padEnd(8)}${value}`) }
+      // One column wide enough for `permission` in English: the longest label
+      // used to touch its value, which made `/status` read as one word.
+      const row = (label: string, value: string): void => { reducer.addNotice(`${label.padEnd(11)}${value}`) }
       reducer.addNotice(`hulala  v${VERSION}`)
       if (updater.available !== undefined) reducer.addNotice(t('status.updateAvailable', { version: updater.available.latestVersion }))
       row(t('status.label.host'), backend.host.url === '' ? '-' : backend.host.url)
@@ -471,6 +473,12 @@ export function apply(ctx: Context, config: CommandsPluginConfig): void {
       const route = session.model === undefined ? '-' : `${session.model.provider}/${session.model.model}`
       row(t('status.label.model'), session.thinkingLevel === undefined ? route : `${route} • ${session.thinkingLevel}`)
       row(t('status.label.permission'), session.permission === undefined ? '-' : permissionLabel(session.permission))
+      // The other half of the same fact, and the only place it stays readable
+      // after the picker closes: a Session can differ from what new Sessions get.
+      await session.refreshPermissionDefault()
+      row(t('status.label.defaultPermission'), session.defaultPermission === undefined
+        ? '-'
+        : permissionLabel(session.defaultPermission))
       row(t('status.label.pane'), panes.visible === undefined ? '-' : `${panes.visible}${panes.focused ? ` ${t('status.value.focus')}` : ''}`)
       row(t('status.label.rail'), layout.railWanted ? (rail.focused ? `${t('status.value.visible')} ${t('status.value.focus')}` : t('status.value.visible')) : t('status.value.hidden'))
       row(t('status.label.chat'), layout.conversationShown ? t('status.value.visible') : t('status.value.hidden'))

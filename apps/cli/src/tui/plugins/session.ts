@@ -103,7 +103,11 @@ export interface TuiSession {
   cycleThinking(): Promise<void>
   /** The effective permission preset of the open Session; `undefined` until the Host reports one. */
   readonly permission: string | undefined
-  /** `/permission [default] [preset]`: switch this Session or write the new-Session default. */
+  /** The preset new Sessions start at, as the last permission catalog read said. */
+  readonly defaultPermission: string | undefined
+  /** Re-read the Host's permission catalog so {@link defaultPermission} is current. */
+  refreshPermissionDefault(): Promise<void>
+  /** `/permission`: the picker, where `Enter` switches this Session and `Ctrl-S` also stores the default. */
   choosePermission(argument: string): Promise<void>
 }
 
@@ -132,6 +136,8 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
   let catalog: TerminalModelCatalog | undefined
   /** The open Session's effective permission preset, mirrored from its projection. */
   let permission: string | undefined
+  /** The preset the Host gives Sessions created later, as the last catalog read said. */
+  let defaultPermission: string | undefined
   let sessions: TerminalSession[] = []
   /** Whether the transport is attached; a `connecting` retry still counts as up. */
   let transportUp = true
@@ -697,12 +703,32 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     permissionLabel(value, loaded.options.find(option => option.value === value)?.name)
 
   /**
+   * Re-read the preset the Host gives new Sessions.
+   *
+   * `/status` is the one durable place both permission facts are visible at
+   * once, so it reads this instead of trusting whatever the last picker saw. A
+   * Host that cannot describe its catalog — or is briefly gone — leaves the row
+   * at `-` rather than turning a status listing into an error.
+   */
+  const refreshPermissionDefault = async (): Promise<void> => {
+    try {
+      defaultPermission = (await backend.permissionCatalog()).defaultPreset
+    } catch {
+      // Leave the row at `-`: a status listing must not become an error line.
+    }
+  }
+
+  /**
    * Switch the Session, and optionally the default for Sessions created later.
    *
    * Both writes are the Host's: the Session through its `/permission` command,
    * the default through the `permission` settings namespace. A failed default
    * write leaves the Session switched and reports the failure instead of
    * pretending the pair succeeded.
+   *
+   * The notice names the scope, and for a Session-only switch it names the
+   * preset new Sessions still start at: `Enter` and `Ctrl-S` differ by exactly
+   * that, and `permission: <preset>` read as if the second had happened too.
    */
   const applyPermission = async (
     loaded: TerminalPermissionCatalog,
@@ -719,12 +745,30 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     permission = preset
     const name = permissionNameOf(loaded, preset)
     if (!saveDefault) {
-      reducer.addNotice(t('notice.permission', { preset: name }))
+      reducer.addNotice(t('notice.permission', {
+        preset: name,
+        nextSession: permissionNameOf(loaded, loaded.defaultPreset),
+      }))
+      repaint()
+      return
+    }
+    // The Host's default is a configured preset, not every preset a live
+    // integration registers: the settings field takes any string, and one the
+    // table does not hold makes the Host throw on the next catalog read and on
+    // every Session creation. The web settings row draws its choices from
+    // `defaultOptions` for exactly this reason; a single list here has to refuse
+    // the write instead of poisoning the document.
+    if (!loaded.defaultOptions.some(option => option.value === preset)) {
+      reducer.addNotice(t('notice.permissionDefaultFailed', {
+        preset: name,
+        reason: t('error.permissionDefaultNotStorable'),
+      }))
       repaint()
       return
     }
     try {
       await backend.setDefaultPermission(preset)
+      defaultPermission = preset
       reducer.addNotice(t('notice.permissionDefault', { preset: name }))
     } catch (caught) {
       reducer.addNotice(t('notice.permissionDefaultFailed', {
@@ -750,8 +794,10 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     }
     const loaded = await loadPermissions()
     if (loaded === undefined) return
+    defaultPermission = loaded.defaultPreset
     const picked = await composer.panel<PermissionPickerResult>(done => new PermissionSelector({
       presets: loaded.options,
+      defaultPresets: loaded.defaultOptions.map(option => option.value),
       ...(permission === undefined ? {} : { current: permission }),
       defaultPreset: loaded.defaultPreset,
       color: config.color,
@@ -912,6 +958,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     get model() { return model },
     get thinkingLevel() { return thinkingLevelOf(model, catalog) },
     get permission() { return permission },
+    get defaultPermission() { return defaultPermission },
     get sessions() { return sessions },
     get disconnected() { return isDisconnected() },
     refresh,
@@ -926,6 +973,7 @@ export function apply(ctx: Context, config: SessionPluginConfig): void {
     chooseThinking,
     cycleThinking,
     choosePermission,
+    refreshPermissionDefault,
   })
 }
 

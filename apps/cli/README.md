@@ -37,7 +37,13 @@ effect next to the model; a choice made there (or in `/model`) is also the defau
 DeepSeek Harness saves for new Sessions. `/permission` takes no argument and lists the
 presets the Host offers: `Enter` switches this Session, `Ctrl-S` also stores the
 choice as the default for new Sessions, and the list ticks the current preset and
-badges the default. The footer names the current preset next to the level.
+badges the default (`default for new Sessions`). A preset the Host only
+registered at runtime — Auto review, for instance — is marked `this Session only`:
+`Ctrl-S` cannot store it, because the Host resolves a default against its
+configured preset table. The notice after `Enter` names both facts — the preset
+this Session now runs at, and the preset a new Session still starts at — with
+`Ctrl-S` as the key that changes the second one; `/status` lists the same pair as
+`permission` and `default`. The footer names the current preset next to the level.
 
 The list above is the client's own commands. The Host's command catalog sits
 alongside it: every command the Session's agent registers appears in the `/`

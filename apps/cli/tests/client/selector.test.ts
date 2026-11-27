@@ -228,14 +228,16 @@ test('the thinking picker never paints past a narrow terminal', () => {
 
 function permission(
   onResolve: (result: PermissionPickerResult) => void = () => undefined,
-  overrides: Partial<{ current: string; defaultPreset: string; presets: readonly TerminalPermissionPreset[] }> = {},
+  overrides: Partial<{ current: string; defaultPreset: string; presets: readonly TerminalPermissionPreset[]; defaultPresets: readonly string[] }> = {},
 ): PermissionSelector {
+  const presets = overrides.presets ?? [
+    { value: 'read-only', name: 'read-only' },
+    { value: 'workspace-write', name: 'workspace-write' },
+    { value: 'danger-full-access', name: 'danger-full-access' },
+  ]
   const picker = new PermissionSelector({
-    presets: overrides.presets ?? [
-      { value: 'read-only', name: 'read-only' },
-      { value: 'workspace-write', name: 'workspace-write' },
-      { value: 'danger-full-access', name: 'danger-full-access' },
-    ],
+    presets,
+    defaultPresets: overrides.defaultPresets ?? presets.map(preset => preset.value),
     current: overrides.current ?? 'workspace-write',
     defaultPreset: overrides.defaultPreset ?? 'workspace-write',
     color: false,
@@ -252,13 +254,30 @@ test('the permission selector ticks the Session preset and badges the default se
   expect(lines[0]).toBe('─'.repeat(80))
   expect(lines.at(-1)).toBe('─'.repeat(80))
   expect(rendered).toContain('Permission — Workspace Write')
-  expect(rendered).toContain('→ ✓ Workspace Write  default')
+  expect(rendered).toContain('→ ✓ Workspace Write  default for new Sessions')
   expect(rendered).toContain('    Read Only')
   expect(rendered).toContain('    Full access')
   expect(rendered).toContain('↑↓/Ctrl-N/P move · Enter apply · Ctrl-S store default · Esc cancel')
   expect(rendered).toContain('Ctrl-S also makes the choice the default for new Sessions')
   expect(rendered).toContain('approvals off · no write sandbox')
   for (const line of lines) expect(visibleWidth(line) <= 80).toBe(true)
+})
+
+test('a preset the Host only registered for this Session is marked instead of claiming a default', () => {
+  const presets = [
+    { value: 'workspace-write', name: 'workspace-write' },
+    { value: 'auto', name: 'Auto review' },
+  ]
+  const rendered = strip(permission(undefined, {
+    presets,
+    current: 'workspace-write',
+    defaultPreset: 'workspace-write',
+    defaultPresets: ['workspace-write'],
+  }).render(80)).join('\n')
+  expect(rendered).toContain('→ ✓ Workspace Write  default for new Sessions')
+  // The Host's settings field takes this string but its table does not hold it,
+  // so `Ctrl-S` cannot store it: the row says so before the key is pressed.
+  expect(rendered).toMatch(/Auto review\s+this Session only/u)
 })
 
 test('Enter applies the cursor preset and Ctrl-S also stores it as the default', () => {
@@ -289,7 +308,7 @@ test('a custom preset keeps its configured name, and a current value it cannot s
   const rendered = strip(permission(undefined, { presets, current: 'custom', defaultPreset: 'read-only' }).render(80)).join('\n')
   expect(rendered).toContain('Permission — Custom')
   expect(rendered).toContain('Team wide  Every directory on this machine.')
-  expect(rendered).toContain('Read Only  default')
+  expect(rendered).toContain('Read Only  default for new Sessions')
   // `custom` is derived-only: it is never a row, so nothing is ticked.
   expect(rendered).not.toContain('✓')
 })

@@ -197,6 +197,7 @@ export interface MessageTable {
   'selector.thinking.persists': string
   'selector.permission.title': string
   'selector.permission.default': string
+  'selector.permission.sessionOnly': string
   'selector.permission.exp': string
   'selector.permission.footer': string
   'selector.permission.persists': string
@@ -223,6 +224,7 @@ export interface MessageTable {
   'status.label.chat': string
   'status.label.turn': string
   'status.label.permission': string
+  'status.label.defaultPermission': string
   'status.value.focus': string
   'status.value.visible': string
   'status.value.hidden': string
@@ -309,7 +311,7 @@ export interface MessageTable {
   'notice.reasoning': (params: { mode: string }) => string
   'notice.model': (params: { selection: string }) => string
   'notice.thinking': (params: { level: string }) => string
-  'notice.permission': (params: { preset: string }) => string
+  'notice.permission': (params: { preset: string; nextSession: string }) => string
   'notice.permissionDefault': (params: { preset: string }) => string
   'notice.permissionDefaultFailed': (params: { preset: string; reason: string }) => string
   'notice.createdSession': (params: { id: string }) => string
@@ -365,6 +367,7 @@ export interface MessageTable {
   'error.thinkingUnknown': (params: { level: string; levels: string }) => string
   'error.permissionUsage': string
   'error.permissionDefaultUnavailable': string
+  'error.permissionDefaultNotStorable': string
   'error.noProvider': string
   'error.languageUnsupported': (params: { value: string }) => string
   'error.pluginRender': (params: { plugin: string; id: string; reason: string }) => string

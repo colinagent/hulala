@@ -81,6 +81,13 @@ interface FakeBackend {
   permissions: string[]
   /** Presets the client asked the Host to store as the new-Session default. */
   permissionDefaults: string[]
+  /**
+   * Replace the presets the fake Host advertises, e.g. to add one a live
+   * integration registered (offered to sessions, refused as a default).
+   */
+  setPermissionOptions(options: readonly { value: string; name: string; description?: string }[], defaultOptions?: readonly { value: string; name: string; description?: string }[]): void
+  /** The preset the fake Host gives Sessions created later, without recording a write. */
+  setHostDefault(preset: string): void
   /** Session ids each `setPermission` call named, in call order. */
   permissionSessions: string[]
   /** How many times the Session list was fetched (the picker fetches it again). */
@@ -138,6 +145,13 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
   const permissions: string[] = []
   const permissionDefaults: string[] = []
   const permissionSessions: string[] = []
+  /** The new-Session default the fake catalog reports; a `Ctrl-S` write updates it. */
+  let permissionDefault = 'workspace-write'
+  /** Presets a test replaced, when the Host advertises more than its config table. */
+  let permissionOptions: {
+    options: readonly { value: string; name: string; description?: string }[]
+    defaultOptions: readonly { value: string; name: string; description?: string }[]
+  } | undefined
   const hostCommands: string[] = []
   const readImages: string[] = []
   let listSessionsCalls = 0
@@ -224,8 +238,9 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
     },
     async permissionCatalog() {
       const preset = (value: string) => ({ value, name: value })
-      const options = [preset('read-only'), preset('workspace-write'), preset('danger-full-access')]
-      return { options, defaultOptions: options, defaultPreset: 'workspace-write' }
+      const configured = [preset('read-only'), preset('workspace-write'), preset('danger-full-access')]
+      const options = permissionOptions?.options ?? configured
+      return { options, defaultOptions: permissionOptions?.defaultOptions ?? options, defaultPreset: permissionDefault }
     },
     async setPermission(sessionId, preset) { permissions.push(preset); permissionSessions.push(sessionId) },
     async commandCatalog() {
@@ -243,7 +258,7 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
       if (name !== 'compact' && name !== '压缩') return undefined
       return { kind: 'success' as const, text: 'Compacted 3 history items (~1200 tokens).' }
     },
-    async setDefaultPermission(preset) { permissionDefaults.push(preset) },
+    async setDefaultPermission(preset) { permissionDefaults.push(preset); permissionDefault = preset },
     async loginProviders() {
       return [
         { id: 'deepseek-official', name: 'DeepSeek', active: false, configured: false, baseURL: 'https://api.deepseek.com' },
@@ -308,6 +323,10 @@ function fakeBackend(sessionCwd = '/workspace', options: FakeBackendOptions = {}
     permissions,
     permissionDefaults,
     permissionSessions,
+    setHostDefault(preset: string) { permissionDefault = preset },
+    setPermissionOptions(options, defaultOptions) {
+      permissionOptions = { options, defaultOptions: defaultOptions ?? options }
+    },
     hostCommands,
     listSessionsCalls: () => listSessionsCalls,
     get handlers() { return liveHandlers },
@@ -2042,7 +2061,7 @@ test('the /permission picker switches this Session, and the default only on Ctrl
   expect(picker).toContain('Workspace Write')
   // The default badge sits on the row the Host reports as the default, not on
   // the cursor: the cursor is the current Session's preset.
-  expect(picker).toMatch(/Workspace Write\s+default/u)
+  expect(picker).toMatch(/Workspace Write\s+default for new Sessions/u)
   expect(picker).toContain('Ctrl-S also makes the choice the default for new Sessions')
   // The consequence of Full access is stated on its row, so picking it needs no
   // second confirmation.
@@ -2053,7 +2072,71 @@ test('the /permission picker switches this Session, and the default only on Ctrl
   await waitFor(() => fake.permissions.length === 1, 'permission applied')
   expect(fake.permissions).toEqual(['danger-full-access'])
   expect(fake.permissionDefaults).toEqual([])
-  await waitFor(() => tty.painted().includes('permission: Full access'), 'permission notice')
+  await waitFor(() => tty.painted().includes('permission: Full access for this Session · new Sessions: Workspace Write'), 'permission notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('Enter on the preset new Sessions already start at reports both at once', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.permission('workspace-write')
+  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
+
+  tty.input.write('/permission\r')
+  await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
+  tty.input.write('\r') // Enter on the preset the Host already gives new Sessions
+  await waitFor(() => fake.permissions.length === 1, 'permission applied')
+  expect(fake.permissionDefaults).toEqual([])
+  await waitFor(() => tty.painted().includes('permission: Workspace Write · new Sessions too'), 'permission notice')
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('/status names the Session preset and the new-Session default side by side', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  fake.permission('danger-full-access')
+  fake.setHostDefault('workspace-write')
+  await waitFor(() => tty.painted().includes('permission Full access'), 'footer preset')
+
+  tty.input.write('/status\r')
+  await waitFor(() => plain(tty.painted()).includes('hulala  v'), '/status ran')
+  // The two facts differ on purpose here: this Session is wide open, while the
+  // next one still starts confined. Both rows come from the listing itself (the
+  // band's footer only ever names the Session), and they sit next to each other
+  // so one reading compares them.
+  const status = plain(tty.painted()).split('hulala  v').at(-1) ?? ''
+  expect(status).toContain('permission Full access')
+  expect(status).toMatch(/default\s+Workspace Write/u)
+  tty.input.write('/quit\r')
+  await expect(tty.run).resolves.toBe(0)
+})
+
+test('Ctrl-S on a preset only the Session may use switches, and says the default did not change', async () => {
+  const fake = fakeBackend()
+  const tty = startTty(fake)
+  await waitFor(() => fake.handlers !== undefined, 'subscription')
+  const confined = { value: 'workspace-write', name: 'workspace-write' }
+  fake.setPermissionOptions([confined, { value: 'auto', name: 'Auto review' }], [confined])
+  fake.permission('workspace-write')
+  await waitFor(() => tty.painted().includes('permission Workspace Write'), 'footer preset')
+
+  tty.input.write('/permission\r')
+  await waitFor(() => plain(tty.painted()).includes('Permission — Workspace Write'), 'permission picker')
+  // The row says which of the two facts `Ctrl-S` can write before it is pressed.
+  expect(plain(tty.painted())).toMatch(/Auto review\s+this Session only/u)
+  tty.input.write('\u001b[B') // ↓ to Auto review
+  tty.input.write('\u0013') // Ctrl-S
+  await waitFor(() => fake.permissions.length === 1, 'permission applied')
+  expect(fake.permissions).toEqual(['auto'])
+  // The Host's settings field takes any string, and one its preset table does
+  // not hold throws on every later catalog read and Session creation: the
+  // client refuses the write instead of poisoning the document.
+  expect(fake.permissionDefaults).toEqual([])
+  await waitFor(() => tty.painted().includes('permission: Auto review · new-Session default unchanged'), 'refusal')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })
@@ -2521,7 +2604,7 @@ test('Ctrl-S applies the highlighted preset and stores it as the Session default
   await waitFor(() => fake.permissionDefaults.length === 1, 'default written')
   expect(fake.permissions).toEqual(['workspace-write'])
   expect(fake.permissionDefaults).toEqual(['workspace-write'])
-  await waitFor(() => tty.painted().includes('permission: Workspace Write · default for new Sessions'), 'notice')
+  await waitFor(() => tty.painted().includes('permission: Workspace Write · this Session and new Sessions'), 'notice')
   tty.input.write('/quit\r')
   await expect(tty.run).resolves.toBe(0)
 })

@@ -13,6 +13,27 @@ that version has no section. Releases before 0.2.30 are not recorded.
 
 ## [Unreleased]
 
+## [0.3.37] - 2026-11-27
+
+### Fixed
+
+- `/permission` says which Sessions a choice reached. Applying a preset with
+  `Enter` now reports `this Session` together with the preset new Sessions still
+  start at, and names `Ctrl-S` as the key that changes it, instead of a bare
+  `permission: Full access` that read as if every new conversation would follow.
+  The picker's badge says `default for new Sessions` and leads its row, so a
+  narrow terminal truncates the consequence rather than the one fact a reader
+  confuses; `/status` gained a `default` row beside `permission`, which is where
+  the two can still be told apart after the notice has scrolled away.
+- `Ctrl-S` no longer writes a preset the Host only registered at runtime (the
+  Auto review integration's, for example) into the new-Session default. That
+  field takes any string, but the Host resolves a default against its configured
+  preset table: a value outside it made every later `/permission` read and every
+  new Session fail with `unknown default preset`. The picker marks such a row
+  `this Session only`, and the notice says the default was left alone — which is
+  what the web settings row already guarantees by offering only configured
+  presets.
+
 ## [0.3.36] - 2026-11-26
 
 ### Added
