@@ -20,10 +20,15 @@
  *   ime                     print the current input source id
  *   ime <source-id>         select that source
  *   ime --english           select the first available English layout
+ *   ime --english-id        print that layout's id without switching
  *
- * "Available English layout" is `ABC`, then `US`, then any other keyboard
- * layout, because a machine may have only one of them enabled and a user who
- * removed `ABC` still has an English layout to switch to.
+ * "Available English layout" is asked of macOS rather than named here: the
+ * first keyboard layout (`kTISTypeKeyboardLayout`, which by construction reads
+ * keys as characters instead of composing them) whose declared languages
+ * include English, then any keyboard layout at all — a machine whose only
+ * layouts are non-English still gets a source the command surfaces can read.
+ * No vendor or layout id is hard-coded, so third-party and non-Apple English
+ * layouts work the same way.
  *
  * Input source ids come from macOS: `com.apple.keylayout.ABC` is the plain
  * English layout, `com.apple.inputmethod.SCIM.ITABC` Apple's Pinyin, and any
@@ -38,12 +43,6 @@
 #define IME_EXIT_UNKNOWN_SOURCE 3
 #define IME_EXIT_SELECT_FAILED 4
 #define IME_EXIT_ALREADY 10
-
-/** Ids tried in order before falling back to any keyboard layout. */
-static const char *ENGLISH_IDS[] = {
-  "com.apple.keylayout.ABC",
-  "com.apple.keylayout.US",
-};
 
 static CFStringRef copy_prop(TISInputSourceRef source, CFStringRef key) {
   CFTypeRef value = TISGetInputSourceProperty(source, key);
@@ -99,28 +98,48 @@ static TISInputSourceRef find_by_id(CFArrayRef sources, const char *wanted) {
   return NULL;
 }
 
-/** The first keyboard layout in `sources`, for machines without ABC or US. */
-static TISInputSourceRef find_any_layout(CFArrayRef sources) {
-  for (CFIndex index = 0; index < CFArrayGetCount(sources); index++) {
-    TISInputSourceRef source = (TISInputSourceRef)CFArrayGetValueAtIndex(sources, index);
-    CFStringRef type = copy_prop(source, kTISPropertyInputSourceType);
-    int layout = 0;
-    if (type != NULL) {
-      layout = CFEqual(type, kTISTypeKeyboardLayout);
-      CFRelease(type);
-    }
-    if (layout) return source;
+/** Whether a source is a keyboard layout, which never composes keystrokes. */
+static int is_layout(TISInputSourceRef source) {
+  CFStringRef type = copy_prop(source, kTISPropertyInputSourceType);
+  int layout = 0;
+  if (type != NULL) {
+    layout = CFEqual(type, kTISTypeKeyboardLayout);
+    CFRelease(type);
   }
-  return NULL;
+  return layout;
 }
 
-/** The English layout to switch to: ABC, US, then any keyboard layout. */
-static TISInputSourceRef find_english(CFArrayRef sources) {
-  for (size_t index = 0; index < sizeof(ENGLISH_IDS) / sizeof(ENGLISH_IDS[0]); index++) {
-    TISInputSourceRef source = find_by_id(sources, ENGLISH_IDS[index]);
-    if (source != NULL) return source;
+/** Whether a source declares English among the languages macOS reports for it. */
+static int is_english(TISInputSourceRef source) {
+  CFTypeRef value = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages);
+  if (value == NULL || CFGetTypeID(value) != CFArrayGetTypeID()) return 0;
+  CFArrayRef languages = (CFArrayRef)value;
+  for (CFIndex index = 0; index < CFArrayGetCount(languages); index++) {
+    CFTypeRef language = CFArrayGetValueAtIndex(languages, index);
+    if (language == NULL || CFGetTypeID(language) != CFStringGetTypeID()) continue;
+    if (CFStringHasPrefix((CFStringRef)language, CFSTR("en"))) return 1;
   }
-  return find_any_layout(sources);
+  return 0;
+}
+
+/**
+ * The layout to switch to: an English one when the machine has it, otherwise the
+ * first layout there is.
+ *
+ * Correctness only needs "a keyboard layout": one never composes a keystroke, so
+ * a command surface reads every key. English is the preference because a
+ * non-English layout moves punctuation and `y`/`z` around, which is worse than
+ * useless for a vim motion. Nothing here names a vendor, a bundle or a layout.
+ */
+static TISInputSourceRef find_english(CFArrayRef sources) {
+  TISInputSourceRef first = NULL;
+  for (CFIndex index = 0; index < CFArrayGetCount(sources); index++) {
+    TISInputSourceRef source = (TISInputSourceRef)CFArrayGetValueAtIndex(sources, index);
+    if (!is_layout(source)) continue;
+    if (is_english(source)) return source;
+    if (first == NULL) first = source;
+  }
+  return first;
 }
 
 /** Id of a source, or an empty string when it has none. */
@@ -169,6 +188,24 @@ static int select_by_id(const char *wanted) {
   return status;
 }
 
+/** `ime --english-id` — print the layout `--english` would select, without switching. */
+static int print_english(void) {
+  CFArrayRef sources = selectable_sources();
+  if (sources == NULL) return IME_EXIT_NO_SOURCE;
+  TISInputSourceRef source = find_english(sources);
+  int status = IME_EXIT_UNKNOWN_SOURCE;
+  if (source != NULL) {
+    char id[256];
+    source_id(source, id, sizeof(id));
+    if (id[0] != '\0') {
+      printf("%s\n", id);
+      status = 0;
+    }
+  }
+  CFRelease(sources);
+  return status;
+}
+
 /** `ime --english` — select the first available English layout. */
 static int select_english(void) {
   CFArrayRef sources = selectable_sources();
@@ -182,6 +219,7 @@ static int select_english(void) {
 int main(int argc, char **argv) {
   if (argc == 1) return print_current();
   if (argc == 2 && strcmp(argv[1], "--english") == 0) return select_english();
+  if (argc == 2 && strcmp(argv[1], "--english-id") == 0) return print_english();
   if (argc == 2) return select_by_id(argv[1]);
   fprintf(stderr, "usage: %s [--english | input-source-id]\n", argv[0]);
   return IME_EXIT_USAGE;

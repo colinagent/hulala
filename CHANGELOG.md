@@ -20,6 +20,14 @@ that version has no section. Releases before 0.2.30 are not recorded.
   it clipped the route it followed. The preset stays where it is asked for:
   `/permission` for the picker, `/status` for the `permission` and `default`
   rows.
+- The input-source helper asks macOS for an English keyboard layout instead of
+  naming Apple's two ids. Any keyboard layout whose declared languages include
+  English now qualifies — a third-party or non-Apple layout works, and a machine
+  that removed ABC and US still finds one. A keyboard layout by construction
+  reads keys as characters rather than composing them, which is the property a
+  command surface needs; English is the preference only because other layouts
+  move punctuation and `y`/`z`. `ime --english-id` prints the choice without
+  switching.
 
 ### Fixed
 
